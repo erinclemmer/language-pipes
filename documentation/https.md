@@ -1,0 +1,3 @@
+## HTTPS Transmition
+
+Normally when HTTPS transmitions occur, your browser appeals to a 3rd party authority server to issue public certificates that will verify that the communication you are doing in your web browser with a website matches the certificate that the authority server issued. This way we can know that the server can be trusted. Who would be the authority in peer-to-peer networks? There can't be a central authority to serve the public keys but we can request them when the transmission starts. When the server is started we send https certificates to other nodes in the network so that the next time we send them data we can verify that we are sending it to the right place with that certificate.

@@ -38,7 +38,7 @@ Below is an example configuration:
 **router.port:** (int) Port for the peer-to-peer network communication.  
 **router.aes_key_file:** (string) RSA encryption key for the network.  
   
-**processor.https:** (boolean) Whether to communicate in https (true) or http (false) mode for slightly less latency at the cost of security.  
+[**processor.https:**](./https.md) (boolean) Whether to communicate in https (true) or http (false) mode for slightly less latency at the cost of security.  
 **processor.job_port:** (int) Port for job communication.  
 **processor.hosted_models:** (list) List of models to host.  
 **processor.hosted_models[].id:** (string )Huggingface ID or file path to model inside of "/models" folder.  
