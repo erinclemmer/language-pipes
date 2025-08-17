@@ -3,17 +3,17 @@ from typing import Dict, Optional
 from threading import Thread
 from distributed_state_network import DSNodeServer, DSNodeConfig
 
-from lm_net.job_manager import JobManager
-from lm_net.job_receiver import JobReceiver
-from lm_net.handlers.oai import OAIHttpServer
+from language_pipes.job_manager import JobManager
+from language_pipes.job_receiver import JobReceiver
+from language_pipes.handlers.oai import OAIHttpServer
 
-from lm_net.util import stop_thread
-from lm_net.config import LMNetConfig
+from language_pipes.util import stop_thread
+from language_pipes.config import LMNetConfig
 
 def serve(httpd):
     httpd.serve_forever()
 
-class LMNet:
+class LanguagePipes:
     router: DSNodeServer
     
     job_manager: JobManager

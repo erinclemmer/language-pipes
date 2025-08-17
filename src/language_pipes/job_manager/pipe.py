@@ -8,11 +8,11 @@ from transformers import AutoTokenizer
 from transformers.models.llama.modeling_llama import LlamaConfig
 from distributed_state_network import DSNode
 
-from lm_net.util.meta import MetaPipe
-from lm_net.util.chat import ChatMessage
-from lm_net.job_manager.enums import JobStatus
-from lm_net.llm_model import LlmModel
-from lm_net.job_manager.job import Job, ComputeStep
+from language_pipes.util.meta import MetaPipe
+from language_pipes.util.chat import ChatMessage
+from language_pipes.job_manager.enums import JobStatus
+from language_pipes.llm_model import LlmModel
+from language_pipes.job_manager.job import Job, ComputeStep
 
 class Pipe:
     pipe_id: str

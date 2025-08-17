@@ -4,7 +4,7 @@ from typing import Optional
 from distributed_state_network.util.byte_helper import ByteHelper
 from llama_layer_collector.compute import LLmComputationState
 
-from lm_net.util import int_to_bytes, tensor_to_bytes, int_to_bytes, bytes_to_int, bytes_to_tensor
+from language_pipes.util import int_to_bytes, tensor_to_bytes, int_to_bytes, bytes_to_int, bytes_to_tensor
 
 class JobData:
     cache_position: Optional[torch.Tensor] = None

@@ -5,9 +5,9 @@ from typing import List, Tuple, Optional
 from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaDecoderLayer
 from transformers.models.llama.configuration_llama import LlamaConfig
 
-from lm_net.util import size_of_tensor, tensor_hash
-from lm_net.job_manager.enums import ModelPartType
-from lm_net.util.meta import MetaComputed
+from language_pipes.util import size_of_tensor, tensor_hash
+from language_pipes.job_manager.enums import ModelPartType
+from language_pipes.util.meta import MetaComputed
 
 def get_size_of_layer(config: LlamaConfig, layer_idx: int) -> Tuple[float, str]:
     lyr = LlamaDecoderLayer(config, layer_idx).to(dtype=torch.float16)

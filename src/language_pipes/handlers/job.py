@@ -5,7 +5,7 @@ from typing import Tuple, Callable
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from distributed_state_network import DSNode
 
-from lm_net.util.http import _respond_bytes
+from language_pipes.util.http import _respond_bytes
 
 class JobHandler(BaseHTTPRequestHandler):
     server: "JobServer"

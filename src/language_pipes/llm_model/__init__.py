@@ -11,10 +11,10 @@ from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LlamaRMS
 import torch
 from torch import tensor
 
-from lm_net.util.meta import MetaModel
-from lm_net.job_manager.job import ComputeStep, Job
-from lm_net.job_manager.job_data import computationStateToJobData, jobDataToComputationState
-from lm_net.llm_model.computed import ComputedData
+from language_pipes.util.meta import MetaModel
+from language_pipes.job_manager.job import ComputeStep, Job
+from language_pipes.job_manager.job_data import computationStateToJobData, jobDataToComputationState
+from language_pipes.llm_model.computed import ComputedData
 from llama_layer_collector import LlamaLayerCollector
 
 class LlmModel:

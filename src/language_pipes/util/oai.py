@@ -4,9 +4,9 @@ from typing import Callable, List
 from promise import Promise
 from http.server import BaseHTTPRequestHandler
 
-from lm_net.util.chat import ChatMessage
-from lm_net.util.http import _respond_json
-from lm_net.job_manager.job import Job
+from language_pipes.util.chat import ChatMessage
+from language_pipes.util.http import _respond_json
+from language_pipes.job_manager.job import Job
 
 class ChatCompletionRequest:
     model: str

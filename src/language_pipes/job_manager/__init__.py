@@ -8,16 +8,16 @@ from promise import Promise
 from uuid import uuid4
 from distributed_state_network import DSNode
 
-from lm_net.util.meta import MetaPipe
-from lm_net.job_manager.router_pipes import RouterPipes
-from lm_net.job_manager.job import Job
-from lm_net.job_manager.pipe import Pipe
-from lm_net.job_manager.enums import JobStatus
-from lm_net.util.chat import ChatMessage
-from lm_net.util import stop_thread
-from lm_net.config.processor import ProcessorConfig
-from lm_net.llm_model import LlmModel
-from lm_net.llm_model.computed import validate_model
+from language_pipes.util.meta import MetaPipe
+from language_pipes.job_manager.router_pipes import RouterPipes
+from language_pipes.job_manager.job import Job
+from language_pipes.job_manager.pipe import Pipe
+from language_pipes.job_manager.enums import JobStatus
+from language_pipes.util.chat import ChatMessage
+from language_pipes.util import stop_thread
+from language_pipes.config.processor import ProcessorConfig
+from language_pipes.llm_model import LlmModel
+from language_pipes.llm_model.computed import validate_model
 
 class PendingJob:
     job_id: str

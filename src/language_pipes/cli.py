@@ -1,7 +1,7 @@
 import os
 import sys
 
-from lm_net import LMNet
+from __init__ import LanguagePipes
 
 def main():
 
@@ -14,7 +14,7 @@ def main():
         print("Usage: python main.py [config_file]")
         exit()
 
-    LMNet(version, config_file=sys.argv[1])
+    LanguagePipes(version, config_file=sys.argv[1])
 
 if __name__ == "__main__":
     main()

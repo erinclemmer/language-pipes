@@ -1,5 +1,16 @@
 [build-system]
-requires = ["hatchling"]
+requires = [
+    "hatchling",
+    "torch",
+    "transformers",
+    "uuid",
+    "promise",
+    "requests",
+    "ssl",
+    "logging",
+    "distributed-state-network",
+    "llama-layer-collector"
+]
 build-backend = "hatchling.build"
 
 [project]
@@ -22,11 +33,20 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "torch",
+    "transformers",
+    "uuid",
+    "promise",
+    "requests",
+    "ssl",
+    "logging",
+    "distributed-state-network",
+    "llama-layer-collector"
 ]
 
 [project.urls]
-Homepage = "https://github.com/erinclemmer/distributed_state_network"
-Issues = "https://github.com/erinclemmer/distributed_state_network/issues"
+Homepage = "https://github.com/erinclemmer/language-pipes"
+Issues = "https://github.com/erinclemmer/language-pipes/issues"
  
 [tool.hatch.build.targets.wheel]
-packages = ["src/distributed_state_network"]
+packages = ["src/language_pipes"]

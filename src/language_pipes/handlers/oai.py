@@ -3,8 +3,8 @@ import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Callable
 
-from lm_net.util.oai import oai_chat_complete
-from lm_net.util.http import _send_403
+from language_pipes.util.oai import oai_chat_complete
+from language_pipes.util.http import _send_403
 
 class T:
     complete: Callable

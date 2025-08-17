@@ -2,7 +2,7 @@ import json
 from typing import List, Dict, Optional
 from distributed_state_network import DSNode
 
-from lm_net.util.meta import MetaModel, MetaPipe
+from language_pipes.util.meta import MetaModel, MetaPipe
 
 def aggregate_models(models: List[MetaModel]) -> List[MetaPipe]:
     pipes: List[MetaPipe] = []

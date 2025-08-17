@@ -2,7 +2,7 @@ import json
 from typing import Dict, Optional
 from dataclasses import dataclass
 
-from lm_net.config.processor import ProcessorConfig
+from language_pipes.config.processor import ProcessorConfig
 from distributed_state_network import DSNodeConfig
 
 @dataclass

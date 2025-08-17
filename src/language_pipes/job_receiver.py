@@ -3,12 +3,12 @@ from threading import Thread
 from typing import Callable, Optional, List, Tuple
 from distributed_state_network import DSNode
 
-from lm_net.job_manager.pipe import Pipe
-from lm_net.job_manager.job import Job
-from lm_net.job_manager.enums import JobStatus, ComputeStep
-from lm_net.handlers.job import JobServer
-from lm_net.util import stop_thread
-from lm_net.config.processor import ProcessorConfig
+from language_pipes.job_manager.pipe import Pipe
+from language_pipes.job_manager.job import Job
+from language_pipes.job_manager.enums import JobStatus, ComputeStep
+from language_pipes.handlers.job import JobServer
+from language_pipes.util import stop_thread
+from language_pipes.config.processor import ProcessorConfig
 
 class JobReceiver:
     port: int

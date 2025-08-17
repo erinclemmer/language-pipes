@@ -8,10 +8,10 @@ import torch
 from distributed_state_network.objects.signed_packet import SignedPacket
 from distributed_state_network.util.byte_helper import ByteHelper
 
-from lm_net.job_manager.job_data import JobData
-from lm_net.job_manager.enums import ComputeStep, JobStatus
-from lm_net.util.chat import ChatMessage
-from lm_net.util import tensor_to_bytes, int_to_bytes, bytes_to_tensor, bytes_to_int, uuid_to_bytes, bytes_to_uuid
+from language_pipes.job_manager.job_data import JobData
+from language_pipes.job_manager.enums import ComputeStep, JobStatus
+from language_pipes.util.chat import ChatMessage
+from language_pipes.util import tensor_to_bytes, int_to_bytes, bytes_to_tensor, bytes_to_int, uuid_to_bytes, bytes_to_uuid
 
 class Job(SignedPacket):
     router_id: str
