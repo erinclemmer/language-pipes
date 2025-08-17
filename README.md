@@ -17,17 +17,15 @@
 [PythonVersion-Url]: https://img.shields.io/pypi/pyversions/language-pipes
 
 Language pipes is a distributed network application designed to increase accessabilitty to local language models. Over the past few years open source language models have become much more powerful yet the most powerful models are still out of reach of the general population because of the extreme amounts of RAM that is needed to host these models. Language Pipes allows multiple computer systems to host the same model and move computatiton data between them while being as easy as possible to set up.
-
-#### Features:
 - Quick Setup
 - Peer to peer network
 - OpenAI compatable API
-- Download and use models by huggingface ID
+- Download and use models by HuggingFace ID
 - Encrypted communication between nodes
 
 ### What Does it do?
 ![Basic Flow](./pictures/Basic_Flow.png "Basic Flow")  
-In a basic sense, language models work by passing information through many layers. At each layer, several matrix multiplicatitons are performed and the data is moved to the next layer. Language pipes works by hosting different layers on different machines to split up the RAM cost across the system.
+In a basic sense, language models work by passing information through many layers. At each layer, several matrix multiplicatitons between the layer weights and the system state are performed and the data is moved to the next layer. Language pipes works by hosting different layers on different machines to split up the RAM cost across the system.
 
 #### How is this different from Distributed Llama?
 [Distributed Llama](https://github.com/b4rtaz/distributed-llama) is built to be a static network and requires individual setup and allocation for each model hosted. Language Pipes meanwhile, has a more flexible setup process that automatically selects which parts of the model to load based on what the network needs and the local systems resources. This allows separate users to collectively host a network together while maintaining trust that one configuration will not break the network.
@@ -49,6 +47,11 @@ Finally, start the server:
 ```bash
 language-pipes config.json
 ```
+
+### Models Supported
+* Llama 2 & Llama 3.X
+
+### 
 
 ### Contributing
 * PRs and collaboration are welcome :)
