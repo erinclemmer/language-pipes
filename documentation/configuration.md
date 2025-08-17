@@ -1,5 +1,6 @@
 # Configuration
 
+Below is an example configuration:
 ```json
 {
     "logging_level": "info",
@@ -28,3 +29,18 @@
     }
 }
 ```
+
+### Explanation
+**logging_level:** Level of verbosity.  
+**oai_port:** (optional) Port for openai compatable server, no OpenAI server will be hosted if this field is left out.  
+  
+**router.node_id:** String identifier for the your server, must be unique on the network.  
+**router.port:** Port for the peer-to-peer network communication.  
+**router.aes_key_file:** RSA encryption key for the network.  
+  
+**processor.https:** Whether to communicate in https (true) or http (false) mode for slightly less latency at the cost of security.  
+**processor.job_port:** Port for job communication.  
+**processor.hosted_models:** List of models to host.  
+**processor.hosted_models[].id:** Huggingface ID or file path to model inside of "/models" folder.  
+**processor.hosted_models[].device:** Device type to host on, corresponds to pytorch device type e.g. "cuda:0", "cpu", etc.
+**processor.hosted_models[].max_memory:** (in GB) Maximum memory to use to host this model.  
