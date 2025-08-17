@@ -23,7 +23,41 @@ To install the latest version:
 pip install language-pipes
 ```
 
+Create a network key for the network:
+```bash
+language-pipes create_key network.key
+```
 
+Then create a `config.json` file to tell the program how to operate. This is an example:
+```json
+{
+    "logging_level": "info",
+    "oai_port": 8080,
+    "router": {
+        "node_id": "node-1",
+        "port": 5000,
+        "aes_key_file":"network.key",
+        "bootstrap_nodes": [
+            {
+                "address": "192.0.0.10",
+                "port": 5000
+            }
+        ]
+    },
+    "processor": {
+        "https": true,
+        "job_port": 5001,
+        "hosted_models": [
+            {
+                "id": "cool-model",
+                "device": "cuda",
+                "max_memory": 5
+            }
+        ]
+    }
+}
+```
+Go [here](google.com) to see what all these configuration options do.
 
 # Documentation
 
