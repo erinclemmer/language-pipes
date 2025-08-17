@@ -1,9 +1,9 @@
-## Language Pipes
+# Language Pipes
 
-[![GitHub license](License-Image)](License-Url)
+[![GitHub license][License-Image]](License-Url)
 [![Release][Release-Image]][Release-Url] 
-![PyPI - Version](PyPiVersion-Url)
-![PyPI - Python Version](PythonVersion-Url)
+[![PyPI - Version]](PyPiVersion-Url)
+[![PyPI - Python Version]](PythonVersion-Url)
 
 [License-Image]: https://img.shields.io/badge/license-MIT-blue.svg
 [License-Url]: https://github.com/erinclemmer/language-pipes/blob/main/LICENSE
@@ -16,51 +16,40 @@
 
 Language pipes is an application designed to allow more people to have access to local language models. Over the past few years open source language models have become much more powerful yet the most powerful models are still out of reach of the general population because of the extreme amounts of ram that is needed to host these models. Language pipes allows multiple computer systems to host the same model and move computatiton data between them while being as easy as possible to set up.
 
+#### Features:
+- Quick Setup
+- OpenAI compatable API
+- Automatic model setup by using huggingface.co model id
+- Encrypted communication between nodes
+- ECDSA Packet signing to stop man in the middle attacks
 
-# Installation
-To install the latest version:
+### What Does it do?
+![Basic Flow](./pictures/Basic_Flow.png "Basic Flow")  
+In a basic sense, language models work by passing information through many layers. At each layer, several matrix multiplicatitons are performed and the data is moved to the next layer. Language pipes works by hosting different layers on different machines to split up the ram cost across the system.
+
+#### Why not use Distributed Llama?
+[Distributed Llama](https://github.com/b4rtaz/distributed-llama) is built to be a static network and requires individual setup and allocation for each model hosted. Language Pipes meanwhile, has a more flexible setup process that automatically selects which parts of the model to load based on what the network needs and the local systems resources. This allows separate users to collectively host a network together while maintaining trust that one configuration will not break the network.
+
+### Installation
+To install the latest version of the package:
 ```bash
 pip install language-pipes
 ```
 
-Create a network key for the network:
+Then, create a network key for the network:
 ```bash
 language-pipes create_key network.key
 ```
 
-Then create a `config.json` file to tell the program how to operate. This is an example:
-```json
-{
-    "logging_level": "info",
-    "oai_port": 8080,
-    "router": {
-        "node_id": "node-1",
-        "port": 5000,
-        "aes_key_file":"network.key",
-        "bootstrap_nodes": [
-            {
-                "address": "192.0.0.10",
-                "port": 5000
-            }
-        ]
-    },
-    "processor": {
-        "https": true,
-        "job_port": 5001,
-        "hosted_models": [
-            {
-                "id": "cool-model",
-                "device": "cuda",
-                "max_memory": 5
-            }
-        ]
-    }
-}
+Also create a `config.json` file to tell the program how to operate. Go to the [cofiguration documentatioon](/documentation/configuration.md) for more information.
+
+Finally, start the server:
+```bash
+language-pipes config.json
 ```
-Go [here](google.com) to see what all these configuration options do.
 
-# Documentation
+### Documentation
 
-# Examples
+### Examples
 
-# Contributing
+### Contributing

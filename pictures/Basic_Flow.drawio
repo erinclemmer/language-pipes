@@ -1,0 +1,62 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0" version="28.1.0">
+  <diagram name="Page-1" id="go1bE2AfecXTx57KRdSr">
+    <mxGraphModel dx="586" dy="602" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="cBoanOsbDrFuvEtptKvO-27" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="cBoanOsbDrFuvEtptKvO-2" target="cBoanOsbDrFuvEtptKvO-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cBoanOsbDrFuvEtptKvO-2" value="User" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
+          <mxGeometry x="50" y="100" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cBoanOsbDrFuvEtptKvO-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="cBoanOsbDrFuvEtptKvO-3" target="cBoanOsbDrFuvEtptKvO-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cBoanOsbDrFuvEtptKvO-26" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" target="cBoanOsbDrFuvEtptKvO-2">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="160" y="100" as="sourcePoint" />
+            <Array as="points">
+              <mxPoint x="115" y="100" />
+              <mxPoint x="115" y="130" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cBoanOsbDrFuvEtptKvO-3" value="Internet" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="150" y="60" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="cBoanOsbDrFuvEtptKvO-18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="cBoanOsbDrFuvEtptKvO-10" target="cBoanOsbDrFuvEtptKvO-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cBoanOsbDrFuvEtptKvO-22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="cBoanOsbDrFuvEtptKvO-10" target="cBoanOsbDrFuvEtptKvO-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cBoanOsbDrFuvEtptKvO-10" value="Layers 0-3" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="320" y="60" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="cBoanOsbDrFuvEtptKvO-11" value="Layers 4-8" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="320" y="250" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="cBoanOsbDrFuvEtptKvO-19" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="cBoanOsbDrFuvEtptKvO-11" target="cBoanOsbDrFuvEtptKvO-12">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="540" y="290" as="targetPoint" />
+            <mxPoint x="400" y="290" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cBoanOsbDrFuvEtptKvO-20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cBoanOsbDrFuvEtptKvO-12" target="cBoanOsbDrFuvEtptKvO-10">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="510" y="100" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cBoanOsbDrFuvEtptKvO-12" value="Layers 8-16" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="470" y="250" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="cBoanOsbDrFuvEtptKvO-23" value="Local Network" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="400" y="170" width="60" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
