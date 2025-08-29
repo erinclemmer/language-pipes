@@ -6,10 +6,10 @@ requires = [
     "uuid",
     "promise",
     "requests",
-    "ssl",
     "logging",
     "distributed-state-network",
-    "llama-layer-collector"
+    "llama-layer-collector",
+    "toml"
 ]
 build-backend = "hatchling.build"
 
@@ -38,15 +38,18 @@ dependencies = [
     "uuid",
     "promise",
     "requests",
-    "ssl",
     "logging",
     "distributed-state-network",
-    "llama-layer-collector"
+    "llama-layer-collector",
+    "toml"
 ]
 
 [project.urls]
 Homepage = "https://github.com/erinclemmer/language-pipes"
 Issues = "https://github.com/erinclemmer/language-pipes/issues"
  
+[project.scripts]
+language-pipes="language_pipes.cli:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/language_pipes"]

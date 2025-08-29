@@ -1,4 +1,4 @@
-import tomllib
+import toml
 from typing import Dict, Optional
 from dataclasses import dataclass
 
@@ -24,5 +24,5 @@ class LMNetConfig:
     @staticmethod
     def from_file(file_name: str) -> 'LMNetConfig':
         with open(file_name, 'rb') as f:
-            data = tomllib.load(f)
+            data = toml.load(f)
         return LMNetConfig.from_dict(data)

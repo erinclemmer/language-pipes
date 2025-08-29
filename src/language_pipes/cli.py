@@ -3,7 +3,7 @@ import sys
 import argparse
 from language_pipes.util.aes import generate_aes_key
 
-from __init__ import LanguagePipes
+from language_pipes import LanguagePipes
 
 def get_version():
     if not os.path.exists("release.txt"):
@@ -22,13 +22,16 @@ def build_parser():
     # run command
     run_parser = subparsers.add_parser("run", help="Run Language Pipes with config")
     run_parser.add_argument("config_file", help="Path to TOML config file")
-    run_parser.add_argument("--logging-level", help="Override logging level")
-    run_parser.add_argument("--oai-port", type=int, help="Override OAI port")
-    run_parser.add_argument("--router-host", help="Override router host")
-    run_parser.add_argument("--router-port", type=int, help="Override router port")
-    run_parser.add_argument("--https", type=bool, help="Override HTTPS setting")
-    run_parser.add_argument("--job-port", type=int, help="Override job port")
-    run_parser.add_argument("--hosted-models", nargs="*", help="Override hosted models in format id[:device[:max_memory]]")
+    run_parser.add_argument("--logging-level", help="Logging level")
+    run_parser.add_argument("--oai-port", type=int, help="Open AI server port")
+    run_parser.add_argument("--dsn-node-id", help="Node ID for the network")
+    run_parser.add_argument("--dsn-port", type=int, help="Port for peer-to-peer network")
+    run_parser.add_argument("--dsn-bootstrap-ip", help="Bootstrap address for network")
+    run_parser.add_argument("--dsn-bootstrap-port", type=int, help="Bootstrap port for the network")
+    run_parser.add_argument("--aes-key", type=str, help="AES key to access network")
+    run_parser.add_argument("--https", type=bool, help="HTTPS job communication")
+    run_parser.add_argument("--job-port", type=int, help="Job receiver port")
+    run_parser.add_argument("--hosted-models", nargs="*", help="Hosted models in format id[:device[:max_memory]]")
 
     return parser
 
