@@ -33,19 +33,37 @@ def build_parser():
     return parser
 
 def apply_overrides(config, args):
-    # Apply overrides or defaults
-    config.logging_level = args.logging_level or getattr(config, "logging_level", "INFO")
-    config.oai_port = args.oai_port or getattr(config, "oai_port", 8000)
-    config.router.host = args.router_host or getattr(config.router, "host", "127.0.0.1")
-    config.router.port = args.router_port or getattr(config.router, "port", 9000)
-    config.processor.https = args.https if args.https is not None else getattr(config.processor, "https", False)
-    config.processor.job_port = args.job_port or getattr(config.processor, "job_port", 10000)
+    # Environment variable mapping
+    env_map = {
+        "logging_level": os.getenv("LP_LOGGING_LEVEL"),
+        "oai_port": os.getenv("LP_OAI_PORT"),
+        "router_host": os.getenv("LP_ROUTER_HOST"),
+        "router_port": os.getenv("LP_ROUTER_PORT"),
+        "https": os.getenv("LP_HTTPS"),
+        "job_port": os.getenv("LP_JOB_PORT"),
+        "hosted_models": os.getenv("LP_HOSTED_MODELS"),
+    }
+
+    # Apply precedence: args > env > config > defaults
+    config.logging_level = args.logging_level or env_map["logging_level"] or getattr(config, "logging_level", "INFO")
+    config.oai_port = args.oai_port or (int(env_map["oai_port"]) if env_map["oai_port"] else None) or getattr(config, "oai_port", 8000)
+    config.router.host = args.router_host or env_map["router_host"] or getattr(config.router, "host", "127.0.0.1")
+    config.router.port = args.router_port or (int(env_map["router_port"]) if env_map["router_port"] else None) or getattr(config.router, "port", 9000)
+    if args.https is not None:
+        config.processor.https = args.https
+    elif env_map["https"] is not None:
+        config.processor.https = env_map["https"].lower() in ("1", "true", "yes")
+    else:
+        config.processor.https = getattr(config.processor, "https", False)
+    config.processor.job_port = args.job_port or (int(env_map["job_port"]) if env_map["job_port"] else None) or getattr(config.processor, "job_port", 10000)
 
     # Hosted models are required
-    if args.hosted_models:
+    hosted_models_arg = args.hosted_models
+    hosted_models_env = env_map["hosted_models"].split() if env_map["hosted_models"] else None
+    if hosted_models_arg or hosted_models_env:
         from language_pipes.config.processor import HostedModel
         models = []
-        for m in args.hosted_models:
+        for m in (hosted_models_arg or hosted_models_env):
             parts = m.split(":")
             id = parts[0]
             device = parts[1] if len(parts) > 1 else "cpu"
@@ -53,7 +71,7 @@ def apply_overrides(config, args):
             models.append(HostedModel(id, device, max_memory))
         config.processor.hosted_models = models
     elif not getattr(config.processor, "hosted_models", None):
-        raise ValueError("At least one hosted_model must be specified via config or CLI")
+        raise ValueError("At least one hosted_model must be specified via config, CLI, or environment")
 
     return config
 
