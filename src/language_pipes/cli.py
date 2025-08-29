@@ -33,18 +33,15 @@ def build_parser():
     return parser
 
 def apply_overrides(config, args):
-    if args.logging_level:
-        config.logging_level = args.logging_level
-    if args.oai_port:
-        config.oai_port = args.oai_port
-    if args.router_host:
-        config.router.host = args.router_host
-    if args.router_port:
-        config.router.port = args.router_port
-    if args.https is not None:
-        config.processor.https = args.https
-    if args.job_port:
-        config.processor.job_port = args.job_port
+    # Apply overrides or defaults
+    config.logging_level = args.logging_level or getattr(config, "logging_level", "INFO")
+    config.oai_port = args.oai_port or getattr(config, "oai_port", 8000)
+    config.router.host = args.router_host or getattr(config.router, "host", "127.0.0.1")
+    config.router.port = args.router_port or getattr(config.router, "port", 9000)
+    config.processor.https = args.https if args.https is not None else getattr(config.processor, "https", False)
+    config.processor.job_port = args.job_port or getattr(config.processor, "job_port", 10000)
+
+    # Hosted models are required
     if args.hosted_models:
         from language_pipes.config.processor import HostedModel
         models = []
@@ -55,6 +52,9 @@ def apply_overrides(config, args):
             max_memory = int(parts[2]) * 10**9 if len(parts) > 2 else 0
             models.append(HostedModel(id, device, max_memory))
         config.processor.hosted_models = models
+    elif not getattr(config.processor, "hosted_models", None):
+        raise ValueError("At least one hosted_model must be specified via config or CLI")
+
     return config
 
 def main():
