@@ -14,19 +14,27 @@ def get_version():
 def main():
     version = get_version()
 
-    if len(sys.argv) < 2:
-        print("Usage: language_pipes [config_file]")
-        exit()
+    parser = argparse.ArgumentParser(description="Language Pipes CLI")
+    subparsers = parser.add_subparsers(dest="command")
 
-    if sys.argv[1] == 'create_key':
-        if len(sys.argv) < 3:
-            print("Usage: language_pipes create_key [output_file]")
-            exit()
-        with open(sys.argv[2], 'wb') as f:
+    # create_key command
+    create_key_parser = subparsers.add_parser("create_key", help="Generate AES key")
+    create_key_parser.add_argument("output_file", help="Output file for AES key")
+
+    # run command (default)
+    run_parser = subparsers.add_parser("run", help="Run Language Pipes with config")
+    run_parser.add_argument("config_file", help="Path to TOML config file")
+
+    args = parser.parse_args()
+
+    if args.command == "create_key":
+        with open(args.output_file, 'wb') as f:
             f.write(generate_aes_key())
-        exit()
-
-    LanguagePipes(version, config_file=sys.argv[1])
+    elif args.command == "run":
+        LanguagePipes(version, config_file=args.config_file)
+    else:
+        parser.print_usage()
+        exit(1)
 
 if __name__ == "__main__":
     main()

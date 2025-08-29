@@ -1,4 +1,4 @@
-import json
+import tomllib
 from typing import Dict, Optional
 from dataclasses import dataclass
 
@@ -23,6 +23,6 @@ class LMNetConfig:
 
     @staticmethod
     def from_file(file_name: str) -> 'LMNetConfig':
-        with open(file_name, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        with open(file_name, 'rb') as f:
+            data = tomllib.load(f)
         return LMNetConfig.from_dict(data)
