@@ -1,10 +1,10 @@
 # Configuration
 
-There are several options to configure a server and type can take precedence over each other. The precedence is defined below:
+There are several options to configure a server and the order of precedence is defined below:
 
 `command arguments > environment variables > toml configuration > system defaults`
 
-Below is an example Toml configuration:
+An example Toml configuration:
 ```toml
 node_id="node-1" # Required
 logging_level="INFO"
@@ -28,14 +28,12 @@ max_memory=5
 **Command Argument:** `--node-id`  
 **Environment Variable:** `LP_NODE_ID`  
 **Type:** String  
-**Required:** Yes    
 **Description:**  String identifier for your server, must be unique on the network.  
 
 ### `hosted_models`
 **Command Argument:** `--hosted-models`  
 **Environment Variable:** `LP_HOSTED_MODELS`  
 **Type:** `Array`  
-**Required:** Yes    
 **Description:** List of models to host. For command arguments and environment variables it must be in this format: `[model-id]:[device]:[max_memory]`  
 **processor.hosted_models[].id:** (string) Huggingface ID or file path to model inside of "/models" folder.  
 **processor.hosted_models[].device:** (string) Device type to host on, corresponds to pytorch device type e.g. "cuda:0", "cpu", etc.  
@@ -47,7 +45,6 @@ max_memory=5
 **Command Argument:** `--logging-level`  
 **Environment Variable:** `LP_LOGGING_LEVEL`  
 **Type:** `String`  
-**Required:** No  
 **Default:** `"INFO"`  
 **Allowed Values:** `"INFO" | "DEBUG" | "WARNING" | "ERROR"`  
 **Description:** Level of verbosity for the server to print to standard out. Sets the [internal logger's log level](https://docs.python.org/3/library/logging.html#logging-levels).  
@@ -56,7 +53,6 @@ max_memory=5
 **Command Argument:** `--oai-port`  
 **Environment Variable:** `LP_OAI_PORT`  
 **Type:** `Int`  
-**Required:** No  
 **Default:** `None`  
 **Allowed Values:** Valid port number  
 **Description:** Port for openai compatable server, no OpenAI server will be hosted if this field is left out.  
@@ -65,7 +61,6 @@ max_memory=5
 **Command Argument:** `--peer-port`  
 **Environment Variable:** `LP_PEER_PORT`  
 **Type:** `Int`  
-**Required:** No  
 **Default:** `5000`  
 **Description:** Port for the peer-to-peer network communication. Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) for more information.  
 
@@ -73,14 +68,12 @@ max_memory=5
 **Command Argument:** `--bootstrap-address`  
 **Environment Variable:** `LP_BOOTSTRAP_ADDRESS`  
 **Type:** `String`  
-**Required:** No    
 **Description:** Address to reach out to when connecting to the network. Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) for more information.  
 
 ### `bootstrap_port`
 **Command Argument:** `--peer-port`  
 **Environment Variable:** `LP_PEER_PORT`  
 **Type:** `Int`  
-**Required:** No    
 **Default:** 5000  
 **Description:** port for `bootstrap_address`. Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) for more information.  
 
@@ -88,7 +81,6 @@ max_memory=5
 **Command Argument:** `--network-key`  
 **Environment Variable:** `LP_NETWORK_KEY`  
 **Type:** `String`  
-**Required:** No  
 **Default:** `"network.key"`  
 **Allowed Values:** Valid path  
 **Description:** RSA encryption key for the network. Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) for more information.  
@@ -97,7 +89,6 @@ max_memory=5
 **Command Argument:** `--https`  
 **Environment Variable:** `LP_HTTPS`  
 **Type:** `Bool`  
-**Required:** No  
 **Default:** False  
 **Allowed Values:** `true | false`  
 **Description:** Whether to communicate in https (true) or http (false) mode for slightly less latency at the cost of security.  
@@ -107,7 +98,6 @@ max_memory=5
 **Command Argument:** `--job-port`  
 **Environment Variable:** `LP_JOB_PORT`  
 **Type:** `Int`  
-**Required:** No  
 **Default:** `5050`  
 **Allowed Values:** Valid port number  
 **Description:** Port for job communication.  
