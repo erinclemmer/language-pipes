@@ -22,7 +22,7 @@ device="cpu"
 max_memory=5
 ```
 
-#### `logging_level`
+### `logging_level`
 **Command Argument:** `--logging-level`  
 **Environment Variable:** `LP_LOGGING_LEVEL`  
 **Type:** `String`  
@@ -31,7 +31,7 @@ max_memory=5
 **Allowed Values:** `"INFO" | "DEBUG" | "WARNING" | "ERROR"`  
 **Description:** Level of verbosity for the server to print to standard out.  
 
-#### [`oai_port`](./oai.md)
+### [`oai_port`](./oai.md)
 **Command Argument:** `--oai-port`  
 **Environment Variable:** `LP_OAI_PORT`  
 **Type:** `Int`  
@@ -40,14 +40,14 @@ max_memory=5
 **Allowed Values:** Valid port number  
 **Description:** Port for openai compatable server, no OpenAI server will be hosted if this field is left out.  
 
-##### `node_id`
+### `node_id`
 **Command Argument:** `--node-id`  
 **Environment Variable:** `LP_NODE_ID`  
 **Type:** String  
 **Required:** Yes    
 **Description:**  String identifier for your server, must be unique on the network.  
 
-#### `peer_port`
+### `peer_port`
 **Command Argument:** `--peer-port`  
 **Environment Variable:** `LP_PEER_PORT`  
 **Type:** `Int`  
@@ -55,21 +55,21 @@ max_memory=5
 **Default:** `5000`  
 **Description:** Port for the peer-to-peer network communication.  
 
-#### `bootstrap_address`
+### `bootstrap_address`
 **Command Argument:** `--bootstrap-address`  
 **Environment Variable:** `LP_BOOTSTRAP_ADDRESS`  
 **Type:** `String`  
 **Required:** No    
 **Description:** Address to reach out to when connecting to the network.  
 
-#### `bootstrap_port`
+### `bootstrap_port`
 **Command Argument:** `--peer-port`  
 **Environment Variable:** `LP_PEER_PORT`  
 **Type:** `Int`  
 **Required:** No    
 **Description:** port for `bootstrap_address`.  
 
-#### `network_key`
+### `network_key`
 **Command Argument:** `--network-key`  
 **Environment Variable:** `LP_NETWORK_KEY`  
 **Type:** `String`  
@@ -78,7 +78,7 @@ max_memory=5
 **Allowed Values:** Valid path  
 **Description:** RSA encryption key for the network.  
 
-#### [`https`](./https.md)
+### [`https`](./https.md)
 **Command Argument:** `--https`  
 **Environment Variable:** `LP_HTTPS`  
 **Type:** `Bool`  
@@ -88,7 +88,7 @@ max_memory=5
 **Description:** Whether to communicate in https (true) or http (false) mode for slightly less latency at the cost of security.  
 
 
-#### `job_port`
+### `job_port`
 **Command Argument:** `--job-port`  
 **Environment Variable:** `LP_JOB_PORT`  
 **Type:** `Int`  
@@ -97,7 +97,7 @@ max_memory=5
 **Allowed Values:** Valid port number  
 **Description:** Port for job communication.  
 
-#### `hosted_models`
+### `hosted_models`
 **Command Argument:** `--hosted-models`  
 **Environment Variable:** `LP_HOSTED_MODELS`  
 **Type:** `Array`  
