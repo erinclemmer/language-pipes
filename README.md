@@ -31,7 +31,7 @@ In a basic sense, language models work by passing information through many layer
 #### How is this different from Distributed Llama?
 [Distributed Llama](https://github.com/b4rtaz/distributed-llama) is built to be a static network and requires individual setup and allocation for each model hosted. Language Pipes meanwhile, has a more flexible setup process that automatically selects which parts of the model to load based on what the network needs and the local systems resources. This allows separate users to collectively host a network together while maintaining trust that one configuration will not break the network. Users can come and go from the network and many different models can be hosted at the same time.
 
-### Quick Start
+### Installation
 If you need gpu support, first make sure you have the correct pytorch version with this link:  
 https://pytorch.org/get-started/locally/
 
@@ -48,7 +48,8 @@ Using uv:
 uv install language-pipes
 ```
 
-Then, create a network key for the network:
+# Two Node example
+The following example will show how to create a small network. Firstly, create a network key for the network on the first computer:
 ```bash
 language-pipes create_key network.key
 ```
@@ -65,7 +66,7 @@ device="cpu"
 max_memory=1
 ```
 
-Finally, start the server:
+Start the server:
 ```bash
 language-pipes run --config config.toml
 ```
@@ -84,7 +85,14 @@ device="cpu"
 max_memory=3
 ```
 
-Run the same command again on the new computer and Node-2 will connect to node-1 and load the remaining parts of the model. The model is ready for inference using a [standard openai chat API interface](https://platform.openai.com/docs/api-reference/chat/create). An expample request to the server is provided below:
+Copy the `network.key` file to the same directory that the config is in using a usb drive or sftp. 
+
+Run the same command again on the computer two:
+```bash
+language-pipes run --config config.toml
+```
+
+Node-2 will connect to node-1 and load the remaining parts of the model. The model is ready for inference using a [standard openai chat API interface](https://platform.openai.com/docs/api-reference/chat/create). An expample request to the server is provided below:
 
 ```bash
 wget http://192.168.0.10:6000/v1/chat/completions \
