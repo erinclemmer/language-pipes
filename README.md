@@ -57,6 +57,7 @@ Also create a `config.toml` file to tell the program how to operate. Go to the [
 
 ```toml
 node_id="node-1"
+oai_port=6000
 
 [[hosted_models]]
 id="meta-llama/Llama-3.2-1B-Instruct"
@@ -83,10 +84,10 @@ device="cpu"
 max_memory=3
 ```
 
-Node-2 will connect to node-1 and load the remaining parts of the model. The model is ready for inference using a standard openai chat API interface. An expample request to the server is provided below:
+Run the same command again on the new computer and Node-2 will connect to node-1 and load the remaining parts of the model. The model is ready for inference using a [standard openai chat API interface](https://platform.openai.com/docs/api-reference/chat/create). An expample request to the server is provided below:
 
 ```bash
-wget https://api.openai.com/v1/chat/completions \
+wget http://192.168.0.10:6000/v1/chat/completions \
   --header="Content-Type: application/json" \
   --post-data '{
     "model": "meta-llama/Llama-3.2-1B-Instruct",
