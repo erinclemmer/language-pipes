@@ -62,7 +62,7 @@ def apply_overrides(data, args):
         "node_id": precedence("node_id", args.node_id, None),
         "peer_port": int(precedence("peer_port", args.peer_port, 5000)),
         "bootstrap_address": precedence("bootstrap_address", args.bootstrap_address, None),
-        "bootstrap_port": precedence("bootstrap_port", args.bootstrap_port, None),
+        "bootstrap_port": precedence("bootstrap_port", args.bootstrap_port, 5000),
         "network_key": precedence("network_key", args.network_key, "network.key"),
         "https": precedence("https", args.https, False),
         "job_port": int(precedence("job_port", args.job_port, 5050)),

@@ -1,7 +1,6 @@
 import logging
-from typing import Dict, Optional
 from threading import Thread
-from distributed_state_network import DSNodeServer, DSNodeConfig
+from distributed_state_network import DSNodeServer
 
 from language_pipes.job_manager import JobManager
 from language_pipes.job_receiver import JobReceiver

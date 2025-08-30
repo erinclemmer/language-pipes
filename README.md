@@ -4,8 +4,6 @@
 
 [![GitHub license][License-Image]](License-Url)
 [![Release][Release-Image]][Release-Url] 
-[![PyPI - Version]](PyPiVersion-Url)
-[![PyPI - Python Version]](PythonVersion-Url)
 
 [License-Image]: https://img.shields.io/badge/license-MIT-blue.svg
 [License-Url]: https://github.com/erinclemmer/language-pipes/blob/main/LICENSE
@@ -16,7 +14,11 @@
 [PyPiVersion-Url]: https://img.shields.io/pypi/v/language-pipes
 [PythonVersion-Url]: https://img.shields.io/pypi/pyversions/language-pipes
 
-Language pipes is a distributed network application designed to increase accessabilitty to local language models. Over the past few years open source language models have become much more powerful yet the most powerful models are still out of reach of the general population because of the extreme amounts of RAM that is needed to host these models. Language Pipes allows multiple computer systems to host the same model and move computatiton data between them while being as easy as possible to set up.
+Language pipes is a distributed network application designed to increase accessability to local language models.  
+
+---  
+
+Over the past few years open source language models have become much more powerful yet the most powerful models are still out of reach of the general population because of the extreme amounts of RAM that is needed to host these models. Language Pipes allows multiple computer systems to host the same model and move computatiton data between them while being easy to set up.
 - Quick Setup
 - Peer to peer network
 - OpenAI compatable API
@@ -34,9 +36,16 @@ If you need gpu support, first make sure you have the correct pytorch version wi
 https://pytorch.org/get-started/locally/
 
 
-To start using the application, install the latest version of the package from PyPi:
+To start using the application, install the latest version of the package from PyPi.
+
+Using Pip:
 ```bash
 pip install language-pipes
+```
+
+Using uv:
+```bash
+uv install language-pipes
 ```
 
 Then, create a network key for the network:
@@ -44,11 +53,48 @@ Then, create a network key for the network:
 language-pipes create_key network.key
 ```
 
-Also create a `config.toml` file to tell the program how to operate. Go to the [configuration documentation](/documentation/configuration.md) for more information about how to set it up.
+Also create a `config.toml` file to tell the program how to operate. Go to the [configuration documentation](/documentation/configuration.md) for more information about how to set it up. A very simple config.toml is provided below:
+
+```toml
+node_id="node-1"
+
+[[hosted_models]]
+id="meta-llama/Llama-3.2-1B-Instruct"
+device="cpu"
+max_memory=1
+```
 
 Finally, start the server:
 ```bash
 language-pipes run --config config.toml
+```
+
+This tells language pipes to download the id "meta-llama/Llama-3.2-1B-Instruct" from [huggingface.co](huggingface.co) and host it using 1GB of ram. This will load part of the model but not all of it.
+
+Next, install the pacakge on a separate computer on your home network and create a config.toml like this:
+
+```toml
+node_id="node-2"
+bootstrap_address="192.168.0.10" # IP address of node-1
+
+[[hosted_models]]
+id="meta-llama/Llama-3.2-1B-Instruct"
+device="cpu"
+max_memory=3
+```
+
+Node-2 will connect to node-1 and load the remaining parts of the model. The model is ready for inference using a standard openai chat API interface. An expample request to the server is provided below:
+
+```bash
+wget https://api.openai.com/v1/chat/completions \
+  --header="Content-Type: application/json" \
+  --post-data '{
+    "model": "meta-llama/Llama-3.2-1B-Instruct",
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "Write a haiku about distributed systems."}
+    ]
+  }' -O -
 ```
 
 ### Models Supported
