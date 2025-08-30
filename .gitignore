@@ -1,1 +1,8 @@
 __pycache__/
+env/
+models/
+.vscode/
+certs/
+credentials/
+*.toml
+*.key

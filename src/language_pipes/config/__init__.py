@@ -1,4 +1,5 @@
-import json
+import os
+import toml
 from typing import Dict, Optional
 from dataclasses import dataclass
 
@@ -15,14 +16,8 @@ class LMNetConfig:
     @staticmethod
     def from_dict(data: Dict) -> 'LMNetConfig':
         return LMNetConfig(
-            logging_level=data['logging_level'], 
+            logging_level=data['logging_level'] if 'logging_level' in data else "INFO", 
             oai_port=data['oai_port'] if 'oai_port' in data else None,
             router=DSNodeConfig.from_dict(data['router']), 
             processor=ProcessorConfig.from_dict(data['processor'])
         )
-
-    @staticmethod
-    def from_file(file_name: str) -> 'LMNetConfig':
-        with open(file_name, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        return LMNetConfig.from_dict(data)

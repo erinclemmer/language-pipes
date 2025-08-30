@@ -24,7 +24,6 @@ Language pipes is a distributed network application designed to increase accessa
 - Encrypted communication between nodes
 
 ### What Does it do?
-![Basic Flow](./pictures/Basic_Flow.png "Basic Flow")  
 In a basic sense, language models work by passing information through many layers. At each layer, several matrix multiplicatitons between the layer weights and the system state are performed and the data is moved to the next layer. Language pipes works by hosting different layers on different machines to split up the RAM cost across the system.
 
 #### How is this different from Distributed Llama?
