@@ -62,20 +62,20 @@ max_memory=5
 **Environment Variable:** `LP_PEER_PORT`  
 **Type:** `Int`  
 **Default:** `5000`  
-**Description:** Port for the peer-to-peer network communication. Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) for more information.  
+**Description:** Port for the peer-to-peer network communication. Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) package for more information.  
 
 ### `bootstrap_address`
 **Command Argument:** `--bootstrap-address`  
 **Environment Variable:** `LP_BOOTSTRAP_ADDRESS`  
 **Type:** `String`  
-**Description:** Address to reach out to when connecting to the network. Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) for more information.  
+**Description:** Address to reach out to when connecting to the network. Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) package for more information.  
 
 ### `bootstrap_port`
 **Command Argument:** `--peer-port`  
 **Environment Variable:** `LP_PEER_PORT`  
 **Type:** `Int`  
 **Default:** 5000  
-**Description:** port for `bootstrap_address`. Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) for more information.  
+**Description:** port for `bootstrap_address`. Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) package for more information.  
 
 ### `network_key`
 **Command Argument:** `--network-key`  
@@ -83,7 +83,7 @@ max_memory=5
 **Type:** `String`  
 **Default:** `"network.key"`  
 **Allowed Values:** Valid path  
-**Description:** RSA encryption key for the network. Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) for more information.  
+**Description:** RSA encryption key for the network. Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) package for more information.  
 
 ### [`https`](./https.md)
 **Command Argument:** `--https`  
