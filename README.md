@@ -30,6 +30,10 @@ In a basic sense, language models work by passing information through many layer
 [Distributed Llama](https://github.com/b4rtaz/distributed-llama) is built to be a static network and requires individual setup and allocation for each model hosted. Language Pipes meanwhile, has a more flexible setup process that automatically selects which parts of the model to load based on what the network needs and the local systems resources. This allows separate users to collectively host a network together while maintaining trust that one configuration will not break the network. Users can come and go from the network and many different models can be hosted at the same time.
 
 ### Quick Start
+If you need gpu support, first make sure you have the correct pytorch version with this link:  
+https://pytorch.org/get-started/locally/
+
+
 To start using the application, install the latest version of the package from PyPi:
 ```bash
 pip install language-pipes
@@ -40,11 +44,11 @@ Then, create a network key for the network:
 language-pipes create_key network.key
 ```
 
-Also create a `config.json` file to tell the program how to operate. Go to the [configuration documentation](/documentation/configuration.md) for more information.
+Also create a `config.toml` file to tell the program how to operate. Go to the [configuration documentation](/documentation/configuration.md) for more information about how to set it up.
 
 Finally, start the server:
 ```bash
-language-pipes config.json
+language-pipes run --config config.toml
 ```
 
 ### Models Supported
