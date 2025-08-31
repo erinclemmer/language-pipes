@@ -8,7 +8,7 @@ requires = [
     "requests",
     "logging",
     "distributed-state-network",
-    "llama-layer-collector",
+    "llm-layer-collector",
     "toml"
 ]
 build-backend = "hatchling.build"
@@ -40,7 +40,7 @@ dependencies = [
     "requests",
     "logging",
     "distributed-state-network",
-    "llama-layer-collector",
+    "llm-layer-collector",
     "toml"
 ]
 

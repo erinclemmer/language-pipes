@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from uuid import uuid4
 from typing import List, Optional, Callable
-from llama_layer_collector.compute import compute_embedding, compute_layer, compute_head
+from llm_layer_collector.compute import compute_embedding, compute_head
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LlamaRMSNorm
 
@@ -15,14 +15,14 @@ from language_pipes.util.meta import MetaModel
 from language_pipes.job_manager.job import ComputeStep, Job
 from language_pipes.job_manager.job_data import computationStateToJobData, jobDataToComputationState
 from language_pipes.llm_model.computed import ComputedData
-from llama_layer_collector import LlamaLayerCollector
+from llm_layer_collector import LlmLayerCollector
 
 class LlmModel:
     model_id: str
     computed: ComputedData
     process_id: str
     pipe_id: str
-    collector: LlamaLayerCollector
+    collector: LlmLayerCollector
 
     router_id: str
     device: str
@@ -62,7 +62,7 @@ class LlmModel:
         model_dir = os.path.join('models', self.model_id)
         if not os.path.exists(model_dir):
             self.clone_model(model_id, model_dir)
-        self.collector = LlamaLayerCollector(
+        self.collector = LlmLayerCollector(
                 model_dir=os.path.join(model_dir, 'data'),
                 cache_file=os.path.join(model_dir, 'cache.json'),
                 device=device,
@@ -155,7 +155,7 @@ Device: {self.device}
             self.raise_exception("cannot compute layers without job data")
         comp_state = jobDataToComputationState(job.data)
         for lyr in self.layers:
-            comp_state.state = compute_layer(lyr, comp_state)
+            comp_state.state = lyr(comp_state)
         job.set_layer(comp_state.state, self.end_layer + 1)
         if job.current_layer == self.num_hidden_layers:
             job.next_step()
