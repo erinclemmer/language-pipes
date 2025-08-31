@@ -1,6 +1,5 @@
 import random
 import requests
-from threading import Thread
 from typing import List, Optional, Tuple
 
 from promise import Promise
@@ -14,7 +13,6 @@ from language_pipes.job_manager.job import Job
 from language_pipes.job_manager.pipe import Pipe
 from language_pipes.job_manager.enums import JobStatus
 from language_pipes.util.chat import ChatMessage
-from language_pipes.util import stop_thread
 from language_pipes.config.processor import ProcessorConfig
 from language_pipes.llm_model import LlmModel
 from language_pipes.llm_model.computed import validate_model

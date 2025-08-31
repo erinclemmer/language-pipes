@@ -29,4 +29,5 @@ class OAIHttpServer(HTTPServer):
     
     def __init__(self, port: int, complete: Callable):
         super().__init__(("0.0.0.0", port), OAIHttpHandler)
+        print(f"Starting OpenAI server on port {port}")
         self.complete = complete

@@ -8,7 +8,7 @@ from language_pipes.util import tensor_to_bytes, bytes_to_tensor
 class JobData:
     cache_position: Optional[torch.Tensor] = None
     causal_mask: Optional[torch.Tensor] = None
-    sliding_causal_mask: Optional[torch.Tensor]
+    sliding_causal_mask: Optional[torch.Tensor] = None
     position_ids: Optional[torch.Tensor] = None
     position_embeddings: Optional[torch.Tensor] = None
     position_embeddings_local: Optional[torch.Tensor] = None

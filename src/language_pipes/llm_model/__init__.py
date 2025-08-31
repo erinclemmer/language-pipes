@@ -137,7 +137,7 @@ Device: {self.device}
 
     def tokenize(self, job: Job):
         tokenizer: AutoTokenizer = self.tokenizer()
-        prompt = tokenizer.apply_chat_template([m.to_json() for m in job.messages], tokenize=False, chat_template=tokenizer.chat_template)
+        prompt = tokenizer.apply_chat_template([m.to_json() for m in job.messages], tokenize=False, chat_template=tokenizer.chat_template, add_generation_prompt=True)
         input_tokens = [int(t) for t in tokenizer.encode(prompt, return_tensors='pt')[0].numpy()]
         job.input_ids = input_tokens
         job.prompt_tokens = len(input_tokens)
