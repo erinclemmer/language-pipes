@@ -16,7 +16,7 @@ MODEL = "Qwen/Qwen3-1.7B"
 def start_node(node_id: str, max_memory: float, peer_port: int, job_port: int, oai_port: int = None, bootstrap_port: int = None):
     args = ["run", 
         "--node-id", node_id, 
-        "--hosted-models", f"{MODEL}:cpu:{max_memory}", 
+        "--hosted-models", f"{MODEL}::cpu::{max_memory}", 
         "--peer-port", str(peer_port),
         "--job-port", str(job_port)
     ]

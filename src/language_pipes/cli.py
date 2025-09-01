@@ -28,7 +28,7 @@ def build_parser():
     run_parser.add_argument("--network-key", type=str, help="AES key to access network (Default: network.key)")
     run_parser.add_argument("--https", type=bool, help="HTTPS job communication (Default: false)")
     run_parser.add_argument("--job-port", type=int, help="Job receiver port (Default: 5050)")
-    run_parser.add_argument("--hosted-models", nargs="*", help="Hosted models in format id[:device[:max_memory]] (Required)")
+    run_parser.add_argument("--hosted-models", nargs="*", help="Hosted models in format [huggingface-id]::[device:::[max-memory] (Required)")
 
     return parser
 
@@ -88,9 +88,9 @@ def apply_overrides(data, args):
     hosted_models = []
     for m in config["hosted_models"]:
         if type(m) == type(''):    
-            parts = m.split(":")
+            parts = m.split("::")
             if len(parts) != 3:
-                raise ValueError(f"{m} is not an acceptable format for hosted_models (must be id:device:max_memory)")
+                raise ValueError(f"{m} is not an acceptable format for hosted_models (must be id::device::max_memory)")
             hosted_models.append({
                 "id": parts[0],
                 "device": parts[1],
