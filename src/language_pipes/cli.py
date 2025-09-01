@@ -83,11 +83,11 @@ def apply_overrides(data, args):
     if config["bootstrap_port"] is not None:
         config["bootstrap_port"] = int(config["bootstrap_port"])
     
-    config["https"] = config["https"] == "yes" or config["https"] == True or config["https"] == "1" or config["https"] == "true"
+    config["https"] = config["https"] == "yes" or config["https"] or config["https"] == "1" or config["https"] == "true"
 
     hosted_models = []
     for m in config["hosted_models"]:
-        if type(m) == type(''):    
+        if type(m) is type(''):    
             parts = m.split("::")
             if len(parts) != 3:
                 raise ValueError(f"{m} is not an acceptable format for hosted_models (must be id::device::max_memory)")
@@ -141,7 +141,7 @@ def main(argv = None):
             }
         })
 
-        LanguagePipes(VERSION, config)
+        return LanguagePipes(VERSION, config)
     else:
         parser.print_usage()
         exit(1)

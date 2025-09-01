@@ -44,28 +44,27 @@ class JobReceiver:
         router.logger.info(f"Started Job Receiver on port {config.job_port}")
 
     def job_runner(self):
-        if self.router.shutting_down:
-            return
-        if len(self.pending_jobs) == 0:
-            sleep(0.1)
-            Thread(target=self.job_runner, args=()).start()
-            return
-        
-        job = self.pending_jobs[-1]
-        pipe = self.get_pipe(job.pipe_id)
-        if pipe is None or not pipe.is_complete():
-            self.restart_job(job)
-            return
-        
-        if job.current_step == ComputeStep.TOKENIZE and job.from_router_id != job.router_id:
-            return
-        
-        if job.current_step != ComputeStep.TOKENIZE and job.status != JobStatus.COMPLETED:
-            if job.from_router_id not in pipe.peers():
+        while True:
+            if self.router.shutting_down:
                 return
-        self.pending_jobs.pop()
-        pipe.process_job(job)
-        Thread(target=self.job_runner, args=()).start()
+            if len(self.pending_jobs) == 0:
+                sleep(0.1)
+                continue
+            
+            job = self.pending_jobs[-1]
+            pipe = self.get_pipe(job.pipe_id)
+            if pipe is None or not pipe.is_complete():
+                self.restart_job(job)
+                return
+            
+            if job.current_step == ComputeStep.TOKENIZE and job.from_router_id != job.router_id:
+                return
+            
+            if job.current_step != ComputeStep.TOKENIZE and job.status != JobStatus.COMPLETED:
+                if job.from_router_id not in pipe.peers():
+                    return
+            self.pending_jobs.pop()
+            pipe.process_job(job)
 
     def receive_data(self, data: bytes):
         job = Job.from_bytes(data)

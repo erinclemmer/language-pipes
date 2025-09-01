@@ -123,7 +123,7 @@ Device: {self.device}
 ''')
 
     def process_job(self, job: Job):
-        self.logger.info(f'Processing job state {job.current_step.value}')
+        self.logger.info(f'Processing job state {job.current_step.name + (", layer " + str(job.current_layer)) if job.current_step.value == 2 else ""}')
         if job.current_step == ComputeStep.TOKENIZE:
             self.tokenize(job)
         elif job.current_step == ComputeStep.EMBED:
