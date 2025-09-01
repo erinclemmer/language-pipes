@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+title: Language Pipes
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Erin
+    family-names: Clemmer
+    email: erin.c.clemmer@gmail.com
+    orcid: 'https://orcid.org/0009-0005-0597-6197'
+repository-code: 'https://github.com/erinclemmer/language-pipes'
+abstract: Distribute language models across multiple systems.
+keywords:
+  - Large Language Models
+  - Transformers
+  - Distributed Networks
+license: MIT
+date-released: '2025-09-01'
