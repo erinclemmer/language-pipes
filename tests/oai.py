@@ -55,6 +55,31 @@ class OpenAITests(unittest.TestCase):
         print("\"" + res["choices"][0]["message"]["content"] + "\"")
         self.assertTrue(len(res["choices"]) > 0)
 
+    def test_400_codes(self):
+        start_node("node-1", 5, 5000, 5050, 6000)
+        messages = [
+            ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
+            ChatMessage(ChatRole.USER, "Hello, how are you?")
+        ]
+        res = requests.post("http://localhost:6000/v1/chat/completions", json={
+            "messages": [m.to_json() for m in messages]
+        })
+
+        self.assertEqual(400, res.status_code)
+
+        res = requests.post("http://localhost:6000/v1/chat/completions", json={
+            "model": MODEL
+        })
+
+        self.assertEqual(400, res.status_code)
+
+        res = requests.post("http://localhost:6000/v1/chat/completions", json={
+            "model": MODEL,
+            "messages": []
+        })
+
+        self.assertEqual(400, res.status_code)
+
     def test_double_node(self):
         start_node("node-1", 2, 5000, 5050, 6000)
         time.sleep(10)

@@ -100,16 +100,30 @@ language-pipes run --config config.toml
 
 Node-2 will connect to node-1 and load the remaining parts of the model. The model is ready for inference using a [standard openai chat API interface](https://platform.openai.com/docs/api-reference/chat/create). An example request to the server is provided below:
 
-```bash
-wget http://192.168.0.10:6000/v1/chat/completions \
-  --header="Content-Type: application/json" \
-  --post-data '{
+```python
+import requests
+import json
+
+# node-1 IP address here
+url = "http://127.0.0.1:6000/v1/chat/completions"
+
+headers = {
+    "Content-Type": "application/json"
+}
+
+payload = {
     "model": "Qwen/Qwen3-1.7B",
+    "max_completion_tokens": 10,
     "messages": [
-      {"role": "system", "content": "You are a helpful assistant."},
-      {"role": "user", "content": "Write a haiku about distributed systems."}
-    ]new role
-  }' -O -
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Write a haiku about distributed systems."}
+    ]
+}
+
+response = requests.post(url, headers=headers, data=json.dumps(payload))
+
+print("Status Code:", response.status_code)
+print("Response JSON:", response.json())
 ```
 
 ### Models Supported

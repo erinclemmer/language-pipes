@@ -32,7 +32,8 @@ class ChatCompletionRequest:
     
     @staticmethod
     def from_dict(data):
-        return ChatCompletionRequest(data['model'], data['max_completion_tokens'], [ChatMessage.from_dict(m) for m in data['messages']])
+        max_completion_tokens = data['max_completion_tokens'] if 'max_completion_tokens' in data else 1000
+        return ChatCompletionRequest(data['model'], max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']])
 
 def oai_chat_complete(handler: BaseHTTPRequestHandler, complete: Callable, data: dict):
     req = ChatCompletionRequest.from_dict(data)

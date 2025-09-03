@@ -16,8 +16,8 @@ def _respond_json(handler: BaseHTTPRequestHandler, data):
     handler.wfile.write(response)
     handler.wfile.flush()
 
-def _send_403(handler: BaseHTTPRequestHandler, message: str):
-    handler.send_response(403)
+def _send_code(code: int, handler: BaseHTTPRequestHandler, message: str):
+    handler.send_response(code)
     handler.send_header("Content-Type", "application/json")
     handler.end_headers()
     handler.wfile.write(message.encode())
