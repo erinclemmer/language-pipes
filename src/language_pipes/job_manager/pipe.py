@@ -1,11 +1,10 @@
 import os
-import json
 import requests
 from typing import Callable, List, Optional
 from uuid import uuid4
 
 from transformers import AutoTokenizer
-from transformers.configuration_utils import PretrainedConfig
+from transformers.models.auto import AutoConfig
 from distributed_state_network import DSNode
 
 from language_pipes.util.meta import MetaPipe
@@ -41,8 +40,7 @@ class Pipe:
         self.router = router
         self.https = https
         self.model_id = model_id
-        with open(f'./models/{model_id}/data/config.json', 'r') as f:
-            self.model_num_hidden_layers = PretrainedConfig.from_dict(json.load(f)).num_hidden_layers
+        self.model_num_hidden_layers = AutoConfig.from_pretrained(f'./models/{model_id}/data').num_hidden_layers
         
         if pipe_id is None:
             self.pipe_id = str(uuid4())

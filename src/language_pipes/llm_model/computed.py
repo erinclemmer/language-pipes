@@ -4,6 +4,7 @@ import torch
 from typing import List, Tuple, Optional
 
 from transformers.configuration_utils import PretrainedConfig
+from transformers.models.auto import AutoConfig
 from llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
@@ -12,7 +13,7 @@ from language_pipes.job_manager.enums import ModelPartType
 from language_pipes.util.meta import MetaComputed
 
 def get_size_of_layer(config: PretrainedConfig, layer_idx: int) -> Tuple[float, str]:
-    lyr = AutoDecoderLayer(config, layer_idx).to(dtype=torch.float16)
+    lyr = AutoDecoderLayer(config, layer_idx).cls.to(dtype=torch.float16)
     tensors = [
         lyr.self_attn.q_proj.weight,
         lyr.self_attn.k_proj.weight,
@@ -29,12 +30,7 @@ def get_avg_layer_size(model_path: str) -> Tuple[int, List[str]]:
     if not os.path.exists(model_path):
         print(f'Model {model_path} not found')
         return -1
-    config_file = os.path.join(model_path, 'config.json')
-    if not os.path.exists(config_file):
-        print(f'Config file not found for model {model_path}')
-        return -1
-    with open(config_file) as f:
-        config = PretrainedConfig.from_dict(json.load(f))
+    config = AutoConfig.from_pretrained(model_path)
 
     total_size = 0
     layer_hashes = []
@@ -48,8 +44,7 @@ def get_avg_layer_size(model_path: str) -> Tuple[int, List[str]]:
     return avg_layer_size, layer_hashes
 
 def data_of_type(typ: ModelPartType, model_path: str) -> Tuple[float, str]:
-    with open(os.path.join(model_path, 'config.json')) as f:
-        config = PretrainedConfig.from_dict(json.load(f))
+    config = AutoConfig.from_pretrained(model_path)
     
     size = 0
     hash = ''
@@ -60,8 +55,8 @@ def data_of_type(typ: ModelPartType, model_path: str) -> Tuple[float, str]:
         
     if typ == ModelPartType.NORM:
         n = AutoRMSNorm(config).to(dtype=torch.float16)
-        size = size_of_tensor(n.weight)
-        hash = tensor_hash(n.weight)
+        size = size_of_tensor(n.cls.weight)
+        hash = tensor_hash(n.cls.weight)
     if typ == ModelPartType.HEAD:
         h = torch.nn.Linear(config.hidden_size, config.vocab_size).to(dtype=torch.float16)
         size = size_of_tensor(h.weight)
@@ -76,7 +71,6 @@ def get_computed_data(model_path: str):
     if os.path.exists(computed_path):
         with open(computed_path) as f:
             return json.load(f)
-        
     computed = { }
     model_path = os.path.join(model_path, 'data')
     size, hash = data_of_type(ModelPartType.EMBED, model_path)

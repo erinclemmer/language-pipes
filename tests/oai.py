@@ -9,7 +9,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from language_pipes.cli import main
 from language_pipes.util.chat import ChatMessage, ChatRole
-from language_pipes.util import stop_thread
 
 MODEL = "Qwen/Qwen3-1.7B"
 # MODEL = "meta-llama/Llama-3.2-1B-Instruct"

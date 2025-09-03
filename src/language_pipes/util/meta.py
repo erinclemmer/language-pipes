@@ -1,8 +1,7 @@
-import json
 from typing import List
 from dataclasses import dataclass
 
-from transformers.configuration_utils import PretrainedConfig
+from transformers.models.auto import AutoConfig
 
 @dataclass
 class MetaComputed:
@@ -89,8 +88,7 @@ class MetaPipe:
     segments: List[MetaModel]
 
     def num_layers(self):
-        with open(f'./models/{self.model_id}/data/config.json', 'r') as f:
-            config = PretrainedConfig.from_dict(json.load(f))
+        config = AutoConfig.from_pretrained(f'./models/{self.model_id}/data')
         return config.num_hidden_layers
 
     def is_loading(self) -> bool:
