@@ -1,5 +1,6 @@
 import os
 import requests
+from threading import Thread
 from typing import Callable, List, Optional
 from uuid import uuid4
 
@@ -68,16 +69,18 @@ class Pipe:
             cert = self.router.cert_manager.public_path(router_id)
             if cert is None:
                 self.raise_exception(f"SEND JOB => Could not find certificate for {router_id}")
-            try:
-                protocol = 'https' if self.https else 'http'
-                if protocol == 'http':
-                    cert = None
-                res = requests.post(f'{protocol}://{ip}:{port}', data=job.to_bytes(), headers={'Content-Type': 'application/octet-stream'}, verify=cert)
-                if res.status_code != 200 or res.content == b'DOWN':
-                    self.raise_exception(f"SEND JOB => bad response from {router_id}")
-            except:
-                self.raise_exception(f"SEND JOB => Could not connect to {router_id}")
-        except Exception as e:
+            protocol = 'https' if self.https else 'http'
+            if protocol == 'http':
+                cert = None
+            def send(url: str, data: bytes, cert: str):
+                try:
+                    res = requests.post(url, data=data, headers={'Content-Type': 'application/octet-stream'}, verify=cert)
+                    if res.status_code != 200 or res.content == b'DOWN':
+                        self.raise_exception(f"SEND JOB => bad response from {router_id}")
+                except:
+                    self.raise_exception(f"SEND JOB => Could not connect to {router_id}")
+            Thread(target=send, args=(f'{protocol}://{ip}:{port}', job.to_bytes(), cert, )).start()
+        except:
             self.restart_job(job)
 
     def tokenize(self, prompt: Optional[str], messages: List[ChatMessage]) -> List[int]:

@@ -30,11 +30,15 @@ class LanguagePipes:
     ):
         self.config = config
         self.set_logging_level(self.config.logging_level, self.config.router.node_id)
-        self.router = DSNodeServer.start(self.config.router)
+        self.router = DSNodeServer.start(self.config.router, self.print_pipes, self.print_pipes)
         self.job_manager = JobManager(self.router.node, self.config.processor)
         self.job_receiver = JobReceiver(self.config.processor, self.router.node, self.job_manager.get_pipe, self.job_manager.restart_job)
         if self.config.oai_port is not None:
             self.start_oai()
+
+    def print_pipes(self):
+        for p in self.job_manager.router_pipes.network_pipes():
+            p.print(self.job_manager.logger)
 
     def start_oai(self):
         self.oai_server = OAIHttpServer(self.config.oai_port, self.job_manager.complete)
