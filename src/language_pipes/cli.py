@@ -73,7 +73,7 @@ def apply_overrides(data, args):
         "job_port": int(precedence("job_port", args.job_port, 5050)),
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
         "com_dtype": precedence("com_dtype", args.com_dtype, "float16"),
-        "proc_dtype": precedence("proc_dtype", args.proc_dtype, "float16")
+        "proc_dtype": precedence("proc_dtype", args.process_dtype, "float16")
     }
 
     if config["hosted_models"] is None:

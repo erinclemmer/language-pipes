@@ -12,6 +12,7 @@ from language_pipes.config.processor import ProcessorConfig
 
 class JobReceiver:
     port: int
+    process_dtype: str
     public_key_file: str
     private_key_file: str
     router: DSNode
@@ -26,6 +27,7 @@ class JobReceiver:
             get_pipe: Callable[[str], Optional[Pipe]],
             restart_job: Callable[[Job], None]
     ):
+        self.process_dtype = config.process_dtype
         self.router = router
         self.get_pipe = get_pipe
         self.restart_job = restart_job
@@ -71,6 +73,8 @@ class JobReceiver:
         job_certificate = self.router.cred_manager.read_public(job.from_router_id)
         if not job.verify_signature(job_certificate):
             return
+
+        job.to(self.process_dtype)
 
         self.pending_jobs.insert(0, job)
 

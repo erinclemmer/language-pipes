@@ -152,6 +152,10 @@ class Job(SignedPacket):
         data_bytes = self.data.to_bytes() if self.data is not None else b''
         bts.write_bytes(data_bytes)
         return bts.get_bytes()
+
+    def to(self, dtype_str: str):
+        if self.data is not None:
+            self.data.to(dtype_str)
     
     @staticmethod
     def from_bytes(data: bytes) -> 'Job':

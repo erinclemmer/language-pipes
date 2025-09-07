@@ -31,6 +31,7 @@ class Pipe:
             pipe_id: Optional[str],
             model_id: str,
             https: bool,
+            com_dtype: str,
             get_job_port: Callable[[str], Optional[int]],
             complete_job: Callable[[Job], None],
             restart_job: Callable[[Job], None]
@@ -40,6 +41,7 @@ class Pipe:
         self.restart_job = restart_job
         self.router = router
         self.https = https
+        self.com_dtype = com_dtype
         self.model_id = model_id
         self.model_num_hidden_layers = AutoConfig.from_pretrained(f'./models/{model_id}/data').num_hidden_layers
         
@@ -63,9 +65,12 @@ class Pipe:
                 self.raise_exception(f"SEND JOB => Could not find pipe {self.pipe_id} for {router_id}")
 
             job.from_router_id = self.router.config.node_id
+            job.to(self.com_dtype)
             job.sign(self.router.cred_manager.my_private())
 
-            self.router.logger.info(f'Sending job {job.job_id} to {router_id} (token {job.current_token})')
+            job_data = job.to_bytes()
+
+            self.router.logger.info(f'Sending job {job.job_id} to {router_id} (token {job.current_token}, {len(job_data) / 10**3:.2f}KB)')
             cert = self.router.cert_manager.public_path(router_id)
             if cert is None:
                 self.raise_exception(f"SEND JOB => Could not find certificate for {router_id}")
@@ -79,8 +84,9 @@ class Pipe:
                         self.raise_exception(f"SEND JOB => bad response from {router_id}")
                 except:
                     self.raise_exception(f"SEND JOB => Could not connect to {router_id}")
-            Thread(target=send, args=(f'{protocol}://{ip}:{port}', job.to_bytes(), cert, )).start()
-        except:
+            Thread(target=send, args=(f'{protocol}://{ip}:{port}', job_data, cert, )).start()
+        except Exception as e:
+            print(e)
             self.restart_job(job)
 
     def tokenize(self, prompt: Optional[str], messages: List[ChatMessage]) -> List[int]:
@@ -191,6 +197,7 @@ Complete: {self.is_complete()}
         hosted_models: List[LlmModel], 
         router: DSNode,
         https: bool,
+        com_dtype: str,
         get_job_port: Callable[[str], Optional[int]],
         complete_job: Callable[[Job], None],
         restart_job: Callable[[Job], None]
@@ -202,7 +209,8 @@ Complete: {self.is_complete()}
             get_job_port=get_job_port,
             complete_job=complete_job,
             restart_job=restart_job,
-            router=router
+            router=router,
+            com_dtype=com_dtype
         )
         local_segments = []
         for model in hosted_models:

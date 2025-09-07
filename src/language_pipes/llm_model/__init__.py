@@ -12,6 +12,7 @@ from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 import torch
 from torch import tensor
 
+from language_pipes.util import map_str_to_dtype
 from language_pipes.util.meta import MetaModel
 from language_pipes.job_manager.job import ComputeStep, Job
 from language_pipes.job_manager.job_data import computationStateToJobData, jobDataToComputationState
@@ -27,6 +28,7 @@ class LlmModel:
 
     router_id: str
     device: str
+    dtype: str
     virtual: bool
 
     input_embedding: Optional[torch.nn.Embedding] | bool
@@ -46,6 +48,7 @@ class LlmModel:
             router_id: str,
             pipe_id: str,
             device: str,
+            dtype: str,
             process_id: Optional[str] = None
     ):
         self.model_id = model_id
@@ -60,6 +63,7 @@ class LlmModel:
         self.start_layer = -1
         self.end_layer = -1
         self.device = device
+        self.dtype = dtype
         model_dir = os.path.join('models', self.model_id)
         if not os.path.exists(model_dir):
             self.clone_model(model_id, model_dir)
@@ -67,7 +71,7 @@ class LlmModel:
                 model_dir=os.path.join(model_dir, 'data'),
                 cache_file=os.path.join(model_dir, 'cache.json'),
                 device=device,
-                dtype=torch.float16 
+                dtype=map_str_to_dtype(dtype)
         )
         self.num_hidden_layers = self.collector.config.num_hidden_layers
         if process_id is None:
@@ -120,6 +124,7 @@ Head: {self.head is not None}
 Start Layer: {self.start_layer}
 End Layer: {self.end_layer}
 Device: {self.device}
+Data Type: {self.dtype}
 #################################
 ''')
 
@@ -214,6 +219,7 @@ Device: {self.device}
             router_id=meta.router_id,
             pipe_id=meta.pipe_id,
             device='cpu',
+            dtype='float16',
             process_id=meta.process_id
         )
         model.loaded = meta.loaded
@@ -227,7 +233,7 @@ Device: {self.device}
         return model
     
     @staticmethod
-    def from_id(model_id: str, router_id: str, pipe_id: str, device: str) -> 'LlmModel':
-        model = LlmModel(model_id, router_id, pipe_id, device)
+    def from_id(model_id: str, router_id: str, pipe_id: str, device: str, dtype: str) -> 'LlmModel':
+        model = LlmModel(model_id, router_id, pipe_id, device, dtype)
         model.computed = ComputedData(f'models/{model_id}')
         return model

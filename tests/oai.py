@@ -13,7 +13,15 @@ from language_pipes.util.chat import ChatMessage, ChatRole
 MODEL = "Qwen/Qwen3-1.7B"
 # MODEL = "meta-llama/Llama-3.2-1B-Instruct"
 
-def start_node(node_id: str, max_memory: float, peer_port: int, job_port: int, oai_port: int = None, bootstrap_port: int = None):
+def start_node(
+    node_id: str, 
+    max_memory: float, 
+    peer_port: int, 
+    job_port: int,
+    oai_port: int = None, 
+    bootstrap_port: int = None,
+    com_dtype: str = None
+):
     args = ["run", 
         "--node-id", node_id, 
         "--hosted-models", f"{MODEL}::cpu::{max_memory}", 
@@ -25,6 +33,9 @@ def start_node(node_id: str, max_memory: float, peer_port: int, job_port: int, o
     
     if bootstrap_port is not None:
         args.extend(["--bootstrap-address", "localhost", "--bootstrap-port", str(bootstrap_port)])
+    
+    if com_dtype is not None:
+        args.extend(["--com-dtype", com_dtype])
 
     return main(args)
 
@@ -82,9 +93,21 @@ class OpenAITests(unittest.TestCase):
 
     def test_double_node(self):
         start_node("node-1", 2, 5000, 5050, 6000)
-        time.sleep(10)
+        time.sleep(5)
         start_node("node-2", 3, 5001, 5051, None, 5000)
-        time.sleep(10)
+        time.sleep(5)
+        res = oai_complete(6000, [
+            ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
+            ChatMessage(ChatRole.USER, "Hello, how are you?")
+        ])
+        print("\"" + res["choices"][0]["message"]["content"] + "\"")
+        self.assertTrue(len(res["choices"]) > 0)
+
+    def test_f8_communication(self):
+        start_node("node-1", 2, 5000, 5050, 6000, None, "float8")
+        time.sleep(5)
+        start_node("node-2", 3, 5001, 5051, None, 5000, "float8")
+        time.sleep(5)
         res = oai_complete(6000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")

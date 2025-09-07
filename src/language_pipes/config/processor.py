@@ -26,8 +26,8 @@ class ProcessorConfig:
         config = ProcessorConfig()
         config.https = data['https']
         config.job_port = data['job_port']
-        config.communication_dtype['communication_dtype']
-        config.process_dtype['process_dtype']
+        config.communication_dtype = data['communication_dtype']
+        config.process_dtype = data['process_dtype']
         config.hosted_models = [HostedModel.from_dict(o) for o in data['hosted_models']]
         return config
     

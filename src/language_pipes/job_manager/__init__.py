@@ -70,6 +70,7 @@ class JobManager:
             hosted_models=self.models,
             router=self.router,
             https=self.config.https,
+            com_dtype=self.config.communication_dtype,
             get_job_port=self.get_job_port,
             complete_job=self.complete_job,
             restart_job=self.restart_job
@@ -97,7 +98,7 @@ class JobManager:
     def get_model_for_pipe(self, model_id: str, pipe: MetaPipe, device: str, available_memory: int) -> Tuple[int, Optional[LlmModel]]:
         start_memory = available_memory
 
-        new_model: Optional[LlmModel] = LlmModel.from_id(model_id, self.router.config.node_id, pipe.pipe_id, device)
+        new_model: Optional[LlmModel] = LlmModel.from_id(model_id, self.router.config.node_id, pipe.pipe_id, device, self.config.process_dtype)
         computed = new_model.computed
         if len(pipe.segments) > 0 and not validate_model(new_model.computed.to_meta(), pipe.get_computed()):
             self.logger.warning(f'Computed data for model {model_id} does not match')
@@ -191,7 +192,7 @@ class JobManager:
             self.raise_exception(f"Could not find pipe {pipe_id}")
         try:
             pipe.send_job(job, router_id)
-        except Exception as e:
+        except:
             self.restart_job(job)
 
         return job.job_id

@@ -28,7 +28,8 @@ def tensor_to_bytes(t: torch.Tensor) -> bytes:
 def bytes_to_tensor(b: bytes) -> torch.Tensor:
     if b == b'':
         return None
-    return torch.load(io.BytesIO(b))
+    with torch.no_grad():
+        return torch.load(io.BytesIO(b))
 
 def get_tensor_byte_string(t: torch.Tensor) -> str:
     bts = tensor_to_bytes(t)
