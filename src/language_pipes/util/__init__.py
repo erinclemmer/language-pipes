@@ -54,3 +54,22 @@ def stop_thread(thread: Thread):
     if res > 1:
         ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
         print('Exception raise failure')
+
+def map_str_to_dtype(dtype: str):
+    match dtype:
+        case "float32":
+            return torch.float32
+        case "float16":
+            return torch.float16
+        case "float8":
+            return torch.float8_e4m3fn
+        case "bfloat16":
+            return torch.bfloat16
+        case "int32":
+            return torch.int32
+        case "int16":
+            return torch.int16
+        case "int8":
+            return torch.int8
+
+    return None

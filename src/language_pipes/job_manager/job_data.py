@@ -15,18 +15,18 @@ class JobData:
     position_embeddings_global: Optional[torch.Tensor] = None
     state: Optional[torch.Tensor] = None
 
-    def to_bytes(self) -> bytes:
-        state_bytes = tensor_to_bytes(self.state) if self.state is not None else b''
-        cache_position_bytes = tensor_to_bytes(self.cache_position) if self.cache_position is not None else b''
-        causal_mask_bytes = tensor_to_bytes(self.causal_mask) if self.causal_mask is not None else b''
-        sliding_causal_mask_bytes = tensor_to_bytes(self.sliding_causal_mask) if self.sliding_causal_mask is not None else b''
-        position_ids_bytes = tensor_to_bytes(self.position_ids) if self.position_ids is not None else b''
+    def to_bytes(self, dtype: str) -> bytes:
+        state_bytes = tensor_to_bytes(self.state.to(dtype)) if self.state is not None else b''
+        cache_position_bytes = tensor_to_bytes(self.cache_position.to(dtype)) if self.cache_position is not None else b''
+        causal_mask_bytes = tensor_to_bytes(self.causal_mask.to(dtype)) if self.causal_mask is not None else b''
+        sliding_causal_mask_bytes = tensor_to_bytes(self.sliding_causal_mask.to(dtype)) if self.sliding_causal_mask is not None else b''
+        position_ids_bytes = tensor_to_bytes(self.position_ids.to(dtype)) if self.position_ids is not None else b''
         position_embeddings_bytes = tensor_to_bytes(
-            self.position_embeddings) if self.position_embeddings is not None else b''
+            self.position_embeddings.to(dtype)) if self.position_embeddings is not None else b''
         position_embeddings_local_bytes = tensor_to_bytes(
-            self.position_embeddings_local) if self.position_embeddings_local is not None else b''
+            self.position_embeddings_local.to(dtype)) if self.position_embeddings_local is not None else b''
         position_embeddings_global_bytes = tensor_to_bytes(
-            self.position_embeddings_global) if self.position_embeddings_global is not None else b''
+            self.position_embeddings_global.to(dtype)) if self.position_embeddings_global is not None else b''
 
         bts = ByteHelper()
 
@@ -42,17 +42,17 @@ class JobData:
         return bts.get_bytes()
 
     @staticmethod
-    def from_bytes(data: bytes) -> Optional['JobData']:
+    def from_bytes(data: bytes, dtype: str) -> Optional['JobData']:
         job_data = JobData()
         bts = ByteHelper(data)
-        job_data.state = bytes_to_tensor(bts.read_bytes())
-        job_data.cache_position = bytes_to_tensor(bts.read_bytes())
-        job_data.causal_mask = bytes_to_tensor(bts.read_bytes())
-        job_data.sliding_causal_mask = bytes_to_tensor(bts.read_bytes())
-        job_data.position_ids = bytes_to_tensor(bts.read_bytes())
-        job_data.position_embeddings = bytes_to_tensor(bts.read_bytes())
-        job_data.position_embeddings_local = bytes_to_tensor(bts.read_bytes())
-        job_data.position_embeddings_global = bytes_to_tensor(bts.read_bytes())
+        job_data.state = bytes_to_tensor(bts.read_bytes()).to(dtype)
+        job_data.cache_position = bytes_to_tensor(bts.read_bytes()).to(dtype)
+        job_data.causal_mask = bytes_to_tensor(bts.read_bytes()).to(dtype)
+        job_data.sliding_causal_mask = bytes_to_tensor(bts.read_bytes()).to(dtype)
+        job_data.position_ids = bytes_to_tensor(bts.read_bytes()).to(dtype)
+        job_data.position_embeddings = bytes_to_tensor(bts.read_bytes()).to(dtype)
+        job_data.position_embeddings_local = bytes_to_tensor(bts.read_bytes()).to(dtype)
+        job_data.position_embeddings_global = bytes_to_tensor(bts.read_bytes()).to(dtype)
     
         return job_data
 

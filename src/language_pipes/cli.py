@@ -2,6 +2,7 @@ import os
 import toml
 import argparse
 from language_pipes.config import LpConfig
+from language_pipes.util import map_str_to_dtype
 from language_pipes.util.aes import generate_aes_key
 
 from language_pipes import LanguagePipes
@@ -29,6 +30,8 @@ def build_parser():
     run_parser.add_argument("--https", type=bool, help="HTTPS job communication (Default: false)")
     run_parser.add_argument("--job-port", type=int, help="Job receiver port (Default: 5050)")
     run_parser.add_argument("--hosted-models", nargs="*", help="Hosted models in format [huggingface-id]::[device:::[max-memory] (Required)")
+    run_parser.add_argument("--com-dtype", type=str, help="Communication dtype (\"float32\" | \"float16\" | \"bfloat16\" | \"float8\" | \"int32\" | \"int16\" | \"int8\")")
+    run_parser.add_argument("--process-dtype", type=str, help="Process dtype (\"float32\" | \"float16\" | \"bfloat16\" | \"float8\" | \"int32\" | \"int16\" | \"int8\")")
 
     return parser
 
@@ -45,6 +48,8 @@ def apply_overrides(data, args):
         "https": os.getenv("LP_HTTPS"),
         "job_port": os.getenv("LP_JOB_PORT"),
         "hosted_models": os.getenv("LP_HOSTED_MODELS"),
+        "com_dtype": os.getenv("LP_COM_DTYPE"),
+        "proc_dtype": os.getenv("LP_PROCESS_DTYPE")
     }
 
     def precedence(key, arg, d):
@@ -67,6 +72,8 @@ def apply_overrides(data, args):
         "https": precedence("https", args.https, False),
         "job_port": int(precedence("job_port", args.job_port, 5050)),
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
+        "com_dtype": precedence("com_dtype", args.com_dtype, "float16"),
+        "proc_dtype": precedence("proc_dtype", args.proc_dtype, "float16")
     }
 
     if config["hosted_models"] is None:
@@ -82,6 +89,16 @@ def apply_overrides(data, args):
     
     if config["bootstrap_port"] is not None:
         config["bootstrap_port"] = int(config["bootstrap_port"])
+
+    com_dtype = config["com_dtype"]
+    if map_str_to_dtype(com_dtype) is None:
+        print(f"Error: communication dtype value \"{com_dtype}\" is not recognized")
+        exit()
+
+    proc_dtype = config["proc_dtype"]
+    if map_str_to_dtype(proc_dtype) is None:
+        print(f"Error: process dtype value \"{proc_dtype}\" is not recognized")
+        exit()
     
     config["https"] = config["https"] == "yes" or config["https"] or config["https"] == "1" or config["https"] == "true"
 
@@ -137,7 +154,9 @@ def main(argv = None):
             "processor": {
                 "https": data["https"],
                 "job_port": data["job_port"],
-                "hosted_models": data["hosted_models"]
+                "hosted_models": data["hosted_models"],
+                "communication_dtype": data["com_dtype"],
+                "process_dtype": data["proc_dtype"]
             }
         })
 
