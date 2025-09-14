@@ -13,18 +13,65 @@ from language_pipes.job_manager.enums import ModelPartType
 from language_pipes.util.meta import MetaComputed
 
 def get_size_of_layer(config: PretrainedConfig, layer_idx: int) -> Tuple[float, str]:
+    print(f"Calculating layer size for layer {layer_idx}...")
+    print("Calculating attention size...")
     lyr = AutoDecoderLayer(config, layer_idx).cls.to(dtype=torch.float16)
-    tensors = [
+    attn_tensors = []
+    try:
+        attn_tensors.append(lyr.input_layernorm.weight)
+    except AttributeError:
+        pass
+
+    try:
+        attn_tensors.append(lyr.post_attention_layernorm.weight)
+    except AttributeError:
+        pass
+
+    try:
+        attn_tensors.extend([
+            lyr.self_attn.q_norm.weight,
+            lyr.self_attn.k_norm.weight
+        ])
+    except AttributeError:
+        pass
+
+    attn_tensors.extend([
         lyr.self_attn.q_proj.weight,
         lyr.self_attn.k_proj.weight,
         lyr.self_attn.v_proj.weight,
-        lyr.self_attn.o_proj.weight,
-        lyr.mlp.gate_proj.weight,
-        lyr.mlp.up_proj.weight,
-        lyr.mlp.down_proj.weight
-    ]
+        lyr.self_attn.o_proj.weight
+    ])
+
     hash = tensor_hash(lyr.self_attn.q_proj.weight)
-    return sum([size_of_tensor(t) for t in tensors]), hash
+    attn_size = sum([size_of_tensor(t) for t in attn_tensors])
+    print(f"Attention size is {attn_size / 10**6:.2f}MB")
+
+    print("Calculating mlp size...")
+    mlp_tensors = []
+    try:
+        mlp_tensors = [
+            lyr.mlp.gate_proj.weight,
+            lyr.mlp.up_proj.weight,
+            lyr.mlp.down_proj.weight
+        ] 
+    except AttributeError:
+        for i in range(0, lyr.mlp.num_experts):
+            mlp_tensors.extend([
+                lyr.mlp.gate.weight,
+                lyr.mlp.experts[i].gate_proj.weight,
+                lyr.mlp.experts[i].up_proj.weight,
+                lyr.mlp.experts[i].down_proj.weight
+            ]) 
+
+    mlp_size = sum([size_of_tensor(t) for t in mlp_tensors])
+    print(f"MLP Size is {mlp_size / 10**6:.2f}MB")
+
+    total_size = attn_size + mlp_size
+
+    print(f"Total Layer Size is {total_size / 10**6:.2f}MB")
+
+    return total_size, hash
+
 
 def get_avg_layer_size(model_path: str) -> Tuple[int, List[str]]:
     if not os.path.exists(model_path):
@@ -49,18 +96,22 @@ def data_of_type(typ: ModelPartType, model_path: str) -> Tuple[float, str]:
     size = 0
     hash = ''
     if typ == ModelPartType.EMBED:
+        print("Calculating embedding size...")
         e  = torch.nn.Embedding(config.vocab_size, config.hidden_size).to(dtype=torch.float16)
         size = size_of_tensor(e.weight)
         hash = tensor_hash(e.weight)
+        print(f"Embedding is {size / 10**6:.2f}MB")
         
     if typ == ModelPartType.NORM:
         n = AutoRMSNorm(config).to(dtype=torch.float16)
         size = size_of_tensor(n.cls.weight)
         hash = tensor_hash(n.cls.weight)
     if typ == ModelPartType.HEAD:
+        print("Calculating head size...")
         h = torch.nn.Linear(config.hidden_size, config.vocab_size).to(dtype=torch.float16)
         size = size_of_tensor(h.weight)
         hash = tensor_hash(h.weight)
+        print(f"Head is {size / 10**6:.2f}MB")
     
     return size, hash
 
@@ -71,6 +122,8 @@ def get_computed_data(model_path: str):
     if os.path.exists(computed_path):
         with open(computed_path) as f:
             return json.load(f)
+
+    print('Computing Data for ' + model_path)
     computed = { }
     model_path = os.path.join(model_path, 'data')
     size, hash = data_of_type(ModelPartType.EMBED, model_path)
