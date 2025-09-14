@@ -14,6 +14,7 @@ bootstrap_address="192.168.0.1"
 bootstrap_port=5000
 network_key="network.key"
 https=true
+network_ip="192.168.0.2"
 job_port=5050
 
 [[hosted_models]] # Required
@@ -97,6 +98,11 @@ Refer to the [Distributed State Network](https://github.com/erinclemmer/distribu
 **Allowed Values:** `true | false`  
 **Description:** Whether to communicate in https (true) or http (false) mode for slightly less latency at the cost of security.  
 
+### `network_ip`
+**Command Argument:** `--network-ip`
+**Environment Variable:** `LP_NETWORK_IP`
+**Type:** `String`
+**Description:** Network IP to create the node's HTTPS certificate. Should match your current local IP address.
 
 ### `job_port`
 **Command Argument:** `--job-port`  

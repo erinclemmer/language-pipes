@@ -26,8 +26,9 @@ def build_parser():
     run_parser.add_argument("--bootstrap-address", help="Bootstrap address for network")
     run_parser.add_argument("--bootstrap-port", type=int, help="Bootstrap port for the network")
     run_parser.add_argument("--network-key", type=str, help="AES key to access network (Default: network.key)")
-    run_parser.add_argument("--https", type=bool, help="HTTPS job communication (Default: false)")
+    run_parser.add_argument("--https", type=bool, help="HTTPS job communication (Default: False)")
     run_parser.add_argument("--job-port", type=int, help="Job receiver port (Default: 5050)")
+    run_parser.add_argument("--network-ip", type=str, help="IP address for the current device (only HTTPS)")
     run_parser.add_argument("--hosted-models", nargs="*", help="Hosted models in format [huggingface-id]::[device:::[max-memory] (Required)")
 
     return parser
@@ -44,6 +45,7 @@ def apply_overrides(data, args):
         "network_key": os.getenv("LP_NETWORK_KEY"),
         "https": os.getenv("LP_HTTPS"),
         "job_port": os.getenv("LP_JOB_PORT"),
+        "network_ip": os.getenv("LP_NETWORK_IP"),
         "hosted_models": os.getenv("LP_HOSTED_MODELS"),
     }
 
@@ -66,6 +68,7 @@ def apply_overrides(data, args):
         "network_key": precedence("network_key", args.network_key, "network.key"),
         "https": precedence("https", args.https, False),
         "job_port": int(precedence("job_port", args.job_port, 5050)),
+        "network_ip": precedence("network_ip", args.network_ip, "127.0.0.1"),
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
     }
 
@@ -126,6 +129,8 @@ def main(argv = None):
             "router": {
                 "node_id": data["node_id"],
                 "port": data["peer_port"],
+                "https": data["https"],
+                "network_ip": data["network_ip"],
                 "aes_key_file": data["network_key"],
                 "bootstrap_nodes": [
                     {

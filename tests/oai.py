@@ -13,8 +13,8 @@ sys.path.append(os.path.join(cd, 'src'))
 from language_pipes.cli import main
 from language_pipes.util.chat import ChatMessage, ChatRole
 
-# MODEL = "Qwen/Qwen3-1.7B"
-MODEL = "Qwen/Qwen3-30B-A3B-Thinking-2507"
+MODEL = "Qwen/Qwen3-1.7B"
+# MODEL = "Qwen/Qwen3-30B-A3B-Thinking-2507"
 # MODEL = "meta-llama/Llama-3.2-1B-Instruct"
 
 def start_node(node_id: str, max_memory: float, peer_port: int, job_port: int, oai_port: int = None, bootstrap_port: int = None):
@@ -85,9 +85,9 @@ class OpenAITests(unittest.TestCase):
         self.assertEqual(400, res.status_code)
 
     def test_double_node(self):
-        start_node("node-1", 10, 5000, 5050, 6000)
+        start_node("node-1", 2, 5000, 5050, 6000)
         time.sleep(10)
-        start_node("node-2", 10, 5001, 5051, None, 5000)
+        start_node("node-2", 3, 5001, 5051, None, 5000)
         time.sleep(10)
         res = oai_complete(6000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
