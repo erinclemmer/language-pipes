@@ -99,7 +99,7 @@ class JobManager:
 
         new_model: Optional[LlmModel] = LlmModel.from_id(model_id, self.router.config.node_id, pipe.pipe_id, device)
         computed = new_model.computed
-        if len(pipe.segments) > 0 and not validate_model(new_model.computed.to_meta(), pipe.get_computed()):
+        if self.config.model_validation and len(pipe.segments) > 0 and not validate_model(new_model.computed.to_meta(), pipe.get_computed()):
             self.logger.warning(f'Computed data for model {model_id} does not match')
             return available_memory, None
         

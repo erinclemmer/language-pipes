@@ -14,6 +14,7 @@ bootstrap_address="192.168.0.1"
 bootstrap_port=5000
 network_key="network.key"
 https=true
+model_validation=true
 network_ip="192.168.0.2"
 job_port=5050
 
@@ -94,9 +95,15 @@ Refer to the [Distributed State Network](https://github.com/erinclemmer/distribu
 **Command Argument:** `--https`  
 **Environment Variable:** `LP_HTTPS`  
 **Type:** `Bool`  
-**Default:** False  
-**Allowed Values:** `true | false`  
+**Default:** False    
 **Description:** Whether to communicate in https (true) or http (false) mode for slightly less latency at the cost of security.  
+
+### `model_validation`
+**Command Argument:** `--model-validation`  
+**Environment Variable:** `LP_MODEL_VALIDATION`  
+**Type:** `Bool`  
+**Default:** False    
+**Description:** If turned on, it checks the weight hashes of other models on the network against the computed hashes of the local weights to determine if they are the same model.
 
 ### `network_ip`
 **Command Argument:** `--network-ip`
