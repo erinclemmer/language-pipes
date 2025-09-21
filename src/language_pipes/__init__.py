@@ -30,6 +30,7 @@ class LanguagePipes:
     ):
         self.config = config
         self.set_logging_level(self.config.logging_level, self.config.router.node_id)
+        self.job_manager = None
         self.router = DSNodeServer.start(self.config.router, self.print_pipes, self.print_pipes)
         self.job_manager = JobManager(self.router.node, self.config.processor)
         self.job_receiver = JobReceiver(self.config.processor, self.router.node, self.job_manager.get_pipe, self.job_manager.restart_job)
@@ -37,6 +38,8 @@ class LanguagePipes:
             self.start_oai()
 
     def print_pipes(self):
+        if self.job_manager is None:
+            return
         for p in self.job_manager.router_pipes.network_pipes():
             p.print(self.job_manager.logger)
 
