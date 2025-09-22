@@ -6,7 +6,7 @@ from language_pipes.util.aes import generate_aes_key
 
 from language_pipes import LanguagePipes
 
-VERSION = "0.0.1"
+VERSION = "0.4.0"
 
 def build_parser():
     parser = argparse.ArgumentParser(description="Language Pipes CLI")
@@ -25,6 +25,7 @@ def build_parser():
     run_parser.add_argument("--peer-port", type=int, help="Port for peer-to-peer network (Default: 5000)")
     run_parser.add_argument("--bootstrap-address", help="Bootstrap address for network")
     run_parser.add_argument("--bootstrap-port", type=int, help="Bootstrap port for the network")
+    run_parser.add_argument("--max-pipes", type=int, help="Maximum amount of pipes to host")
     run_parser.add_argument("--network-key", type=str, help="AES key to access network (Default: network.key)")
     run_parser.add_argument("--model-validation", help="Whether to validate the model weight hashes when connecting to a pipe.", default=False, action=argparse.BooleanOptionalAction)
     run_parser.add_argument("--https", help="HTTPS job communication (Default: false)", default=False, action=argparse.BooleanOptionalAction)
@@ -47,6 +48,7 @@ def apply_overrides(data, args):
         "https": os.getenv("LP_HTTPS"),
         "model_validation": os.getenv("LP_MODEL_VALIDATION"),
         "job_port": os.getenv("LP_JOB_PORT"),
+        "max_pipes": os.getenv("LP_MAX_PIPES"),
         "network_ip": os.getenv("LP_NETWORK_IP"),
         "hosted_models": os.getenv("LP_HOSTED_MODELS"),
     }
@@ -71,6 +73,7 @@ def apply_overrides(data, args):
         "https": precedence("https", args.https, False),
         "model_validation": precedence("model_validation", args.model_validation, False),
         "job_port": int(precedence("job_port", args.job_port, 5050)),
+        "max_pipes": precedence("max_pipes", args.max_pipes, 1),
         "network_ip": precedence("network_ip", args.network_ip, "127.0.0.1"),
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
     }
@@ -144,6 +147,7 @@ def main(argv = None):
             },
             "processor": {
                 "https": data["https"],
+                "max_pipes": data["max_pipes"],
                 "model_validation": data["model_validation"],
                 "job_port": data["job_port"],
                 "hosted_models": data["hosted_models"]

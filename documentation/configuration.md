@@ -13,6 +13,7 @@ peer_port=5000
 bootstrap_address="192.168.0.1"
 bootstrap_port=5000
 network_key="network.key"
+max_pipes=1
 https=true
 model_validation=true
 network_ip="192.168.0.2"
@@ -104,6 +105,13 @@ Refer to the [Distributed State Network](https://github.com/erinclemmer/distribu
 **Type:** `Bool`  
 **Default:** False    
 **Description:** If turned on, it checks the weight hashes of other models on the network against the computed hashes of the local weights to determine if they are the same model.
+
+### `max_pipes`
+**Command Argument:** `--max-pipes`  
+**Environment Variable:** `LP_MAX_PIPES`  
+**Type:** `Int`      
+**Description:** The maximum number of pipes to load models for.
+
 
 ### `network_ip`
 **Command Argument:** `--network-ip`
