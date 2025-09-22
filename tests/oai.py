@@ -24,8 +24,7 @@ def start_node(node_id: str, max_memory: float, peer_port: int, job_port: int, o
         "--peer-port", str(peer_port),
         "--job-port", str(job_port),
         "--model-validation", 
-        "--https",
-        "--max-pipes", "2"
+        "--https"
     ]
     if oai_port is not None:
         args.extend(["--oai-port", str(oai_port)])

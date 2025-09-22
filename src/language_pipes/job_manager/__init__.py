@@ -45,6 +45,7 @@ class JobManager:
         self.jobs_pending = []
         self.completed_jobs = []
         self.models = []
+        self.pipes_hosted = 0
         self.router_pipes = RouterPipes(router)
         self.router.update_data("job_port", str(self.config.job_port))
         for m in self.config.hosted_models:
@@ -136,9 +137,8 @@ class JobManager:
     def host_model(self, model_id: str, max_memory: float, device: str):
         available_memory = max_memory * 10 ** 9
         models_to_load: List[LlmModel] = []
-        pipes_loaded = 0
         for pipe_id in [p.pipe_id for p in self.router_pipes.pipes_for_model(model_id, False)]:
-            if pipes_loaded >= self.config.max_pipes:
+            if self.pipes_hosted >= self.config.max_pipes:
                 break
             loaded = True
             while loaded:
@@ -148,11 +148,11 @@ class JobManager:
                 available_memory, model = self.get_model_for_pipe(model_id, pipe, device, available_memory)
                 loaded = model is not None
                 if model is not None:
-                    pipes_loaded += 1
+                    self.pipes_hosted += 1
                     self.router_pipes.add_model_to_network(model.to_meta())
                     models_to_load.append(model)
 
-        if pipes_loaded < self.config.max_pipes:
+        if self.pipes_hosted < self.config.max_pipes:
             new_pipe = MetaPipe(str(uuid4()), model_id, [])
             _, model = self.get_model_for_pipe(model_id, new_pipe, device, available_memory)
             if model is not None:
