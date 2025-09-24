@@ -14,6 +14,7 @@ class JobReceiver:
     port: int
     public_key_file: str
     private_key_file: str
+    ecdsa_verification: bool
     router: DSNode
     pending_jobs: List[Job]
     get_pipe: Callable[[str], Optional[Pipe]]
@@ -30,6 +31,7 @@ class JobReceiver:
         self.get_pipe = get_pipe
         self.restart_job = restart_job
         self.pending_jobs = []
+        self.ecdsa_verification = config.ecdsa_verification
 
         public_key = router.cert_manager.public_path(router.config.node_id)
         if public_key is None:
@@ -69,7 +71,7 @@ class JobReceiver:
     def receive_data(self, data: bytes):
         job = Job.from_bytes(data)
         job_certificate = self.router.cred_manager.read_public(job.from_router_id)
-        if not job.verify_signature(job_certificate):
+        if self.ecdsa_verification and not job.verify_signature(job_certificate):
             return
 
         self.pending_jobs.insert(0, job)

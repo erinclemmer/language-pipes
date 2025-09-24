@@ -6,7 +6,7 @@ from language_pipes.util.aes import generate_aes_key
 
 from language_pipes import LanguagePipes
 
-VERSION = "0.4.1"
+VERSION = "0.4.2"
 
 def build_parser():
     parser = argparse.ArgumentParser(description="Language Pipes CLI")
@@ -29,6 +29,7 @@ def build_parser():
     run_parser.add_argument("--network-key", type=str, help="AES key to access network (Default: network.key)")
     run_parser.add_argument("--model-validation", help="Whether to validate the model weight hashes when connecting to a pipe.", default=False, action=argparse.BooleanOptionalAction)
     run_parser.add_argument("--https", help="HTTPS job communication (Default: false)", default=False, action=argparse.BooleanOptionalAction)
+    run_parser.add_argument("--ecdsa-verification", help="verify legitimacy of sender via ecdsa signed packets" , default=False, action=argparse.BooleanOptionalAction)
     run_parser.add_argument("--job-port", type=int, help="Job receiver port (Default: 5050)")
     run_parser.add_argument("--network-ip", type=str, help="IP address for the current device (only HTTPS)")
     run_parser.add_argument("--hosted-models", nargs="*", help="Hosted models in format [huggingface-id]::[device:::[max-memory] (Required)")
@@ -45,6 +46,7 @@ def apply_overrides(data, args):
         "bootstrap_address": os.getenv("LP_BOOTSTRAP_ADDRESS"),
         "bootstrap_port": os.getenv("LP_BOOTSTRAP_PORT"),
         "network_key": os.getenv("LP_NETWORK_KEY"),
+        "ecdsa_verification": os.getenv("LP_ECDSA_VERIFICATION"),
         "https": os.getenv("LP_HTTPS"),
         "model_validation": os.getenv("LP_MODEL_VALIDATION"),
         "job_port": os.getenv("LP_JOB_PORT"),
@@ -71,6 +73,7 @@ def apply_overrides(data, args):
         "bootstrap_port": precedence("bootstrap_port", args.bootstrap_port, 5000),
         "network_key": precedence("network_key", args.network_key, "network.key"),
         "https": precedence("https", args.https, False),
+        "ecdsa_verification": precedence("ecdsa_verification", args.ecdsa_verification, False),
         "model_validation": precedence("model_validation", args.model_validation, False),
         "job_port": int(precedence("job_port", args.job_port, 5050)),
         "max_pipes": precedence("max_pipes", args.max_pipes, 1),
@@ -149,6 +152,7 @@ def main(argv = None):
                 "https": data["https"],
                 "max_pipes": data["max_pipes"],
                 "model_validation": data["model_validation"],
+                "ecdsa_verification": data["ecdsa_verification"],
                 "job_port": data["job_port"],
                 "hosted_models": data["hosted_models"]
             }

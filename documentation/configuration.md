@@ -13,6 +13,7 @@ peer_port=5000
 bootstrap_address="192.168.0.1"
 bootstrap_port=5000
 network_key="network.key"
+ecdsa_verification=false
 max_pipes=1
 https=true
 model_validation=true
@@ -104,7 +105,14 @@ Refer to the [Distributed State Network](https://github.com/erinclemmer/distribu
 **Environment Variable:** `LP_MODEL_VALIDATION`  
 **Type:** `Bool`  
 **Default:** False    
-**Description:** If turned on, it checks the weight hashes of other models on the network against the computed hashes of the local weights to determine if they are the same model.
+**Description:** If set, it checks the weight hashes of other models on the network against the computed hashes of the local weights to determine if they are the same model.
+
+### `ecdsa_verification`
+**Command Argument:** `--ecdsa-verification`  
+**Environment Variable:** `LP_ECDSA_VERIFICATION`  
+**Type:** `Bool`  
+**Default:** False    
+**Description:** If set, uses the ecdsa algorithm to sign job packets so that the receiver will only accept job packets from pipes that it is a part of. 
 
 ### `max_pipes`
 **Command Argument:** `--max-pipes`  
