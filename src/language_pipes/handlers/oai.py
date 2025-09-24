@@ -1,6 +1,6 @@
 
 import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable
 
 from language_pipes.util.oai import oai_chat_complete
@@ -36,7 +36,7 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
         if self.path == '/v1/chat/completions':
             oai_chat_complete(self, self.server.complete, data)
 
-class OAIHttpServer(HTTPServer):
+class OAIHttpServer(ThreadingHTTPServer):
     complete: Callable
     
     def __init__(self, port: int, complete: Callable):

@@ -1,3 +1,4 @@
+import time
 import requests
 import json
 
@@ -16,7 +17,9 @@ payload = {
     ]
 }
 
+start_time = time.time()
 response = requests.post(url, headers=headers, data=json.dumps(payload))
+print(f"{10.0/(time.time() - start_time):.2f} tokens per second")
 
 print("Status Code:", response.status_code)
 print("Response JSON:", response.json())
