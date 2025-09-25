@@ -154,7 +154,7 @@ Device: {self.device}
     ):
         if job.data is None:
             self.raise_exception("cannot compute layers without job data")
-        comp_state = jobDataToComputationState(job.data)
+        comp_state = jobDataToComputationState(job.data, self.device)
         for lyr in self.layers:
             comp_state.state = lyr(comp_state)
         job.set_layer(comp_state.state, self.end_layer + 1)

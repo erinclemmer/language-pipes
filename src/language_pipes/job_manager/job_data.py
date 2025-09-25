@@ -1,5 +1,5 @@
 import torch
-from typing import Optional
+from typing import Optional, Tuple
 from distributed_state_network.util.byte_helper import ByteHelper
 from llm_layer_collector.compute import LLmComputationState
 
@@ -56,24 +56,48 @@ class JobData:
     
         return job_data
 
+def move_position_embeddings(t: Optional[Tuple[torch.Tensor, torch.Tensor]], device: str):
+    if t is None:
+        return None
+    if t[0].device == device:
+        return t
+    return [
+        t[0].to(device),
+        t[1].to(device)
+    ]
+
 def computationStateToJobData(data: LLmComputationState) -> JobData:
     job_data = JobData()
-    job_data.state = data.state
-    job_data.position_ids = data.position_ids
-    job_data.position_embeddings = data.position_embeddings
-    job_data.cache_position = data.cache_position
-    job_data.causal_mask = data.causal_mask["full_attention"]
-    job_data.sliding_causal_mask = data.causal_mask["sliding_attention"] if "sliding_attention" in data.causal_mask else None
+    job_data.state = maybeTo(data.state, 'cpu')
+    job_data.position_ids = maybeTo(data.position_ids, 'cpu')
+    job_data.position_embeddings = move_position_embeddings(data.position_embeddings, 'cpu')
+    job_data.position_embeddings_local = move_position_embeddings(data.position_embeddings_local, 'cpu')
+    job_data.position_embeddings_global = move_position_embeddings(data.position_embeddings_global, 'cpu')
+    job_data.cache_position = maybeTo(data.cache_position, 'cpu')
+    job_data.causal_mask = maybeTo(data.causal_mask["full_attention"], 'cpu')
+    job_data.sliding_causal_mask = data.causal_mask["sliding_attention"].to('cpu') if "sliding_attention" in data.causal_mask else None
     return job_data
 
-def jobDataToComputationState(data: JobData) -> LLmComputationState:
+def maybeTo(t: Optional[torch.Tensor], device: str) -> Optional[torch.Tensor]:
+    if t is None:
+        return None
+    return t.to(device)
+
+def jobDataToComputationState(data: JobData, device: str) -> LLmComputationState:
     state = LLmComputationState()
-    state.state = data.state
-    state.position_ids = data.position_ids
-    state.position_embeddings = data.position_embeddings
-    state.cache_position = data.cache_position
+    state.state = maybeTo(data.state, device)
+    state.position_ids = maybeTo(data.position_ids, device)
+    
+    if data.position_embeddings is not None:
+        state.position_embeddings = move_position_embeddings(data.position_embeddings, device)
+    if data.position_embeddings_local is not None:
+        state.position_embeddings_local = move_position_embeddings(data.position_embeddings_local, device)
+    if data.position_embeddings_global is not None:
+        state.position_embeddings_global = move_position_embeddings(data.position_embeddings_global, device)
+    
+    state.cache_position = maybeTo(data.cache_position, device)
     state.causal_mask = {
-        "full_attention": data.causal_mask,
-        "sliding_attention": data.sliding_causal_mask
+        "full_attention": maybeTo(data.causal_mask, device),
+        "sliding_attention": maybeTo(data.sliding_causal_mask, device)
     }
     return state
