@@ -45,15 +45,14 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete: Callable, data:
             _respond_json(handler, {
                 "id": job.job_id,
                 "object": "chat.completion",
-                "created": time.strftime("%m/%d/%Y:%H:%M:%S", time.localtime(created_at)),
-                "model": "",
+                "created": created_at,
+                "model": job.model_id,
                 "choices": [{
                     "index": 0,
                     "message": {
                         "role": "assistant",
                         "content": job.result
                     },
-                    "logprobs": None,
                     "finish_reason": "stop"
                 }],
                 "usage": {

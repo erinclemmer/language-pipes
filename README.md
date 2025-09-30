@@ -34,9 +34,6 @@ Over the past few years open source language models have become much more powerf
 ### What Does it do?
 In a basic sense, language models work by passing information through many layers. At each layer, several matrix multiplicatitons between the layer weights and the system state are performed and the data is moved to the next layer. Language pipes works by hosting different layers on different machines to split up the RAM cost across the system.
 
-#### How is this different from Distributed Llama?
-[Distributed Llama](https://github.com/b4rtaz/distributed-llama) is built to be a static network and requires individual setup and allocation for each model hosted. Language Pipes meanwhile, has a more flexible setup process that automatically selects which parts of the model to load based on what the network needs and the local systems resources. This allows separate users to collectively host a network together while maintaining trust that one configuration will not break the network. Users can come and go from the network and many different models can be hosted at the same time.
-
 ### Installation
 Ensure that you have Python 3.10.18 (or any 3.10 version) installed. For an easy to use Python version manager use [pyenv](https://github.com/pyenv/pyenv). This specific version is necessary for the [transformers](https://github.com/huggingface/transformers) library to work properly.  
   

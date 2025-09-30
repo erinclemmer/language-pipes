@@ -6,7 +6,7 @@ from language_pipes.util.aes import generate_aes_key
 
 from language_pipes import LanguagePipes
 
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 
 def build_parser():
     parser = argparse.ArgumentParser(description="Language Pipes CLI")
