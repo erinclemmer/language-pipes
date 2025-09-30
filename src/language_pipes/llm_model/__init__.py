@@ -227,7 +227,7 @@ Device: {self.device}
         if job.data is None or job.data.state is None:
             self.raise_exception("Cannot compute head without job data")
         head = int(compute_head(self.head, job.data.state.to(self.device))[0][0])
-        job.set_output(head)
+        job.set_output(head, self.collector.config.eos_token_id)
     
     def to_meta(self) -> MetaModel:
         return MetaModel(

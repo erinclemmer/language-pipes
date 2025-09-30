@@ -38,7 +38,7 @@ def oai_complete(port: int, messages: List[ChatMessage], retries: int = 0):
     try:
         res = requests.post(f"http://localhost:{port}/v1/chat/completions", json={
             "model": MODEL,
-            "max_completion_tokens": 10,
+            "max_completion_tokens": 100,
             "messages": [m.to_json() for m in messages]
         })
         if res.status_code != 200:
@@ -88,9 +88,9 @@ class OpenAITests(unittest.TestCase):
 
     def test_double_node(self):
         start_node("node-1", 2, 5000, 5050, 6000)
-        time.sleep(10)
+        time.sleep(5)
         start_node("node-2", 3, 5001, 5051, None, 5000)
-        time.sleep(10)
+        time.sleep(5)
         res = oai_complete(6000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")

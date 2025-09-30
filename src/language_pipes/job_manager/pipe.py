@@ -171,7 +171,8 @@ Complete: {self.is_complete()}
             if model_for_job is None:
                 if job.status == JobStatus.COMPLETED:
                     if job.router_id == self.router.config.node_id:
-                        job.result = self.tokenizer().decode(job.input_id_tensor())
+                        res_tokens = job.input_id_tensor()
+                        job.result = self.tokenizer().decode(res_tokens[job.prompt_tokens:])
                         self.complete_job(job)
                     else:
                         self.send_job(job, job.router_id)

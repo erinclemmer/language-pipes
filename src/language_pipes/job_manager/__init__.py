@@ -191,7 +191,7 @@ class JobManager:
 
     def start_job(self, router_id: str, model_id: str, pipe_id: str, messages: List[ChatMessage], tokens: int, job_id: Optional[str] = None) -> str:
         pipe = self.get_pipe(pipe_id)
-        job = Job(self.router.config.node_id, self.router.config.node_id, tokens, messages, pipe_id, model_id, None)
+        job = Job(self.router.config.node_id, self.router.config.node_id, tokens, messages, pipe_id, model_id)
         if job_id is not None:
             job.job_id = job_id
         if pipe is None:

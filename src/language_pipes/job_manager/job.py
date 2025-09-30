@@ -15,7 +15,6 @@ from language_pipes.util import tensor_to_bytes, bytes_to_tensor, bytes_to_int
 class Job(SignedPacket):
     router_id: str
     from_router_id: str
-    stop_token: int = 128009
     input_ids: List[int]
     prompt_tokens: int = 0
     tokens: int
@@ -82,11 +81,13 @@ class Job(SignedPacket):
         self.data.state = state
         self.next_step()
 
-    def set_output(self, token: int):
+    def set_output(self, token: int, eos_token: int):
         if self.current_step != ComputeStep.HEAD:
             raise Exception('Invalid step for head')
         self.input_ids.append(token)
         self.next_step()
+        if token == eos_token:
+            self.status = JobStatus.COMPLETED
 
     def input_id_tensor(self):
         if self.input_ids is None:
@@ -105,11 +106,6 @@ class Job(SignedPacket):
             self.current_step = ComputeStep.HEAD
         elif self.current_token < self.tokens:
             self.current_token += 1
-            output = self.input_ids[-1]
-            if output == self.stop_token:
-                self.tokens = self.current_token
-                self.status = JobStatus.COMPLETED
-                return
             self.current_step = ComputeStep.EMBED
             if self.current_token == self.tokens:
                 self.status = JobStatus.COMPLETED
