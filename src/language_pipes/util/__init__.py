@@ -1,7 +1,10 @@
 import io
+import os
+from pathlib import Path
 import json
 import base64
 import ctypes
+import subprocess
 from uuid import UUID
 from hashlib import sha256
 from threading import Thread
@@ -54,3 +57,13 @@ def stop_thread(thread: Thread):
     if res > 1:
         ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
         print('Exception raise failure')
+
+def clone_model(model_id: str, model_dir: str):
+    repo_url = f"https://huggingface.co/{model_id}"
+    clone_dir = f"{model_dir}/data"
+
+    if not os.path.exists(clone_dir):
+        Path(clone_dir).mkdir(parents=True)
+    subprocess.run(["git", "clone", repo_url, clone_dir])
+    subprocess.run(["git", "lfs", "install"], cwd=clone_dir, check=True)
+    subprocess.run(["git", "lfs", "pull"], cwd=clone_dir, check=True)

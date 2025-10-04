@@ -37,8 +37,6 @@ class MetaComputed:
 @dataclass
 class MetaModel:
     process_id: str
-    has_embedding: bool
-    has_head: bool
     start_layer: int
     end_layer: int
     loaded: bool
@@ -52,8 +50,6 @@ class MetaModel:
     def to_json(self):
         return {
             "process_id": self.process_id,
-            "has_embedding": self.has_embedding,
-            "has_head": self.has_head,
             "start_layer": self.start_layer,
             "end_layer": self.end_layer,
             "router_id": self.router_id,
@@ -68,8 +64,6 @@ class MetaModel:
     def from_dict(data: dict):
         return MetaModel(
             data["process_id"],
-            data["has_embedding"],
-            data["has_head"],
             data["start_layer"],
             data["end_layer"],
             data["loaded"],
@@ -99,18 +93,6 @@ class MetaPipe:
 
     def sort_segments(self):
         self.segments = sorted(self.segments, key=lambda x: x.start_layer)
-
-    def get_embed(self):
-        res = [s for s in self.segments if s.has_embedding]
-        if len(res) == 0:
-            return None
-        return res[0]
-    
-    def get_head(self):
-        res = [s for s in self.segments if s.has_head]
-        if len(res) == 0:
-            return None
-        return res[0]
 
     def get_filled_slots(self):
         filled_slots = [0 for _ in range(0, self.num_layers())]
@@ -149,8 +131,6 @@ class MetaPipe:
 
     def is_complete(self):
         self.sort_segments()
-        if self.get_embed() is None or self.get_head() is None:
-            return False
         current_layer = 0
         for s in self.segments:
             if s.start_layer == -1:
@@ -169,8 +149,6 @@ Model ID: {self.model_id}
 Pipe: {self.pipe_id}
 Segments: {', '.join([s.router_id for s in self.segments])}
 {self.get_filled_slots()}
-Embed: {self.get_embed() is not None}
-Head: {self.get_head() is not None}
 End Layer: {self.segments[-1].end_layer} / {self.num_layers() - 1}
 Complete: {self.is_complete()}
 #################################

@@ -40,7 +40,9 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete: Callable, data:
     created_at = time.time()
     def cb(job: Job):
         if type(job) == type('') and job == 'NO_PIPE':
-            _respond_json(handler, { "error": "no pipe available"})
+            _respond_json(handler, { "error": "no pipe available" })
+        elif type(job) == type('') and job == 'NO_ENDS':
+            _respond_json(handler, { "error": "no model ends available" })
         else:
             _respond_json(handler, {
                 "id": job.job_id,
