@@ -1,6 +1,5 @@
 import os
 import torch
-import logging
 from uuid import uuid4
 from torch import tensor
 
@@ -40,7 +39,6 @@ class EndModel:
             dtype=torch.float16
         )
         self.tokenizer = lambda: AutoTokenizer.from_pretrained(os.path.join(model_dir, 'data'))
-        self.logger = logging.getLogger("LM NET: " + self.router_id)
     
     def size(self):
         return self.computed.embed_size + self.computed.head_size
@@ -85,7 +83,8 @@ class EndModel:
         comp_state = compute_embedding(self.input_embedding, tensor([job.input_ids]).to(self.device), self.collector.config)
         if job.current_token > 0:
             comp_state.state = comp_state.state[:, -1:, :]
-            comp_state.causal_mask["full_attention"] = comp_state.causal_mask["full_attention"][:, :, -1:, -1:]
+            if comp_state.causal_mask["full_attention"] is not None:
+                comp_state.causal_mask["full_attention"] = comp_state.causal_mask["full_attention"][:, :, -1:, -1:]
             comp_state.position_embeddings = self.chop_position_embeddings(comp_state.position_embeddings)
             comp_state.position_embeddings_local = self.chop_position_embeddings(comp_state.position_embeddings_local)
             comp_state.position_embeddings_global = self.chop_position_embeddings(comp_state.position_embeddings_global)
@@ -106,3 +105,16 @@ class EndModel:
             self.raise_exception("Cannot compute head without job data")
         head = int(compute_head(self.head, job.data.state.to(self.device))[0][0])
         job.set_output(head, self.collector.config.eos_token_id)
+
+    def set_result(self, job: Job):
+        res_tokens = job.input_id_tensor()
+        job.result = self.tokenizer().decode(res_tokens[job.prompt_tokens:])
+
+    def start_job(self, job: Job):
+        self.tokenize(job)
+        self.compute_embed(job)
+
+    def clean_up(self):
+        del self.input_embedding
+        del self.norm
+        del self.head

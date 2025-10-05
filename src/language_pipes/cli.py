@@ -32,7 +32,7 @@ def build_parser():
     run_parser.add_argument("--ecdsa-verification", help="verify legitimacy of sender via ecdsa signed packets" , default=False, action=argparse.BooleanOptionalAction)
     run_parser.add_argument("--job-port", type=int, help="Job receiver port (Default: 5050)")
     run_parser.add_argument("--network-ip", type=str, help="IP address for the current device (only HTTPS)")
-    run_parser.add_argument("--hosted-models", nargs="*", help="Hosted models in format [huggingface-id]::[device:::[max-memory] (Required)")
+    run_parser.add_argument("--hosted-models", nargs="*", help="Hosted models in format [huggingface-id]::[device]::[max-memory]::[load_ends] (Required)")
 
     return parser
 
@@ -101,12 +101,13 @@ def apply_overrides(data, args):
     for m in config["hosted_models"]:
         if type(m) is type(''):    
             parts = m.split("::")
-            if len(parts) != 3:
-                raise ValueError(f"{m} is not an acceptable format for hosted_models (must be id::device::max_memory)")
+            if len(parts) != 4:
+                raise ValueError(f"{m} is not an acceptable format for hosted_models (must be id::device::max_memory::load_ends)")
             hosted_models.append({
                 "id": parts[0],
                 "device": parts[1],
-                "max_memory": float(parts[2])
+                "max_memory": float(parts[2]),
+                "load_ends": parts[3] == "true"
             })
         else:
             hosted_models.append(m)

@@ -19,11 +19,11 @@ from language_pipes.llm_model import LlmModel
 from language_pipes.llm_model.computed import validate_model
 
 class PendingJob:
-    job: Job
+    job_id: str
     promise: Promise
 
-    def __init__(self, job: Job, promise: Promise):
-        self.job = job
+    def __init__(self, job_id: str, promise: Promise):
+        self.job_id = job_id
         self.promise = promise
 
 class JobManager:
@@ -47,11 +47,12 @@ class JobManager:
         self.jobs_pending = []
         self.completed_jobs = []
         self.models = []
+        self.end_models = []
         self.pipes_hosted = []
         self.router_pipes = RouterPipes(router)
         self.router.update_data("job_port", str(self.config.job_port))
         for m in self.config.hosted_models:
-            self.host_model(m.id, m.max_memory, m.device)
+            self.host_model(m.id, m.max_memory, m.device, m.load_ends)
         
         for p in self.router_pipes.network_pipes():
             p.print(self.logger)
@@ -65,7 +66,10 @@ class JobManager:
     def stop(self):
         for m in self.models:
             m.cleanup_tensors()
+        for m in self.end_models:
+            m.clean_up()
         self.models = []
+        self.end_models = []
     
     def get_pipe(self, pipe_id: str) -> Optional[Pipe]:
         meta_pipe = self.router_pipes.network_pipe(pipe_id)
@@ -201,26 +205,33 @@ class JobManager:
 
     def start_job(
         self, 
-        router_id: str, 
         model_id: str, 
         pipe_id: str, 
         messages: List[ChatMessage], 
         tokens: int, 
-        promise: Promise,
         job_id: Optional[str] = None
     ) -> str:
         pipe = self.get_pipe(pipe_id)
         job = Job(self.router.config.node_id, self.router.config.node_id, tokens, messages, pipe_id, model_id)
 
-        self.jobs_pending.append(PendingJob(job, promise)) # TODO Process ends before sending layer job to first node
         if job_id is not None:
             job.job_id = job_id
         if pipe is None:
             self.raise_exception(f"Could not find pipe {pipe_id}")
-        try:
-            pipe.send_job(job, router_id)
-        except Exception:
-            self.restart_job(job)
+        
+        end_model = self.get_end_model(model_id)
+        if end_model is None:
+            self.raise_exception(f"Could not find local end model for {model_id}")
+            return
+        
+        end_model.tokenize(job)
+        end_model.compute_embed(job)
+        first_layer_model = pipe.model_for_job(job)
+        if first_layer_model is None:
+            self.raise_exception("Could not find appropriate model for processing")
+            return
+            
+        pipe.send_job(job, first_layer_model.router_id)
 
         return job.job_id
 
@@ -234,6 +245,6 @@ class JobManager:
             promise('NO_PIPE')
             return None
 
-        peers = network_pipe.peers()
-        job_id = self.start_job(peers[0], model_id, network_pipe.pipe_id, messages, tokens)
+        job_id = self.start_job(model_id, network_pipe.pipe_id, messages, tokens)
+        self.jobs_pending.append(PendingJob(job_id, promise))
         return job_id

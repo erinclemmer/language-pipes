@@ -156,9 +156,6 @@ Device: {self.device}
         )
 
     def cleanup_tensors(self):
-        del self.input_embedding
-        del self.norm
-        del self.head
         torch.cuda.empty_cache()
         del self.layers
         torch.cuda.empty_cache()
@@ -173,8 +170,6 @@ Device: {self.device}
             process_id=meta.process_id
         )
         model.loaded = meta.loaded
-        model.input_embedding = None if not meta.has_embedding else True
-        model.head = None if not meta.has_head else True
         model.start_layer = meta.start_layer
         model.end_layer = meta.end_layer
         model.computed = ComputedData.from_meta(meta.computed)

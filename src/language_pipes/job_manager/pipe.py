@@ -89,18 +89,6 @@ class Pipe:
             prompt = tokenizer.apply_chat_template([m.to_json() for m in messages], tokenize=False, add_generation_prompt=True, chat_template=tokenizer.chat_template)
         return [int(t) for t in tokenizer.encode(prompt, return_tensors='pt')[0].numpy()]
 
-    def get_embed(self, need_physical: bool = False) -> Optional[LlmModel]:
-        res = list(filter(lambda m: m.loaded and m.input_embedding is not None and (not need_physical or not m.virtual), self.segments))
-        if len(res) == 0:
-            return None
-        return res[0]
-    
-    def get_head(self, need_physical: bool = False) -> Optional[LlmModel]:
-        res = list(filter(lambda m: m.loaded and m.head is not None and (not need_physical or not m.virtual), self.segments))
-        if len(res) == 0:
-            return None
-        return res[0]
-
     def get_layer(self, layer: int, need_physical: bool = False) -> Optional[LlmModel]:
         for segment in self.segments:
             if segment.start_layer == layer and (not need_physical or not segment.virtual):
@@ -115,8 +103,6 @@ class Pipe:
 
     def is_complete(self):
         self.sort_segments()
-        if self.get_embed() is None or self.get_head() is None:
-            return False
         current_layer = 0
         for s in self.segments:
             if s.start_layer == current_layer:
@@ -150,16 +136,9 @@ Complete: {self.is_complete()}
         if job.status == JobStatus.COMPLETED:
             return None
 
-        if job.current_step == ComputeStep.TOKENIZE:
-            model = self.segments[0]
-        if job.current_step == ComputeStep.EMBED:
-            model = self.get_embed(need_physical)
         if job.current_step == ComputeStep.LAYER:
             model = self.get_layer(job.current_layer, need_physical)
-        if job.current_step == ComputeStep.NORM:
-            model = self.segments[0]
-        if job.current_step == ComputeStep.HEAD:
-            model = self.get_head(need_physical)
+        
         return model
 
     def process_job(
