@@ -12,7 +12,7 @@ from llm_layer_collector.compute import compute_embedding, compute_head
 from language_pipes.util import clone_model
 from language_pipes.job_manager.job import ComputeStep, Job
 from language_pipes.llm_model.computed import ComputedData
-from language_pipes.job_manager.job_data import computationStateToJobData
+from language_pipes.job_manager.job_data import computationStateToJobData, jobDataToComputationState
 
 class EndModel:
     model_id: str
@@ -80,7 +80,10 @@ class EndModel:
             self.raise_exception('Invalid step for embedding')
         if self.input_embedding is None:
             self.raise_exception("Input Embedding must be loaded before computation")
-        comp_state = compute_embedding(self.input_embedding, tensor([job.input_ids]).to(self.device), self.collector.config)
+        state = None
+        if job.data is not None:
+            state = jobDataToComputationState(job.data, self.device)
+        comp_state = compute_embedding(self.input_embedding, tensor([job.input_ids]).to(self.device), self.collector.config, state)
         if job.current_token > 0:
             comp_state.state = comp_state.state[:, -1:, :]
             if comp_state.causal_mask["full_attention"] is not None:

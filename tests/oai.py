@@ -38,7 +38,7 @@ def oai_complete(port: int, messages: List[ChatMessage], retries: int = 0):
     try:
         res = requests.post(f"http://localhost:{port}/v1/chat/completions", json={
             "model": MODEL,
-            "max_completion_tokens": 100,
+            "max_completion_tokens": 10,
             "messages": [m.to_json() for m in messages]
         })
         if res.status_code != 200:

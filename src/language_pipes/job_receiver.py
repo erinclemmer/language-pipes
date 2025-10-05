@@ -67,11 +67,6 @@ class JobReceiver:
                 self.restart_job(job)
                 continue
             match job.current_step:
-                case ComputeStep.EMBED:
-                    end_model.compute_embed(job)
-                    send_to = pipe.model_for_job(job).router_id
-                    pipe.send_job(job, send_to)
-                    continue
                 case ComputeStep.LAYER:
                     model_for_job = pipe.model_for_job(job)
                     if model_for_job.virtual:
