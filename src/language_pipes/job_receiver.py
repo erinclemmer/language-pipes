@@ -9,6 +9,7 @@ from language_pipes.llm_model.end_model import EndModel
 from language_pipes.job_manager.enums import ComputeStep, JobStatus
 from language_pipes.handlers.job import JobServer
 from language_pipes.util import stop_thread
+from language_pipes.job_manager.layer_job import LayerJob
 from language_pipes.config.processor import ProcessorConfig
 
 class JobReceiver:
@@ -28,12 +29,14 @@ class JobReceiver:
             router: DSNode,
             get_pipe: Callable[[str], Optional[Pipe]],
             get_end_model: Callable[[str], Optional[EndModel]],
+            get_pending_job: Callable[[str], Optional[Job]],
             restart_job: Callable[[Job], None]
     ):
         self.router = router
         self.get_pipe = get_pipe
         self.get_end_model = get_end_model
         self.restart_job = restart_job
+        self.get_pending_job = get_pending_job
         self.pending_jobs = []
         self.ecdsa_verification = config.ecdsa_verification
 
@@ -58,48 +61,48 @@ class JobReceiver:
                 sleep(0.1)
                 continue
             
-            job = self.pending_jobs[-1]
-            pipe = self.get_pipe(job.pipe_id)
-            end_model = self.get_end_model(job.model_id)
+            layer_job = self.pending_jobs[-1]
             self.pending_jobs.pop()
+            
+            pipe = self.get_pipe(layer_job.pipe_id)
+            end_model = self.get_end_model(layer_job.model_id)
 
             if pipe is None or not pipe.is_complete():
-                self.restart_job(job)
+                self.restart_job(layer_job)
                 continue
-            match job.current_step:
-                case ComputeStep.LAYER:
-                    model_for_job = pipe.model_for_job(job)
-                    if model_for_job.virtual:
-                        pipe.send_job(job, model_for_job.router_id)
-                        continue
-                    model_for_job.process_job(job)
-                    if job.current_step == ComputeStep.LAYER:
-                        model_for_job = pipe.model_for_job(job)
-                        pipe.send_job(job, model_for_job.router_id)
-                    else:
-                        pipe.send_job(job, job.from_router_id)
+            
+            if layer_job.done:
+                job = self.get_pending_job(layer_job.job_id)
+                job.current_step = ComputeStep.NORM
+                job.data = layer_job.data
+                end_model.compute_norm(job)
+                end_model.compute_head(job)
+                if job.status == JobStatus.COMPLETED:
+                    end_model.set_result(job)
+                    pipe.complete_job(job)
                     continue
-                case ComputeStep.NORM:
-                    end_model.compute_norm(job)
-                    end_model.compute_head(job)
-                    if job.status == JobStatus.COMPLETED:
-                        end_model.set_result(job)
-                        pipe.complete_job(job)
-                    else:
-                        end_model.compute_embed(job)
-                        send_to = pipe.model_for_job(job).router_id
-                        pipe.send_job(job, send_to)
-                    continue
+                else:
+                    end_model.compute_embed(job)
+                    layer_job = job.to_layer_job()
+
+            model = pipe.model_for_job(layer_job)
+            if model.virtual:
+                pipe.send_job(layer_job, model.router_id)
+                continue
+            model.process_job(layer_job)
+            if layer_job.done:
+                pipe.send_job(layer_job, layer_job.origin_node_id)
+            else:
+                model = pipe.model_for_job(layer_job)
+                pipe.send_job(layer_job, model.router_id)
 
     def receive_data(self, data: bytes):
-        job = Job.from_bytes(data)
-        job_certificate = self.router.cred_manager.read_public(job.from_router_id)
-        if self.ecdsa_verification and not job.verify_signature(job_certificate):
-            return
-
+        job = LayerJob.from_bytes(data)
+        
         for j in self.pending_jobs:
             if j.job_id == job.job_id:
                 return
+
         self.pending_jobs.insert(0, job)
 
     def stop(self):

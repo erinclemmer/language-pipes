@@ -117,7 +117,7 @@ Device: {self.device}
 
     def process_job(self, job: Job):
         self.past_key_cache_times[job.job_id] = time()
-        self.logger.info(f'Processing job state {job.current_step.name + (", layer " + str(job.current_layer)) if job.current_step.value == 2 else ""}')
+        self.logger.info(f'Processing job layer {job.current_layer}')
         self.compute_layers(job)
 
     def raise_exception(self, msg):
@@ -140,7 +140,7 @@ Device: {self.device}
             comp_state.state = lyr(comp_state)
         job.set_layer(comp_state.state, self.end_layer + 1)
         if job.current_layer == self.num_hidden_layers:
-            job.next_step()
+            job.done = True
     
     def to_meta(self) -> MetaModel:
         return MetaModel(

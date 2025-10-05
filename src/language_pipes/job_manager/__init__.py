@@ -19,11 +19,11 @@ from language_pipes.llm_model import LlmModel
 from language_pipes.llm_model.computed import validate_model
 
 class PendingJob:
-    job_id: str
+    job: Job
     promise: Promise
 
-    def __init__(self, job_id: str, promise: Promise):
-        self.job_id = job_id
+    def __init__(self, job: str, promise: Promise):
+        self.job = job
         self.promise = promise
 
 class JobManager:
@@ -97,12 +97,12 @@ class JobManager:
         if job_id in self.completed_jobs:
             return
         self.completed_jobs.append(job_id)
-        matches = [j for j in self.jobs_pending if j.job_id == job_id]
+        matches = [j for j in self.jobs_pending if j.job.job_id == job_id]
         if len(matches) == 0:
             return
         self.logger.info(f'\nReceived job complete for {job_id}\n')
         matches[0].promise(job)
-        self.jobs_pending = [j for j in self.jobs_pending if j.job_id != job_id]
+        self.jobs_pending = [j for j in self.jobs_pending if j.job.job_id != job_id]
       
     def get_model_for_pipe(self, model_id: str, pipe: MetaPipe, device: str, available_memory: int) -> Tuple[int, Optional[LlmModel]]:
         start_memory = available_memory
@@ -132,6 +132,12 @@ class JobManager:
         else:
             new_model = None
         return available_memory, new_model
+
+    def get_pending_job(self, job_id: str) -> Optional[Job]:
+        for j in self.jobs_pending:
+            if j.job.job_id == job_id:
+                return j.job
+        return None
 
     def load_end_model(self, model_id: str, device: int):
         model = EndModel(model_id, device)
@@ -210,7 +216,7 @@ class JobManager:
         messages: List[ChatMessage], 
         tokens: int, 
         job_id: Optional[str] = None
-    ) -> str:
+    ) -> Job:
         pipe = self.get_pipe(pipe_id)
         job = Job(self.router.config.node_id, self.router.config.node_id, tokens, messages, pipe_id, model_id)
 
@@ -230,10 +236,11 @@ class JobManager:
         if first_layer_model is None:
             self.raise_exception("Could not find appropriate model for processing")
             return
-            
-        pipe.send_job(job, first_layer_model.router_id)
+        
+        layer_job = job.to_layer_job()
+        pipe.send_job(layer_job, first_layer_model.router_id)
 
-        return job.job_id
+        return job
 
     def complete(self, model_id: str, messages: List[ChatMessage], tokens: int, promise: Promise) -> Optional[str]:
         if self.get_end_model(model_id) is None:
@@ -245,6 +252,6 @@ class JobManager:
             promise('NO_PIPE')
             return None
 
-        job_id = self.start_job(model_id, network_pipe.pipe_id, messages, tokens)
-        self.jobs_pending.append(PendingJob(job_id, promise))
-        return job_id
+        job = self.start_job(model_id, network_pipe.pipe_id, messages, tokens)
+        self.jobs_pending.append(PendingJob(job, promise))
+        return job.job_id

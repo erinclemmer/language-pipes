@@ -48,18 +48,6 @@ class EndModel:
         self.norm = self.collector.load_norm(self.device)
         self.head = self.collector.load_head(self.device)
 
-    def process_job(self, job: Job):
-        if job.current_step == ComputeStep.TOKENIZE:
-            self.tokenize(job)
-        elif job.current_step == ComputeStep.EMBED:
-            self.compute_embed(job)
-        elif job.current_step == ComputeStep.LAYER:
-            self.compute_layers(job)
-        elif job.current_step == ComputeStep.NORM:
-            self.compute_norm(job)
-        elif job.current_step == ComputeStep.HEAD:
-            self.compute_head(job)
-
     def tokenize(self, job: Job):
         tokenizer: AutoTokenizer = self.tokenizer()
         prompt = tokenizer.apply_chat_template([m.to_json() for m in job.messages], tokenize=False, chat_template=tokenizer.chat_template, add_generation_prompt=True)
@@ -112,10 +100,6 @@ class EndModel:
     def set_result(self, job: Job):
         res_tokens = job.input_id_tensor()
         job.result = self.tokenizer().decode(res_tokens[job.prompt_tokens:])
-
-    def start_job(self, job: Job):
-        self.tokenize(job)
-        self.compute_embed(job)
 
     def clean_up(self):
         del self.input_embedding
