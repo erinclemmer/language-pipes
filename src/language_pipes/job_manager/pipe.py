@@ -13,7 +13,7 @@ from language_pipes.util.chat import ChatMessage
 from language_pipes.job_manager.enums import JobStatus
 from language_pipes.llm_model import LlmModel
 from language_pipes.job_manager.layer_job import LayerJob
-from language_pipes.job_manager.job import Job, ComputeStep
+from language_pipes.job_manager.job import Job
 
 class Pipe:
     pipe_id: str

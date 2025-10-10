@@ -65,7 +65,7 @@ class JobReceiver:
             self.pending_jobs.pop()
             
             pipe = self.get_pipe(layer_job.pipe_id)
-            end_model = self.get_end_model(layer_job.model_id)
+            end_model = self.get_end_model(pipe.model_id)
 
             if pipe is None or not pipe.is_complete():
                 self.restart_job(layer_job)

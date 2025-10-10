@@ -4,7 +4,6 @@ from language_pipes.job_manager.job_data import JobData
 class LayerJob:
     job_id: str
     pipe_id: str
-    model_id: str
     origin_node_id: str
     current_layer: int
     done: bool
@@ -14,7 +13,6 @@ class LayerJob:
         self, 
         job_id: str, 
         pipe_id: str,
-        model_id: str,
         origin_node_id: str,
         current_layer: int,
         data: JobData,
@@ -22,7 +20,6 @@ class LayerJob:
     ):
         self.job_id = job_id
         self.pipe_id = pipe_id
-        self.model_id = model_id
         self.origin_node_id = origin_node_id
         self.current_layer = current_layer
         self.data = data
@@ -32,7 +29,6 @@ class LayerJob:
         bts = ByteHelper()
         bts.write_string(self.job_id)
         bts.write_string(self.pipe_id)
-        bts.write_string(self.model_id)
         bts.write_string(self.origin_node_id)
         bts.write_int(self.current_layer)
         bts.write_string("true" if self.done else "false")
@@ -50,10 +46,9 @@ class LayerJob:
 
         job_id = bts.read_string()
         pipe_id = bts.read_string()
-        model_id = bts.read_string()
         origin_node_id = bts.read_string()
         current_layer = bts.read_int()
         done = bts.read_string() == "true"
         job_data = JobData.from_bytes(bts.read_bytes())
 
-        return LayerJob(job_id, pipe_id, model_id, origin_node_id, current_layer, job_data, done)
+        return LayerJob(job_id, pipe_id, origin_node_id, current_layer, job_data, done)
