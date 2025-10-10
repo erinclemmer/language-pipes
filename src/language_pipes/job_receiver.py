@@ -18,7 +18,7 @@ class JobReceiver:
     private_key_file: str
     ecdsa_verification: bool
     router: DSNode
-    pending_jobs: List[Job]
+    pending_jobs: List[LayerJob]
     get_pipe: Callable[[str], Optional[Pipe]]
     get_end_model: Callable[[str], Optional[EndModel]]
     restart_job: Callable[[Job], None]
@@ -42,7 +42,7 @@ class JobReceiver:
 
         public_key = router.cert_manager.public_path(router.config.node_id)
         if public_key is None:
-            msg = f"Could not find public key for self"
+            msg = "Could not find public key for self"
             router.logger.exception(msg)
             raise Exception(msg)
 
@@ -86,10 +86,8 @@ class JobReceiver:
                     layer_job = job.to_layer_job()
 
             model = pipe.model_for_job(layer_job)
-            if model.virtual:
-                pipe.send_job(layer_job, model.router_id)
-                continue
             model.process_job(layer_job)
+
             if layer_job.done:
                 pipe.send_job(layer_job, layer_job.origin_node_id)
             else:

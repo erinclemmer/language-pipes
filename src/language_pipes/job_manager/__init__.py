@@ -218,12 +218,13 @@ class JobManager:
         job_id: Optional[str] = None
     ) -> Job:
         pipe = self.get_pipe(pipe_id)
+        if pipe is None:
+            self.raise_exception(f"Could not find pipe {pipe_id}")
+
         job = Job(self.router.config.node_id, self.router.config.node_id, tokens, messages, pipe_id, model_id)
 
         if job_id is not None:
             job.job_id = job_id
-        if pipe is None:
-            self.raise_exception(f"Could not find pipe {pipe_id}")
         
         end_model = self.get_end_model(model_id)
         if end_model is None:
