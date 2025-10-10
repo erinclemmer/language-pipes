@@ -4,8 +4,6 @@
 
 [![GitHub license][License-Image]](License-Url)
 [![Release][Release-Image]][Release-Url] 
-![Discord](https://img.shields.io/discord/1406717394260594738)
-
 
 [License-Image]: https://img.shields.io/badge/license-MIT-blue.svg
 [License-Url]: https://github.com/erinclemmer/language-pipes/blob/main/LICENSE
@@ -17,8 +15,6 @@
 [PythonVersion-Url]: https://img.shields.io/pypi/pyversions/language-pipes
 
 Language pipes is a FOSS distributed network application designed to increase access to local language models.  
-
-[Join our Discord](https://discord.gg/CPvC78E53a) for any comments or questions!  
 
 ---  
 
@@ -131,22 +127,3 @@ print("Response JSON:", response.json())
 ### Dependencies
 - [pytorch](pytorch.org)
 - [transformers](https://huggingface.co/docs/transformers) 
-- [llm-layer-collector](https://github.com/erinclemmer/llm-layer-collector)
-- [distributed-state-network](https://github.com/erinclemmer/distributed_state_network)
-
-### Citation
-If you use the project for an academic endeavour please use this citation.
-
-```latex
-@software{Clemmer_Language_Pipes_2025,
-  author       = {Erin Clemmer},
-  title        = {Language Pipes},
-  abstract     = {Distribute language models across multiple systems.},
-  version      = {0.0.1},
-  date         = {2025-09-01},
-  url          = {https://github.com/erinclemmer/language-pipes},
-  keywords     = {Large Language Models, Transformers, Distributed Networks},
-  license      = {MIT},
-  orcid        = {0009-0005-0597-6197}
-}
-```
