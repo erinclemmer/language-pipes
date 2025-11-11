@@ -75,7 +75,7 @@ def computationStateToJobData(data: LLmComputationState) -> JobData:
     job_data.position_embeddings_global = move_position_embeddings(data.position_embeddings_global, 'cpu')
     job_data.cache_position = maybeTo(data.cache_position, 'cpu')
     job_data.causal_mask = maybeTo(data.causal_mask["full_attention"], 'cpu')
-    job_data.sliding_causal_mask = data.causal_mask["sliding_attention"].to('cpu') if "sliding_attention" in data.causal_mask else None
+    job_data.sliding_causal_mask = maybeTo(data.causal_mask["sliding_attention"], 'cpu')
     return job_data
 
 def maybeTo(t: Optional[torch.Tensor], device: str) -> Optional[torch.Tensor]:

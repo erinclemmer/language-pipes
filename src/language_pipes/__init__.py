@@ -33,7 +33,14 @@ class LanguagePipes:
         self.job_manager = None
         self.router = DSNodeServer.start(self.config.router, self.print_pipes, self.print_pipes)
         self.job_manager = JobManager(self.router.node, self.config.processor)
-        self.job_receiver = JobReceiver(self.config.processor, self.router.node, self.job_manager.get_pipe, self.job_manager.restart_job)
+        self.job_receiver = JobReceiver(
+            self.config.processor, 
+            self.router.node, 
+            self.job_manager.get_pipe, 
+            self.job_manager.get_end_model, 
+            self.job_manager.get_pending_job,
+            self.job_manager.restart_job
+        )
         if self.config.oai_port is not None:
             self.start_oai()
 

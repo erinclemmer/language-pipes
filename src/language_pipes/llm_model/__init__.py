@@ -1,25 +1,19 @@
 import os
-import subprocess
 import logging
 from time import time, sleep
-from pathlib import Path
 from uuid import uuid4
 from threading import Thread
 from typing import List, Optional, Callable, Dict
 from transformers.cache_utils import DynamicCache
 
-from llm_layer_collector.compute import compute_embedding, compute_head
-from transformers.models.auto.tokenization_auto import AutoTokenizer
-from llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 import torch
-from torch import tensor
 
+from language_pipes.util import clone_model
 from language_pipes.util.meta import MetaModel
-from language_pipes.job_manager.job import ComputeStep, Job
-from language_pipes.job_manager.enums import JobStatus
-from language_pipes.job_manager.job_data import computationStateToJobData, jobDataToComputationState
+from language_pipes.job_manager.job import Job
+from language_pipes.job_manager.job_data import jobDataToComputationState
 from language_pipes.llm_model.computed import ComputedData
 from llm_layer_collector import LlmLayerCollector
 
@@ -36,10 +30,7 @@ class LlmModel:
     device: str
     virtual: bool
 
-    input_embedding: Optional[torch.nn.Embedding] | bool
     layers: List[AutoDecoderLayer]
-    norm: Optional[AutoRMSNorm] | bool
-    head: Optional[torch.nn.Linear] | bool
     tokenizer: Callable
     past_key_values: Dict[str, DynamicCache]
     past_key_cache_times: Dict[str, float]
@@ -63,9 +54,6 @@ class LlmModel:
         self.loaded = False
         self.virtual = False
         self.layers = []
-        self.input_embedding = None
-        self.norm = None
-        self.head = None
         self.start_layer = -1
         self.end_layer = -1
         self.device = device
@@ -73,7 +61,7 @@ class LlmModel:
         self.past_key_cache_times = { }
         model_dir = os.path.join('models', self.model_id)
         if not os.path.exists(model_dir):
-            self.clone_model(model_id, model_dir)
+            clone_model(model_id, model_dir)
         self.collector = LlmLayerCollector(
                 model_dir=os.path.join(model_dir, 'data'),
                 cache_file=os.path.join(model_dir, 'cache.json'),
@@ -87,9 +75,7 @@ class LlmModel:
             self.process_id = process_id
 
         self.computed = ComputedData(f'models/{model_id}')
-        self.tokenizer = lambda: AutoTokenizer.from_pretrained(os.path.join(model_dir, 'data'))
         self.logger = logging.getLogger("LM NET: " + self.router_id)
-        Thread(target=self.check_stale_jobs, args=( )).start()
 
     def check_stale_jobs(self):
         while True:
@@ -104,34 +90,17 @@ class LlmModel:
 
             sleep(10)
 
-    def clone_model(self, model_id: str, model_dir: str):
-        repo_url = f"https://huggingface.co/{model_id}"
-        clone_dir = f"{model_dir}/data"
-
-        if not os.path.exists(clone_dir):
-            Path(clone_dir).mkdir(parents=True)
-        subprocess.run(["git", "clone", repo_url, clone_dir])
-        subprocess.run(["git", "lfs", "install"], cwd=clone_dir, check=True)
-        subprocess.run(["git", "lfs", "pull"], cwd=clone_dir, check=True)
-
     def load(self):
         if self.end_layer > self.num_hidden_layers:
             self.end_layer = self.num_hidden_layers - 1
 
-        if self.input_embedding:
-            self.input_embedding = self.collector.load_input_embedding(self.device)
-        
-        self.norm = self.collector.load_norm(self.device)
-        
-        if self.head:
-            self.head = self.collector.load_head(self.device)
-        
         if self.start_layer == -1 or self.end_layer == -1:
             self.layers = []
         else:
             self.layers = self.collector.load_layer_set(self.start_layer, self.end_layer, self.device)
         self.loaded = True
         self.virtual = False
+        Thread(target=self.check_stale_jobs, args=( )).start()
 
     def print(self):
         self.logger.info(f'''
@@ -140,8 +109,6 @@ Loaded Model: {self.model_id}
 Pipe ID: {self.pipe_id}
 Router: {self.router_id}
 Process: {self.process_id}
-Embed: {self.input_embedding is not None}
-Head: {self.head is not None}
 Start Layer: {self.start_layer}
 End Layer: {self.end_layer}
 Device: {self.device}
@@ -150,25 +117,8 @@ Device: {self.device}
 
     def process_job(self, job: Job):
         self.past_key_cache_times[job.job_id] = time()
-        self.logger.info(f'Processing job state {job.current_step.name + (", layer " + str(job.current_layer)) if job.current_step.value == 2 else ""}')
-        if job.current_step == ComputeStep.TOKENIZE:
-            self.tokenize(job)
-        elif job.current_step == ComputeStep.EMBED:
-            self.compute_embed(job)
-        elif job.current_step == ComputeStep.LAYER:
-            self.compute_layers(job)
-        elif job.current_step == ComputeStep.NORM:
-            self.compute_norm(job)
-        elif job.current_step == ComputeStep.HEAD:
-            self.compute_head(job)
-
-    def tokenize(self, job: Job):
-        tokenizer: AutoTokenizer = self.tokenizer()
-        prompt = tokenizer.apply_chat_template([m.to_json() for m in job.messages], tokenize=False, chat_template=tokenizer.chat_template, add_generation_prompt=True)
-        input_tokens = [int(t) for t in tokenizer.encode(prompt, return_tensors='pt')[0].numpy()]
-        job.input_ids = input_tokens
-        job.prompt_tokens = len(input_tokens)
-        job.next_step()
+        self.logger.info(f'Processing job layer {job.current_layer}')
+        self.compute_layers(job)
 
     def raise_exception(self, msg):
         self.logger.exception(msg)
@@ -188,52 +138,14 @@ Device: {self.device}
 
         for lyr in self.layers:
             comp_state.state = lyr(comp_state)
+
         job.set_layer(comp_state.state, self.end_layer + 1)
         if job.current_layer == self.num_hidden_layers:
-            job.next_step()
-    
-    def chop_position_embeddings(self, t: torch.Tensor):
-        if t is not None:
-            return (
-                t[0][:, -1:, :],
-                t[1][:, -1:, :]
-            )
-
-    def compute_embed(self, job: Job):
-        if job.current_step != ComputeStep.EMBED:
-            self.raise_exception('Invalid step for embedding')
-        if self.input_embedding is None:
-            self.raise_exception("Input Embedding must be loaded before computation")
-        comp_state = compute_embedding(self.input_embedding, tensor([job.input_ids]).to(self.device), self.collector.config)
-        if job.current_token > 0:
-            comp_state.state = comp_state.state[:, -1:, :]
-            comp_state.causal_mask["full_attention"] = comp_state.causal_mask["full_attention"][:, :, -1:, -1:]
-            comp_state.position_embeddings = self.chop_position_embeddings(comp_state.position_embeddings)
-            comp_state.position_embeddings_local = self.chop_position_embeddings(comp_state.position_embeddings_local)
-            comp_state.position_embeddings_global = self.chop_position_embeddings(comp_state.position_embeddings_global)
-            
-        job.data = computationStateToJobData(comp_state)
-        job.next_step()
-
-    def compute_norm(self, job: Job):
-        if job.data is None or job.data.state is None:
-            self.raise_exception("Cannot compute norm without job data")
-        norm = self.norm(job.data.state.to(self.device))
-        job.set_norm(norm)
-        
-    def compute_head(self, job: Job):
-        if self.head is None:
-            self.raise_exception("Head must be loaded before computation")
-        if job.data is None or job.data.state is None:
-            self.raise_exception("Cannot compute head without job data")
-        head = int(compute_head(self.head, job.data.state.to(self.device))[0][0])
-        job.set_output(head, self.collector.config.eos_token_id)
+            job.done = True
     
     def to_meta(self) -> MetaModel:
         return MetaModel(
             process_id=self.process_id,
-            has_embedding=self.input_embedding is not None and self.input_embedding != False,
-            has_head=self.head is not None and self.head != False,
             start_layer=self.start_layer,
             end_layer=self.end_layer,
             router_id=self.router_id,
@@ -245,9 +157,6 @@ Device: {self.device}
         )
 
     def cleanup_tensors(self):
-        del self.input_embedding
-        del self.norm
-        del self.head
         torch.cuda.empty_cache()
         del self.layers
         torch.cuda.empty_cache()
@@ -262,8 +171,6 @@ Device: {self.device}
             process_id=meta.process_id
         )
         model.loaded = meta.loaded
-        model.input_embedding = None if not meta.has_embedding else True
-        model.head = None if not meta.has_head else True
         model.start_layer = meta.start_layer
         model.end_layer = meta.end_layer
         model.computed = ComputedData.from_meta(meta.computed)
