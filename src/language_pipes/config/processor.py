@@ -4,15 +4,17 @@ class HostedModel:
     id: str
     device: str
     max_memory: float # in giga bytes
+    load_ends: bool # Loads head and embed of model
 
-    def __init__(self, id: str, device: str, max_memory: float):
+    def __init__(self, id: str, device: str, max_memory: float, load_ends: bool):
         self.id = id
         self.device = device
         self.max_memory = max_memory
+        self.load_ends = load_ends
 
     @staticmethod
     def from_dict(data):
-        return HostedModel(data['id'], data['device'], data['max_memory'])
+        return HostedModel(data['id'], data['device'], data['max_memory'], data['load_ends'])
 
 class ProcessorConfig:
     https: bool

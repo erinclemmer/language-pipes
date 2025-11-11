@@ -12,7 +12,8 @@ from language_pipes.util.meta import MetaPipe
 from language_pipes.util.chat import ChatMessage
 from language_pipes.job_manager.enums import JobStatus
 from language_pipes.llm_model import LlmModel
-from language_pipes.job_manager.job import Job, ComputeStep
+from language_pipes.job_manager.layer_job import LayerJob
+from language_pipes.job_manager.job import Job
 
 class Pipe:
     pipe_id: str
@@ -55,17 +56,14 @@ class Pipe:
         self.router.logger.exception(msg)
         raise Exception(msg)
 
-    def send_job(self, job: Job, router_id: str):
+    def send_job(self, job: LayerJob, router_id: str):
         try:
             ip = self.router.connection_from_node(router_id).address
             port = self.get_job_port(router_id)
             if port is None:
                 self.raise_exception(f"SEND JOB => Could not find pipe {self.pipe_id} for {router_id}")
 
-            job.from_router_id = self.router.config.node_id
-            job.sign(self.router.cred_manager.my_private())
-
-            self.router.logger.info(f'Sending job {job.job_id} to {router_id} (token {job.current_token})')
+            self.router.logger.info(f'Sending job {job.job_id} to {router_id}')
             cert = self.router.cert_manager.public_path(router_id)
             if cert is None:
                 self.raise_exception(f"SEND JOB => Could not find certificate for {router_id}")
@@ -89,18 +87,6 @@ class Pipe:
             prompt = tokenizer.apply_chat_template([m.to_json() for m in messages], tokenize=False, add_generation_prompt=True, chat_template=tokenizer.chat_template)
         return [int(t) for t in tokenizer.encode(prompt, return_tensors='pt')[0].numpy()]
 
-    def get_embed(self, need_physical: bool = False) -> Optional[LlmModel]:
-        res = list(filter(lambda m: m.loaded and m.input_embedding is not None and (not need_physical or not m.virtual), self.segments))
-        if len(res) == 0:
-            return None
-        return res[0]
-    
-    def get_head(self, need_physical: bool = False) -> Optional[LlmModel]:
-        res = list(filter(lambda m: m.loaded and m.head is not None and (not need_physical or not m.virtual), self.segments))
-        if len(res) == 0:
-            return None
-        return res[0]
-
     def get_layer(self, layer: int, need_physical: bool = False) -> Optional[LlmModel]:
         for segment in self.segments:
             if segment.start_layer == layer and (not need_physical or not segment.virtual):
@@ -115,8 +101,6 @@ class Pipe:
 
     def is_complete(self):
         self.sort_segments()
-        if self.get_embed() is None or self.get_head() is None:
-            return False
         current_layer = 0
         for s in self.segments:
             if s.start_layer == current_layer:
@@ -146,21 +130,7 @@ Complete: {self.is_complete()}
         return peers
 
     def model_for_job(self, job: Job, need_physical: bool = False) -> Optional[LlmModel]:
-        model = None
-        if job.status == JobStatus.COMPLETED:
-            return None
-
-        if job.current_step == ComputeStep.TOKENIZE:
-            model = self.segments[0]
-        if job.current_step == ComputeStep.EMBED:
-            model = self.get_embed(need_physical)
-        if job.current_step == ComputeStep.LAYER:
-            model = self.get_layer(job.current_layer, need_physical)
-        if job.current_step == ComputeStep.NORM:
-            model = self.segments[0]
-        if job.current_step == ComputeStep.HEAD:
-            model = self.get_head(need_physical)
-        return model
+        return self.get_layer(job.current_layer, need_physical)
 
     def process_job(
             self,

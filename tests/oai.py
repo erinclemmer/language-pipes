@@ -20,7 +20,7 @@ MODEL = "Qwen/Qwen3-1.7B"
 def start_node(node_id: str, max_memory: float, peer_port: int, job_port: int, oai_port: int = None, bootstrap_port: int = None):
     args = ["run", 
         "--node-id", node_id, 
-        "--hosted-models", f"{MODEL}::cpu::{max_memory}", 
+        "--hosted-models", f"{MODEL}::cpu::{max_memory}::true", 
         "--peer-port", str(peer_port),
         "--job-port", str(job_port),
         "--model-validation", 
@@ -38,7 +38,7 @@ def oai_complete(port: int, messages: List[ChatMessage], retries: int = 0):
     try:
         res = requests.post(f"http://localhost:{port}/v1/chat/completions", json={
             "model": MODEL,
-            "max_completion_tokens": 100,
+            "max_completion_tokens": 10,
             "messages": [m.to_json() for m in messages]
         })
         if res.status_code != 200:

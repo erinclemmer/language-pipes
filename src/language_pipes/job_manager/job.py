@@ -10,6 +10,7 @@ from distributed_state_network.util.byte_helper import ByteHelper
 from language_pipes.job_manager.job_data import JobData
 from language_pipes.job_manager.enums import ComputeStep, JobStatus
 from language_pipes.util.chat import ChatMessage
+from language_pipes.job_manager.layer_job import LayerJob
 from language_pipes.util import tensor_to_bytes, bytes_to_tensor, bytes_to_int
 
 class Job(SignedPacket):
@@ -111,6 +112,9 @@ class Job(SignedPacket):
                 self.status = JobStatus.COMPLETED
         else:
             self.status = JobStatus.COMPLETED
+
+    def to_layer_job(self) -> LayerJob:
+        return LayerJob(self.job_id, self.pipe_id, self.router_id, self.current_layer, self.data, False)
 
     def to_bytes(self, include_signature: bool = True) -> bytes:
         bts = ByteHelper()
