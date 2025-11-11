@@ -76,7 +76,6 @@ class LlmModel:
 
         self.computed = ComputedData(f'models/{model_id}')
         self.logger = logging.getLogger("LM NET: " + self.router_id)
-        Thread(target=self.check_stale_jobs, args=( )).start()
 
     def check_stale_jobs(self):
         while True:
@@ -101,6 +100,7 @@ class LlmModel:
             self.layers = self.collector.load_layer_set(self.start_layer, self.end_layer, self.device)
         self.loaded = True
         self.virtual = False
+        Thread(target=self.check_stale_jobs, args=( )).start()
 
     def print(self):
         self.logger.info(f'''
@@ -138,6 +138,7 @@ Device: {self.device}
 
         for lyr in self.layers:
             comp_state.state = lyr(comp_state)
+
         job.set_layer(comp_state.state, self.end_layer + 1)
         if job.current_layer == self.num_hidden_layers:
             job.done = True
