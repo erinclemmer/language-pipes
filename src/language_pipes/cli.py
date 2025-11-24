@@ -51,7 +51,6 @@ def apply_overrides(data, args):
         "model_validation": os.getenv("LP_MODEL_VALIDATION"),
         "job_port": os.getenv("LP_JOB_PORT"),
         "max_pipes": os.getenv("LP_MAX_PIPES"),
-        "network_ip": os.getenv("LP_NETWORK_IP"),
         "hosted_models": os.getenv("LP_HOSTED_MODELS"),
     }
 
@@ -77,7 +76,6 @@ def apply_overrides(data, args):
         "model_validation": precedence("model_validation", args.model_validation, False),
         "job_port": int(precedence("job_port", args.job_port, 5050)),
         "max_pipes": precedence("max_pipes", args.max_pipes, 1),
-        "network_ip": precedence("network_ip", args.network_ip, "127.0.0.1"),
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
     }
 
@@ -140,7 +138,6 @@ def main(argv = None):
                 "node_id": data["node_id"],
                 "port": data["peer_port"],
                 "https": data["https"],
-                "network_ip": data["network_ip"],
                 "aes_key_file": data["network_key"],
                 "bootstrap_nodes": [
                     {

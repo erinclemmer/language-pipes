@@ -17,7 +17,6 @@ ecdsa_verification=false
 max_pipes=1
 https=true
 model_validation=true
-network_ip="192.168.0.2"
 job_port=5050
 
 [[hosted_models]] # Required
@@ -119,13 +118,6 @@ Refer to the [Distributed State Network](https://github.com/erinclemmer/distribu
 **Environment Variable:** `LP_MAX_PIPES`  
 **Type:** `Int`      
 **Description:** The maximum number of pipes to load models for.
-
-
-### `network_ip`
-**Command Argument:** `--network-ip`
-**Environment Variable:** `LP_NETWORK_IP`
-**Type:** `String`
-**Description:** Network IP to create the node's HTTPS certificate. Should match your current local IP address.
 
 ### `job_port`
 **Command Argument:** `--job-port`  
