@@ -62,9 +62,6 @@ class Pipe:
                 self.raise_exception(f"SEND JOB => Could not find pipe {self.pipe_id} for {router_id}")
 
             self.router.logger.info(f'Sending job {job.job_id} to {router_id}')
-            cert = self.router.cert_manager.public_path(router_id)
-            if cert is None:
-                self.raise_exception(f"SEND JOB => Could not find certificate for {router_id}")
             def send(url: str, data: bytes):
                 try:
                     res = requests.post(url, data=data, headers={'Content-Type': 'application/octet-stream'})
