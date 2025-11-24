@@ -40,13 +40,7 @@ class JobReceiver:
         self.pending_jobs = []
         self.ecdsa_verification = config.ecdsa_verification
 
-        public_key = router.cert_manager.public_path(router.config.node_id)
-        if public_key is None:
-            msg = "Could not find public key for self"
-            router.logger.exception(msg)
-            raise Exception(msg)
-
-        thread, httpd = JobServer.start(config.https, public_key, config.job_port, self.router, self.receive_data)
+        thread, httpd = JobServer.start(config.job_port, self.router, self.receive_data)
         self.thread = thread
         self.httpd = httpd
         Thread(target=self.job_runner, args=()).start()

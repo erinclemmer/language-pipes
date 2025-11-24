@@ -23,8 +23,7 @@ def start_node(node_id: str, max_memory: float, peer_port: int, job_port: int, o
         "--hosted-models", f"{MODEL}::cpu::{max_memory}::true", 
         "--peer-port", str(peer_port),
         "--job-port", str(job_port),
-        "--model-validation", 
-        "--https"
+        "--model-validation",
     ]
     if oai_port is not None:
         args.extend(["--oai-port", str(oai_port)])

@@ -31,7 +31,7 @@ class LanguagePipes:
         self.config = config
         self.set_logging_level(self.config.logging_level, self.config.router.node_id)
         self.job_manager = None
-        self.router = DSNodeServer.start(self.config.router, self.print_pipes, self.print_pipes)
+        self.router = DSNodeServer.start(self.config.router, None, self.print_pipes, self.print_pipes)
         self.job_manager = JobManager(self.router.node, self.config.processor)
         self.job_receiver = JobReceiver(
             self.config.processor, 

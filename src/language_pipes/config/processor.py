@@ -17,7 +17,6 @@ class HostedModel:
         return HostedModel(data['id'], data['device'], data['max_memory'], data['load_ends'])
 
 class ProcessorConfig:
-    https: bool
     model_validation: bool
     ecdsa_verification: bool
     max_pipes: int
@@ -27,7 +26,6 @@ class ProcessorConfig:
     @staticmethod
     def from_dict(data: dict) -> "ProcessorConfig":
         config = ProcessorConfig()
-        config.https = data['https']
         config.model_validation = data['model_validation']
         config.ecdsa_verification = data['ecdsa_verification']
         config.max_pipes = data['max_pipes']

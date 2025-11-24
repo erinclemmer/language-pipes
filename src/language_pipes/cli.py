@@ -28,7 +28,6 @@ def build_parser():
     run_parser.add_argument("--max-pipes", type=int, help="Maximum amount of pipes to host")
     run_parser.add_argument("--network-key", type=str, help="AES key to access network (Default: network.key)")
     run_parser.add_argument("--model-validation", help="Whether to validate the model weight hashes when connecting to a pipe.", default=False, action=argparse.BooleanOptionalAction)
-    run_parser.add_argument("--https", help="HTTPS job communication (Default: false)", default=False, action=argparse.BooleanOptionalAction)
     run_parser.add_argument("--ecdsa-verification", help="verify legitimacy of sender via ecdsa signed packets" , default=False, action=argparse.BooleanOptionalAction)
     run_parser.add_argument("--job-port", type=int, help="Job receiver port (Default: 5050)")
     run_parser.add_argument("--network-ip", type=str, help="IP address for the current device (only HTTPS)")
@@ -47,7 +46,6 @@ def apply_overrides(data, args):
         "bootstrap_port": os.getenv("LP_BOOTSTRAP_PORT"),
         "network_key": os.getenv("LP_NETWORK_KEY"),
         "ecdsa_verification": os.getenv("LP_ECDSA_VERIFICATION"),
-        "https": os.getenv("LP_HTTPS"),
         "model_validation": os.getenv("LP_MODEL_VALIDATION"),
         "job_port": os.getenv("LP_JOB_PORT"),
         "max_pipes": os.getenv("LP_MAX_PIPES"),
@@ -71,7 +69,6 @@ def apply_overrides(data, args):
         "bootstrap_address": precedence("bootstrap_address", args.bootstrap_address, None),
         "bootstrap_port": precedence("bootstrap_port", args.bootstrap_port, 5000),
         "network_key": precedence("network_key", args.network_key, "network.key"),
-        "https": precedence("https", args.https, False),
         "ecdsa_verification": precedence("ecdsa_verification", args.ecdsa_verification, False),
         "model_validation": precedence("model_validation", args.model_validation, False),
         "job_port": int(precedence("job_port", args.job_port, 5050)),
@@ -92,8 +89,6 @@ def apply_overrides(data, args):
     
     if config["bootstrap_port"] is not None:
         config["bootstrap_port"] = int(config["bootstrap_port"])
-    
-    config["https"] = config["https"] == "yes" or config["https"] or config["https"] == "1" or config["https"] == "true"
 
     hosted_models = []
     for m in config["hosted_models"]:
@@ -137,7 +132,6 @@ def main(argv = None):
             "router": {
                 "node_id": data["node_id"],
                 "port": data["peer_port"],
-                "https": data["https"],
                 "aes_key_file": data["network_key"],
                 "bootstrap_nodes": [
                     {
@@ -147,7 +141,6 @@ def main(argv = None):
                 ] if data["bootstrap_address"] is not None else []
             },
             "processor": {
-                "https": data["https"],
                 "max_pipes": data["max_pipes"],
                 "model_validation": data["model_validation"],
                 "ecdsa_verification": data["ecdsa_verification"],

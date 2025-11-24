@@ -31,7 +31,6 @@ class Pipe:
             router: DSNode,
             pipe_id: Optional[str],
             model_id: str,
-            https: bool,
             get_job_port: Callable[[str], Optional[int]],
             complete_job: Callable[[Job], None],
             restart_job: Callable[[Job], None]
@@ -40,7 +39,6 @@ class Pipe:
         self.complete_job = complete_job
         self.restart_job = restart_job
         self.router = router
-        self.https = https
         self.model_id = model_id
         self.model_num_hidden_layers = AutoConfig.from_pretrained(f'./models/{model_id}/data').num_hidden_layers
         
@@ -67,17 +65,14 @@ class Pipe:
             cert = self.router.cert_manager.public_path(router_id)
             if cert is None:
                 self.raise_exception(f"SEND JOB => Could not find certificate for {router_id}")
-            protocol = 'https' if self.https else 'http'
-            if protocol == 'http':
-                cert = None
-            def send(url: str, data: bytes, cert: str):
+            def send(url: str, data: bytes):
                 try:
-                    res = requests.post(url, data=data, headers={'Content-Type': 'application/octet-stream'}, verify=cert)
+                    res = requests.post(url, data=data, headers={'Content-Type': 'application/octet-stream'})
                     if res.status_code != 200 or res.content == b'DOWN':
                         self.raise_exception(f"SEND JOB => bad response from {router_id}")
                 except:
                     self.raise_exception(f"SEND JOB => Could not connect to {router_id}")
-            Thread(target=send, args=(f'{protocol}://{ip}:{port}', job.to_bytes(), cert, )).start()
+            Thread(target=send, args=(f'http://{ip}:{port}', job.to_bytes(), )).start()
         except:
             self.restart_job(job)
 
@@ -161,7 +156,6 @@ Complete: {self.is_complete()}
         meta_pipe: MetaPipe, 
         hosted_models: List[LlmModel], 
         router: DSNode,
-        https: bool,
         get_job_port: Callable[[str], Optional[int]],
         complete_job: Callable[[Job], None],
         restart_job: Callable[[Job], None]
@@ -169,7 +163,6 @@ Complete: {self.is_complete()}
         p = Pipe(
             model_id=meta_pipe.model_id, 
             pipe_id=meta_pipe.pipe_id, 
-            https=https,
             get_job_port=get_job_port,
             complete_job=complete_job,
             restart_job=restart_job,

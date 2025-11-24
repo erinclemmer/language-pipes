@@ -15,7 +15,6 @@ bootstrap_port=5000
 network_key="network.key"
 ecdsa_verification=false
 max_pipes=1
-https=true
 model_validation=true
 job_port=5050
 
@@ -91,13 +90,6 @@ Refer to the [Distributed State Network](https://github.com/erinclemmer/distribu
 **Allowed Values:** Valid path  
 **Description:** RSA encryption key for the network.  
 Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) package for more information.  
-
-### `https`
-**Command Argument:** `--https`  
-**Environment Variable:** `LP_HTTPS`  
-**Type:** `Bool`  
-**Default:** False    
-**Description:** Whether to communicate in https (true) or http (false) mode for slightly less latency at the cost of security.  
 
 ### `model_validation`
 **Command Argument:** `--model-validation`  

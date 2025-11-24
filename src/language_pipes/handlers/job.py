@@ -38,15 +38,8 @@ class JobServer(HTTPServer):
         self.socket.close()
 
     @staticmethod 
-    def start(https: bool, cert_path: str, port: int, router: DSNode, cb: Callable) -> Tuple[Thread, 'JobServer']:
+    def start(port: int, router: DSNode, cb: Callable) -> Tuple[Thread, 'JobServer']:
         httpd = JobServer(port, router, cb)
-        if (https):
-            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            ssl_context.load_cert_chain(
-                certfile=cert_path,
-                keyfile=cert_path.replace(".crt", ".key")
-            )
-            httpd.socket = ssl_context.wrap_socket(httpd.socket, server_side=True)
         httpd_thread = threading.Thread(target=httpd.serve_forever, args=())
         httpd_thread.start()
 

@@ -79,7 +79,6 @@ class JobManager:
             meta_pipe=meta_pipe,
             hosted_models=self.models,
             router=self.router,
-            https=self.config.https,
             get_job_port=self.get_job_port,
             complete_job=self.complete_job,
             restart_job=self.restart_job
