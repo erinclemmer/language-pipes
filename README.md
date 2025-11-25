@@ -127,3 +127,7 @@ print("Response JSON:", response.json())
 ### Dependencies
 - [pytorch](pytorch.org)
 - [transformers](https://huggingface.co/docs/transformers) 
+
+### Documentation
+* [Configuration](./documentation/configuration.md)
+* [Architecture](./documentation/architecture.md)
