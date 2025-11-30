@@ -13,7 +13,7 @@ def get_default_node_id() -> str:
         return "node-1"
 
 
-def interactive_init(output_path: str):
+def interactive_init(output_path: str, network_key_arg: str | None = None):
     """Interactively create a configuration file."""
     print("\n" + "=" * 50)
     print("  Language Pipes Configuration Setup")
@@ -145,13 +145,19 @@ def interactive_init(output_path: str):
         default=5050
     )
 
-    print("\nThe network key is an AES encryption key shared by all nodes.")
-    print("It encrypts communication and prevents unauthorized access.")
-    print("Generate one with: language-pipes keygen network.key")
-    config["network_key"] = prompt(
-        "Network key file",
-        default="network.key"
-    )
+    if network_key_arg is not None:
+        print("\nThe network key is an AES encryption key shared by all nodes.")
+        print("It encrypts communication and prevents unauthorized access.")
+        print("There will be no encryption between nodes if the default value is selected.")
+        config["network_key"] = prompt(
+            "Network key file",
+            default="empty"
+        )
+
+        if config["network_key"] == "empty":
+            config["network_key"] = None
+    else:
+        config["network_key"] = network_key_arg
 
     # === Advanced Options ===
     print("\n--- Advanced Options ---\n")

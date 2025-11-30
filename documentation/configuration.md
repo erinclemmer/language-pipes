@@ -188,7 +188,7 @@ bootstrap_port = 5000
 
 #### `network_key`
 
-Path to AES encryption key file. Generate with `language-pipes keygen`.
+Path to AES encryption key file. Generate with `language-pipes keygen`. If the value is left null then communications between nodes will not be encrypted.
 
 ```toml
 network_key = "network.key"
@@ -196,7 +196,7 @@ network_key = "network.key"
 
 | Type | Default |
 |------|---------|
-| string | `network.key` |
+| string | null |
 
 ---
 
