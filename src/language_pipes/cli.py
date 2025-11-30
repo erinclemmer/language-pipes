@@ -49,6 +49,7 @@ def build_parser():
         choices=["DEBUG", "INFO", "WARNING", "ERROR"]
     )
     run_parser.add_argument("--openai-port", type=int, help="Open AI server port (Default: none)")
+    run_parser.add_argument("-d", "--app-data-dir", type=str, help="Application data directory for language pipes (default: ~/.language-pipes)")
     run_parser.add_argument("--node-id", help="Node ID for the network (Required)")
     run_parser.add_argument("--peer-port", type=int, help="Port for peer-to-peer network (Default: 5000)")
     run_parser.add_argument("--bootstrap-address", help="Bootstrap node address (e.g. 192.168.1.100)")
@@ -68,6 +69,7 @@ def apply_overrides(data, args):
     env_map = {
         "logging_level": os.getenv("LP_LOGGING_LEVEL"),
         "oai_port": os.getenv("LP_OAI_PORT"),
+        "app_data_dir": os.getenv("LP_APP_DATA_DIR"),
         "node_id": os.getenv("LP_NODE_ID"),
         "peer_port": os.getenv("LP_PEER_PORT"),
         "bootstrap_address": os.getenv("LP_BOOTSTRAP_ADDRESS"),
@@ -89,9 +91,12 @@ def apply_overrides(data, args):
             return data[key]
         return d
     
+    default_app_dir = os.path.expanduser("~") + "/.language-pipes"
+
     config = {
         "logging_level": precedence("logging_level", args.logging_level, "INFO"),
         "oai_port": precedence("oai_port", args.openai_port, None),
+        "app_data_dir": precedence("app_data_dir", args.app_data_dir, default_app_dir),
         "node_id": precedence("node_id", args.node_id, None),
         "peer_port": int(precedence("peer_port", args.peer_port, 5000)),
         "bootstrap_address": precedence("bootstrap_address", args.bootstrap_address, None),
@@ -103,6 +108,9 @@ def apply_overrides(data, args):
         "max_pipes": precedence("max_pipes", args.max_pipes, 1),
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
     }
+
+    if not os.path.exists(default_app_dir):
+        Path(default_app_dir).mkdir(parents=True)
 
     if config["hosted_models"] is None:
         print("Error: hosted_models param must be supplied in config")
@@ -181,6 +189,7 @@ def main(argv = None):
         config = LpConfig.from_dict({
             "logging_level": data["logging_level"],
             "oai_port": data["oai_port"],
+            "app_data_dir": data["app_data_dir"],
             "router": {
                 "node_id": data["node_id"],
                 "port": data["peer_port"],

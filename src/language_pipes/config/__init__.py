@@ -9,6 +9,7 @@ class LpConfig:
     logging_level: str
     oai_port: Optional[int]
     router: DSNodeConfig
+    app_data_dir: str
     processor: ProcessorConfig
 
     @staticmethod
@@ -16,6 +17,7 @@ class LpConfig:
         return LpConfig(
             logging_level=data['logging_level'], 
             oai_port=data['oai_port'],
+            app_data_dir=data['app_data_dir'],
             router=DSNodeConfig.from_dict(data['router']), 
             processor=ProcessorConfig.from_dict(data['processor'])
         )

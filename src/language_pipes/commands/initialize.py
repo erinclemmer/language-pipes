@@ -8,7 +8,7 @@ def get_default_node_id() -> str:
     """Generate a default node ID based on hostname."""
     try:
         hostname = socket.gethostname()
-        return f"node-{hostname}"
+        return hostname
     except:
         return "node-1"
 
