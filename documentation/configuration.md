@@ -36,10 +36,34 @@ max_memory=5
 **Command Argument:** `--hosted-models`  
 **Environment Variable:** `LP_HOSTED_MODELS`  
 **Type:** `Array`  
-**Description:** List of models to host. For command arguments and environment variables it must be in this format: `[model-id]::[device]::[max_memory]`  
-**processor.hosted_models[].id:** (string) Huggingface ID or file path to model inside of "/models" folder.  
-**processor.hosted_models[].device:** (string) Device type to host on, corresponds to pytorch device type e.g. "cuda:0", "cpu", etc.  
-**processor.hosted_models[].max_memory:** (decimal) (in GB) Maximum memory to use to host this model.  
+**Description:** List of models to host.  
+
+For **command arguments** and **environment variables**, use comma-separated key=value pairs:
+```bash
+--hosted-models "id=MODEL_ID,device=DEVICE,memory=GB,load_ends=BOOL"
+```
+
+**Example:**
+```bash
+--hosted-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=false"
+```
+
+For **TOML configuration**, use the array of tables syntax:
+```toml
+[[hosted_models]]
+id = "Qwen/Qwen3-1.7B"
+device = "cpu"
+max_memory = 4
+load_ends = false
+```
+
+**Properties:**
+| Key | Required | Type | Description |
+|-----|----------|------|-------------|
+| `id` | Yes | string | HuggingFace model ID or file path to model inside `/models` folder |
+| `device` | Yes | string | PyTorch device type (e.g., `"cuda:0"`, `"cpu"`) |
+| `max_memory` / `memory` | Yes | decimal | Maximum memory in GB to use for this model |
+| `load_ends` | No | bool | Whether to load embedding/head layers (default: `false`) |
 
 ## Optional Properties
 
@@ -52,12 +76,12 @@ max_memory=5
 **Description:** Level of verbosity for the server to print to standard out. Sets the [internal logger's log level](https://docs.python.org/3/library/logging.html#logging-levels).  
 
 ### [`oai_port`](./oai.md)
-**Command Argument:** `--oai-port`  
+**Command Argument:** `--openai-port`  
 **Environment Variable:** `LP_OAI_PORT`  
 **Type:** `Int`  
 **Default:** `None`  
 **Allowed Values:** Valid port number  
-**Description:** Port for openai compatible server, no OpenAI server will be hosted if this field is left out.  
+**Description:** Port for OpenAI-compatible server. No OpenAI server will be hosted if this field is left out.  
 
 ### `peer_port`
 **Command Argument:** `--peer-port`  
@@ -75,8 +99,8 @@ Refer to the [Distributed State Network](https://github.com/erinclemmer/distribu
 Refer to the [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) package for more information.  
 
 ### `bootstrap_port`
-**Command Argument:** `--peer-port`  
-**Environment Variable:** `LP_PEER_PORT`  
+**Command Argument:** `--bootstrap-port`  
+**Environment Variable:** `LP_BOOTSTRAP_PORT`  
 **Type:** `Int`  
 **Default:** 5000  
 **Description:** port for `bootstrap_address`.  
@@ -117,5 +141,4 @@ Refer to the [Distributed State Network](https://github.com/erinclemmer/distribu
 **Type:** `Int`  
 **Default:** `5050`  
 **Allowed Values:** Valid port number  
-**Description:** Port for job communication.  
-
+**Description:** Port for job communication.

@@ -48,7 +48,7 @@ pip install language-pipes
 # Two Node Example
 The following example will show how to create a small network. Firstly, create a network key for the network on the first computer:
 ```bash
-language-pipes create_key network.key
+language-pipes keygen network.key
 ```
 
 Also create a `config.toml` file to tell the program how to operate:
@@ -67,7 +67,7 @@ max_memory=1
 
 Once the configuration has been created you can start the server:
 ```bash
-language-pipes run --config config.toml
+language-pipes serve --config config.toml
 ```
 
 This tells language pipes to download with the ID "Qwen/Qwen3-1.7B" from [huggingface.co](huggingface.co) and host it using 1GB of ram. This will load part of the model but not all of it.
@@ -88,7 +88,7 @@ Copy the `network.key` file to the same directory that the config is in using a 
 
 Run the same command again on the computer two:
 ```bash
-language-pipes run --config config.toml
+language-pipes serve --config config.toml
 ```
 
 Node-2 will connect to node-1 and load the remaining parts of the model. The model is ready for inference using a [standard openai chat API interface](https://platform.openai.com/docs/api-reference/chat/create). An example request to the server is provided below:
@@ -129,5 +129,7 @@ print("Response JSON:", response.json())
 - [transformers](https://huggingface.co/docs/transformers) 
 
 ### Documentation
+* [CLI Reference](./documentation/cli.md)
 * [Configuration](./documentation/configuration.md)
 * [Architecture](./documentation/architecture.md)
+* [OpenAI API](./documentation/oai.md)

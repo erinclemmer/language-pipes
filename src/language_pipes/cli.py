@@ -9,29 +9,42 @@ from language_pipes import LanguagePipes
 VERSION = "0.6.0"
 
 def build_parser():
-    parser = argparse.ArgumentParser(description="Language Pipes CLI")
+    parser = argparse.ArgumentParser(
+        prog="Language Pipes",
+        description="Distribute LLMs across multiple systems"
+    )
+
+    parser.add_argument("-V", "--version", action="version", version=VERSION)
+
     subparsers = parser.add_subparsers(dest="command")
 
-    # create_key command
-    create_key_parser = subparsers.add_parser("create_key", help="Generate AES key")
-    create_key_parser.add_argument("output_file", help="Output file for AES key")
+    # Key Generation
+    create_key_parser = subparsers.add_parser("keygen", help="Generate AES key")
+    create_key_parser.add_argument("output", help="Output file for AES key (default: network.key)", default="network.key")
+
+    # Initialize
+    init = subparsers.add_parser("init", help="Create a new configuration file")
+    init.add_argument("-o", "--output", default="config.toml")
 
     # run command
-    run_parser = subparsers.add_parser("run", help="Run Language Pipes with config")
-    run_parser.add_argument("--config", help="Path to TOML config file")
-    run_parser.add_argument("--logging-level", help="Logging level (Default: INFO)")
-    run_parser.add_argument("--oai-port", type=int, help="Open AI server port (Default: none)")
+    run_parser = subparsers.add_parser("serve", help="Start Language Pipes server")
+    run_parser.add_argument("-c", "--config", help="Path to TOML config file")
+    run_parser.add_argument("-l", "--logging-level", 
+        help="Logging verbosity (Default: INFO)",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"]
+    )
+    run_parser.add_argument("--openai-port", type=int, help="Open AI server port (Default: none)")
     run_parser.add_argument("--node-id", help="Node ID for the network (Required)")
     run_parser.add_argument("--peer-port", type=int, help="Port for peer-to-peer network (Default: 5000)")
-    run_parser.add_argument("--bootstrap-address", help="Bootstrap address for network")
-    run_parser.add_argument("--bootstrap-port", type=int, help="Bootstrap port for the network")
+    run_parser.add_argument("--bootstrap-address", help="Bootstrap node address (e.g. 192.168.1.100)")
+    run_parser.add_argument("--bootstrap-port", type=int, help="Bootstrap node port for the network (e.g. 6000)")
     run_parser.add_argument("--max-pipes", type=int, help="Maximum amount of pipes to host")
     run_parser.add_argument("--network-key", type=str, help="AES key to access network (Default: network.key)")
-    run_parser.add_argument("--model-validation", help="Whether to validate the model weight hashes when connecting to a pipe.", default=False, action=argparse.BooleanOptionalAction)
-    run_parser.add_argument("--ecdsa-verification", help="verify legitimacy of sender via ecdsa signed packets" , default=False, action=argparse.BooleanOptionalAction)
+    run_parser.add_argument("--model-validation", help="Whether to validate the model weight hashes when connecting to a pipe.", action="store_true")
+    run_parser.add_argument("--ecdsa-verification", help="verify legitimacy of sender via ecdsa signed packets" , action="store_true")
     run_parser.add_argument("--job-port", type=int, help="Job receiver port (Default: 5050)")
-    run_parser.add_argument("--network-ip", type=str, help="IP address for the current device (only HTTPS)")
-    run_parser.add_argument("--hosted-models", nargs="*", help="Hosted models in format [huggingface-id]::[device]::[max-memory]::[load_ends] (Required)")
+    run_parser.add_argument("--hosted-models", nargs="*", metavar="MODEL", 
+        help="Hosted models as key=value pairs: id=MODEL,device=DEVICE,memory=GB,load_ends=BOOL (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=false)")
 
     return parser
 
@@ -92,15 +105,26 @@ def apply_overrides(data, args):
 
     hosted_models = []
     for m in config["hosted_models"]:
-        if type(m) is type(''):    
-            parts = m.split("::")
-            if len(parts) != 4:
-                raise ValueError(f"{m} is not an acceptable format for hosted_models (must be id::device::max_memory::load_ends)")
+        if type(m) is str:
+            # Parse Docker-style key=value pairs: id=X,device=Y,memory=Z,load_ends=W
+            model_config = {}
+            for pair in m.split(","):
+                if "=" not in pair:
+                    raise ValueError(f"Invalid format '{pair}' in '{m}'. Expected key=value pairs (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=false)")
+                key, value = pair.split("=", 1)
+                model_config[key.strip()] = value.strip()
+            
+            # Validate required keys
+            required_keys = {"id", "device", "memory"}
+            missing = required_keys - set(model_config.keys())
+            if missing:
+                raise ValueError(f"Missing required keys {missing} in '{m}'")
+            
             hosted_models.append({
-                "id": parts[0],
-                "device": parts[1],
-                "max_memory": float(parts[2]),
-                "load_ends": parts[3] == "true"
+                "id": model_config["id"],
+                "device": model_config["device"],
+                "max_memory": float(model_config["memory"]),
+                "load_ends": model_config.get("load_ends", "false").lower() == "true"
             })
         else:
             hosted_models.append(m)
@@ -117,10 +141,13 @@ def main(argv = None):
     else:
         args = parser.parse_args(argv)
 
-    if args.command == "create_key":
-        with open(args.output_file, 'wb') as f:
+    if args.command == "keygen":
+        with open(args.output, 'wb') as f:
             f.write(generate_aes_key())
-    elif args.command == "run":
+    elif args.command == "version":
+        print(f"Language-Pipes\nVersion: ${VERSION}")
+        exit()
+    elif args.command == "serve":
         data = { }
         if args.config is not None:
             with open(args.config, "r", encoding="utf-8") as f:
