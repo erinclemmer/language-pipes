@@ -15,7 +15,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "language-pipes"
-version = "0.6.1"
+version = "0.7.0"
 authors = [{name="Erin Clemmer", email="erin.c.clemmer@gmail.com"}]
 description = "Easily distribute language models across multiple systems"
 keywords = ["distributed", "networking", "AI", "Language Model", "pipe", "pipeline", "server"]

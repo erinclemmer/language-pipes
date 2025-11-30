@@ -8,7 +8,7 @@ from language_pipes.initialize import interactive_init
 
 from language_pipes import LanguagePipes
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 def build_parser():
     parser = argparse.ArgumentParser(
