@@ -1,8 +1,10 @@
 import os
+import socket
 import toml
 import argparse
 from language_pipes.config import LpConfig
 from language_pipes.util.aes import generate_aes_key
+from language_pipes.initialize import interactive_init
 
 from language_pipes import LanguagePipes
 
@@ -144,9 +146,9 @@ def main(argv = None):
     if args.command == "keygen":
         with open(args.output, 'wb') as f:
             f.write(generate_aes_key())
-    elif args.command == "version":
-        print(f"Language-Pipes\nVersion: ${VERSION}")
-        exit()
+        print(f"✓ Network key saved to '{args.output}'")
+    elif args.command == "init":
+        interactive_init(args.output)
     elif args.command == "serve":
         data = { }
         if args.config is not None:
