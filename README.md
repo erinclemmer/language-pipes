@@ -50,7 +50,7 @@ pip install language-pipes
 The easiest way to get started is with the interactive setup wizard:
 
 ```bash
-language-pipes start
+language-pipes
 ```
 
 This guides you through network key generation, configuration, and starts the server.

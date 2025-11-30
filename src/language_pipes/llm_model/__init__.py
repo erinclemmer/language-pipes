@@ -104,7 +104,7 @@ class LlmModel:
 
     def print(self):
         self.logger.info(f'''
-#################################
+=================================
 Loaded Model: {self.model_id}
 Pipe ID: {self.pipe_id}
 Router: {self.router_id}
@@ -112,7 +112,7 @@ Process: {self.process_id}
 Start Layer: {self.start_layer}
 End Layer: {self.end_layer}
 Device: {self.device}
-#################################
+=================================
 ''')
 
     def process_job(self, job: Job):

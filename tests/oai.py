@@ -20,15 +20,15 @@ MODEL = "Qwen/Qwen3-1.7B"
 # MODEL = "meta-llama/Llama-3.2-1B-Instruct"
 
 def start_node(node_id: str, max_memory: float, peer_port: int, job_port: int, oai_port: int = None, bootstrap_port: int = None):
-    args = ["run", 
+    args = ["serve", 
         "--node-id", node_id, 
-        "--hosted-models", f"{MODEL}::cpu::{max_memory}::true", 
+        "--hosted-models", f"id={MODEL},device=cpu,memory={max_memory},load_ends=true", 
         "--peer-port", str(peer_port),
         "--job-port", str(job_port),
         "--model-validation",
     ]
     if oai_port is not None:
-        args.extend(["--oai-port", str(oai_port)])
+        args.extend(["--openai-port", str(oai_port)])
     
     if bootstrap_port is not None:
         args.extend(["--bootstrap-address", "localhost", "--bootstrap-port", str(bootstrap_port)])

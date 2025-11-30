@@ -3,13 +3,14 @@ import socket
 import toml
 import argparse
 from language_pipes.config import LpConfig
-from language_pipes.util.aes import generate_aes_key
-from language_pipes.initialize import interactive_init
-from language_pipes.start import start_wizard
+from language_pipes.util.aes import save_new_aes_key
+from language_pipes.commands.initialize import interactive_init
+from language_pipes.commands.start import start_wizard
+from language_pipes.commands.upgrade import upgrade_lp
 
 from language_pipes import LanguagePipes
 
-VERSION = "0.8.0"
+VERSION = "0.9.0"
 
 CONFIG_PATH = "config.toml"
 NETWORK_KEY_PATH = "network.key"
@@ -23,6 +24,9 @@ def build_parser():
     parser.add_argument("-V", "--version", action="version", version=VERSION)
 
     subparsers = parser.add_subparsers(dest="command")
+
+    #Upgrade
+    subparsers.add_parser("upgrade", help="Upgrade Language Pipes and related packages")
 
     # Key Generation
     create_key_parser = subparsers.add_parser("keygen", help="Generate AES key")
@@ -152,10 +156,18 @@ def main(argv = None):
     else:
         args = parser.parse_args(argv)
 
+    # Default to "start" command if no command given
+    if args.command is None:
+        args.command = "start"
+        args.config = "config.toml"
+        args.key = "network.key"
+
     if args.command == "keygen":
-        with open(args.output, 'wb') as f:
-            f.write(generate_aes_key())
+        key = save_new_aes_key(args.output)
+        print(f"✓ Network key generated: {key}")
         print(f"✓ Network key saved to '{args.output}'")
+    elif args.command == "upgrade":
+        upgrade_lp()
     elif args.command == "init":
         interactive_init(args.output)
     elif args.command == "start":

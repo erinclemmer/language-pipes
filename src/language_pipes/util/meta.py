@@ -143,7 +143,7 @@ class MetaPipe:
     def print(self, logger):
         self.sort_segments()
         logger.info(f'''
-#################################
+=================================
 Pipe Status:
 Model ID: {self.model_id}
 Pipe: {self.pipe_id}
@@ -151,5 +151,5 @@ Segments: {', '.join([s.router_id for s in self.segments])}
 {self.get_filled_slots()}
 End Layer: {self.segments[-1].end_layer} / {self.num_layers() - 1}
 Complete: {self.is_complete()}
-#################################
+=================================
 ''')

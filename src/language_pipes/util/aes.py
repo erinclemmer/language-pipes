@@ -25,6 +25,13 @@ def generate_aes_key() -> bytes:
     bts.write(key)
     return bts.getvalue()
 
+def save_new_aes_key(file_path: str) -> str:
+    key = generate_aes_key()
+    key_hex = key.hex()
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(key_hex)
+    return key_hex
+
 def aes_decrypt(key: bytes, ciphertext: bytes) -> bytes:
     bts = BytesIO(key)
     iv = bts.read(16)

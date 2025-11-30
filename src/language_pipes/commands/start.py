@@ -2,10 +2,10 @@ import os
 import toml
 
 from language_pipes.config import LpConfig
-from language_pipes.util.aes import generate_aes_key
-from language_pipes.initialize import interactive_init, prompt_bool
+from language_pipes.util.aes import save_new_aes_key
+from language_pipes.commands.initialize import interactive_init
 from language_pipes import LanguagePipes
-
+from language_pipes.util.user_prompts import prompt_bool, prompt
 
 def start_wizard(config_path: str, key_path: str, apply_overrides, version: str):
     """First-time setup wizard: handles network key, config, and starts server."""
@@ -27,21 +27,22 @@ def start_wizard(config_path: str, key_path: str, apply_overrides, version: str)
         
         if is_first:
             print(f"\nGenerating new network key...")
-            with open(key_path, 'wb') as f:
-                f.write(generate_aes_key())
+            key = save_new_aes_key(key_path)
+            print(f"✓ Network key generated: {key}")
             print(f"✓ Network key created at '{key_path}'")
             print("\n  IMPORTANT: Copy this key file to all other nodes that will")
             print("  join your network. Keep it secure - anyone with this key can join.\n")
-        else:
-            print(f"\n  Please copy the network key from your first node to '{key_path}'")
-            print("  You can use USB, scp, or any secure file transfer method.\n")
-            input("  Press Enter when the key file is in place...")
+            input("Press Enter to continue")
             
-            if not os.path.exists(key_path):
-                print(f"\n✗ Error: '{key_path}' not found. Please copy the key and try again.")
-                return
-
-            print(f"✓ Network key found at '{key_path}'")
+        else:
+            print("\n  Enter the network key from your first node.")
+            print("  (This is the hex string that was displayed when the key was generated)\n")
+            key_value = prompt("Network key: ", required=True)
+            
+            with open(key_path, 'w', encoding='utf-8') as f:
+                f.write(key_value)
+            
+            print(f"✓ Network key saved to '{key_path}'")
 
     # Step 2: Configuration
     print("\n--- Step 2: Configuration ---\n")

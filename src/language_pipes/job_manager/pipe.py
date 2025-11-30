@@ -105,7 +105,7 @@ class Pipe:
 
     def print(self):
         self.router.logger.info(f'''
-#################################
+=================================
 Pipe Status:
 Model ID: {self.model_id}
 Pipe: {self.pipe_id}
@@ -114,7 +114,7 @@ Embed: {not self.get_embed() is not None}
 Head: {not self.get_head() is not None}
 End Layer: {self.segments[-1].end_layer}
 Complete: {self.is_complete()}
-#################################
+=================================
 ''')
 
     def peers(self) -> List[str]:
