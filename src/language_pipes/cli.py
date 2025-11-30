@@ -5,10 +5,14 @@ import argparse
 from language_pipes.config import LpConfig
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.initialize import interactive_init
+from language_pipes.start import start_wizard
 
 from language_pipes import LanguagePipes
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
+
+CONFIG_PATH = "config.toml"
+NETWORK_KEY_PATH = "network.key"
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -27,6 +31,11 @@ def build_parser():
     # Initialize
     init = subparsers.add_parser("init", help="Create a new configuration file")
     init.add_argument("-o", "--output", default="config.toml")
+
+    # Quick start
+    start = subparsers.add_parser("start", help="First-time setup wizard and server start")
+    start.add_argument("-c", "--config", default="config.toml", help="Config file path")
+    start.add_argument("-k", "--key", default="network.key", help="Network key file path")
 
     # run command
     run_parser = subparsers.add_parser("serve", help="Start Language Pipes server")
@@ -149,6 +158,8 @@ def main(argv = None):
         print(f"✓ Network key saved to '{args.output}'")
     elif args.command == "init":
         interactive_init(args.output)
+    elif args.command == "start":
+        return start_wizard(args.config, args.key, apply_overrides, VERSION)
     elif args.command == "serve":
         data = { }
         if args.config is not None:

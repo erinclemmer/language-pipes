@@ -37,7 +37,7 @@ language-pipes keygen network.key
 
 ### `init`
 
-Generate a configuration file template.
+Interactively create a configuration file with guided prompts.
 
 ```bash
 language-pipes init [-o FILE]
@@ -47,9 +47,55 @@ language-pipes init [-o FILE]
 |--------|-------------|---------|
 | `-o`, `--output` | Output file path | `config.toml` |
 
+The wizard guides you through:
+- Node ID configuration
+- Model selection (HuggingFace ID, device, memory)
+- API server settings
+- Network configuration
+- Advanced options
+
 ```bash
 language-pipes init -o my-config.toml
 ```
+
+---
+
+### `start`
+
+First-time setup wizard that handles everything in one command.
+
+```bash
+language-pipes start [-c FILE] [-k FILE]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-c`, `--config` | Config file path | `config.toml` |
+| `-k`, `--key` | Network key file path | `network.key` |
+
+The `start` command walks you through:
+
+1. **Network Key Setup**
+   - If first node: generates a new encryption key
+   - If joining: prompts you to copy the key from the first node
+
+2. **Configuration**
+   - Runs the interactive `init` wizard if no config exists
+   - Offers to reconfigure if config already exists
+
+3. **Server Startup**
+   - Prompts to start the server immediately
+   - Shows the manual command if you decline
+
+```bash
+# First-time setup with defaults
+language-pipes start
+
+# Custom paths
+language-pipes start -c my-config.toml -k my-network.key
+```
+
+**Recommended for new users** — this is the easiest way to get started.
 
 ---
 
@@ -156,14 +202,24 @@ language-pipes serve \
 
 ## Quick Start
 
+### Easiest Method (Recommended)
+
+```bash
+language-pipes start
+```
+
+This single command handles network key generation, configuration, and server startup.
+
+### Manual Method
+
 ```bash
 # 1. Generate network key
 language-pipes keygen network.key
 
-# 2. Create config template
+# 2. Create configuration interactively
 language-pipes init
 
-# 4. Start server
+# 3. Start server
 language-pipes serve -c config.toml
 ```
 

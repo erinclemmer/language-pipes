@@ -45,6 +45,18 @@ Using Pip:
 pip install language-pipes
 ```
 
+### Quick Start
+
+The easiest way to get started is with the interactive setup wizard:
+
+```bash
+language-pipes start
+```
+
+This guides you through network key generation, configuration, and starts the server.
+
+---
+
 # Two Node Example
 The following example will show how to create a small network. Firstly, create a network key for the network on the first computer:
 ```bash
