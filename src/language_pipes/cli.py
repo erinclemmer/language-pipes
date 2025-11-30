@@ -76,7 +76,7 @@ def apply_overrides(data, args):
     
     config = {
         "logging_level": precedence("logging_level", args.logging_level, "INFO"),
-        "oai_port": precedence("oai_port", args.oai_port, None),
+        "oai_port": precedence("oai_port", args.openai_port, None),
         "node_id": precedence("node_id", args.node_id, None),
         "peer_port": int(precedence("peer_port", args.peer_port, 5000)),
         "bootstrap_address": precedence("bootstrap_address", args.bootstrap_address, None),
