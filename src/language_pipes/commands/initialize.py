@@ -1,7 +1,9 @@
 import os
 import socket
 import toml
+from unique_names_generator import get_random_name
 
+from language_pipes.util.aes import generate_aes_key
 from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int
 
 def get_default_node_id() -> str:
@@ -10,16 +12,14 @@ def get_default_node_id() -> str:
         hostname = socket.gethostname()
         return hostname
     except:
-        return "node-1"
+        return get_random_name()
 
-
-def interactive_init(output_path: str, network_key_arg: str | None = None):
+def interactive_init(output_path: str):
     """Interactively create a configuration file."""
     print("\n" + "=" * 50)
     print("  Language Pipes Configuration Setup")
     print("=" * 50)
-    print("\nThis wizard will help you create a config.toml file.")
-    print("Press Enter to accept the default value shown in [brackets].\n")
+    print("\nThis wizard will help you create a new configuration.")
 
     config = {}
 
@@ -144,20 +144,25 @@ def interactive_init(output_path: str, network_key_arg: str | None = None):
         "Job port",
         default=5050
     )
-
-    if network_key_arg is not None:
-        print("\nThe network key is an AES encryption key shared by all nodes.")
-        print("It encrypts communication and prevents unauthorized access.")
-        print("There will be no encryption between nodes if the default value is selected.")
+    
+    print("\nThe network key is an AES encryption key shared by all nodes.")
+    print("It encrypts communication and prevents unauthorized access.")
+    print("There will be no encryption between nodes if the default value is selected.")
+    print("")
+    encrypt_traffic = prompt_bool("Encrypt network traffic", default=False)
+    if encrypt_traffic:
         config["network_key"] = prompt(
-            "Network key file",
-            default="empty"
+            "Network key",
+            default="Generate new key"
         )
 
-        if config["network_key"] == "empty":
-            config["network_key"] = None
+        if config["network_key"] == "Generate new key":
+            key = generate_aes_key().hex()
+            config["network_key"] = key
+            print(f"Generated new key: {key}")
+            print("Note: Save this key somewhere and supply it to other nodes on the network")
     else:
-        config["network_key"] = network_key_arg
+        config["network_key"] = None
 
     # === Advanced Options ===
     print("\n--- Advanced Options ---\n")

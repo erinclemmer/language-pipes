@@ -64,5 +64,27 @@ def prompt_choice(message: str, choices: list, default=None) -> str:
             return value
         print(f"  Please choose from: {choices_str}")
 
+def prompt_number_choice(message: str, choices: list, default=None) -> str:
+    print(message)
+    for i, choice  in enumerate(choices):
+        print(f"[{i}] {choice}")
+    if default is not None:
+        default_idx = choices.index(default)
+    else:
+        default_idx = None
+    while True:
+        try:
+            selection = int(prompt("Select number of choice", default=default_idx))
+        except KeyboardInterrupt:
+            return None
+        except:
+            print("Invalid selection")
+            continue
+        if selection < 0 or selection >= len(choices):
+            print("Invalid selection")
+        else:
+            return choices[selection]
+    return None
+
 def prompt_continue():
     prompt("Press Enter to continue...")

@@ -1,4 +1,5 @@
 import io
+import re
 import os
 import shutil
 from pathlib import Path
@@ -75,3 +76,7 @@ def clone_model(model_id: str, model_dir: str):
         print(e)
         print("Git LFS Error occurred: please ensure that git-lfs is installed")
         exit()
+
+
+def sanitize_file_name(raw_name: str):
+    return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', raw_name).strip().strip('.') + ".toml"

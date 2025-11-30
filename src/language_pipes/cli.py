@@ -179,7 +179,10 @@ def main(argv = None):
     elif args.command == "init":
         interactive_init(args.output)
     elif args.command == "start":
-        return start_wizard(args.config, args.key, apply_overrides, VERSION)
+        try:
+            return start_wizard(apply_overrides, VERSION)
+        except KeyboardInterrupt:
+            exit()
     elif args.command == "serve":
         data = { }
         if args.config is not None:
@@ -193,7 +196,7 @@ def main(argv = None):
             "router": {
                 "node_id": data["node_id"],
                 "port": data["peer_port"],
-                "aes_key_file": data["network_key"],
+                "aes_key": data["network_key"],
                 "bootstrap_nodes": [
                     {
                         "address": data["bootstrap_address"],
