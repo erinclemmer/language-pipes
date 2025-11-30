@@ -22,6 +22,7 @@ class Job(SignedPacket):
     job_id: str
     pipe_id: str
     model_id: str
+    delta: str
     current_layer: int
     current_step: ComputeStep
     status: JobStatus
@@ -64,6 +65,7 @@ class Job(SignedPacket):
         self.current_token = current_token
         self.result = result
         self.messages = messages
+        self.delta = ''
         self.data = data if data is not None else JobData()
 
     def set_layer(self, state: torch.Tensor, layer: int):

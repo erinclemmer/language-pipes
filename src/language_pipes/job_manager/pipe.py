@@ -24,6 +24,7 @@ class Pipe:
     tokenizer: Callable
     get_job_port: Callable[[str], Optional[int]]
     complete_job: Callable[[Job], None]
+    update_job: Callable[[Job], None]
     model_num_hidden_layers: int
 
     def __init__(
@@ -33,10 +34,12 @@ class Pipe:
             model_id: str,
             get_job_port: Callable[[str], Optional[int]],
             complete_job: Callable[[Job], None],
+            update_job: Callable[[Job], None],
             restart_job: Callable[[Job], None]
         ):
         self.get_job_port = get_job_port
         self.complete_job = complete_job
+        self.update_job = update_job
         self.restart_job = restart_job
         self.router = router
         self.model_id = model_id
@@ -155,6 +158,7 @@ Complete: {self.is_complete()}
         router: DSNode,
         get_job_port: Callable[[str], Optional[int]],
         complete_job: Callable[[Job], None],
+        update_job: Callable[[Job], None],
         restart_job: Callable[[Job], None]
     ) -> 'Pipe':
         p = Pipe(
@@ -162,6 +166,7 @@ Complete: {self.is_complete()}
             pipe_id=meta_pipe.pipe_id, 
             get_job_port=get_job_port,
             complete_job=complete_job,
+            update_job=update_job,
             restart_job=restart_job,
             router=router
         )

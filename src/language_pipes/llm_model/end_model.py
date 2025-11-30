@@ -38,7 +38,7 @@ class EndModel:
             device=device,
             dtype=torch.float16
         )
-        self.tokenizer = lambda: AutoTokenizer.from_pretrained(os.path.join(model_dir, 'data'))
+        self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_dir, 'data'))
     
     def size(self):
         return self.computed.embed_size + self.computed.head_size
@@ -49,9 +49,8 @@ class EndModel:
         self.head = self.collector.load_head(self.device)
 
     def tokenize(self, job: Job):
-        tokenizer: AutoTokenizer = self.tokenizer()
-        prompt = tokenizer.apply_chat_template([m.to_json() for m in job.messages], tokenize=False, chat_template=tokenizer.chat_template, add_generation_prompt=True)
-        input_tokens = [int(t) for t in tokenizer.encode(prompt, return_tensors='pt')[0].numpy()]
+        prompt = self.tokenizer.apply_chat_template([m.to_json() for m in job.messages], tokenize=False, chat_template=self.tokenizer.chat_template, add_generation_prompt=True)
+        input_tokens = [int(t) for t in self.tokenizer.encode(prompt, return_tensors='pt')[0].numpy()]
         job.input_ids = input_tokens
         job.prompt_tokens = len(input_tokens)
         job.next_step()
@@ -96,10 +95,11 @@ class EndModel:
             self.raise_exception("Cannot compute head without job data")
         head = int(compute_head(self.head, job.data.state.to(self.device))[0][0])
         job.set_output(head, self.collector.config.eos_token_id)
+        job.delta = self.tokenizer.decode([job.input_ids[-1]])
 
     def set_result(self, job: Job):
         res_tokens = job.input_id_tensor()
-        job.result = self.tokenizer().decode(res_tokens[job.prompt_tokens:])
+        job.result = self.tokenizer.decode(res_tokens[job.prompt_tokens:])
 
     def clean_up(self):
         del self.input_embedding

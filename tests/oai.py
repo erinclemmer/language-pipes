@@ -6,6 +6,8 @@ import requests
 import unittest
 from typing import List
 
+import openai
+
 cd = pathlib.Path().resolve()
 
 sys.path.append(os.path.join(cd, 'src'))
@@ -35,20 +37,44 @@ def start_node(node_id: str, max_memory: float, peer_port: int, job_port: int, o
 
 def oai_complete(port: int, messages: List[ChatMessage], retries: int = 0):
     try:
-        res = requests.post(f"http://localhost:{port}/v1/chat/completions", json={
-            "model": MODEL,
-            "max_completion_tokens": 10,
-            "messages": [m.to_json() for m in messages]
-        })
-        if res.status_code != 200:
-            raise Exception(f"Failed to complete: {res.text}")
-        return res.json()
+        client = openai.OpenAI(
+            api_key="",
+            base_url=f"http://127.0.0.1:{port}/v1",
+        )
+        response = client.chat.completions.create(
+            model=MODEL,
+            max_completion_tokens=10,
+            messages=[m.to_json() for m in messages]
+        )
+        return response
     except Exception as e:
         print(e)
         if retries < 5:
             time.sleep(5)
             return oai_complete(port, messages, retries + 1)
 
+
+def oai_stream(port: int, messages: List[ChatMessage], retries: int = 0):
+    try:
+        client = openai.OpenAI(
+            api_key="",
+            base_url=f"http://127.0.0.1:{port}/v1",
+        )
+        stream = client.chat.completions.create(
+            model=MODEL,
+            # model="gpt-5",
+            stream=True,
+            max_completion_tokens=10,
+            messages=[m.to_json() for m in messages]
+        )
+        for chunk in stream:
+            print(chunk.choices[0].delta.content)
+        
+    except Exception as e:
+        print(e)
+        if retries < 5:
+            time.sleep(5)
+            return oai_complete(port, messages, retries + 1)
 
 class OpenAITests(unittest.TestCase):
     def test_single_node(self):
@@ -57,8 +83,8 @@ class OpenAITests(unittest.TestCase):
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
         ])
-        print("\"" + res["choices"][0]["message"]["content"] + "\"")
-        self.assertTrue(len(res["choices"]) > 0)
+        print("\"" + res.choices[0].message.content + "\"")
+        self.assertTrue(len(res.choices) > 0)
 
     def test_400_codes(self):
         start_node("node-1", 5, 5000, 5050, 6000)
@@ -94,8 +120,18 @@ class OpenAITests(unittest.TestCase):
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
         ])
-        print("\"" + res["choices"][0]["message"]["content"] + "\"")
-        self.assertTrue(len(res["choices"]) > 0)
+        print("\"" + res.choices[0].message.content + "\"")
+        self.assertTrue(len(res.choices) > 0)
+
+    def test_stream(self):
+        start_node("node-1", 2, 5000, 5050, 6000)
+        time.sleep(5)
+        start_node("node-2", 3, 5001, 5051, None, 5000)
+        time.sleep(5)
+        oai_stream(6000, [
+            ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
+            ChatMessage(ChatRole.USER, "Hello, how are you?")
+        ])
 
     def test_triple_node(self):
         start_node("node-1", 1, 5000, 5050, 6000)
@@ -108,8 +144,8 @@ class OpenAITests(unittest.TestCase):
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
         ])
-        print("\"" + res["choices"][0]["message"]["content"] + "\"")
-        self.assertTrue(len(res["choices"]) > 0)
+        print("\"" + res.choices[0].message.content + "\"")
+        self.assertTrue(len(res.choices) > 0)
 
 
     def test_reconnect(self):
@@ -128,8 +164,8 @@ class OpenAITests(unittest.TestCase):
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
         ])
-        print("\"" + res["choices"][0]["message"]["content"] + "\"")
-        self.assertTrue(len(res["choices"]) > 0)
+        print("\"" + res.choices[0].message.content + "\"")
+        self.assertTrue(len(res.choices) > 0)
 
 
 if __name__ == '__main__':

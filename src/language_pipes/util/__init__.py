@@ -1,5 +1,6 @@
 import io
 import os
+import shutil
 from pathlib import Path
 import json
 import base64
@@ -64,6 +65,13 @@ def clone_model(model_id: str, model_dir: str):
 
     if not os.path.exists(clone_dir):
         Path(clone_dir).mkdir(parents=True)
-    subprocess.run(["git", "clone", repo_url, clone_dir])
-    subprocess.run(["git", "lfs", "install"], cwd=clone_dir, check=True)
-    subprocess.run(["git", "lfs", "pull"], cwd=clone_dir, check=True)
+    try:
+        subprocess.run(["git", "clone", repo_url, clone_dir])
+        subprocess.run(["git", "lfs", "install"], cwd=clone_dir, check=True)
+        subprocess.run(["git", "lfs", "pull"], cwd=clone_dir, check=True)
+    except Exception as e:
+        if os.path.exists(model_dir):
+            shutil.rmtree(model_dir)
+        print(e)
+        print("Git LFS Error occurred: please ensure that git-lfs is installed")
+        exit()

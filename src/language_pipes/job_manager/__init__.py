@@ -1,6 +1,6 @@
 import random
 import requests
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Callable
 
 from promise import Promise
 
@@ -17,14 +17,7 @@ from language_pipes.util.chat import ChatMessage
 from language_pipes.config.processor import ProcessorConfig
 from language_pipes.llm_model import LlmModel
 from language_pipes.llm_model.computed import validate_model
-
-class PendingJob:
-    job: Job
-    promise: Promise
-
-    def __init__(self, job: str, promise: Promise):
-        self.job = job
-        self.promise = promise
+from language_pipes.job_manager.pending_job import PendingJob
 
 class JobManager:
     completed_jobs: List[str]
@@ -81,6 +74,7 @@ class JobManager:
             router=self.router,
             get_job_port=self.get_job_port,
             complete_job=self.complete_job,
+            update_job=self.update_job,
             restart_job=self.restart_job
         )
     
@@ -91,16 +85,26 @@ class JobManager:
             self.logger.exception("Error getting job port: %s", e)
             return None
 
+    def update_job(self, job: Job):
+        job_id = job.job_id
+        if job_id in self.completed_jobs:
+            return
+        pending_job = self.get_pending_job(job_id)
+        if pending_job is None:
+            return
+        self.logger.info(f'\nReceived job update for {job_id}\n')
+        pending_job.update(job)
+
     def complete_job(self, job: Job):
         job_id = job.job_id
         if job_id in self.completed_jobs:
             return
         self.completed_jobs.append(job_id)
-        matches = [j for j in self.jobs_pending if j.job.job_id == job_id]
-        if len(matches) == 0:
+        pending_job = self.get_pending_job(job_id)
+        if pending_job is None:
             return
         self.logger.info(f'\nReceived job complete for {job_id}\n')
-        matches[0].promise(job)
+        pending_job.resolve(job)
         self.jobs_pending = [j for j in self.jobs_pending if j.job.job_id != job_id]
       
     def get_model_for_pipe(self, model_id: str, pipe: MetaPipe, device: str, available_memory: int) -> Tuple[int, Optional[LlmModel]]:
@@ -135,7 +139,7 @@ class JobManager:
     def get_pending_job(self, job_id: str) -> Optional[Job]:
         for j in self.jobs_pending:
             if j.job.job_id == job_id:
-                return j.job
+                return j
         return None
 
     def load_end_model(self, model_id: str, device: int):
@@ -242,16 +246,25 @@ class JobManager:
 
         return job
 
-    def complete(self, model_id: str, messages: List[ChatMessage], tokens: int, promise: Promise) -> Optional[str]:
+    def complete(
+        self, 
+        model_id: str, 
+        messages: List[ChatMessage], 
+        tokens: int, 
+        start: Callable,
+        update: Callable,
+        resolve: Promise,
+    ) -> Optional[str]:
         if self.get_end_model(model_id) is None:
-            promise('NO_ENDS')
+            resolve('NO_ENDS')
             return None
         
         network_pipe = self.get_job_pipe(model_id)
         if network_pipe is None:
-            promise('NO_PIPE')
+            resolve('NO_PIPE')
             return None
 
         job = self.start_job(model_id, network_pipe.pipe_id, messages, tokens)
-        self.jobs_pending.append(PendingJob(job, promise))
+        start(job)
+        self.jobs_pending.append(PendingJob(job, resolve, update))
         return job.job_id

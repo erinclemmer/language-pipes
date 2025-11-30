@@ -11,6 +11,7 @@ from language_pipes.handlers.job import JobServer
 from language_pipes.util import stop_thread
 from language_pipes.job_manager.layer_job import LayerJob
 from language_pipes.config.processor import ProcessorConfig
+from language_pipes.job_manager.pending_job import PendingJob
 
 class JobReceiver:
     port: int
@@ -29,7 +30,7 @@ class JobReceiver:
             router: DSNode,
             get_pipe: Callable[[str], Optional[Pipe]],
             get_end_model: Callable[[str], Optional[EndModel]],
-            get_pending_job: Callable[[str], Optional[Job]],
+            get_pending_job: Callable[[str], Optional[PendingJob]],
             restart_job: Callable[[Job], None]
     ):
         self.router = router
@@ -66,7 +67,7 @@ class JobReceiver:
                 continue
             
             if layer_job.done:
-                job = self.get_pending_job(layer_job.job_id)
+                job = self.get_pending_job(layer_job.job_id).job
                 job.current_step = ComputeStep.NORM
                 job.data = layer_job.data
                 end_model.compute_norm(job)
@@ -76,6 +77,7 @@ class JobReceiver:
                     pipe.complete_job(job)
                     continue
                 else:
+                    pipe.update_job(job)
                     end_model.compute_embed(job)
                     layer_job = job.to_layer_job()
 
