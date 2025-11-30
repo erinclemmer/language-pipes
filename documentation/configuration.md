@@ -1,41 +1,27 @@
-# Configuration
+# Configuration File Reference
 
-Language Pipes can be configured through TOML files, command-line arguments, or environment variables.
+This document describes the TOML configuration file format for Language Pipes.
 
-## Configuration Precedence
-
-Values are resolved in this order (highest to lowest priority):
-
-```
-Command Arguments  >  Environment Variables  >  TOML Config  >  Defaults
-```
+For command-line usage, see the [CLI Reference](./cli.md).
 
 ---
 
-## Quick Reference
-
-| Property | CLI Flag | Environment Variable | Default | Required |
-|----------|----------|---------------------|---------|----------|
-| `node_id` | `--node-id` | `LP_NODE_ID` | - | **Yes** |
-| `hosted_models` | `--hosted-models` | `LP_HOSTED_MODELS` | - | **Yes** |
-| `logging_level` | `-l`, `--logging-level` | `LP_LOGGING_LEVEL` | `INFO` | No |
-| `oai_port` | `--openai-port` | `LP_OAI_PORT` | None | No |
-| `peer_port` | `--peer-port` | `LP_PEER_PORT` | `5000` | No |
-| `job_port` | `--job-port` | `LP_JOB_PORT` | `5050` | No |
-| `bootstrap_address` | `--bootstrap-address` | `LP_BOOTSTRAP_ADDRESS` | None | No |
-| `bootstrap_port` | `--bootstrap-port` | `LP_BOOTSTRAP_PORT` | `5000` | No |
-| `network_key` | `--network-key` | `LP_NETWORK_KEY` | `network.key` | No |
-| `max_pipes` | `--max-pipes` | `LP_MAX_PIPES` | `1` | No |
-| `model_validation` | `--model-validation` | `LP_MODEL_VALIDATION` | `false` | No |
-| `ecdsa_verification` | `--ecdsa-verification` | `LP_ECDSA_VERIFICATION` | `false` | No |
-
----
-
-## Example Configuration
+## Minimal Configuration
 
 ```toml
-# config.toml
+node_id = "my-node"
 
+[[hosted_models]]
+id = "Qwen/Qwen3-1.7B"
+device = "cpu"
+max_memory = 4
+```
+
+---
+
+## Complete Example
+
+```toml
 # === Required ===
 node_id = "node-1"
 
@@ -43,13 +29,19 @@ node_id = "node-1"
 id = "meta-llama/Llama-3.2-1B-Instruct"
 device = "cpu"
 max_memory = 5
+load_ends = true
 
-# === Server ===
-oai_port = 6000        # OpenAI-compatible API (omit to disable)
-job_port = 5050        # Job communication port
+[[hosted_models]]
+id = "Qwen/Qwen3-1.7B"
+device = "cuda:0"
+max_memory = 8
+
+# === API Server ===
+oai_port = 6000
 
 # === Network ===
 peer_port = 5000
+job_port = 5050
 bootstrap_address = "192.168.0.1"
 bootstrap_port = 5000
 network_key = "network.key"
@@ -63,31 +55,25 @@ ecdsa_verification = false
 
 ---
 
-## Required Properties
+## Properties
 
-### `node_id`
+### Required
+
+#### `node_id`
 
 Unique identifier for this node on the network.
 
-| | |
-|---|---|
-| **Type** | `string` |
-| **CLI** | `--node-id` |
-| **Env** | `LP_NODE_ID` |
+```toml
+node_id = "my-node-1"
+```
 
----
+| Type | Required |
+|------|:--------:|
+| string | ✓ |
 
-### `hosted_models`
+#### `hosted_models`
 
-List of models to host on this node.
-
-| | |
-|---|---|
-| **Type** | `array` |
-| **CLI** | `--hosted-models` |
-| **Env** | `LP_HOSTED_MODELS` |
-
-#### TOML Format
+Array of models to host. Each model is defined as a TOML table.
 
 ```toml
 [[hosted_models]]
@@ -95,181 +81,192 @@ id = "Qwen/Qwen3-1.7B"
 device = "cpu"
 max_memory = 4
 load_ends = false
+```
+
+| Property | Type | Required | Description |
+|----------|------|:--------:|-------------|
+| `id` | string | ✓ | HuggingFace model ID or path in `/models` directory |
+| `device` | string | ✓ | PyTorch device: `cpu`, `cuda:0`, `cuda:1`, etc. |
+| `max_memory` | number | ✓ | Maximum memory allocation in GB |
+| `load_ends` | bool | | Load embedding/head layers (default: `false`) |
+
+**Multiple models:**
+```toml
+[[hosted_models]]
+id = "Qwen/Qwen3-1.7B"
+device = "cpu"
+max_memory = 4
 
 [[hosted_models]]
 id = "meta-llama/Llama-3.2-1B-Instruct"
 device = "cuda:0"
 max_memory = 8
+load_ends = true
 ```
 
-#### CLI Format
+---
 
-Use comma-separated `key=value` pairs:
+### API Server
 
-```bash
---hosted-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=false"
+#### `oai_port`
+
+Port for the [OpenAI-compatible API](./oai.md). Omit to disable the API server.
+
+```toml
+oai_port = 6000
 ```
 
-#### Model Properties
+| Type | Default |
+|------|---------|
+| int | None (disabled) |
 
-| Key | Required | Type | Description |
-|-----|:--------:|------|-------------|
-| `id` | ✓ | string | HuggingFace model ID or path in `/models` |
-| `device` | ✓ | string | PyTorch device (`cpu`, `cuda:0`, `cuda:1`, etc.) |
-| `max_memory` | ✓ | number | Maximum memory allocation in GB |
-| `load_ends` | | bool | Load embedding/head layers (default: `false`) |
+#### `job_port`
 
----
+Port for inter-node job communication.
 
-## Server Options
+```toml
+job_port = 5050
+```
 
-### `oai_port`
+| Type | Default |
+|------|---------|
+| int | `5050` |
 
-Port for the [OpenAI-compatible API](./oai.md). Server is disabled if not set.
+#### `logging_level`
 
-| | |
-|---|---|
-| **Type** | `int` |
-| **Default** | None (disabled) |
-| **CLI** | `--openai-port` |
-| **Env** | `LP_OAI_PORT` |
+Log verbosity. See [Python logging levels](https://docs.python.org/3/library/logging.html#logging-levels).
 
----
+```toml
+logging_level = "INFO"
+```
 
-### `job_port`
-
-Port for job communication between nodes.
-
-| | |
-|---|---|
-| **Type** | `int` |
-| **Default** | `5050` |
-| **CLI** | `--job-port` |
-| **Env** | `LP_JOB_PORT` |
+| Type | Default | Values |
+|------|---------|--------|
+| string | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
 ---
 
-### `logging_level`
+### Network
 
-Log verbosity level.
+These options configure the peer-to-peer network. See [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) for details.
 
-| | |
-|---|---|
-| **Type** | `string` |
-| **Default** | `INFO` |
-| **Values** | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
-| **CLI** | `-l`, `--logging-level` |
-| **Env** | `LP_LOGGING_LEVEL` |
+#### `peer_port`
 
-See [Python logging levels](https://docs.python.org/3/library/logging.html#logging-levels) for details.
+Port for peer-to-peer communication.
 
----
+```toml
+peer_port = 5000
+```
 
-## Network Options
+| Type | Default |
+|------|---------|
+| int | `5000` |
 
-These options configure the peer-to-peer network. See [Distributed State Network](https://github.com/erinclemmer/distributed_state_network) for more information.
+#### `bootstrap_address`
 
-### `peer_port`
+IP address of an existing node to join the network.
 
-Port for peer-to-peer network communication.
+```toml
+bootstrap_address = "192.168.1.100"
+```
 
-| | |
-|---|---|
-| **Type** | `int` |
-| **Default** | `5000` |
-| **CLI** | `--peer-port` |
-| **Env** | `LP_PEER_PORT` |
+| Type | Default |
+|------|---------|
+| string | None |
 
----
-
-### `bootstrap_address`
-
-Address of an existing node to connect to when joining a network.
-
-| | |
-|---|---|
-| **Type** | `string` |
-| **Default** | None |
-| **CLI** | `--bootstrap-address` |
-| **Env** | `LP_BOOTSTRAP_ADDRESS` |
-
-**Example:** `192.168.1.100`
-
----
-
-### `bootstrap_port`
+#### `bootstrap_port`
 
 Port of the bootstrap node.
 
-| | |
-|---|---|
-| **Type** | `int` |
-| **Default** | `5000` |
-| **CLI** | `--bootstrap-port` |
-| **Env** | `LP_BOOTSTRAP_PORT` |
+```toml
+bootstrap_port = 5000
+```
+
+| Type | Default |
+|------|---------|
+| int | `5000` |
+
+#### `network_key`
+
+Path to AES encryption key file. Generate with `language-pipes keygen`.
+
+```toml
+network_key = "network.key"
+```
+
+| Type | Default |
+|------|---------|
+| string | `network.key` |
 
 ---
 
-### `network_key`
+### Security
 
-Path to the AES encryption key file for network communication.
+#### `model_validation`
 
-| | |
-|---|---|
-| **Type** | `string` |
-| **Default** | `network.key` |
-| **CLI** | `--network-key` |
-| **Env** | `LP_NETWORK_KEY` |
+Verify model weight hashes match other nodes on the network.
 
-Generate a key with: `language-pipes keygen network.key`
+```toml
+model_validation = true
+```
 
----
+| Type | Default |
+|------|---------|
+| bool | `false` |
 
-## Security Options
+#### `ecdsa_verification`
 
-### `model_validation`
+Sign job packets with ECDSA. Receivers only accept packets from authorized pipes.
 
-Validate model weight hashes against other nodes to ensure model consistency.
+```toml
+ecdsa_verification = true
+```
 
-| | |
-|---|---|
-| **Type** | `bool` |
-| **Default** | `false` |
-| **CLI** | `--model-validation` |
-| **Env** | `LP_MODEL_VALIDATION` |
+| Type | Default |
+|------|---------|
+| bool | `false` |
 
 ---
 
-### `ecdsa_verification`
+### Other
 
-Sign job packets with ECDSA so receivers only accept packets from authorized pipes.
-
-| | |
-|---|---|
-| **Type** | `bool` |
-| **Default** | `false` |
-| **CLI** | `--ecdsa-verification` |
-| **Env** | `LP_ECDSA_VERIFICATION` |
-
----
-
-## Other Options
-
-### `max_pipes`
+#### `max_pipes`
 
 Maximum number of model pipes to participate in.
 
-| | |
-|---|---|
-| **Type** | `int` |
-| **Default** | `1` |
-| **CLI** | `--max-pipes` |
-| **Env** | `LP_MAX_PIPES` |
+```toml
+max_pipes = 2
+```
+
+| Type | Default |
+|------|---------|
+| int | `1` |
+
+---
+
+## Environment Variables
+
+All properties can be set via environment variables with the `LP_` prefix:
+
+| Property | Environment Variable |
+|----------|---------------------|
+| `node_id` | `LP_NODE_ID` |
+| `hosted_models` | `LP_HOSTED_MODELS` |
+| `logging_level` | `LP_LOGGING_LEVEL` |
+| `oai_port` | `LP_OAI_PORT` |
+| `peer_port` | `LP_PEER_PORT` |
+| `job_port` | `LP_JOB_PORT` |
+| `bootstrap_address` | `LP_BOOTSTRAP_ADDRESS` |
+| `bootstrap_port` | `LP_BOOTSTRAP_PORT` |
+| `network_key` | `LP_NETWORK_KEY` |
+| `max_pipes` | `LP_MAX_PIPES` |
+| `model_validation` | `LP_MODEL_VALIDATION` |
+| `ecdsa_verification` | `LP_ECDSA_VERIFICATION` |
 
 ---
 
 ## See Also
 
-- [CLI Reference](./cli.md) - Command-line usage
-- [Architecture](./architecture.md) - How Language Pipes works
-- [OpenAI API](./oai.md) - API endpoint documentation
+- [CLI Reference](./cli.md) — Command-line usage and flags
+- [Architecture](./architecture.md) — How Language Pipes works
+- [OpenAI API](./oai.md) — API endpoint documentation
