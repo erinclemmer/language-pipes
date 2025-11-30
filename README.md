@@ -91,33 +91,29 @@ Run the same command again on the computer two:
 language-pipes serve --config config.toml
 ```
 
-Node-2 will connect to node-1 and load the remaining parts of the model. The model is ready for inference using a [standard openai chat API interface](https://platform.openai.com/docs/api-reference/chat/create). An example request to the server is provided below:
+Node-2 will connect to node-1 and load the remaining parts of the model. The model is ready for inference using a [standard OpenAI chat API interface](https://platform.openai.com/docs/api-reference/chat/create). An example using the [OpenAI Python library](https://github.com/openai/openai-python):
 
 ```python
-import requests
-import json
+from openai import OpenAI
 
-# node-1 IP address here
-url = "http://127.0.0.1:6000/v1/chat/completions"
+client = OpenAI(
+    base_url="http://127.0.0.1:6000/v1",  # node-1 IP address
+    api_key="not-needed"  # API key not required for Language Pipes
+)
 
-headers = {
-    "Content-Type": "application/json"
-}
-
-payload = {
-    "model": "Qwen/Qwen3-1.7B",
-    "max_completion_tokens": 10,
-    "messages": [
+response = client.chat.completions.create(
+    model="Qwen/Qwen3-1.7B",
+    max_completion_tokens=100,
+    messages=[
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "Write a haiku about distributed systems."}
     ]
-}
+)
 
-response = requests.post(url, headers=headers, data=json.dumps(payload))
-
-print("Status Code:", response.status_code)
-print("Response JSON:", response.json())
+print(response.choices[0].message.content)
 ```
+
+Install the OpenAI library with: `pip install openai`
 
 ### Models Supported
 * Llama 2 & Llama 3.X  
