@@ -11,10 +11,110 @@ from language_pipes import LanguagePipes
 from language_pipes.util.user_prompts import prompt_bool, prompt, prompt_choice, prompt_number_choice
 from language_pipes.util import sanitize_file_name
 
+def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
+    print("\nStarting server...\n")
+    print("=" * 50)
+    
+    # Load config and start
+    with open(config_path, "r", encoding="utf-8") as f:
+        data = toml.load(f)
+    
+    # Create a minimal args-like object for apply_overrides
+    class Args:
+        logging_level = None
+        openai_port = None
+        node_id = None
+        peer_port = None
+        app_data_dir = None
+        bootstrap_address = None
+        bootstrap_port = None
+        network_key = None
+        model_validation = None
+        ecdsa_verification = None
+        job_port = None
+        max_pipes = None
+        hosted_models = None
+    
+    args = Args()
+    data = apply_overrides(data, args)
+    
+    config = LpConfig.from_dict({
+        "logging_level": data["logging_level"],
+        "oai_port": data["oai_port"],
+        "app_data_dir": app_dir,
+        "router": {
+            "node_id": data["node_id"],
+            "port": data["peer_port"],
+            "credential_dir": str(Path(app_dir) / "credentials"),
+            "aes_key_file": data["network_key"],
+            "bootstrap_nodes": [
+                {
+                    "address": data["bootstrap_address"],
+                    "port": data["bootstrap_port"]
+                }
+            ] if data["bootstrap_address"] is not None else []
+        },
+        "processor": {
+            "max_pipes": data["max_pipes"],
+            "model_validation": data["model_validation"],
+            "ecdsa_verification": data["ecdsa_verification"],
+            "job_port": data["job_port"],
+            "hosted_models": data["hosted_models"]
+        }
+    })
+
+    return LanguagePipes(version, config)
+
+def new_config(app_dir: str):
+    raw_name = prompt("Name of new configuration", required=True)
+    file_name = sanitize_file_name(raw_name)
+    if not file_name:
+        print("Invalid file name")
+        return
+    
+    file_path = str(Path(app_dir) / "configs" / file_name)
+    interactive_init(file_path)
+
+def delete_config(app_dir: str):
+    config_path = select_config(app_dir)
+    os.remove(config_path)
+    print("Configuration deleted")
+
+def get_config_files(config_dir: str):
+    return [f.replace(".toml", "") for f in os.listdir(config_dir)]
+
+def select_config(app_dir: str):
+    config_dir = str(app_dir / "configs")
+
+    if not os.path.exists(config_dir):
+        Path(config_dir).mkdir(parents=True)
+
+    existing_configs = get_config_files(config_dir)
+
+    if len(existing_configs) > 0:
+        load_config = prompt_number_choice("Load Configuration", existing_configs, required=True)
+        if load_config is None:
+            exit()
+        load_config = load_config + ".toml"
+    else:
+        print("No configs found...")
+        return
+
+    return str(Path(config_dir) / load_config)
+
+def view_config(app_dir: str):
+    config_path = select_config(app_dir)
+    with open(config_path, 'r', encoding='utf-8') as f:
+        data = toml.load(f)
+    print("\n\n" + "="*50 + "\n")
+    print(toml.dumps(data))
+    print("="*50 + "\n\n")
+
 def start_wizard(apply_overrides, version: str):
     """First-time setup wizard: handles network key, config, and starts server."""
     print("""         
 ==============================================================================
+
  | |                                              |  __ (_)                
  | |     __ _ _ __   __ _ _   _  __ _  __ _  ___  | |__) | _ __   ___  ___ 
  | |    / _` | '_ \ / _` | | | |/ _` |/ _` |/ _ \ |  ___/ | '_ \ / _ \/ __|
@@ -22,6 +122,7 @@ def start_wizard(apply_overrides, version: str):
  |______\__,_|_| |_|\__, |\__,_|\__,_|\__, |\___| |_|   |_| .__/ \___||___/
                      __/ |             __/ |              | |              
                     |___/             |___/               |_|      
+
 ==============================================================================
 """)
 
@@ -34,95 +135,21 @@ def start_wizard(apply_overrides, version: str):
         Path(app_dir).mkdir(parents=True)
         print(f"Created directory: {app_dir}")
 
-    config_dir = str(default_base_path / "configs")
+    while True:
+        main_menu_cmd = prompt_number_choice("Main Menu", [
+            "View Config",
+            "Load Config",
+            "Create Config",
+            "Delete Config"
+        ])
 
-    if not os.path.exists(config_dir):
-        Path(config_dir).mkdir(parents=True)
-
-    existing_configs = []
-    if len(os.listdir(config_dir)) > 0:
-        existing_configs = ["New Configuration"] + [f.replace(".toml", "") for f in os.listdir(config_dir)]
-
-    existing_configs.reverse()
-
-    load_config = "New Configuration"
-    if len(existing_configs) > 1:
-        load_config = prompt_number_choice("Load Configuration", existing_configs, default="New Configuration")
-        if load_config is None:
-            exit()
-        load_config = load_config + ".toml"
-
-    if load_config == "New Configuration.toml":
-        raw_name = prompt("Name of new configuration", default=get_random_name())
-        load_config = sanitize_file_name(raw_name)
-        if not load_config or load_config == ".toml":
-            load_config = "config.toml"
-        interactive_init(str(Path(config_dir) / load_config))
-
-    config_path = str(Path(config_dir) / load_config)
-
-    print(f"Configuration: {load_config}")
-    if not os.path.exists(config_path):
-        print(f"Cannot find config at path {config_path}")
-        exit()
-    with open(config_path, 'r', encoding='utf-8') as f:
-        print(f.read())
-
-    use_config = prompt_bool("Use this configuration?", default=True)
-    if not use_config:
-        return start_wizard(apply_overrides, version)
-    
-    if prompt_bool("Start the Language Pipes server now?", default=True):
-        print("\nStarting server...\n")
-        print("=" * 50)
-        
-        # Load config and start
-        with open(config_path, "r", encoding="utf-8") as f:
-            data = toml.load(f)
-        
-        # Create a minimal args-like object for apply_overrides
-        class Args:
-            logging_level = None
-            openai_port = None
-            node_id = None
-            peer_port = None
-            bootstrap_address = None
-            bootstrap_port = None
-            network_key = None
-            model_validation = None
-            ecdsa_verification = None
-            job_port = None
-            max_pipes = None
-            hosted_models = None
-        
-        args = Args()
-        data = apply_overrides(data, args)
-        
-        config = LpConfig.from_dict({
-            "logging_level": data["logging_level"],
-            "oai_port": data["oai_port"],
-            "app_data_dir": app_dir,
-            "router": {
-                "node_id": data["node_id"],
-                "port": data["peer_port"],
-                "credential_dir": str(Path(app_dir) / "credentials"),
-                "aes_key_file": data["network_key"],
-                "bootstrap_nodes": [
-                    {
-                        "address": data["bootstrap_address"],
-                        "port": data["bootstrap_port"]
-                    }
-                ] if data["bootstrap_address"] is not None else []
-            },
-            "processor": {
-                "max_pipes": data["max_pipes"],
-                "model_validation": data["model_validation"],
-                "ecdsa_verification": data["ecdsa_verification"],
-                "job_port": data["job_port"],
-                "hosted_models": data["hosted_models"]
-            }
-        })
-
-        return LanguagePipes(version, config)
-    else:
-        print("Exiting Language Pipes...")
+        match main_menu_cmd:
+            case "Load Config":
+                config_path = select_config(app_dir)
+                start_server(apply_overrides, app_dir, config_path, version)
+            case "View Config":
+                view_config(app_dir)
+            case "Create Config":
+                new_config(app_dir)
+            case "Delete Config":
+                delete_config(app_dir)

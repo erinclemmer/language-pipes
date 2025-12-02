@@ -7,17 +7,12 @@ from language_pipes.util.aes import generate_aes_key
 from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int
 
 def get_default_node_id() -> str:
-    """Generate a default node ID based on hostname."""
-    try:
-        hostname = socket.gethostname()
-        return hostname
-    except:
-        return get_random_name()
+    return get_random_name()
 
 def interactive_init(output_path: str):
     """Interactively create a configuration file."""
     print("\n" + "=" * 50)
-    print("  Language Pipes Configuration Setup")
+    print("  Configuration Setup")
     print("=" * 50)
     print("\nThis wizard will help you create a new configuration.")
 

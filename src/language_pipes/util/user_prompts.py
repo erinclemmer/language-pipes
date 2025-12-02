@@ -64,7 +64,7 @@ def prompt_choice(message: str, choices: list, default=None) -> str:
             return value
         print(f"  Please choose from: {choices_str}")
 
-def prompt_number_choice(message: str, choices: list, default=None) -> str:
+def prompt_number_choice(message: str, choices: list, default=None, required=False) -> str:
     print(message)
     for i, choice  in enumerate(choices):
         print(f"[{i}] {choice}")
@@ -74,9 +74,9 @@ def prompt_number_choice(message: str, choices: list, default=None) -> str:
         default_idx = None
     while True:
         try:
-            selection = int(prompt("Select number of choice", default=default_idx))
+            selection = int(prompt("Select number of choice", default=default_idx, required=required))
         except KeyboardInterrupt:
-            return None
+            exit()
         except:
             print("Invalid selection")
             continue
