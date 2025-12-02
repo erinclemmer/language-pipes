@@ -2,6 +2,7 @@ import os
 import torch
 from uuid import uuid4
 from torch import tensor
+from pathlib import Path
 
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
@@ -23,12 +24,12 @@ class EndModel:
     head: torch.nn.Linear
     collector: LlmLayerCollector
 
-    def __init__(self, model_id: str, device: str):
+    def __init__(self, app_dir: str, model_id: str, device: str):
         self.model_id = model_id
         self.device = device
 
         self.process_id = str(uuid4())
-        model_dir = os.path.join('models', self.model_id)
+        model_dir = str(Path(app_dir) / 'models' / self.model_id)
         if not os.path.exists(model_dir):
             clone_model(model_id, model_dir)
         self.computed = ComputedData(model_dir)

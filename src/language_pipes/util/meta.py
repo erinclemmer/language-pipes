@@ -63,15 +63,15 @@ class MetaModel:
     @staticmethod
     def from_dict(data: dict):
         return MetaModel(
-            data["process_id"],
-            data["start_layer"],
-            data["end_layer"],
-            data["loaded"],
-            data["router_id"],
-            data["pipe_id"],
-            data["model_id"],
-            data["num_layers"],
-            MetaComputed.from_dict(data["computed"])
+            process_id=data["process_id"],
+            start_layer=data["start_layer"],
+            end_layer=data["end_layer"],
+            loaded=data["loaded"],
+            router_id=data["router_id"],
+            pipe_id=data["pipe_id"],
+            model_id=data["model_id"],
+            num_layers=data["num_layers"],
+            computed=MetaComputed.from_dict(data["computed"])
         )
 
 @dataclass
@@ -82,8 +82,10 @@ class MetaPipe:
     segments: List[MetaModel]
 
     def num_layers(self):
-        config = AutoConfig.from_pretrained(f'./models/{self.model_id}/data')
-        return config.num_hidden_layers
+        if len(self.segments) == 0:
+            return 0
+        else:
+            return self.segments[0].num_layers
 
     def is_loading(self) -> bool:
         return len([s for s in self.segments if not s.loaded]) > 0
@@ -94,12 +96,14 @@ class MetaPipe:
     def sort_segments(self):
         self.segments = sorted(self.segments, key=lambda x: x.start_layer)
 
-    def get_filled_slots(self):
-        filled_slots = [0 for _ in range(0, self.num_layers())]
+    def get_filled_slots(self, num_layers: int | None = None):
+        if num_layers is None:
+            num_layers = self.num_layers()
+        filled_slots = [0 for _ in range(0, num_layers)]
         for segment in self.segments:
             if segment.start_layer == -1:
                 continue
-            for i in range(segment.start_layer, min([segment.end_layer + 1, self.num_layers()])):
+            for i in range(segment.start_layer, min([segment.end_layer + 1, num_layers])):
                 filled_slots[i] = 1
         return filled_slots
 
@@ -112,11 +116,13 @@ class MetaPipe:
                 return slot
         return -1
 
-    def next_end_layer(self) -> int:
+    def next_end_layer(self, num_layers: int | None = None) -> int:
+        if num_layers is None:
+            num_layers = self.num_layers()
         start = self.next_start_layer()
-        filled_slots = self.get_filled_slots()
-        for end_layer in range(start, self.num_layers()):
-            if end_layer == self.num_layers() - 1:
+        filled_slots = self.get_filled_slots(num_layers)
+        for end_layer in range(start, num_layers):
+            if end_layer == num_layers - 1:
                 return end_layer
             if filled_slots[end_layer] == 1:
                 return end_layer - 1

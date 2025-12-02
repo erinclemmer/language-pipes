@@ -24,6 +24,7 @@ class JobManager:
     jobs_pending: List[PendingJob]
     models: List[LlmModel]
     end_models: List[EndModel]
+    app_dir: str
     
     router: DSNode
     
@@ -31,10 +32,11 @@ class JobManager:
     config: ProcessorConfig
     started: bool
 
-    def __init__(self, router: DSNode, config: ProcessorConfig):
+    def __init__(self, app_dir: str, router: DSNode, config: ProcessorConfig):
         self.started = False
         self.router = router
         self.config = config
+        self.app_dir = app_dir
         self.logger = self.router.logger
 
         self.jobs_pending = []
@@ -47,10 +49,14 @@ class JobManager:
         for m in self.config.hosted_models:
             self.host_model(m.id, m.max_memory, m.device, m.load_ends)
         
+        self.print_pipes()
+
+        self.started = True
+
+    def print_pipes(self):
         for p in self.router_pipes.network_pipes():
             p.print(self.logger)
 
-        self.started = True
 
     def raise_exception(self, msg: str):
         self.logger.exception(msg)
@@ -72,6 +78,7 @@ class JobManager:
             meta_pipe=meta_pipe,
             hosted_models=self.models,
             router=self.router,
+            app_dir=self.app_dir,
             get_job_port=self.get_job_port,
             complete_job=self.complete_job,
             update_job=self.update_job,
@@ -110,19 +117,20 @@ class JobManager:
     def get_model_for_pipe(self, model_id: str, pipe: MetaPipe, device: str, available_memory: int) -> Tuple[int, Optional[LlmModel]]:
         start_memory = available_memory
 
-        new_model: Optional[LlmModel] = LlmModel.from_id(model_id, self.router.config.node_id, pipe.pipe_id, device)
+        new_model: Optional[LlmModel] = LlmModel.from_id(self.app_dir, model_id, self.router.config.node_id, pipe.pipe_id, device)
         computed = new_model.computed
         if self.config.model_validation and len(pipe.segments) > 0 and not validate_model(new_model.computed.to_meta(), pipe.get_computed()):
             self.logger.warning(f'Computed data for model {model_id} does not match')
             return available_memory, None
         
         num_layers_to_load = int(available_memory // computed.avg_layer_size) - 1
+        total_layers = new_model.collector.config.num_hidden_layers
         start_layer = pipe.next_start_layer()
         if num_layers_to_load == -1:
             start_layer = -1
             end_layer = -1
         else:
-            end_layer = min([start_layer + num_layers_to_load, pipe.next_end_layer(), new_model.num_hidden_layers]) if start_layer != -1 else -1
+            end_layer = min([start_layer + num_layers_to_load, pipe.next_end_layer(total_layers), new_model.num_hidden_layers]) if start_layer != -1 else -1
             available_memory = available_memory - (end_layer - start_layer + 1) * computed.avg_layer_size
 
         if num_layers_to_load > -1 and end_layer != -1 and start_layer != -1:
@@ -143,7 +151,7 @@ class JobManager:
         return None
 
     def load_end_model(self, model_id: str, device: int):
-        model = EndModel(model_id, device)
+        model = EndModel(self.app_dir, model_id, device)
         self.end_models.append(model)
         return model
 

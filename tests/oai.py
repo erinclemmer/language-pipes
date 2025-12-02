@@ -25,6 +25,7 @@ def start_node(node_id: str, max_memory: float, peer_port: int, job_port: int, o
         "--hosted-models", f"id={MODEL},device=cpu,memory={max_memory},load_ends=true", 
         "--peer-port", str(peer_port),
         "--job-port", str(job_port),
+        "--app-dir", "./",
         "--model-validation",
     ]
     if oai_port is not None:

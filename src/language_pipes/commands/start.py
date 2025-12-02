@@ -25,7 +25,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         openai_port = None
         node_id = None
         peer_port = None
-        app_data_dir = None
+        app_dir = None
         bootstrap_address = None
         bootstrap_port = None
         network_key = None
@@ -41,7 +41,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
     config = LpConfig.from_dict({
         "logging_level": data["logging_level"],
         "oai_port": data["oai_port"],
-        "app_data_dir": app_dir,
+        "app_dir": app_dir,
         "router": {
             "node_id": data["node_id"],
             "port": data["peer_port"],
@@ -63,7 +63,13 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         }
     })
 
-    return LanguagePipes(version, config)
+    try:
+        return LanguagePipes(version, config)
+    except KeyboardInterrupt:
+        return
+    except Exception as e:
+        print(e)
+        print(e.stack)
 
 def new_config(app_dir: str):
     raw_name = prompt("Name of new configuration", required=True)
@@ -135,7 +141,7 @@ def start_wizard(apply_overrides, version: str):
         Path(app_dir).mkdir(parents=True)
         print(f"Created directory: {app_dir}")
 
-    while True:
+    while True: # TODO Add model list
         main_menu_cmd = prompt_number_choice("Main Menu", [
             "View Config",
             "Load Config",
@@ -146,7 +152,7 @@ def start_wizard(apply_overrides, version: str):
         match main_menu_cmd:
             case "Load Config":
                 config_path = select_config(app_dir)
-                start_server(apply_overrides, app_dir, config_path, version)
+                return start_server(apply_overrides, app_dir, config_path, version)
             case "View Config":
                 view_config(app_dir)
             case "Create Config":

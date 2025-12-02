@@ -10,10 +10,7 @@ from language_pipes.commands.upgrade import upgrade_lp
 
 from language_pipes import LanguagePipes
 
-VERSION = "0.9.0"
-
-CONFIG_PATH = "config.toml"
-NETWORK_KEY_PATH = "network.key"
+VERSION = "0.10.0"
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -51,6 +48,7 @@ def build_parser():
     run_parser.add_argument("--openai-port", type=int, help="Open AI server port (Default: none)")
     run_parser.add_argument("-d", "--app-data-dir", type=str, help="Application data directory for language pipes (default: ~/.language-pipes)")
     run_parser.add_argument("--node-id", help="Node ID for the network (Required)")
+    run_parser.add_argument("--app-dir", type=str, help="Directory to store data for this application")
     run_parser.add_argument("--peer-port", type=int, help="Port for peer-to-peer network (Default: 5000)")
     run_parser.add_argument("--bootstrap-address", help="Bootstrap node address (e.g. 192.168.1.100)")
     run_parser.add_argument("--bootstrap-port", type=int, help="Bootstrap node port for the network (e.g. 6000)")
@@ -69,7 +67,7 @@ def apply_overrides(data, args):
     env_map = {
         "logging_level": os.getenv("LP_LOGGING_LEVEL"),
         "oai_port": os.getenv("LP_OAI_PORT"),
-        "app_data_dir": os.getenv("LP_APP_DATA_DIR"),
+        "app_dir": os.getenv("LP_APP_DIR"),
         "node_id": os.getenv("LP_NODE_ID"),
         "peer_port": os.getenv("LP_PEER_PORT"),
         "bootstrap_address": os.getenv("LP_BOOTSTRAP_ADDRESS"),
@@ -96,7 +94,7 @@ def apply_overrides(data, args):
     config = {
         "logging_level": precedence("logging_level", args.logging_level, "INFO"),
         "oai_port": precedence("oai_port", args.openai_port, None),
-        "app_data_dir": precedence("app_data_dir", args.app_data_dir, default_app_dir),
+        "app_dir": precedence("app_dir", args.app_dir, default_app_dir),
         "node_id": precedence("node_id", args.node_id, None),
         "peer_port": int(precedence("peer_port", args.peer_port, 5000)),
         "bootstrap_address": precedence("bootstrap_address", args.bootstrap_address, None),
@@ -192,7 +190,7 @@ def main(argv = None):
         config = LpConfig.from_dict({
             "logging_level": data["logging_level"],
             "oai_port": data["oai_port"],
-            "app_data_dir": data["app_data_dir"],
+            "app_dir": data["app_dir"],
             "router": {
                 "node_id": data["node_id"],
                 "port": data["peer_port"],

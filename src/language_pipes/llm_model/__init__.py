@@ -1,5 +1,6 @@
 import os
 import logging
+from pathlib import Path
 from time import time, sleep
 from uuid import uuid4
 from threading import Thread
@@ -29,6 +30,7 @@ class LlmModel:
     router_id: str
     device: str
     virtual: bool
+    app_dir: str
 
     layers: List[AutoDecoderLayer]
     tokenizer: Callable
@@ -46,6 +48,7 @@ class LlmModel:
             router_id: str,
             pipe_id: str,
             device: str,
+            app_dir: str,
             process_id: Optional[str] = None
     ):
         self.model_id = model_id
@@ -59,7 +62,8 @@ class LlmModel:
         self.device = device
         self.past_key_values = { }
         self.past_key_cache_times = { }
-        model_dir = os.path.join('models', self.model_id)
+        self.app_dir = app_dir
+        model_dir = str(Path(app_dir) / 'models' / self.model_id)
         if not os.path.exists(model_dir):
             clone_model(model_id, model_dir)
         self.collector = LlmLayerCollector(
@@ -74,7 +78,7 @@ class LlmModel:
         else:
             self.process_id = process_id
 
-        self.computed = ComputedData(f'models/{model_id}')
+        self.computed = ComputedData(model_dir)
         self.logger = logging.getLogger("LM NET: " + self.router_id)
 
     def check_stale_jobs(self):
@@ -162,12 +166,13 @@ Device: {self.device}
         torch.cuda.empty_cache()
 
     @staticmethod
-    def from_meta(meta: MetaModel) -> 'LlmModel':
+    def from_meta(meta: MetaModel, app_dir: str) -> 'LlmModel':
         model = LlmModel(
             model_id=meta.model_id,
             router_id=meta.router_id,
             pipe_id=meta.pipe_id,
             device='cpu',
+            app_dir=app_dir,
             process_id=meta.process_id
         )
         model.loaded = meta.loaded
@@ -179,7 +184,15 @@ Device: {self.device}
         return model
     
     @staticmethod
-    def from_id(model_id: str, router_id: str, pipe_id: str, device: str) -> 'LlmModel':
-        model = LlmModel(model_id, router_id, pipe_id, device)
-        model.computed = ComputedData(f'models/{model_id}')
+    def from_id(app_dir: str, model_id: str, router_id: str, pipe_id: str, device: str) -> 'LlmModel':
+        model = LlmModel(
+            model_id=model_id, 
+            router_id=router_id, 
+            pipe_id=pipe_id, 
+            device=device, 
+            app_dir=app_dir
+        )
+
+        model_dir = str(Path(app_dir) / 'models' / model_id)
+        model.computed = ComputedData(model_dir)
         return model

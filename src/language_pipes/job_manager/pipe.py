@@ -2,6 +2,7 @@ import os
 import requests
 from threading import Thread
 from typing import Callable, List, Optional
+from pathlib import Path
 from uuid import uuid4
 
 from transformers import AutoTokenizer
@@ -32,6 +33,7 @@ class Pipe:
             router: DSNode,
             pipe_id: Optional[str],
             model_id: str,
+            app_dir: str,
             get_job_port: Callable[[str], Optional[int]],
             complete_job: Callable[[Job], None],
             update_job: Callable[[Job], None],
@@ -43,7 +45,8 @@ class Pipe:
         self.restart_job = restart_job
         self.router = router
         self.model_id = model_id
-        self.model_num_hidden_layers = AutoConfig.from_pretrained(f'./models/{model_id}/data').num_hidden_layers
+        model_dir = str(Path(app_dir) / 'models' / model_id / 'data')
+        self.model_num_hidden_layers = AutoConfig.from_pretrained(model_dir).num_hidden_layers
         
         if pipe_id is None:
             self.pipe_id = str(uuid4())
@@ -156,6 +159,7 @@ Complete: {self.is_complete()}
         meta_pipe: MetaPipe, 
         hosted_models: List[LlmModel], 
         router: DSNode,
+        app_dir: str,
         get_job_port: Callable[[str], Optional[int]],
         complete_job: Callable[[Job], None],
         update_job: Callable[[Job], None],
@@ -165,6 +169,7 @@ Complete: {self.is_complete()}
             model_id=meta_pipe.model_id, 
             pipe_id=meta_pipe.pipe_id, 
             get_job_port=get_job_port,
+            app_dir=app_dir,
             complete_job=complete_job,
             update_job=update_job,
             restart_job=restart_job,
@@ -175,6 +180,6 @@ Complete: {self.is_complete()}
             if model.pipe_id == meta_pipe.pipe_id:
                 p.segments.append(model)
                 local_segments.append(model.process_id)
-        p.segments.extend([LlmModel.from_meta(s) for s in meta_pipe.segments if s.process_id not in local_segments])
+        p.segments.extend([LlmModel.from_meta(s, app_dir) for s in meta_pipe.segments if s.process_id not in local_segments])
         p.sort_segments()
         return p
