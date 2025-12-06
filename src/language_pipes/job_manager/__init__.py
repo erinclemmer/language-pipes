@@ -100,7 +100,7 @@ class JobManager:
         if pending_job is None:
             return
         self.logger.info(f'\nReceived job update for {job_id}\n')
-        pending_job.update(job)
+        return pending_job.update(job)
 
     def complete_job(self, job: Job):
         job_id = job.job_id

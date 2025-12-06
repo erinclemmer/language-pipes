@@ -84,8 +84,13 @@ def send_update_chunk(
         ]
     }
     data_bytes = json.dumps(msg).encode('utf-8')
-    handler.wfile.write(b'data: ' + data_bytes + b'\n\n')
-    handler.wfile.flush()
+    try:
+        handler.wfile.write(b'data: ' + data_bytes + b'\n\n')
+        handler.wfile.flush()
+    except BrokenPipeError as e:
+        print(e)
+        return False # Stop job when pipe is broken
+    return True
 
 def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict):
     req = ChatCompletionRequest.from_dict(data)
@@ -99,8 +104,8 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
 
     def update(job: Job):
         if not req.stream:
-            return
-        send_update_chunk(job, {
+            return True
+        return send_update_chunk(job, {
             "role": "assistant",
             "content": job.delta
         }, created_at, None, handler)

@@ -49,46 +49,50 @@ class JobReceiver:
 
     def job_runner(self):
         while True:
-            if self.router.shutting_down:
-                return
-            
-            if len(self.pending_jobs) == 0:
-                sleep(0.1)
-                continue
-            
-            layer_job = self.pending_jobs[-1]
-            self.pending_jobs.pop()
-            
-            pipe = self.get_pipe(layer_job.pipe_id)
-            end_model = self.get_end_model(pipe.model_id)
-
-            if pipe is None or not pipe.is_complete():
-                self.restart_job(layer_job)
-                continue
-            
-            if layer_job.done:
-                job = self.get_pending_job(layer_job.job_id).job
-                job.current_step = ComputeStep.NORM
-                job.data = layer_job.data
-                end_model.compute_norm(job)
-                end_model.compute_head(job)
-                if job.status == JobStatus.COMPLETED:
-                    end_model.set_result(job)
-                    pipe.complete_job(job)
+            try:
+                if self.router.shutting_down:
+                    return
+                
+                if len(self.pending_jobs) == 0:
+                    sleep(0.1)
                     continue
-                else:
-                    pipe.update_job(job)
-                    end_model.compute_embed(job)
-                    layer_job = job.to_layer_job()
+                
+                layer_job = self.pending_jobs[-1]
+                self.pending_jobs.pop()
+                
+                pipe = self.get_pipe(layer_job.pipe_id)
+                end_model = self.get_end_model(pipe.model_id)
 
-            model = pipe.model_for_job(layer_job)
-            model.process_job(layer_job)
+                if pipe is None or not pipe.is_complete():
+                    self.restart_job(layer_job)
+                    continue
+                
+                if layer_job.done:
+                    job = self.get_pending_job(layer_job.job_id).job
+                    job.current_step = ComputeStep.NORM
+                    job.data = layer_job.data
+                    end_model.compute_norm(job)
+                    end_model.compute_head(job)
+                    if job.status == JobStatus.COMPLETED:
+                        end_model.set_result(job)
+                        pipe.complete_job(job)
+                        continue
+                    else:
+                        if not pipe.update_job(job):
+                            continue
+                        end_model.compute_embed(job)
+                        layer_job = job.to_layer_job()
 
-            if layer_job.done:
-                pipe.send_job(layer_job, layer_job.origin_node_id)
-            else:
                 model = pipe.model_for_job(layer_job)
-                pipe.send_job(layer_job, model.router_id)
+                model.process_job(layer_job)
+
+                if layer_job.done:
+                    pipe.send_job(layer_job, layer_job.origin_node_id)
+                else:
+                    model = pipe.model_for_job(layer_job)
+                    pipe.send_job(layer_job, model.router_id)
+            except Exception as e:
+                print(e)
 
     def receive_data(self, data: bytes):
         job = LayerJob.from_bytes(data)
