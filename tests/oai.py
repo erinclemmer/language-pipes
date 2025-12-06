@@ -79,8 +79,8 @@ def oai_stream(port: int, messages: List[ChatMessage], retries: int = 0):
 
 class OpenAITests(unittest.TestCase):
     def test_single_node(self):
-        start_node("node-1", 5, 5000, 5050, 6000)
-        res = oai_complete(6000, [
+        start_node("node-1", 5, 5000, 5050, 8000)
+        res = oai_complete(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
         ])
@@ -88,24 +88,24 @@ class OpenAITests(unittest.TestCase):
         self.assertTrue(len(res.choices) > 0)
 
     def test_400_codes(self):
-        start_node("node-1", 5, 5000, 5050, 6000)
+        start_node("node-1", 5, 5000, 5050, 8000)
         messages = [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
         ]
-        res = requests.post("http://localhost:6000/v1/chat/completions", json={
+        res = requests.post("http://localhost:8000/v1/chat/completions", json={
             "messages": [m.to_json() for m in messages]
         })
 
         self.assertEqual(400, res.status_code)
 
-        res = requests.post("http://localhost:6000/v1/chat/completions", json={
+        res = requests.post("http://localhost:8000/v1/chat/completions", json={
             "model": MODEL
         })
 
         self.assertEqual(400, res.status_code)
 
-        res = requests.post("http://localhost:6000/v1/chat/completions", json={
+        res = requests.post("http://localhost:8000/v1/chat/completions", json={
             "model": MODEL,
             "messages": []
         })
@@ -113,11 +113,11 @@ class OpenAITests(unittest.TestCase):
         self.assertEqual(400, res.status_code)
 
     def test_double_node(self):
-        start_node("node-1", 2, 5000, 5050, 6000)
+        start_node("node-1", 2, 5000, 5050, 8000)
         time.sleep(5)
         start_node("node-2", 3, 5001, 5051, None, 5000)
         time.sleep(5)
-        res = oai_complete(6000, [
+        res = oai_complete(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
         ])
@@ -125,23 +125,23 @@ class OpenAITests(unittest.TestCase):
         self.assertTrue(len(res.choices) > 0)
 
     def test_stream(self):
-        start_node("node-1", 2, 5000, 5050, 6000)
+        start_node("node-1", 2, 5000, 5050, 8000)
         time.sleep(5)
         start_node("node-2", 3, 5001, 5051, None, 5000)
         time.sleep(5)
-        oai_stream(6000, [
+        oai_stream(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
         ])
 
     def test_triple_node(self):
-        start_node("node-1", 1, 5000, 5050, 6000)
+        start_node("node-1", 1, 5000, 5050, 8000)
         time.sleep(10)
         start_node("node-2", 1, 5001, 5051, None, 5000)
         time.sleep(10)
         start_node("node-3", 3, 5002, 5052, None, 5000)
         time.sleep(10)
-        res = oai_complete(6000, [
+        res = oai_complete(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
         ])
@@ -150,7 +150,7 @@ class OpenAITests(unittest.TestCase):
 
 
     def test_reconnect(self):
-        start_node("node-1", 1, 5000, 5050, 6000)
+        start_node("node-1", 1, 5000, 5050, 8000)
         time.sleep(10)
         node2 = start_node("node-2", 1, 5001, 5051, None, 5000)
         time.sleep(10)
@@ -161,7 +161,7 @@ class OpenAITests(unittest.TestCase):
         start_node("node-4", 1, 5004, 5054, None, 5000)
         time.sleep(5)
 
-        res = oai_complete(6000, [
+        res = oai_complete(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
         ])

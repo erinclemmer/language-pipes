@@ -152,7 +152,7 @@ Models are specified as comma-separated `key=value` pairs:
 ```bash
 language-pipes serve \
   --node-id "node-1" \
-  --openai-port 6000 \
+  --openai-port 8000 \
   --hosted-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=true"
 ```
 
@@ -181,7 +181,7 @@ language-pipes serve \
 
 ```bash
 export LP_NODE_ID="node-1"
-export LP_OAI_PORT="6000"
+export LP_OAI_PORT="8000"
 export LP_HOSTED_MODELS="id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
 
 language-pipes serve
@@ -192,7 +192,7 @@ language-pipes serve
 ```bash
 language-pipes serve \
   --node-id "multi-model" \
-  --openai-port 6000 \
+  --openai-port 8000 \
   --hosted-models \
     "id=Qwen/Qwen3-1.7B,device=cpu,memory=4" \
     "id=Qwen/Qwen3-0.6B,device=cuda:0,memory=2"

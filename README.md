@@ -67,7 +67,7 @@ Also create a `config.toml` file to tell the program how to operate:
 
 ```toml
 node_id="node-1"
-oai_port=6000 # Hosts an OpenAI compatible server on port 6000
+oai_port=8000 # Hosts an OpenAI compatible server on port 8000
 
 [[hosted_models]]
 id="Qwen/Qwen3-1.7B"
@@ -109,7 +109,7 @@ Node-2 will connect to node-1 and load the remaining parts of the model. The mod
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="http://127.0.0.1:6000/v1",  # node-1 IP address
+    base_url="http://127.0.0.1:8000/v1",  # node-1 IP address
     api_key="not-needed"  # API key not required for Language Pipes
 )
 

@@ -37,7 +37,7 @@ device = "cuda:0"
 max_memory = 8
 
 # === API Server ===
-oai_port = 6000
+oai_port = 8000
 
 # === Network ===
 peer_port = 5000
@@ -113,7 +113,7 @@ load_ends = true
 Port for the [OpenAI-compatible API](./oai.md). Omit to disable the API server.
 
 ```toml
-oai_port = 6000
+oai_port = 8000
 ```
 
 | Type | Default |

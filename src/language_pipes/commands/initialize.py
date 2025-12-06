@@ -98,7 +98,7 @@ def interactive_init(output_path: str):
         print("  http://<this-machine>:<port>/v1/chat/completions")
         config["oai_port"] = prompt_int(
             "  API port",
-            default=6000,
+            default=8000,
             required=True
         )
 

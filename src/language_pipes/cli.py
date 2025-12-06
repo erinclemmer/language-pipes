@@ -51,7 +51,7 @@ def build_parser():
     run_parser.add_argument("--app-dir", type=str, help="Directory to store data for this application")
     run_parser.add_argument("--peer-port", type=int, help="Port for peer-to-peer network (Default: 5000)")
     run_parser.add_argument("--bootstrap-address", help="Bootstrap node address (e.g. 192.168.1.100)")
-    run_parser.add_argument("--bootstrap-port", type=int, help="Bootstrap node port for the network (e.g. 6000)")
+    run_parser.add_argument("--bootstrap-port", type=int, help="Bootstrap node port for the network (e.g. 8000)")
     run_parser.add_argument("--max-pipes", type=int, help="Maximum amount of pipes to host")
     run_parser.add_argument("--network-key", type=str, help="AES key to access network (Default: network.key)")
     run_parser.add_argument("--model-validation", help="Whether to validate the model weight hashes when connecting to a pipe.", action="store_true")

@@ -9,12 +9,12 @@ Language Pipes provides an OpenAI-compatible API server, allowing you to use exi
 Set `oai_port` in your configuration to enable the API server:
 
 ```toml
-oai_port = 6000
+oai_port = 8000
 ```
 
 Or via CLI:
 ```bash
-language-pipes serve --openai-port 6000 ...
+language-pipes serve --openai-port 8000 ...
 ```
 
 ---
@@ -33,7 +33,7 @@ pip install openai
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="http://localhost:6000/v1",
+    base_url="http://localhost:8000/v1",
     api_key="not-needed"  # Language Pipes doesn't require authentication
 )
 
@@ -57,7 +57,7 @@ For real-time token-by-token output, use `stream=True`:
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="http://localhost:6000/v1",
+    base_url="http://localhost:8000/v1",
     api_key="not-needed"
 )
 
@@ -85,7 +85,7 @@ from openai import AsyncOpenAI
 
 async def main():
     client = AsyncOpenAI(
-        base_url="http://localhost:6000/v1",
+        base_url="http://localhost:8000/v1",
         api_key="not-needed"
     )
 
@@ -110,7 +110,7 @@ from openai import AsyncOpenAI
 
 async def main():
     client = AsyncOpenAI(
-        base_url="http://localhost:6000/v1",
+        base_url="http://localhost:8000/v1",
         api_key="not-needed"
     )
 
@@ -137,7 +137,7 @@ asyncio.run(main())
 ## Using curl
 
 ```bash
-curl http://localhost:6000/v1/chat/completions \
+curl http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "Qwen/Qwen3-1.7B",
@@ -151,7 +151,7 @@ curl http://localhost:6000/v1/chat/completions \
 ### Streaming with curl
 
 ```bash
-curl http://localhost:6000/v1/chat/completions \
+curl http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "Qwen/Qwen3-1.7B",
