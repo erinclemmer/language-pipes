@@ -7,7 +7,7 @@ from language_pipes.util.aes import generate_aes_key
 from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int
 
 def get_default_node_id() -> str:
-    return get_random_name()
+    return socket.gethostname()
 
 def interactive_init(output_path: str):
     """Interactively create a configuration file."""
@@ -206,16 +206,13 @@ def interactive_init(output_path: str):
     preview = toml.dumps(clean_config)
     print(preview)
 
-    if prompt_bool(f"Write configuration to '{output_path}'?", default=True):
-        # Check if file exists
-        if os.path.exists(output_path):
-            if not prompt_bool(f"  '{output_path}' already exists. Overwrite?", default=False):
-                print("Aborted.")
-                return
-        
-        with open(output_path, 'w', encoding='utf-8') as f:
-            toml.dump(clean_config, f)
-        
-        print(f"\n✓ Configuration saved to '{output_path}'")
-    else:
-        print("Configuration not saved.")
+    # Check if file exists
+    if os.path.exists(output_path):
+        if not prompt_bool(f"  '{output_path}' already exists. Overwrite?", default=False):
+            print("Aborted.")
+            return
+    
+    with open(output_path, 'w', encoding='utf-8') as f:
+        toml.dump(clean_config, f)
+    
+    print(f"\n✓ Configuration saved")

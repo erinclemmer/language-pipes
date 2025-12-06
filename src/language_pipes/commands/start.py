@@ -149,13 +149,23 @@ def start_wizard(apply_overrides, version: str):
             "Delete Config"
         ])
 
+        config_dir = str(Path(app_dir) / "configs")
         match main_menu_cmd:
             case "Load Config":
+                if len(get_config_files(config_dir)) == 0:
+                    print("No configs found...")
+                    continue
                 config_path = select_config(app_dir)
                 return start_server(apply_overrides, app_dir, config_path, version)
             case "View Config":
+                if len(get_config_files(config_dir)) == 0:
+                    print("No configs found...")
+                    continue
                 view_config(app_dir)
             case "Create Config":
                 new_config(app_dir)
             case "Delete Config":
+                if len(get_config_files(config_dir)) == 0:
+                    print("No configs found...")
+                    continue
                 delete_config(app_dir)
