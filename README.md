@@ -14,18 +14,58 @@
 [PyPiVersion-Url]: https://img.shields.io/pypi/v/language-pipes
 [PythonVersion-Url]: https://img.shields.io/pypi/pyversions/language-pipes
 
-Language pipes is a FOSS distributed network application designed to increase access to local language models.  
+Language Pipes is a FOSS distributed network application designed to increase access to local language models.  
 
 ---  
 
 **Disclaimer:** This software is currently in Beta. Please be patient and if you encounter an error, please [fill out a github issue](https://github.com/erinclemmer/language-pipes/issues/new)!   
 
 Over the past few years open source language models have become much more powerful yet the most powerful models are still out of reach of the general population because of the extreme amounts of RAM that is needed to host these models. Language Pipes allows multiple computer systems to host the same model and move computation data between them so that no one computer has to hold all of the data for the model.
-- Quick Setup
-- Peer to peer network
-- OpenAI compatible API
-- Download and use models by HuggingFace ID
-- Encrypted communication between nodes
+
+### Features
+- 🔒 **Your prompts stay on your machine** — Privacy-preserving architecture
+- ⚡ Quick Setup with interactive wizard
+- 🌐 Peer to peer network
+- 🔌 OpenAI compatible API
+- 📦 Download and use models by HuggingFace ID
+- 🔐 Encrypted communication between nodes
+
+---
+
+## Privacy: Your Prompts Never Leave Your Computer
+
+**The Problem:** When you distribute a model across multiple computers, who can see your private conversations?
+
+**The Solution:** Language Pipes keeps your prompts private through its **End Model** architecture.
+
+```
+┌─────────────────────────────────────┐
+│         YOUR COMPUTER               │
+│                                     │
+│  "What's my password?"              │
+│         ↓                           │
+│  [Tokenize] → [Embed]               │
+│         ↓                           │
+│  Hidden state: [0.23, -0.41, ...]   │ ──► Only numbers leave
+└─────────────────────────────────────┘     your machine
+                  │
+                  ▼
+┌─────────────────────────────────────┐
+│       OTHER COMPUTERS               │
+│                                     │
+│  Process numbers → Return numbers   │ ◄── They never see
+│  [0.23, -0.41, ...] → [0.87, ...]   │     your actual text
+└─────────────────────────────────────┘
+```
+
+**How it works:**
+1. Your computer holds the "End Model" — the parts that convert text ↔ numbers
+2. Other computers only process numerical tensors (hidden states)
+3. Without the End Model, those numbers are meaningless
+
+**Result:** Friends can lend you their GPU power without ever seeing what you're asking the AI.
+
+**Note:** See the [privacy documentation](./documentation/privacy.md) to learn more about how this works.
 
 ### What Does it do?
 In a basic sense, language models work by passing information through many layers. At each layer, several matrix multiplicatitons between the layer weights and the system state are performed and the data is moved to the next layer. Language pipes works by hosting different layers on different machines to split up the RAM cost across the system.
@@ -166,6 +206,7 @@ Install the OpenAI library with: `pip install openai`
 
 ### Documentation
 * [Interactive Setup Guide](./documentation/interactive-setup.md)
+* [Privacy Architecture](./documentation/privacy.md)
 * [CLI Reference](./documentation/cli.md)
 * [Configuration](./documentation/configuration.md)
 * [Architecture](./documentation/architecture.md)

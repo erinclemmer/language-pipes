@@ -88,7 +88,21 @@ load_ends = false
 | `id` | string | ✓ | HuggingFace model ID or path in `/models` directory |
 | `device` | string | ✓ | PyTorch device: `cpu`, `cuda:0`, `cuda:1`, etc. |
 | `max_memory` | number | ✓ | Maximum memory allocation in GB |
-| `load_ends` | bool | | Load embedding/head layers (default: `false`) |
+| `load_ends` | bool | | Load the End Model: embedding + output head (default: `false`) |
+
+**About `load_ends` (End Model):**
+
+The "ends" of a model are the embedding layer and output head—the components that convert between text and numerical representations. The node with `load_ends = true` is the **only node that can see your actual prompts and responses**. Other nodes only process hidden state tensors and cannot read the conversation content.
+
+```toml
+# Privacy-preserving setup: you control the End Model
+[[hosted_models]]
+id = "Qwen/Qwen3-1.7B"
+load_ends = true   # Your prompts stay on this machine
+max_memory = 2
+```
+
+For maximum privacy, enable `load_ends` on your own machine and let untrusted nodes contribute compute with `load_ends = false`.
 
 **Multiple models:**
 ```toml

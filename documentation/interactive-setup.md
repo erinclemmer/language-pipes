@@ -144,7 +144,7 @@ Max memory (GB) [4]:
 
 The system loads model layers until this limit is reached. Remaining layers are distributed to other nodes in the network.
 
-#### Load Ends
+#### Load Ends (End Model)
 
 ```
 The 'ends' of a model are the embedding layer (input) and the output head.
@@ -154,11 +154,16 @@ If this is the only node or the first/last in a chain, enable this.
 Load embedding/output layers [Y/n]: 
 ```
 
-| Scenario | Setting |
-|----------|---------|
-| Single node / standalone | Enable (`Y`) |
-| First or last node in chain | Enable (`Y`) |
-| Middle node in chain | Disable (`n`) |
+**Privacy Note:** The node with "ends" enabled is the only node that sees your actual prompts and responses. Other nodes only process numerical tensors and cannot read your conversations.
+
+| Scenario | Setting | Privacy Implication |
+|----------|---------|---------------------|
+| Single node / standalone | Enable (`Y`) | You control all data |
+| **You want prompt privacy** | Enable (`Y`) | Your prompts stay on your machine |
+| Contributing compute only | Disable (`n`) | You never see users' prompts |
+| Middle node in chain | Disable (`n`) | Only processes hidden states |
+
+**Recommended:** If privacy matters, always enable this on your own machine and let others contribute compute with it disabled.
 
 #### Multiple Models
 

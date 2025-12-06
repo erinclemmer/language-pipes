@@ -144,6 +144,66 @@ When a node starts, it automatically determines which model segments to load bas
 2. **Network Gaps**: Identifies missing segments in existing network pipes  
 3. **Load Balancing**: Avoids overloading specific nodes or network links
 
+## Privacy Architecture
+
+### The End Model: Keeping Prompts Local
+
+A key design principle of Language Pipes is that **your prompt text never needs to leave your computer**. This is achieved through the **End Model** architecture.
+
+The End Model consists of three components grouped together:
+- **Embedding Layer** — Converts text tokens into numerical vectors
+- **RMS Normalization** — Final normalization before output
+- **Output Head** — Converts hidden states back to token probabilities
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     END MODEL NODE                              │
+│                                                                 │
+│  "Hello AI" ──► Tokenizer ──► [15496, 9552] ──► Embedding      │
+│                                                   ↓             │
+│                                    Hidden State: [0.23, -0.14]  │
+└───────────────────────────────────────┬─────────────────────────┘
+                                        │
+                    Only hidden states  │  (numerical tensors)
+                    leave your machine  │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     LAYER NODES                                 │
+│                                                                 │
+│  Receive tensors ──► Process through layers ──► Return tensors │
+│  [0.23, -0.14, ...]       (no text access)      [0.87, 0.12]   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### What Each Node Sees
+
+| Node Type | Sees Raw Text | Sees Token IDs | Sees Hidden States |
+|-----------|:-------------:|:--------------:|:------------------:|
+| End Model | ✓ | ✓ | ✓ |
+| Layer Node | ✗ | ✗ | ✓ |
+
+**Layer nodes cannot reconstruct your prompts.** Without the embedding layer weights and tokenizer vocabulary, the hidden state tensors are meaningless numerical arrays.
+
+### Privacy Deployment Pattern
+
+For maximum privacy, host the End Model yourself:
+
+```toml
+# Your machine - keeps prompts private
+[[hosted_models]]
+id = "Qwen/Qwen3-1.7B"
+load_ends = true    # ← You control the End Model
+max_memory = 2
+
+# Friend's GPU - contributes compute, never sees prompts  
+[[hosted_models]]
+id = "Qwen/Qwen3-1.7B"
+load_ends = false   # ← Only processes tensors
+max_memory = 8
+```
+
+---
+
 ## Security Architecture
 
 ### Certificate-Based Trust
