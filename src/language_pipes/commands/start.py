@@ -117,7 +117,6 @@ def view_config(app_dir: str):
     print("="*50 + "\n\n")
 
 def start_wizard(apply_overrides, version: str):
-    """First-time setup wizard: handles network key, config, and starts server."""
     print("""         
 ==============================================================================
 

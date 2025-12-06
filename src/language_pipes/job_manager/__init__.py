@@ -1,10 +1,12 @@
 import random
 import requests
+from time import time, sleep
 from typing import List, Optional, Tuple, Callable
 
 from promise import Promise
 
 from uuid import uuid4
+from threading import Thread
 from distributed_state_network import DSNode
 
 from language_pipes.util.meta import MetaPipe
@@ -18,6 +20,9 @@ from language_pipes.config.processor import ProcessorConfig
 from language_pipes.llm_model import LlmModel
 from language_pipes.llm_model.computed import validate_model
 from language_pipes.job_manager.pending_job import PendingJob
+
+CHECK_JOB_INTERVAL = 10
+EXPIRED_JOB_TIME = 30
 
 class JobManager:
     completed_jobs: List[str]
@@ -52,6 +57,23 @@ class JobManager:
         self.print_pipes()
 
         self.started = True
+        Thread(target=self.check_stale_jobs, args=( )).start()
+
+    def check_stale_jobs(self):
+        while True:
+            remove_jobs = []
+            for j in self.jobs_pending:
+                if time() - j.last_update > EXPIRED_JOB_TIME:
+                    remove_jobs.append(j.job.job_id)
+
+            if len(remove_jobs) == 0:
+                sleep(CHECK_JOB_INTERVAL)
+                continue
+        
+            for job_id in remove_jobs:
+                self.jobs_pending = [j for j in self.jobs_pending if j.job.job_id != job_id]
+            
+            sleep(CHECK_JOB_INTERVAL)
 
     def print_pipes(self):
         for p in self.router_pipes.network_pipes():
@@ -99,7 +121,8 @@ class JobManager:
         pending_job = self.get_pending_job(job_id)
         if pending_job is None:
             return
-        self.logger.info(f'\nReceived job update for {job_id}\n')
+        self.logger.info(f'Received job update for {job_id}\n')
+        pending_job.last_update = time()
         return pending_job.update(job)
 
     def complete_job(self, job: Job):
@@ -110,7 +133,7 @@ class JobManager:
         pending_job = self.get_pending_job(job_id)
         if pending_job is None:
             return
-        self.logger.info(f'\nReceived job complete for {job_id}\n')
+        self.logger.info(f'Received job complete for {job_id}\n')
         pending_job.resolve(job)
         self.jobs_pending = [j for j in self.jobs_pending if j.job.job_id != job_id]
       
@@ -274,5 +297,5 @@ class JobManager:
 
         job = self.start_job(model_id, network_pipe.pipe_id, messages, tokens)
         start(job)
-        self.jobs_pending.append(PendingJob(job, resolve, update))
+        self.jobs_pending.append(PendingJob(job, time(), resolve, update))
         return job.job_id
