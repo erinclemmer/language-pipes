@@ -129,6 +129,8 @@ def start_wizard(apply_overrides, version: str):
                     |___/             |___/               |_|      
 
 ==============================================================================
+
+- Made with <3 by Erin
 """)
 
     default_base_path = Path(os.path.expanduser("~") ) / ".language-pipes"
