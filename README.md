@@ -53,57 +53,85 @@ The easiest way to get started is with the interactive setup wizard:
 language-pipes
 ```
 
-This guides you through network key generation, configuration, and starts the server.
+This launches a menu where you can create, view, and load configurations:
+
+```
+Main Menu
+[0] View Config
+[1] Load Config
+[2] Create Config
+[3] Delete Config
+Select number of choice: 
+```
+
+Select **Create Config** to walk through the setup wizard, which guides you through:
+- **Node ID** — A unique name for your computer on the network
+- **Model selection** — Choose a HuggingFace model ID (e.g., `Qwen/Qwen3-1.7B`)
+- **Device & memory** — Where to run the model and how much RAM to use
+- **API server** — Enable an OpenAI-compatible endpoint
+- **Network settings** — Ports and encryption options
+
+After creating a config, select **Load Config** to start the server.
+
+For detailed wizard documentation, see [Interactive Setup Guide](./documentation/interactive-setup.md).
 
 ---
 
 # Two Node Example
-The following example will show how to create a small network. Firstly, create a network key for the network on the first computer:
+
+This example shows how to distribute a model across two computers using the interactive wizard.
+
+### Node 1 (First Computer)
+
 ```bash
-language-pipes keygen network.key
+language-pipes
 ```
 
-Also create a `config.toml` file to tell the program how to operate:
+1. Select **Create Config**
+2. Enter a name (e.g., `node1`)
+3. Follow the prompts:
+   - **Node ID**: `node-1`
+   - **Model ID**: `Qwen/Qwen3-1.7B` (press Enter for default)
+   - **Device**: `cpu`
+   - **Max memory**: `1` (loads part of the model)
+   - **Load embedding/output layers**: `Y`
+   - **Enable OpenAI API**: `Y`
+   - **API port**: `8000`
+   - **First node in network**: `Y`
+   - **Encrypt network traffic**: `Y` (save the generated key!)
 
-```toml
-node_id="node-1"
-oai_port=8000 # Hosts an OpenAI compatible server on port 8000
+4. Select **Load Config** → choose `node1` to start the server
 
-[[hosted_models]]
-id="Qwen/Qwen3-1.7B"
-device="cpu"
-max_memory=1
-```
+### Node 2 (Second Computer)
 
-**Note:** Go to the [configuration documentation](/documentation/configuration.md) for more information about how the config properties work.
+Install Language Pipes, then:
 
-Once the configuration has been created you can start the server:
 ```bash
-language-pipes serve --config config.toml
+language-pipes
 ```
 
-This tells language pipes to download with the ID "Qwen/Qwen3-1.7B" from [huggingface.co](huggingface.co) and host it using 1GB of ram. This will load part of the model but not all of it.
+1. Select **Create Config**
+2. Enter a name (e.g., `node2`)
+3. Follow the prompts:
+   - **Node ID**: `node-2`
+   - **Model ID**: `Qwen/Qwen3-1.7B`
+   - **Device**: `cpu`
+   - **Max memory**: `3` (loads remaining layers)
+   - **Load embedding/output layers**: `N` (node-1 has them)
+   - **Enable OpenAI API**: `N`
+   - **First node in network**: `N`
+   - **Bootstrap node IP**: `192.168.0.10` (node-1's local IP)
+   - **Bootstrap port**: `5000`
+   - **Encrypt network traffic**: `Y`
+   - **Network key**: paste the key from node-1
 
-Next, install the package on a separate computer on your home network and create a `config.toml` file like this:
+4. Select **Load Config** → choose `node2` to start the server
 
-```toml
-node_id="node-2"
-bootstrap_address="192.168.0.10" # Local ip address of node-1
+Node-2 connects to node-1 and loads the remaining model layers. The model is now ready for inference!
 
-[[hosted_models]]
-id="Qwen/Qwen3-1.7B"
-device="cpu"
-max_memory=3
-```
+### Test the API
 
-Copy the `network.key` file to the same directory that the config is in using a usb drive or sftp. 
-
-Run the same command again on the computer two:
-```bash
-language-pipes serve --config config.toml
-```
-
-Node-2 will connect to node-1 and load the remaining parts of the model. The model is ready for inference using a [standard OpenAI chat API interface](https://platform.openai.com/docs/api-reference/chat/create). An example using the [OpenAI Python library](https://github.com/openai/openai-python):
+The model is accessible via an [OpenAI-compatible API](https://platform.openai.com/docs/api-reference/chat/create). Using the [OpenAI Python library](https://github.com/openai/openai-python):
 
 ```python
 from openai import OpenAI
@@ -137,6 +165,7 @@ Install the OpenAI library with: `pip install openai`
 - [transformers](https://huggingface.co/docs/transformers) 
 
 ### Documentation
+* [Interactive Setup Guide](./documentation/interactive-setup.md)
 * [CLI Reference](./documentation/cli.md)
 * [Configuration](./documentation/configuration.md)
 * [Architecture](./documentation/architecture.md)
