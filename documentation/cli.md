@@ -125,6 +125,7 @@ See [Configuration](./configuration.md) for all available options and their desc
 | `--hosted-models MODEL...` | | Models to host |
 | `--logging-level LEVEL` | `-l` | Log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `--bootstrap-address HOST` | | Connect to existing network |
+| `--app-dir PATH` | | Application data directory (default: `~/.language-pipes`) |
 
 Run `language-pipes serve --help` for all options.
 

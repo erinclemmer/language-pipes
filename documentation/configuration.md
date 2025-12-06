@@ -228,6 +228,30 @@ ecdsa_verification = true
 
 ---
 
+### Directories
+
+#### `app_dir`
+
+Application data directory. Stores models, configs, and credentials.
+
+```toml
+app_dir = "~/.language-pipes"
+```
+
+| Type | Default |
+|------|---------|
+| string | `~/.language-pipes` |
+
+**Directory structure:**
+```
+app_dir/
+├── models/      # Downloaded model weights
+├── configs/     # Configuration files
+└── credentials/ # Credential files
+```
+
+---
+
 ### Other
 
 #### `max_pipes`
@@ -262,6 +286,7 @@ All properties can be set via environment variables with the `LP_` prefix:
 | `max_pipes` | `LP_MAX_PIPES` |
 | `model_validation` | `LP_MODEL_VALIDATION` |
 | `ecdsa_verification` | `LP_ECDSA_VERIFICATION` |
+| `app_dir` | `LP_APP_DIR` |
 
 ---
 
