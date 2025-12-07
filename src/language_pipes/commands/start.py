@@ -78,11 +78,8 @@ def new_config(app_dir: str):
         print("Invalid file name")
         return
     
-    config_dir = str(Path(app_dir) / "configs")
     file_path = str(Path(app_dir) / "configs" / file_name)
 
-    if not os.path.exists(config_dir):
-        Path.mkdir(config_dir)
     interactive_init(file_path)
 
 def delete_config(app_dir: str):
@@ -91,21 +88,14 @@ def delete_config(app_dir: str):
     print("Configuration deleted")
 
 def get_config_files(config_dir: str):
-    if os.path.exists(config_dir):
-        return [f.replace(".toml", "") for f in os.listdir(config_dir)]
-    else:
-        return []
+    return [f.replace(".toml", "") for f in os.listdir(config_dir)]
 
 def select_config(app_dir: str):
-    config_dir = str(app_dir / "configs")
-
-    if not os.path.exists(config_dir):
-        Path(config_dir).mkdir(parents=True)
-
+    config_dir = str(Path(app_dir) / "configs")
     existing_configs = get_config_files(config_dir)
 
     if len(existing_configs) > 0:
-        load_config = prompt_number_choice("Load Configuration", existing_configs, required=True)
+        load_config = prompt_number_choice("Select Configuration", existing_configs, required=True)
         if load_config is None:
             exit()
         load_config = load_config + ".toml"
@@ -119,12 +109,10 @@ def view_config(app_dir: str):
     config_path = select_config(app_dir)
     with open(config_path, 'r', encoding='utf-8') as f:
         data = toml.load(f)
-    print("\n\n" + "="*50 + "\n")
     print(toml.dumps(data))
-    print("="*50 + "\n\n")
 
 def start_wizard(apply_overrides, version: str):
-    print("""         
+    print(f"""         
 ==============================================================================
 
  | |                                              |  __ (_)                
@@ -134,7 +122,7 @@ def start_wizard(apply_overrides, version: str):
  |______\__,_|_| |_|\__, |\__,_|\__,_|\__, |\___| |_|   |_| .__/ \___||___/
                      __/ |             __/ |              | |              
                     |___/             |___/               |_|      
-
+Version: {version}
 ==============================================================================
 
 - Made with <3 by Erin
@@ -148,8 +136,16 @@ def start_wizard(apply_overrides, version: str):
     if not os.path.exists(app_dir):
         Path(app_dir).mkdir(parents=True)
         print(f"Created directory: {app_dir}")
+    
+    config_dir = str(app_dir / "configs")
+    if not os.path.exists(config_dir):
+        Path(config_dir).mkdir(parents=True)
 
-    while True: # TODO Add model list
+    models_dir = str(app_dir / "models")
+    if not os.path.exists(models_dir):
+        Path(models_dir).mkdir(parents=True)
+
+    while True: # TODO Add model list        
         main_menu_cmd = prompt_number_choice("Main Menu", [
             "View Config",
             "Load Config",
@@ -157,23 +153,26 @@ def start_wizard(apply_overrides, version: str):
             "Delete Config"
         ])
 
-        config_dir = str(Path(app_dir) / "configs")
+        print('\n==============================================================================\n')
+
         match main_menu_cmd:
             case "Load Config":
                 if len(get_config_files(config_dir)) == 0:
-                    print("No configs found...")
+                    print("No configs found...\n\n")
                     continue
                 config_path = select_config(app_dir)
                 return start_server(apply_overrides, app_dir, config_path, version)
             case "View Config":
                 if len(get_config_files(config_dir)) == 0:
-                    print("No configs found...")
+                    print("No configs found...\n\n")
                     continue
                 view_config(app_dir)
             case "Create Config":
                 new_config(app_dir)
             case "Delete Config":
                 if len(get_config_files(config_dir)) == 0:
-                    print("No configs found...")
+                    print("No configs found...\n\n")
                     continue
                 delete_config(app_dir)
+
+        print('\n==============================================================================\n')

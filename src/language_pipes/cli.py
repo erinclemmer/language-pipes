@@ -10,7 +10,7 @@ from language_pipes.commands.upgrade import upgrade_lp
 
 from language_pipes import LanguagePipes
 
-VERSION = "0.11.2"
+VERSION = "0.11.3"
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -106,9 +106,6 @@ def apply_overrides(data, args):
         "max_pipes": precedence("max_pipes", args.max_pipes, 1),
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
     }
-
-    if not os.path.exists(default_app_dir):
-        Path(default_app_dir).mkdir(parents=True)
 
     if config["hosted_models"] is None:
         print("Error: hosted_models param must be supplied in config")
