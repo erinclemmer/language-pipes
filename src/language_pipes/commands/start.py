@@ -78,7 +78,11 @@ def new_config(app_dir: str):
         print("Invalid file name")
         return
     
+    config_dir = str(Path(app_dir) / "configs")
     file_path = str(Path(app_dir) / "configs" / file_name)
+
+    if not os.path.exists(config_dir):
+        Path.mkdir(config_dir)
     interactive_init(file_path)
 
 def delete_config(app_dir: str):
@@ -87,7 +91,10 @@ def delete_config(app_dir: str):
     print("Configuration deleted")
 
 def get_config_files(config_dir: str):
-    return [f.replace(".toml", "") for f in os.listdir(config_dir)]
+    if os.path.exists(config_dir):
+        return [f.replace(".toml", "") for f in os.listdir(config_dir)]
+    else:
+        return []
 
 def select_config(app_dir: str):
     config_dir = str(app_dir / "configs")
