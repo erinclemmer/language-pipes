@@ -133,6 +133,13 @@ def interactive_init(output_path: str):
         default=5000
     )
 
+    if is_first_node:
+        print("\nThe network IP is the address other nodes will use to connect to this node.")
+        config["network_ip"] = prompt(
+            "Network IP",
+            required=True
+        )
+
     print("\nThe job port is used for transferring computation data between nodes")
     print("during model inference (hidden states, embeddings, etc.).")
     config["job_port"] = prompt_int(

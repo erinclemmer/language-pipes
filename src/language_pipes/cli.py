@@ -10,7 +10,7 @@ from language_pipes.commands.upgrade import upgrade_lp
 
 from language_pipes import LanguagePipes
 
-VERSION = "0.11.3"
+VERSION = "0.12.0"
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -70,6 +70,7 @@ def apply_overrides(data, args):
         "app_dir": os.getenv("LP_APP_DIR"),
         "node_id": os.getenv("LP_NODE_ID"),
         "peer_port": os.getenv("LP_PEER_PORT"),
+        "network_ip": os.getenv("LP_NETWORK_IP"),
         "bootstrap_address": os.getenv("LP_BOOTSTRAP_ADDRESS"),
         "bootstrap_port": os.getenv("LP_BOOTSTRAP_PORT"),
         "network_key": os.getenv("LP_NETWORK_KEY"),
@@ -97,6 +98,7 @@ def apply_overrides(data, args):
         "app_dir": precedence("app_dir", args.app_dir, default_app_dir),
         "node_id": precedence("node_id", args.node_id, None),
         "peer_port": int(precedence("peer_port", args.peer_port, 5000)),
+        "network_ip": precedence("network_ip", None, "127.0.0.1"),
         "bootstrap_address": precedence("bootstrap_address", args.bootstrap_address, None),
         "bootstrap_port": precedence("bootstrap_port", args.bootstrap_port, 5000),
         "network_key": precedence("network_key", args.network_key, None),
@@ -191,6 +193,7 @@ def main(argv = None):
             "router": {
                 "node_id": data["node_id"],
                 "port": data["peer_port"],
+                "network_ip": data["network_ip"],
                 "aes_key": data["network_key"],
                 "bootstrap_nodes": [
                     {

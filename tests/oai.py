@@ -78,6 +78,9 @@ def oai_stream(port: int, messages: List[ChatMessage], retries: int = 0):
             return oai_complete(port, messages, retries + 1)
 
 class OpenAITests(unittest.TestCase):
+    def test_cli(self):
+        main([])
+
     def test_single_node(self):
         start_node("node-1", 5, 5000, 5050, 8000)
         res = oai_complete(8000, [

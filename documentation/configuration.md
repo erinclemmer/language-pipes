@@ -42,6 +42,7 @@ oai_port = 8000
 # === Network ===
 peer_port = 5000
 job_port = 5050
+network_ip = "192.168.0.1"
 bootstrap_address = "192.168.0.1"
 bootstrap_port = 5000
 network_key = "network.key"
@@ -176,6 +177,18 @@ peer_port = 5000
 |------|---------|
 | int | `5000` |
 
+#### `network_ip`
+
+IP address that this node will advertise to other peers on the network. This is only necessary for bootstrap configurations where other nodes need to connect to this node. If not specified, the node will attempt to auto-detect its network IP.
+
+```toml
+network_ip = "192.168.1.100"
+```
+
+| Type | Default |
+|------|---------|
+| string | None (auto-detect) |
+
 #### `bootstrap_address`
 
 IP address of an existing node to join the network.
@@ -294,6 +307,7 @@ All properties can be set via environment variables with the `LP_` prefix:
 | `oai_port` | `LP_OAI_PORT` |
 | `peer_port` | `LP_PEER_PORT` |
 | `job_port` | `LP_JOB_PORT` |
+| `network_ip` | `LP_NETWORK_IP` |
 | `bootstrap_address` | `LP_BOOTSTRAP_ADDRESS` |
 | `bootstrap_port` | `LP_BOOTSTRAP_PORT` |
 | `network_key` | `LP_NETWORK_KEY` |

@@ -25,6 +25,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         openai_port = None
         node_id = None
         peer_port = None
+        network_ip = None
         app_dir = None
         bootstrap_address = None
         bootstrap_port = None
@@ -45,6 +46,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         "router": {
             "node_id": data["node_id"],
             "port": data["peer_port"],
+            "network_ip": data["network_ip"],
             "credential_dir": str(Path(app_dir) / "credentials"),
             "aes_key_file": data["network_key"],
             "bootstrap_nodes": [
