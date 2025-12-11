@@ -139,6 +139,8 @@ def interactive_init(output_path: str):
             "Network IP",
             required=True
         )
+    else:
+        config["network_ip"] = "127.0.0.1"
 
     print("\nThe job port is used for transferring computation data between nodes")
     print("during model inference (hidden states, embeddings, etc.).")
