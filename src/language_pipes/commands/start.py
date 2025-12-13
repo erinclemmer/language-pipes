@@ -139,11 +139,11 @@ Version: {version}
         Path(app_dir).mkdir(parents=True)
         print(f"Created directory: {app_dir}")
     
-    config_dir = str(app_dir / "configs")
+    config_dir = str(Path(app_dir) / "configs")
     if not os.path.exists(config_dir):
         Path(config_dir).mkdir(parents=True)
 
-    models_dir = str(app_dir / "models")
+    models_dir = str(Path(app_dir) / "models")
     if not os.path.exists(models_dir):
         Path(models_dir).mkdir(parents=True)
 
