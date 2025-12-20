@@ -23,16 +23,16 @@ Language Pipes is a FOSS distributed network application designed to increase ac
 Over the past few years open source language models have become much more powerful yet the most powerful models are still out of reach of the general population because of the extreme amounts of RAM that is needed to host these models. Language Pipes allows multiple computer systems to host the same model and move computation data between them so that no one computer has to hold all of the data for the model.
 
 ### Features
-- Privacy-preserving architecture
 - Quick Setup
 - Peer to peer network
 - OpenAI compatible API
+- Privacy-preserving architecture
 - Download and use models by HuggingFace ID
 - Encrypted communication between nodes
 
 ---
 
-### What Does it do?
+### What Does Language Pipes do?
 In a basic sense, language models work by passing information through many layers. At each layer, several matrix multiplicatitons between the layer weights and the system state are performed and the data is moved to the next layer. Language pipes works by hosting different layers on different machines to split up the RAM cost across the system.
 
 ### Installation
