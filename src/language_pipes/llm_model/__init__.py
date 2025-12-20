@@ -1,11 +1,12 @@
 import os
+import gc
 import logging
 from pathlib import Path
 from time import time, sleep
 from uuid import uuid4
 from threading import Thread
 from typing import List, Optional, Callable, Dict
-from transformers.cache_utils import DynamicCache
+from transformers.cache_utils import DynamicCache, StaticCache
 
 from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
@@ -14,7 +15,7 @@ import torch
 from language_pipes.util import clone_model
 from language_pipes.util.meta import MetaModel
 from language_pipes.job_manager.job import Job
-from language_pipes.job_manager.job_data import jobDataToComputationState
+from language_pipes.job_manager.job_data import jobDataToComputationState, detachCompState
 from language_pipes.llm_model.computed import ComputedData
 from llm_layer_collector import LlmLayerCollector
 
@@ -91,9 +92,11 @@ class LlmModel:
             for key in keys_to_remove:
                 del self.past_key_cache_times[key]
                 del self.past_key_values[key]
+                gc.collect()
+                torch.cuda.empty_cache()
 
             sleep(10)
-
+            
     def load(self):
         if self.end_layer > self.num_hidden_layers:
             self.end_layer = self.num_hidden_layers - 1
@@ -140,8 +143,14 @@ Device: {self.device}
             self.past_key_cache_times[job.job_id] = time()
         comp_state.past_key_values = self.past_key_values[job.job_id]
 
-        for lyr in self.layers:
-            comp_state.state = lyr(comp_state)
+        with torch.inference_mode():
+            for lyr in self.layers:
+                comp_state.state = lyr(comp_state).detach()
+        
+        comp_state = detachCompState(comp_state)
+
+        gc.collect()
+        torch.cuda.empty_cache()
 
         job.set_layer(comp_state.state, self.end_layer + 1)
         if job.current_layer == self.num_hidden_layers:

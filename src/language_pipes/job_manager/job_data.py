@@ -101,3 +101,20 @@ def jobDataToComputationState(data: JobData, device: str) -> LLmComputationState
         "sliding_attention": maybeTo(data.sliding_causal_mask, device)
     }
     return state
+
+def detachCompState(state: LLmComputationState) -> LLmComputationState:
+    state.state = state.state.detach()
+    state.position_ids = state.position_ids.detach()
+    if state.position_embeddings is not None:
+        state.position_embeddings = (state.position_embeddings[0].detach(), state.position_embeddings[1].detach())
+    if state.position_embeddings_local is not None:
+        state.position_embeddings_local = (state.position_embeddings_local[0].detach(), state.position_embeddings_local[1].detach())
+    if state.position_embeddings_global is not None:
+        state.position_embeddings_global = (state.position_embeddings_global[0].detach(), state.position_embeddings_global[1].detach())
+    
+    state.cache_position = state.cache_position.detach()
+    state.causal_mask = {
+        "full_attention": state.causal_mask["full_attention"].detach() if state.causal_mask["full_attention"] is not None else None,
+        "sliding_attention": state.causal_mask["sliding_attention"].detach() if state.causal_mask["sliding_attention"] is not None else None
+    }
+    return state
