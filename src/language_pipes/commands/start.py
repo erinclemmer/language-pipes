@@ -130,10 +130,7 @@ Version: {version}
 - Made with <3 by Erin
 """)
 
-    default_base_path = Path(os.path.expanduser("~") ) / ".language-pipes"
-    app_dir = default_base_path
-    if not os.path.exists(default_base_path):
-        app_dir = prompt("Where should we store application data?", required=True, default=str(default_base_path))
+    app_dir = str(Path(os.path.expanduser("~") ) / ".config" / "language-pipes")
     
     if not os.path.exists(app_dir):
         Path(app_dir).mkdir(parents=True)

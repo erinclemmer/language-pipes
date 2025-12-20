@@ -46,7 +46,7 @@ def build_parser():
         choices=["DEBUG", "INFO", "WARNING", "ERROR"]
     )
     run_parser.add_argument("--openai-port", type=int, help="Open AI server port (Default: none)")
-    run_parser.add_argument("-d", "--app-data-dir", type=str, help="Application data directory for language pipes (default: ~/.language-pipes)")
+    run_parser.add_argument("--app-data-dir", type=str, help="Application data directory for language pipes (default: ~/.config/language-pipes)")
     run_parser.add_argument("--node-id", help="Node ID for the network (Required)")
     run_parser.add_argument("--app-dir", type=str, help="Directory to store data for this application")
     run_parser.add_argument("--peer-port", type=int, help="Port for peer-to-peer network (Default: 5000)")
@@ -90,7 +90,7 @@ def apply_overrides(data, args):
             return data[key]
         return d
     
-    default_app_dir = os.path.expanduser("~") + "/.language-pipes"
+    default_app_dir = str(Path(os.path.expanduser("~")) / ".config" / ".language-pipes")
 
     config = {
         "logging_level": precedence("logging_level", args.logging_level, "INFO"),
