@@ -1,6 +1,8 @@
 import os
 import gc
+import ctypes
 import logging
+import psutil
 from pathlib import Path
 from time import time, sleep
 from uuid import uuid4
@@ -19,7 +21,27 @@ from language_pipes.job_manager.job_data import jobDataToComputationState, detac
 from language_pipes.llm_model.computed import ComputedData
 from llm_layer_collector import LlmLayerCollector
 
+# Try to import malloc_trim to return memory to OS
+try:
+    _libc = ctypes.CDLL("libc.so.6")
+    _malloc_trim = _libc.malloc_trim
+    _malloc_trim.argtypes = [ctypes.c_size_t]
+    _malloc_trim.restype = ctypes.c_int
+except:
+    _malloc_trim = None
+
 STALE_JOB_TIME = 30
+
+def compute_layers(job_data, device, layers, past_key_values):
+    comp_state = jobDataToComputationState(job_data, device)
+    comp_state.past_key_values = past_key_values
+    comp_state = detachCompState(comp_state)
+    
+    with torch.inference_mode():
+        for lyr in layers:
+            comp_state.state = lyr(comp_state).detach()
+    
+    return comp_state.state.detach()
 
 class LlmModel:
     model_id: str
@@ -131,28 +153,34 @@ Device: {self.device}
         self.logger.exception(msg)
         raise Exception(msg)
 
+    # @profile(stream=fp)
     def compute_layers(
         self, 
         job: Job,
     ):
         if job.data is None:
             self.raise_exception("cannot compute layers without job data")
-        comp_state = jobDataToComputationState(job.data, self.device)
         if job.job_id not in self.past_key_values:
             self.past_key_values[job.job_id] = DynamicCache()
             self.past_key_cache_times[job.job_id] = time()
-        comp_state.past_key_values = self.past_key_values[job.job_id]
-
-        with torch.inference_mode():
-            for lyr in self.layers:
-                comp_state.state = lyr(comp_state).detach()
         
-        comp_state = detachCompState(comp_state)
+        process = psutil.Process()
+        mem = process.memory_info().rss / 1024.0 / 1024.0
+        with open('diff.txt', 'a') as f:
+            f.write(f"{mem}\n")
+
+        job.set_layer(compute_layers(
+            job.data, 
+            self.device, 
+            self.layers, 
+            self.past_key_values[job.job_id]
+        ), self.end_layer + 1)
 
         gc.collect()
         torch.cuda.empty_cache()
+        if _malloc_trim is not None:
+            _malloc_trim(0)
 
-        job.set_layer(comp_state.state, self.end_layer + 1)
         if job.current_layer == self.num_hidden_layers:
             job.done = True
     

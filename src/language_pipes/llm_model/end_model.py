@@ -1,14 +1,25 @@
+import ctypes
+import gc
 import os
 import torch
 from uuid import uuid4
 from torch import tensor
 from pathlib import Path
 
+# Try to import malloc_trim to return memory to OS
+try:
+    _libc = ctypes.CDLL("libc.so.6")
+    _malloc_trim = _libc.malloc_trim
+    _malloc_trim.argtypes = [ctypes.c_size_t]
+    _malloc_trim.restype = ctypes.c_int
+except:
+    _malloc_trim = None
+
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 from llm_layer_collector import LlmLayerCollector
 from llm_layer_collector.auto.auto_rms import AutoRMSNorm
-from llm_layer_collector.compute import compute_embedding, compute_head
+from llm_layer_collector.compute import compute_embedding
 
 from language_pipes.util import clone_model
 from language_pipes.job_manager.job import ComputeStep, Job
@@ -88,13 +99,27 @@ class EndModel:
             self.raise_exception("Cannot compute norm without job data")
         norm = self.norm(job.data.state.to(self.device))
         job.set_norm(norm)
-        
+
     def compute_head(self, job: Job):
         if self.head is None:
             self.raise_exception("Head must be loaded before computation")
         if job.data is None or job.data.state is None:
             self.raise_exception("Cannot compute head without job data")
-        head = int(compute_head(self.head, job.data.state.to(self.device))[0][0])
+        with torch.inference_mode():
+            state_on_device = job.data.state.detach().clone()[:, -1, :].to(self.device)
+            logits = torch.nn.functional.linear(
+                state_on_device, 
+                self.head.weight, 
+                self.head.bias
+            ).detach().numpy()
+            del state_on_device
+            head = int(logits.argmax())
+            del logits
+        gc.collect()
+        # Try to return memory to OS
+        if _malloc_trim is not None:
+            _malloc_trim(0)
+        
         job.set_output(head, self.collector.config.eos_token_id)
         job.delta = self.tokenizer.decode([job.input_ids[-1]])
 

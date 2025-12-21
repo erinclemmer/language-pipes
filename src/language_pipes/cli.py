@@ -2,6 +2,8 @@ import os
 import socket
 import toml
 import argparse
+from pathlib import Path
+
 from language_pipes.config import LpConfig
 from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init

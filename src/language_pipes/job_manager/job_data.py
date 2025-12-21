@@ -59,12 +59,12 @@ class JobData:
 def move_position_embeddings(t: Optional[Tuple[torch.Tensor, torch.Tensor]], device: str):
     if t is None:
         return None
-    if t[0].device == device:
-        return t
-    return [
-        t[0].to(device),
-        t[1].to(device)
-    ]
+    if str(t[0].device) == device:
+        return (t[0].detach(), t[1].detach())
+    return (
+        t[0].detach().to(device),
+        t[1].detach().to(device)
+    )
 
 def computationStateToJobData(data: LLmComputationState) -> JobData:
     job_data = JobData()
@@ -81,7 +81,9 @@ def computationStateToJobData(data: LLmComputationState) -> JobData:
 def maybeTo(t: Optional[torch.Tensor], device: str) -> Optional[torch.Tensor]:
     if t is None:
         return None
-    return t.to(device)
+    if str(t.device) == device:
+        return t.detach()
+    return t.detach().to(device)
 
 def jobDataToComputationState(data: JobData, device: str) -> LLmComputationState:
     state = LLmComputationState()
