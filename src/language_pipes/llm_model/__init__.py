@@ -2,7 +2,6 @@ import os
 import gc
 import ctypes
 import logging
-import psutil
 from pathlib import Path
 from time import time, sleep
 from uuid import uuid4
@@ -163,11 +162,6 @@ Device: {self.device}
         if job.job_id not in self.past_key_values:
             self.past_key_values[job.job_id] = DynamicCache()
             self.past_key_cache_times[job.job_id] = time()
-        
-        process = psutil.Process()
-        mem = process.memory_info().rss / 1024.0 / 1024.0
-        with open('diff.txt', 'a') as f:
-            f.write(f"{mem}\n")
 
         job.set_layer(compute_layers(
             job.data, 
