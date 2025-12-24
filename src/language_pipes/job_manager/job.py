@@ -116,7 +116,7 @@ class Job(SignedPacket):
             self.status = JobStatus.COMPLETED
 
     def to_layer_job(self) -> LayerJob:
-        return LayerJob(self.job_id, self.pipe_id, self.router_id, self.current_layer, self.data, False)
+        return LayerJob(self.job_id, self.pipe_id, self.router_id, self.current_layer, self.data, False, [])
 
     def to_bytes(self, include_signature: bool = True) -> bytes:
         bts = ByteHelper()

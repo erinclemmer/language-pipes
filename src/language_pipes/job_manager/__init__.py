@@ -24,6 +24,14 @@ from language_pipes.job_manager.pending_job import PendingJob
 CHECK_JOB_INTERVAL = 10
 EXPIRED_JOB_TIME = 30
 
+try:
+    _libc = ctypes.CDLL("libc.so.6")
+    _malloc_trim = _libc.malloc_trim
+    _malloc_trim.argtypes = [ctypes.c_size_t]
+    _malloc_trim.restype = ctypes.c_int
+except:
+    _malloc_trim = None
+
 class JobManager:
     completed_jobs: List[str]
     jobs_pending: List[PendingJob]
@@ -73,6 +81,11 @@ class JobManager:
             for job_id in remove_jobs:
                 self.jobs_pending = [j for j in self.jobs_pending if j.job.job_id != job_id]
             
+            gc.collect()
+            torch.cuda.empty_cache()
+            if _malloc_trim is not None:
+                _malloc_trim(0)
+
             sleep(CHECK_JOB_INTERVAL)
 
     def print_pipes(self):
@@ -273,7 +286,7 @@ class JobManager:
             return
         
         layer_job = job.to_layer_job()
-        pipe.send_job(layer_job, first_layer_model.router_id)
+        pipe.send_job(layer_job, first_layer_model.node_id)
 
         return job
 

@@ -6,3 +6,4 @@ certs/
 credentials/
 config.toml
 *.key
+todo.txt

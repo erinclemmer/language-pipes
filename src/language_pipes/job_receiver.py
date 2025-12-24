@@ -69,6 +69,8 @@ class JobReceiver:
                 return Thread(target=self.job_runner, args=()).start()
             
             if layer_job.done:
+                layer_job.print_times(self.router.logger)
+                layer_job.times = []
                 job = self.get_pending_job(layer_job.job_id).job
                 job.current_step = ComputeStep.NORM
                 job.data = layer_job.data
@@ -91,7 +93,7 @@ class JobReceiver:
                 pipe.send_job(layer_job, layer_job.origin_node_id)
             else:
                 model = pipe.model_for_job(layer_job)
-                pipe.send_job(layer_job, model.router_id)
+                pipe.send_job(layer_job, model.node_id)
         except Exception as e:
             print(e)
         Thread(target=self.job_runner, args=()).start()

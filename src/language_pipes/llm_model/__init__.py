@@ -18,16 +18,9 @@ from language_pipes.util.meta import MetaModel
 from language_pipes.job_manager.job import Job
 from language_pipes.job_manager.job_data import jobDataToComputationState, detachCompState
 from language_pipes.llm_model.computed import ComputedData
+from language_pipes.job_manager.layer_job import LayerJob, LayerTime
 from llm_layer_collector import LlmLayerCollector
 
-# Try to import malloc_trim to return memory to OS
-try:
-    _libc = ctypes.CDLL("libc.so.6")
-    _malloc_trim = _libc.malloc_trim
-    _malloc_trim.argtypes = [ctypes.c_size_t]
-    _malloc_trim.restype = ctypes.c_int
-except:
-    _malloc_trim = None
 
 STALE_JOB_TIME = 30
 
@@ -49,7 +42,7 @@ class LlmModel:
     pipe_id: str
     collector: LlmLayerCollector
 
-    router_id: str
+    node_id: str
     device: str
     virtual: bool
     app_dir: str
@@ -67,14 +60,14 @@ class LlmModel:
     def __init__(
             self,
             model_id: str,
-            router_id: str,
+            node_id: str,
             pipe_id: str,
             device: str,
             app_dir: str,
             process_id: Optional[str] = None
     ):
         self.model_id = model_id
-        self.router_id = router_id
+        self.node_id = node_id
         self.pipe_id = pipe_id
         self.loaded = False
         self.virtual = False
@@ -101,7 +94,7 @@ class LlmModel:
             self.process_id = process_id
 
         self.computed = ComputedData(model_dir)
-        self.logger = logging.getLogger("LM NET: " + self.router_id)
+        self.logger = logging.getLogger("LM NET: " + self.node_id)
 
     def check_stale_jobs(self):
         while True:
@@ -135,7 +128,7 @@ class LlmModel:
 =================================
 Loaded Model: {self.model_id}
 Pipe ID: {self.pipe_id}
-Router: {self.router_id}
+Node: {self.node_id}
 Process: {self.process_id}
 Start Layer: {self.start_layer}
 End Layer: {self.end_layer}
@@ -143,16 +136,22 @@ Device: {self.device}
 =================================
 ''')
 
-    def process_job(self, job: Job):
+    def process_job(self, job: LayerJob):
         self.past_key_cache_times[job.job_id] = time()
         self.logger.info(f'Processing job layer {job.current_layer}')
+        lt = LayerTime()
+        lt.node_id = self.node_id
+        lt.receive_time = time()
+        lt.start_layer = self.start_layer
+        lt.end_layer = self.end_layer
         self.compute_layers(job)
+        lt.send_time = time()
+        job.times.append(lt)
 
     def raise_exception(self, msg):
         self.logger.exception(msg)
         raise Exception(msg)
 
-    # @profile(stream=fp)
     def compute_layers(
         self, 
         job: Job,
@@ -170,11 +169,6 @@ Device: {self.device}
             self.past_key_values[job.job_id]
         ), self.end_layer + 1)
 
-        gc.collect()
-        torch.cuda.empty_cache()
-        if _malloc_trim is not None:
-            _malloc_trim(0)
-
         if job.current_layer == self.num_hidden_layers:
             job.done = True
     
@@ -183,7 +177,7 @@ Device: {self.device}
             process_id=self.process_id,
             start_layer=self.start_layer,
             end_layer=self.end_layer,
-            router_id=self.router_id,
+            router_id=self.node_id,
             pipe_id=self.pipe_id,
             model_id=self.model_id,
             loaded=self.loaded,
@@ -200,7 +194,7 @@ Device: {self.device}
     def from_meta(meta: MetaModel, app_dir: str) -> 'LlmModel':
         model = LlmModel(
             model_id=meta.model_id,
-            router_id=meta.router_id,
+            node_id=meta.router_id,
             pipe_id=meta.pipe_id,
             device='cpu',
             app_dir=app_dir,
@@ -215,10 +209,10 @@ Device: {self.device}
         return model
     
     @staticmethod
-    def from_id(app_dir: str, model_id: str, router_id: str, pipe_id: str, device: str) -> 'LlmModel':
+    def from_id(app_dir: str, model_id: str, node_id: str, pipe_id: str, device: str) -> 'LlmModel':
         model = LlmModel(
             model_id=model_id, 
-            router_id=router_id, 
+            node_id=node_id, 
             pipe_id=pipe_id, 
             device=device, 
             app_dir=app_dir

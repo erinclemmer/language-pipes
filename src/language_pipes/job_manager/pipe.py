@@ -149,7 +149,7 @@ Complete: {self.is_complete()}
                 return
             
             if model_for_job.virtual:
-                self.send_job(job, model_for_job.router_id)
+                self.send_job(job, model_for_job.node_id)
                 return
             
             model_for_job.process_job(job)
