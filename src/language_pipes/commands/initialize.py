@@ -201,6 +201,14 @@ def interactive_init(output_path: str):
             "  Enable ECDSA signing?",
             default=False
         )
+        
+        print("\n  Print timing information for layer computations and network")
+        print("  transfers when a job completes. Useful for debugging and")
+        print("  performance analysis.")
+        config["print_times"] = prompt_bool(
+            "  Print timing info?",
+            default=False
+        )
 
     # === Write Config File ===
     print("\n" + "=" * 50)
