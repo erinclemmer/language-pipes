@@ -22,6 +22,7 @@ class ProcessorConfig:
     max_pipes: int
     job_port: int
     hosted_models: List[HostedModel]
+    print_times: bool
 
     @staticmethod
     def from_dict(data: dict) -> "ProcessorConfig":
@@ -31,5 +32,5 @@ class ProcessorConfig:
         config.max_pipes = data['max_pipes']
         config.job_port = data['job_port']
         config.hosted_models = [HostedModel.from_dict(o) for o in data['hosted_models']]
+        config.print_times = data.get('print_times', False)
         return config
-    

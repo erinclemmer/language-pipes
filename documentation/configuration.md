@@ -293,6 +293,18 @@ max_pipes = 2
 |------|---------|
 | int | `1` |
 
+#### `print_times`
+
+Print timing information for layer computations and network transfers when a job completes. Useful for debugging and performance analysis.
+
+```toml
+print_times = true
+```
+
+| Type | Default |
+|------|---------|
+| bool | `false` |
+
 ---
 
 ## Environment Variables
@@ -315,6 +327,7 @@ All properties can be set via environment variables with the `LP_` prefix:
 | `model_validation` | `LP_MODEL_VALIDATION` |
 | `ecdsa_verification` | `LP_ECDSA_VERIFICATION` |
 | `app_dir` | `LP_APP_DIR` |
+| `print_times` | `LP_PRINT_TIMES` |
 
 ---
 

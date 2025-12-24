@@ -82,7 +82,7 @@ class LayerJob:
             if i != 0:
                 last = self.times[i - 1]
                 logger.info(f"[Network] {last.node_id} -> {current.node_id} {(current.receive_time - last.send_time) * 1000.0:.2f}ms")
-            lps = (current.end_layer - current.start_layer) / (current.send_time - current.receive_time)
+            lps = (current.end_layer - current.start_layer + 1) / (current.send_time - current.receive_time)
             logger.info(f"[Compute] {current.node_id}: layer {current.start_layer} -> {current.end_layer} ({lps:.2f} layers / sec)")
 
     @staticmethod

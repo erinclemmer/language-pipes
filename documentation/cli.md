@@ -126,6 +126,7 @@ See [Configuration](./configuration.md) for all available options and their desc
 | `--logging-level LEVEL` | `-l` | Log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `--bootstrap-address HOST` | | Connect to existing network |
 | `--app-dir PATH` | | Application data directory (default: `~/.language-pipes`) |
+| `--print-times` | | Print timing info for layer computations and network transfers |
 
 Run `language-pipes serve --help` for all options.
 

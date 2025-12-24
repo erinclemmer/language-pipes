@@ -12,7 +12,7 @@ from language_pipes.commands.upgrade import upgrade_lp
 
 from language_pipes import LanguagePipes
 
-VERSION = "0.13.0"
+VERSION = "0.13.1"
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -61,6 +61,7 @@ def build_parser():
     run_parser.add_argument("--job-port", type=int, help="Job receiver port (Default: 5050)")
     run_parser.add_argument("--hosted-models", nargs="*", metavar="MODEL", 
         help="Hosted models as key=value pairs: id=MODEL,device=DEVICE,memory=GB,load_ends=BOOL (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=false)")
+    run_parser.add_argument("--print-times", help="Print timing information for layer computations and network transfers", action="store_true")
 
     return parser
 
@@ -81,6 +82,7 @@ def apply_overrides(data, args):
         "job_port": os.getenv("LP_JOB_PORT"),
         "max_pipes": os.getenv("LP_MAX_PIPES"),
         "hosted_models": os.getenv("LP_HOSTED_MODELS"),
+        "print_times": os.getenv("LP_PRINT_TIMES"),
     }
 
     def precedence(key, arg, d):
@@ -109,6 +111,7 @@ def apply_overrides(data, args):
         "job_port": int(precedence("job_port", args.job_port, 5050)),
         "max_pipes": precedence("max_pipes", args.max_pipes, 1),
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
+        "print_times": precedence("print_times", args.print_times, False),
     }
 
     if config["hosted_models"] is None:
@@ -209,7 +212,8 @@ def main(argv = None):
                 "model_validation": data["model_validation"],
                 "ecdsa_verification": data["ecdsa_verification"],
                 "job_port": data["job_port"],
-                "hosted_models": data["hosted_models"]
+                "hosted_models": data["hosted_models"],
+                "print_times": data["print_times"]
             }
         })
 
