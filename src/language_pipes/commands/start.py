@@ -8,8 +8,9 @@ from language_pipes.config import LpConfig
 from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.edit import edit_config
+from language_pipes.commands.view import view_config
 from language_pipes import LanguagePipes
-from language_pipes.util.user_prompts import prompt_bool, prompt, prompt_choice, prompt_number_choice
+from language_pipes.util.user_prompts import prompt_bool, prompt, prompt_choice, prompt_number_choice, select_config, get_config_files
 from language_pipes.util import sanitize_file_name
 
 def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
@@ -89,31 +90,6 @@ def delete_config(app_dir: str):
     if config_path is not None:
         os.remove(config_path)
         print("Configuration deleted")
-
-def get_config_files(config_dir: str):
-    return [f.replace(".toml", "") for f in os.listdir(config_dir)]
-
-def select_config(app_dir: str) -> str | None:
-    config_dir = str(Path(app_dir) / "configs")
-    existing_configs = get_config_files(config_dir)
-
-    if len(existing_configs) > 0:
-        load_config = prompt_number_choice("Select Configuration", existing_configs, required=True)
-        if load_config is None:
-            exit()
-        load_config = load_config + ".toml"
-    else:
-        print("No configs found...")
-        return None
-
-    return str(Path(config_dir) / load_config)
-
-def view_config(app_dir: str):
-    config_path = select_config(app_dir)
-    if config_path is not None:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            data = toml.load(f)
-        print(toml.dumps(data))
 
 def modify_config(app_dir: str):
     config_path = select_config(app_dir)

@@ -1,4 +1,7 @@
-def prompt(message: str, default=None, required=False) -> str:
+import os
+from pathlib import Path
+
+def prompt(message: str, default=None, required=False) -> str | None:
     """Prompt user for input with optional default value."""
     if default is not None:
         display = f"{message} [{default}]: "
@@ -17,7 +20,7 @@ def prompt(message: str, default=None, required=False) -> str:
         return value
 
 
-def prompt_int(message: str, default=None, required=False) -> int:
+def prompt_int(message: str, default=None, required=False) -> int | None:
     """Prompt user for integer input."""
     while True:
         value = prompt(message, default=str(default) if default else None, required=required)
@@ -29,7 +32,7 @@ def prompt_int(message: str, default=None, required=False) -> int:
             print("  Please enter a valid number.")
 
 
-def prompt_float(message: str, default=None, required=False) -> float:
+def prompt_float(message: str, default=None, required=False) -> float | None:
     """Prompt user for float input."""
     while True:
         value = prompt(message, default=str(default) if default else None, required=required)
@@ -55,7 +58,7 @@ def prompt_bool(message: str, default=False) -> bool:
         print("  Please enter 'y' or 'n'.")
 
 
-def prompt_choice(message: str, choices: list, default=None) -> str:
+def prompt_choice(message: str, choices: list, default=None) -> str | None:
     """Prompt user to select from choices."""
     choices_str = "/".join(choices)
     while True:
@@ -74,7 +77,10 @@ def prompt_number_choice(message: str, choices: list, default=None, required=Fal
         default_idx = None
     while True:
         try:
-            selection = int(prompt("Select number of choice", default=default_idx, required=required))
+            strSelect = prompt("Select number of choice", default=default_idx, required=required)
+            if strSelect is None:
+                continue
+            selection = int(strSelect)
         except KeyboardInterrupt:
             exit()
         except:
@@ -88,3 +94,21 @@ def prompt_number_choice(message: str, choices: list, default=None, required=Fal
 
 def prompt_continue():
     prompt("Press Enter to continue...")
+
+def get_config_files(config_dir: str):
+    return [f.replace(".toml", "") for f in os.listdir(config_dir)]
+
+def select_config(app_dir: str) -> str | None:
+    config_dir = str(Path(app_dir) / "configs")
+    existing_configs = get_config_files(config_dir)
+
+    if len(existing_configs) > 0:
+        load_config = prompt_number_choice("Select Configuration", existing_configs, required=True)
+        if load_config is None:
+            exit()
+        load_config = load_config + ".toml"
+    else:
+        print("No configs found...")
+        return None
+
+    return str(Path(config_dir) / load_config)
