@@ -181,6 +181,22 @@ POST /v1/chat/completions
 | `messages` | array | ✓ | Array of message objects |
 | `max_completion_tokens` | integer | | Maximum tokens to generate |
 | `stream` | boolean | | Enable streaming responses (default: `false`) |
+| `temperature` | float | | Controls output randomness (default: `1.0`) |
+
+### Temperature Parameter
+
+The `temperature` parameter controls output randomness by scaling logits before softmax, matching the standard OpenAI behavior:
+
+```
+probabilities = softmax(logits / temperature)
+```
+
+- **`temperature = 0`** → Greedy decoding (always picks the most likely token)
+- **`temperature < 1`** → Sharper distribution, more deterministic output
+- **`temperature = 1`** → Standard softmax (no scaling)
+- **`temperature > 1`** → Flatter distribution, more random/creative output
+
+Lower temperatures make the model more confident and focused on likely tokens. Higher temperatures increase diversity by giving more probability mass to less likely tokens.
 
 ### Message Object
 

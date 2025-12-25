@@ -111,14 +111,23 @@ class EndModel:
                 state_on_device, 
                 self.head.weight, 
                 self.head.bias
-            ).detach().numpy()
+            ).flatten()
             del state_on_device
-            head = int(logits.argmax())
+            
+            if job.temperature == 0:
+                # Greedy decoding - just pick the top token
+                head = int(logits.argmax().item())
+            else:
+                # Apply temperature scaling to logits before softmax
+                # Lower temperature = sharper distribution (more deterministic)
+                # Higher temperature = flatter distribution (more random)
+                scaled_logits = logits / job.temperature
+                probabilities = torch.nn.functional.softmax(scaled_logits, dim=0)
+                
+                # Sample from all tokens based on temperature-scaled probabilities
+                head = int(torch.multinomial(probabilities, num_samples=1).item())
+            
             del logits
-        gc.collect()
-        # Try to return memory to OS
-        if _malloc_trim is not None:
-            _malloc_trim(0)
         
         job.set_output(head, self.collector.config.eos_token_id)
         job.delta = self.tokenizer.decode([job.input_ids[-1]])

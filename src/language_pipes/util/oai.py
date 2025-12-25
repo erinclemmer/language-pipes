@@ -14,32 +14,37 @@ class ChatCompletionRequest:
     stream: bool
     messages: List[ChatMessage]
     max_completion_tokens: int
+    temperature: float
 
     def __init__(
             self, 
             model: str, 
             stream: bool,
             max_completion_tokens: int,
-            messages: List[ChatMessage]
+            messages: List[ChatMessage],
+            temperature: float = 1.0
         ):
         self.model = model
         self.stream = stream
         self.max_completion_tokens = max_completion_tokens
         self.messages = messages
+        self.temperature = temperature
 
     def to_json(self):
         return {
             'model': self.model,
             'stream': self.stream,
             'max_completion_tokens': self.max_completion_tokens,
-            'messages': [m.to_json() for m in self.messages]
+            'messages': [m.to_json() for m in self.messages],
+            'temperature': self.temperature
         }
     
     @staticmethod
     def from_dict(data):
         max_completion_tokens = data['max_completion_tokens'] if 'max_completion_tokens' in data else 1000
         stream = data['stream'] if 'stream' in data else False
-        return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']])
+        temperature = data['temperature'] if 'temperature' in data else 1.0
+        return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature)
 
 def send_initial_chunk(
     job: Job,
@@ -140,6 +145,6 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
                 })
 
     def promise_fn(resolve: Callable, _: Callable):
-        complete_cb(req.model, req.messages, req.max_completion_tokens, start, update, resolve)
+        complete_cb(req.model, req.messages, req.max_completion_tokens, req.temperature, start, update, resolve)
     job = Promise(promise_fn).get()
     complete(job)

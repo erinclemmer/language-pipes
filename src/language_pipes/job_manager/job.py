@@ -30,6 +30,7 @@ class Job(SignedPacket):
     data: Optional[JobData]
     messages: List[ChatMessage]
     result: Optional[str]
+    temperature: float
 
     def __init__(
             self,
@@ -48,7 +49,8 @@ class Job(SignedPacket):
             result: Optional[str] = None,
             input_ids: List[int] = [],
             prompt_tokens: int = 0,
-            data: Optional[JobData] = None
+            data: Optional[JobData] = None,
+            temperature: float = 1.0
         ):
         super().__init__(ecdsa_signature)
         self.router_id = router_id
@@ -67,6 +69,7 @@ class Job(SignedPacket):
         self.messages = messages
         self.delta = ''
         self.data = data if data is not None else JobData()
+        self.temperature = temperature
 
     def set_layer(self, state: torch.Tensor, layer: int):
         if self.current_step != ComputeStep.LAYER:
@@ -117,89 +120,3 @@ class Job(SignedPacket):
 
     def to_layer_job(self) -> LayerJob:
         return LayerJob(self.job_id, self.pipe_id, self.router_id, self.current_layer, self.data, False, [])
-
-    def to_bytes(self, include_signature: bool = True) -> bytes:
-        bts = ByteHelper()
-    
-        bts.write_string(self.router_id)
-        bts.write_string(self.from_router_id)
-        bts.write_string(self.model_id)
-        bts.write_string(self.job_id)
-        bts.write_string(self.pipe_id)
-
-        if include_signature:
-            bts.write_bytes(self.ecdsa_signature)
-
-        bts.write_int(self.current_layer)
-        bts.write_int(self.current_token)
-        bts.write_int(self.tokens)
-        bts.write_int(self.current_step.value)
-        bts.write_int(self.status.value)
-        bts.write_int(self.prompt_tokens if self.prompt_tokens is not None else 0)
-
-        if self.input_id_tensor() is not None:
-            input_ids_bytes = tensor_to_bytes(self.input_id_tensor())
-            bts.write_bytes(input_ids_bytes)
-        else:
-            bts.write_int(0)
-
-        messages_data = json.dumps([m.to_json() for m in self.messages]).encode('utf-8')
-        bts.write_bytes(messages_data)
-
-        if self.result is not None:
-            bts.write_string(self.result)
-        else:
-            bts.write_int(0)
-
-        data_bytes = self.data.to_bytes() if self.data is not None else b''
-        bts.write_bytes(data_bytes)
-        return bts.get_bytes()
-    
-    @staticmethod
-    def from_bytes(data: bytes) -> 'Job':
-        bts = ByteHelper(data)
-
-        router_id = bts.read_string()
-        from_router_id = bts.read_string()
-        model_id = bts.read_string()
-        job_id = bts.read_string()
-        pipe_id = bts.read_string()
-        ecdsa_signature = bts.read_bytes()
-        current_layer = bts.read_int()
-        current_token = bts.read_int()
-        tokens = bts.read_int()
-        current_step = ComputeStep(bts.read_int())
-        status = JobStatus(bts.read_int())
-        prompt_tokens = bts.read_int()
-        
-        input_ids = None
-        input_ids_length = bytes_to_int(bts.bts.read(4))
-        if input_ids_length > 0:
-            input_ids = bytes_to_tensor(bts.bts.read(input_ids_length)).tolist()
-
-        messages = [ChatMessage.from_dict(m) for m in json.loads(bts.read_string())]
-
-        result = None
-        num_result_bytes = bytes_to_int(bts.bts.read(4))
-        if num_result_bytes > 0:
-            result = bts.bts.read(num_result_bytes).decode('utf-8')
-        data = JobData.from_bytes(bts.read_bytes())
-    
-        return Job(
-            router_id=router_id,
-            from_router_id=from_router_id,
-            pipe_id=pipe_id,
-            model_id=model_id,
-            ecdsa_signature=ecdsa_signature,
-            tokens=tokens,
-            messages=messages,
-            current_layer=current_layer,
-            job_id=job_id,
-            current_step=current_step,
-            status=status,
-            result=result,
-            current_token=current_token,
-            input_ids=input_ids,
-            prompt_tokens=prompt_tokens,
-            data=data
-        )
