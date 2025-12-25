@@ -4,7 +4,7 @@ import toml
 from unique_names_generator import get_random_name
 
 from language_pipes.util.aes import generate_aes_key
-from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int
+from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_number_choice, prompt_continue
 
 def get_default_node_id() -> str:
     return socket.gethostname()

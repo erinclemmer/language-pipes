@@ -7,6 +7,7 @@ from unique_names_generator import get_random_name
 from language_pipes.config import LpConfig
 from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init
+from language_pipes.commands.edit import edit_config
 from language_pipes import LanguagePipes
 from language_pipes.util.user_prompts import prompt_bool, prompt, prompt_choice, prompt_number_choice
 from language_pipes.util import sanitize_file_name
@@ -71,7 +72,6 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         return
     except Exception as e:
         print(e)
-        print(e.stack)
 
 def new_config(app_dir: str):
     raw_name = prompt("Name of new configuration", required=True)
@@ -86,13 +86,14 @@ def new_config(app_dir: str):
 
 def delete_config(app_dir: str):
     config_path = select_config(app_dir)
-    os.remove(config_path)
-    print("Configuration deleted")
+    if config_path is not None:
+        os.remove(config_path)
+        print("Configuration deleted")
 
 def get_config_files(config_dir: str):
     return [f.replace(".toml", "") for f in os.listdir(config_dir)]
 
-def select_config(app_dir: str):
+def select_config(app_dir: str) -> str | None:
     config_dir = str(Path(app_dir) / "configs")
     existing_configs = get_config_files(config_dir)
 
@@ -103,15 +104,21 @@ def select_config(app_dir: str):
         load_config = load_config + ".toml"
     else:
         print("No configs found...")
-        return
+        return None
 
     return str(Path(config_dir) / load_config)
 
 def view_config(app_dir: str):
     config_path = select_config(app_dir)
-    with open(config_path, 'r', encoding='utf-8') as f:
-        data = toml.load(f)
-    print(toml.dumps(data))
+    if config_path is not None:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = toml.load(f)
+        print(toml.dumps(data))
+
+def modify_config(app_dir: str):
+    config_path = select_config(app_dir)
+    if config_path:
+        edit_config(config_path)
 
 def start_wizard(apply_overrides, version: str):
     print(f"""         
@@ -149,6 +156,7 @@ Version: {version}
             "View Config",
             "Load Config",
             "Create Config",
+            "Edit Config",
             "Delete Config"
         ])
 
@@ -160,7 +168,8 @@ Version: {version}
                     print("No configs found...\n\n")
                     continue
                 config_path = select_config(app_dir)
-                return start_server(apply_overrides, app_dir, config_path, version)
+                if config_path is not None:
+                    return start_server(apply_overrides, app_dir, config_path, version)
             case "View Config":
                 if len(get_config_files(config_dir)) == 0:
                     print("No configs found...\n\n")
@@ -168,6 +177,11 @@ Version: {version}
                 view_config(app_dir)
             case "Create Config":
                 new_config(app_dir)
+            case "Edit Config":
+                if len(get_config_files(config_dir)) == 0:
+                    print("No configs found...\n\n")
+                    continue
+                modify_config(app_dir)
             case "Delete Config":
                 if len(get_config_files(config_dir)) == 0:
                     print("No configs found...\n\n")
