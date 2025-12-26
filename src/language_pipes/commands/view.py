@@ -1,12 +1,6 @@
 import toml
 
-from language_pipes.util.user_prompts import select_config
-
-def view_config(app_dir: str):
-    config_path = select_config(app_dir)
-    if config_path is None:
-        return
-    
+def view_config(config_path: str):
     with open(config_path, 'r', encoding='utf-8') as f:
         config = toml.load(f)
     

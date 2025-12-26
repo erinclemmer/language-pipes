@@ -78,6 +78,8 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
 
 def new_config(app_dir: str):
     raw_name = prompt("Name of new configuration", required=True)
+    if raw_name is None:
+        return
     file_name = sanitize_file_name(raw_name)
     if not file_name:
         print("Invalid file name")
@@ -147,12 +149,15 @@ Version: {version}
                     continue
                 config_path = select_config(app_dir)
                 if config_path is not None:
+                    view_config(config_path)
                     return start_server(apply_overrides, app_dir, config_path, version)
             case "View Config":
                 if len(get_config_files(config_dir)) == 0:
                     print("No configs found...\n\n")
                     continue
-                view_config(app_dir)
+                config_path = select_config(app_dir)
+                if config_path is not None:
+                    view_config(config_path)
             case "Create Config":
                 new_config(app_dir)
             case "Edit Config":

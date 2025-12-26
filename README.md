@@ -28,7 +28,6 @@ Over the past few years open source language models have become much more powerf
 - OpenAI compatible API
 - Privacy-preserving architecture
 - Download and use models by HuggingFace ID
-- Encrypted communication between nodes
 
 ---
 
