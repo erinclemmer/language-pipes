@@ -139,7 +139,7 @@ class MetaPipe:
         self.sort_segments()
         current_layer = 0
         for s in self.segments:
-            if s.start_layer == -1:
+            if s.start_layer == -1 or not s.loaded:
                 continue
             if s.start_layer == current_layer:
                 current_layer = s.end_layer + 1

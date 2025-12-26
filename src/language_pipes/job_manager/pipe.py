@@ -101,6 +101,8 @@ class Pipe:
         self.sort_segments()
         current_layer = 0
         for s in self.segments:
+            if not s.loaded:
+                break
             if s.start_layer == current_layer:
                 current_layer = s.end_layer + 1
 
