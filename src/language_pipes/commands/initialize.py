@@ -4,6 +4,7 @@ import toml
 from unique_names_generator import get_random_name
 
 from language_pipes.util.aes import generate_aes_key
+from language_pipes.commands.view import view_config
 from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_number_choice, prompt_continue
 
 def get_default_node_id() -> str:
@@ -43,7 +44,6 @@ def interactive_init(output_path: str):
         print("    huggingface.co (e.g., 'Qwen/Qwen3-1.7B', 'meta-llama/Llama-3.2-1B-Instruct').")
         model_id = prompt(
             "    Model ID",
-            default="Qwen/Qwen3-1.7B" if len(hosted_models) == 0 else None,
             required=len(hosted_models) == 0
         )
         
@@ -62,7 +62,6 @@ def interactive_init(output_path: str):
         print("    The model layers will be loaded until this limit is reached.")
         max_memory = prompt_float(
             "    Max memory (GB)",
-            default=4,
             required=True
         )
         
@@ -107,10 +106,7 @@ def interactive_init(output_path: str):
 
     print("Language Pipes uses a peer-to-peer network to coordinate between nodes.")
     print("The first node starts fresh; additional nodes connect to an existing node.\n")
-    is_first_node = prompt_bool(
-        "Is this the first node in the network?",
-        default=True
-    )
+    is_first_node = prompt_bool("Is this the first node in the network?", required=True)
 
     if not is_first_node:
         print("\n  Enter the IP address of an existing node on the network.")
@@ -191,15 +187,15 @@ def interactive_init(output_path: str):
         print("\n  When enabled, nodes verify that model weight hashes match")
         print("  to ensure all nodes are running the exact same model.")
         config["model_validation"] = prompt_bool(
-            "  Validate model hashes?",
-            default=False
+            "  Validate model hashes?", 
+            required=True
         )
         
         print("\n  ECDSA verification signs each job packet cryptographically,")
         print("  ensuring jobs only come from authorized nodes in the pipe.")
         config["ecdsa_verification"] = prompt_bool(
             "  Enable ECDSA signing?",
-            default=False
+            required=True
         )
         
         print("\n  Print timing information for layer computations and network")
@@ -207,7 +203,7 @@ def interactive_init(output_path: str):
         print("  performance analysis.")
         config["print_times"] = prompt_bool(
             "  Print timing info?",
-            default=False
+            required=True
         )
 
     # === Write Config File ===
@@ -219,10 +215,6 @@ def interactive_init(output_path: str):
     clean_config = {k: v for k, v in config.items() if v is not None and k != "hosted_models"}
     clean_config["hosted_models"] = config["hosted_models"]
 
-    # Generate TOML preview
-    preview = toml.dumps(clean_config)
-    print(preview)
-
     # Check if file exists
     if os.path.exists(output_path):
         if not prompt_bool(f"  '{output_path}' already exists. Overwrite?", default=False):
@@ -231,5 +223,7 @@ def interactive_init(output_path: str):
     
     with open(output_path, 'w', encoding='utf-8') as f:
         toml.dump(clean_config, f)
+
+    view_config(output_path)
     
     print(f"\n✓ Configuration saved")
