@@ -104,8 +104,23 @@ class MetaPipe:
             if segment.start_layer == -1:
                 continue
             for i in range(segment.start_layer, min([segment.end_layer + 1, num_layers])):
-                filled_slots[i] = 1
+                filled_slots[i] = 2 if segment.loaded else 1
         return filled_slots
+
+    def print_pipe(self):
+        filled_slots = self.get_filled_slots()
+        num_layers = len(filled_slots)
+        pipe_pieces = ["|>"]
+        for slot in filled_slots:
+            match (slot):
+                case 0:
+                    pipe_pieces.append("X")
+                case 1:
+                    pipe_pieces.append("|")
+                case 2:
+                    pipe_pieces.append("=")
+        pipe_pieces.append("<|")
+        return "".join(pipe_pieces)
 
     def next_start_layer(self) -> int:
         if len(self.segments) == 0:
@@ -124,7 +139,7 @@ class MetaPipe:
         for end_layer in range(start, num_layers):
             if end_layer == num_layers - 1:
                 return end_layer
-            if filled_slots[end_layer] == 1:
+            if filled_slots[end_layer] > 0:
                 return end_layer - 1
         return -1
 
@@ -154,7 +169,7 @@ Pipe Status:
 Model ID: {self.model_id}
 Pipe: {self.pipe_id}
 Segments: {', '.join([s.router_id for s in self.segments])}
-{self.get_filled_slots()}
+{self.print_pipe()}
 End Layer: {self.segments[-1].end_layer} / {self.num_layers() - 1}
 Complete: {self.is_complete()}
 =================================
