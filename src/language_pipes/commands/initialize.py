@@ -5,7 +5,7 @@ from unique_names_generator import get_random_name
 
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.commands.view import view_config
-from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_number_choice, prompt_continue
+from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_model_id, prompt_number_choice, prompt_continue
 
 def get_default_node_id() -> str:
     return socket.gethostname()
@@ -40,9 +40,9 @@ def interactive_init(output_path: str):
     while True:
         print(f"  Model #{len(hosted_models) + 1}:")
         
-        print("    Enter the HuggingFace model ID. This is the identifier used on")
-        print("    huggingface.co (e.g., 'Qwen/Qwen3-1.7B', 'meta-llama/Llama-3.2-1B-Instruct').")
-        model_id = prompt(
+        print("    Select a locally available model or enter a HuggingFace model ID")
+        print("    (e.g., 'Qwen/Qwen3-1.7B', 'meta-llama/Llama-3.2-1B-Instruct').")
+        model_id = prompt_model_id(
             "    Model ID",
             required=len(hosted_models) == 0
         )
