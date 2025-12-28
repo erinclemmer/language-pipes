@@ -1,4 +1,4 @@
-from time import sleep
+from time import sleep, time
 from threading import Thread
 from typing import Callable, Optional, List
 from distributed_state_network import DSNode
@@ -9,7 +9,7 @@ from language_pipes.llm_model.end_model import EndModel
 from language_pipes.job_manager.enums import ComputeStep, JobStatus
 from language_pipes.handlers.job import JobServer
 from language_pipes.util import stop_thread
-from language_pipes.job_manager.layer_job import LayerJob
+from language_pipes.job_manager.layer_job import LayerJob, LayerTime
 from language_pipes.config.processor import ProcessorConfig
 from language_pipes.job_manager.pending_job import PendingJob
 
@@ -71,14 +71,22 @@ class JobReceiver:
                 return Thread(target=self.job_runner, args=()).start()
             
             if layer_job.done:
-                if self.print_times:
-                    layer_job.print_times(self.router.logger)
-                layer_job.times = []
                 job = self.get_pending_job(layer_job.job_id).job
                 job.current_step = ComputeStep.NORM
                 job.data = layer_job.data
+
+                lt = LayerTime(
+                    node_id=self.router.config.node_id,
+                    is_head=True
+                )
                 end_model.compute_norm(job)
                 end_model.compute_head(job)
+                lt.send_time = time()
+                layer_job.times.append(lt)
+                if self.print_times:
+                    layer_job.print_times(self.router.logger)
+                layer_job.times = []
+                
                 if job.status == JobStatus.COMPLETED:
                     end_model.set_result(job)
                     pipe.complete_job(job)
@@ -86,8 +94,14 @@ class JobReceiver:
                 else:
                     if not pipe.update_job(job):
                         return Thread(target=self.job_runner, args=()).start()
+                    lt = LayerTime(
+                        node_id=self.router.config.node_id,
+                        is_embed=True
+                    )
                     end_model.compute_embed(job)
+                    lt.send_time = time()
                     layer_job = job.to_layer_job()
+                    layer_job.times.append(lt)
 
             model = pipe.model_for_job(layer_job)
             model.process_job(layer_job)

@@ -17,6 +17,7 @@ from language_pipes.job_manager.router_pipes import RouterPipes
 from language_pipes.job_manager.job import Job
 from language_pipes.job_manager.pipe import Pipe
 from language_pipes.job_manager.enums import JobStatus
+from language_pipes.job_manager.layer_job import LayerTime
 from language_pipes.util.chat import ChatMessage
 from language_pipes.config.processor import ProcessorConfig
 from language_pipes.llm_model import LlmModel
@@ -281,6 +282,10 @@ class JobManager:
             self.raise_exception(f"Could not find local end model for {model_id}")
             return
         
+        lt = LayerTime(
+            node_id=self.router.config.node_id,
+            is_embed=True
+        )
         end_model.tokenize(job)
         end_model.compute_embed(job)
         first_layer_model = pipe.model_for_job(job)
@@ -288,7 +293,10 @@ class JobManager:
             self.raise_exception("Could not find appropriate model for processing")
             return
         
+        lt.send_time = time()
         layer_job = job.to_layer_job()
+        
+        layer_job.times.append(lt)
         pipe.send_job(layer_job, first_layer_model.node_id)
 
         return job

@@ -139,11 +139,11 @@ Device: {self.device}
     def process_job(self, job: LayerJob):
         self.past_key_cache_times[job.job_id] = time()
         self.logger.info(f'Processing job layer {job.current_layer}')
-        lt = LayerTime()
-        lt.node_id = self.node_id
-        lt.receive_time = time()
-        lt.start_layer = self.start_layer
-        lt.end_layer = self.end_layer
+        lt = LayerTime(
+            node_id=self.node_id,
+            start_layer=self.start_layer,
+            end_layer=self.end_layer
+        )
         self.compute_layers(job)
         lt.send_time = time()
         job.times.append(lt)
