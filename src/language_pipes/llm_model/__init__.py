@@ -22,7 +22,7 @@ from language_pipes.job_manager.layer_job import LayerJob, LayerTime
 from llm_layer_collector import LlmLayerCollector
 
 
-STALE_JOB_TIME = 120
+STALE_JOB_TIME = 30
 
 def compute_layers(job_data, device, layers, past_key_values):
     comp_state = jobDataToComputationState(job_data, device)
@@ -101,7 +101,7 @@ class LlmModel:
             now = time()
             keys_to_remove = []
             for key in self.past_key_cache_times.keys():
-                if now > self.past_key_cache_times[key] + STALE_JOB_TIME:
+                if now > self.past_key_cache_times[key]:
                     keys_to_remove.append(key)
             for key in keys_to_remove:
                 del self.past_key_cache_times[key]
@@ -137,7 +137,11 @@ Device: {self.device}
 ''')
 
     def process_job(self, job: LayerJob):
-        self.past_key_cache_times[job.job_id] = time()
+        process_size = job.data.state.size()[1]
+        if process_size > 1:
+            self.past_key_cache_times[job.job_id] = time() + (process_size * 10)
+        else:
+            self.past_key_cache_times[job.job_id] = time() + STALE_JOB_TIME
         self.logger.info(f'Processing job layer {job.current_layer}')
         lt = LayerTime(
             node_id=self.node_id,

@@ -25,7 +25,7 @@ from language_pipes.llm_model.computed import validate_model
 from language_pipes.job_manager.pending_job import PendingJob
 
 CHECK_JOB_INTERVAL = 10
-EXPIRED_JOB_TIME = 120
+EXPIRED_JOB_TIME = 30
 
 try:
     _libc = ctypes.CDLL("libc.so.6")
@@ -74,7 +74,11 @@ class JobManager:
         while True:
             remove_jobs = []
             for j in self.jobs_pending:
-                if time() - j.last_update > EXPIRED_JOB_TIME:
+                stale_time = time() - j.last_update
+
+                if j.job.current_token == 0 and stale_time > (j.job.prompt_tokens * 10):
+                    remove_jobs.append(j.job.job_id)
+                if j.job.current_token > 0 and stale_time > EXPIRED_JOB_TIME:
                     remove_jobs.append(j.job.job_id)
 
             if len(remove_jobs) == 0:
@@ -295,6 +299,9 @@ class JobManager:
         
         lt.send_time = time()
         layer_job = job.to_layer_job()
+
+        if self.config.print_times:
+            job.print_job(self.router.logger)
         
         layer_job.times.append(lt)
         pipe.send_job(layer_job, first_layer_model.node_id)
