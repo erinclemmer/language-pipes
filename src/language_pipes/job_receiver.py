@@ -85,6 +85,7 @@ class JobReceiver:
                 layer_job.times.append(lt)
                 if self.print_times:
                     layer_job.print_times(self.router.logger)
+                    job.print_job(self.router.logger)
                 layer_job.times = []
                 
                 if job.status == JobStatus.COMPLETED:

@@ -120,3 +120,14 @@ class Job(SignedPacket):
 
     def to_layer_job(self) -> LayerJob:
         return LayerJob(self.job_id, self.pipe_id, self.router_id, self.current_layer, self.data, False, [])
+
+    def print_job(self, logger):
+        logger.info(f"""
+=================================
+Job ID: {self.job_id}
+Pipe ID: {self.pipe_id}
+Prompt Tokens: {self.prompt_tokens}
+Current Token: {self.current_token}
+Max Tokens: {self.tokens}
+=================================
+""")
