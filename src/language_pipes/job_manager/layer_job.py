@@ -110,8 +110,8 @@ class LayerJob:
             elif current.is_head:
                 logger.info(f"[HEAD] {current.node_id}: {(current.send_time - current.receive_time) * 1000.0:.2f}ms")
             else:
-                lps = (current.end_layer - current.start_layer + 1) / (current.send_time - current.receive_time)
-                logger.info(f"[Compute] {current.node_id}: layer {current.start_layer} -> {current.end_layer} ({lps:.2f} layers / sec)")
+                mspl = ((current.send_time - current.receive_time) * 1000.0) / (current.end_layer - current.start_layer + 1)
+                logger.info(f"[Compute] {current.node_id}: layer {current.start_layer} -> {current.end_layer} ({mspl:.2f}ms per layer)")
         rtt = self.times[-1].send_time - self.times[0].receive_time
         logger.info(f"[ROUND TRIP TIME] {rtt * 1000.0:.2f}ms")
 
