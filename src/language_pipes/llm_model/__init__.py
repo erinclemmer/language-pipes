@@ -22,7 +22,7 @@ from language_pipes.job_manager.layer_job import LayerJob, LayerTime
 from llm_layer_collector import LlmLayerCollector
 
 
-STALE_JOB_TIME = 30
+STALE_JOB_TIME = 120
 
 def compute_layers(job_data, device, layers, past_key_values):
     comp_state = jobDataToComputationState(job_data, device)

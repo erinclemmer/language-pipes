@@ -25,7 +25,7 @@ from language_pipes.llm_model.computed import validate_model
 from language_pipes.job_manager.pending_job import PendingJob
 
 CHECK_JOB_INTERVAL = 10
-EXPIRED_JOB_TIME = 30
+EXPIRED_JOB_TIME = 120
 
 try:
     _libc = ctypes.CDLL("libc.so.6")
