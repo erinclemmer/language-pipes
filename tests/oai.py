@@ -27,6 +27,7 @@ def start_node(node_id: str, max_memory: float, peer_port: int, job_port: int, o
         "--job-port", str(job_port),
         "--app-dir", "./",
         "--model-validation",
+        "--print-times"
     ]
     if oai_port is not None:
         args.extend(["--openai-port", str(oai_port)])
@@ -44,8 +45,8 @@ def oai_complete(port: int, messages: List[ChatMessage], retries: int = 0):
         )
         response = client.chat.completions.create(
             model=MODEL,
-            temperature=0.5,
-            max_completion_tokens=10,
+            temperature=0.2,
+            max_completion_tokens=100,
             messages=[m.to_json() for m in messages]
         )
         return response
@@ -66,7 +67,7 @@ def oai_stream(port: int, messages: List[ChatMessage], retries: int = 0):
             model=MODEL,
             # model="gpt-5",
             stream=True,
-            max_completion_tokens=10,
+            max_completion_tokens=100,
             messages=[m.to_json() for m in messages]
         )
         for chunk in stream:
@@ -117,7 +118,7 @@ class OpenAITests(unittest.TestCase):
         self.assertEqual(400, res.status_code)
 
     def test_double_node(self):
-        start_node("node-1", 2, 5000, 5050, 8000)
+        start_node("node-1", 1.5, 5000, 5050, 8000)
         time.sleep(5)
         start_node("node-2", 3, 5001, 5051, None, 5000)
         time.sleep(5)

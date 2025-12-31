@@ -270,13 +270,14 @@ class JobManager:
         messages: List[ChatMessage], 
         tokens: int, 
         temperature: float = 1.0,
+        top_k: int = 0,
         job_id: Optional[str] = None
     ) -> Job:
         pipe = self.get_pipe(pipe_id)
         if pipe is None:
             self.raise_exception(f"Could not find pipe {pipe_id}")
 
-        job = Job(self.router.config.node_id, self.router.config.node_id, tokens, messages, pipe_id, model_id, temperature=temperature)
+        job = Job(self.router.config.node_id, self.router.config.node_id, tokens, messages, pipe_id, model_id, temperature=temperature, top_k=top_k)
 
         if job_id is not None:
             job.job_id = job_id
@@ -314,6 +315,7 @@ class JobManager:
         messages: List[ChatMessage], 
         tokens: int, 
         temperature: float,
+        top_k: int,
         start: Callable,
         update: Callable,
         resolve: Promise,
@@ -327,7 +329,7 @@ class JobManager:
             resolve('NO_PIPE')
             return None
 
-        job = self.start_job(model_id, network_pipe.pipe_id, messages, tokens, temperature)
+        job = self.start_job(model_id, network_pipe.pipe_id, messages, tokens, temperature, top_k)
         start(job)
         self.jobs_pending.append(PendingJob(job, time(), resolve, update))
         return job.job_id

@@ -31,6 +31,7 @@ class Job(SignedPacket):
     messages: List[ChatMessage]
     result: Optional[str]
     temperature: float
+    top_k: int
 
     def __init__(
             self,
@@ -50,7 +51,8 @@ class Job(SignedPacket):
             input_ids: List[int] = [],
             prompt_tokens: int = 0,
             data: Optional[JobData] = None,
-            temperature: float = 1.0
+            temperature: float = 1.0,
+            top_k: int = 0
         ):
         super().__init__(ecdsa_signature)
         self.router_id = router_id
@@ -70,6 +72,7 @@ class Job(SignedPacket):
         self.delta = ''
         self.data = data if data is not None else JobData()
         self.temperature = temperature
+        self.top_k = top_k
 
     def set_layer(self, state: torch.Tensor, layer: int):
         if self.current_step != ComputeStep.LAYER:
