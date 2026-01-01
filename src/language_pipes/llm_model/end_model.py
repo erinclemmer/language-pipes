@@ -122,20 +122,17 @@ class EndModel:
                 # Lower temperature = sharper distribution (more deterministic)
                 # Higher temperature = flatter distribution (more random)
                 scaled_logits = logits / job.temperature
-                
+
                 # Apply top_k filtering if specified (top_k > 0)
+                # Mask out non-top-k tokens by setting them to -inf
                 if job.top_k > 0:
-                    # Get indices of top_k logits
-                    top_k_values, top_k_indices = torch.topk(scaled_logits, min(job.top_k, scaled_logits.size(0)))
-                    # Create probabilities only over top_k tokens
-                    top_k_probs = torch.nn.functional.softmax(top_k_values, dim=0)
-                    # Sample from top_k tokens
-                    sampled_idx = int(torch.multinomial(top_k_probs, num_samples=1).item())
-                    head = int(top_k_indices[sampled_idx].item())
-                else:
-                    # Sample from all tokens based on temperature-scaled probabilities
-                    probabilities = torch.nn.functional.softmax(scaled_logits, dim=0)
-                    head = int(torch.multinomial(probabilities, num_samples=1).item())
+                    k = min(job.top_k, scaled_logits.size(0))
+                    top_k_values, _ = torch.topk(scaled_logits, k)
+                    threshold = top_k_values[-1]
+                    scaled_logits = torch.where(scaled_logits < threshold, torch.tensor(float('-inf'), device=scaled_logits.device), scaled_logits)
+
+                probabilities = torch.nn.functional.softmax(scaled_logits, dim=0)
+                head = int(torch.multinomial(probabilities, num_samples=1).item())
             
             del logits
         
