@@ -123,6 +123,15 @@ class EndModel:
                 # Higher temperature = flatter distribution (more random)
                 scaled_logits = logits / job.temperature
 
+                # Apply min_p filtering if specified (min_p > 0)
+                # Remove tokens with probability < min_p * max_probability
+                if job.min_p > 0:
+                    probs = torch.nn.functional.softmax(scaled_logits, dim=0)
+                    max_prob = probs.max()
+                    min_prob_threshold = job.min_p * max_prob
+                    indices_to_remove = probs < min_prob_threshold
+                    scaled_logits[indices_to_remove] = float('-inf')
+
                 # Apply top_p (nucleus) filtering if specified (top_p < 1.0)
                 # Mask out tokens outside the top-p cumulative probability mass
                 if job.top_p < 1.0:
