@@ -123,6 +123,21 @@ class EndModel:
                 # Higher temperature = flatter distribution (more random)
                 scaled_logits = logits / job.temperature
 
+                # Apply top_p (nucleus) filtering if specified (top_p < 1.0)
+                # Mask out tokens outside the top-p cumulative probability mass
+                if job.top_p < 1.0:
+                    sorted_logits, sorted_indices = torch.sort(scaled_logits, descending=True)
+                    sorted_probs = torch.nn.functional.softmax(sorted_logits, dim=0)
+                    cumulative_probs = torch.cumsum(sorted_probs, dim=0)
+                    # Find indices to remove (cumulative prob exceeds top_p)
+                    sorted_indices_to_remove = cumulative_probs > job.top_p
+                    # Shift to keep at least one token
+                    sorted_indices_to_remove[1:] = sorted_indices_to_remove[:-1].clone()
+                    sorted_indices_to_remove[0] = False
+                    # Scatter -inf back to original positions
+                    indices_to_remove = sorted_indices[sorted_indices_to_remove]
+                    scaled_logits[indices_to_remove] = float('-inf')
+
                 # Apply top_k filtering if specified (top_k > 0)
                 # Mask out non-top-k tokens by setting them to -inf
                 if job.top_k > 0:
