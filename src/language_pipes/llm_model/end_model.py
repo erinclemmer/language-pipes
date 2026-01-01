@@ -87,6 +87,8 @@ class EndModel:
             comp_state.state = comp_state.state[:, -1:, :]
             if comp_state.causal_mask["full_attention"] is not None:
                 comp_state.causal_mask["full_attention"] = comp_state.causal_mask["full_attention"][:, :, -1:, -1:]
+            comp_state.cache_position = comp_state.cache_position[-1:]
+            comp_state.position_ids = comp_state.position_ids[:, -1:]
             comp_state.position_embeddings = self.chop_position_embeddings(comp_state.position_embeddings)
             comp_state.position_embeddings_local = self.chop_position_embeddings(comp_state.position_embeddings_local)
             comp_state.position_embeddings_global = self.chop_position_embeddings(comp_state.position_embeddings_global)
