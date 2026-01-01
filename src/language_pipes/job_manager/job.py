@@ -34,6 +34,7 @@ class Job(SignedPacket):
     top_k: int
     top_p: float
     min_p: float
+    presence_penalty: float
 
     def __init__(
             self,
@@ -56,7 +57,8 @@ class Job(SignedPacket):
             temperature: float = 1.0,
             top_k: int = 0,
             top_p: float = 1.0,
-            min_p: float = 0.0
+            min_p: float = 0.0,
+            presence_penalty: float = 0.0
         ):
         super().__init__(ecdsa_signature)
         self.router_id = router_id
@@ -79,6 +81,7 @@ class Job(SignedPacket):
         self.top_k = top_k
         self.top_p = top_p
         self.min_p = min_p
+        self.presence_penalty = presence_penalty
 
     def set_layer(self, state: torch.Tensor, layer: int):
         if self.current_step != ComputeStep.LAYER:

@@ -18,6 +18,7 @@ class ChatCompletionRequest:
     top_k: int
     top_p: float
     min_p: float
+    presence_penalty: float
 
     def __init__(
             self, 
@@ -28,7 +29,8 @@ class ChatCompletionRequest:
             temperature: float = 1.0,
             top_k: int = 0,
             top_p: float = 1.0,
-            min_p: float = 0.0
+            min_p: float = 0.0,
+            presence_penalty: float = 0.0
         ):
         self.model = model
         self.stream = stream
@@ -38,6 +40,7 @@ class ChatCompletionRequest:
         self.top_k = top_k
         self.top_p = top_p
         self.min_p = min_p
+        self.presence_penalty = presence_penalty
 
     def to_json(self):
         return {
@@ -48,7 +51,8 @@ class ChatCompletionRequest:
             'temperature': self.temperature,
             'top_k': self.top_k,
             'top_p': self.top_p,
-            'min_p': self.min_p
+            'min_p': self.min_p,
+            'presence_penalty': self.presence_penalty
         }
     
     @staticmethod
@@ -59,7 +63,8 @@ class ChatCompletionRequest:
         top_k = data['top_k'] if 'top_k' in data else 0
         top_p = data['top_p'] if 'top_p' in data else 1.0
         min_p = data['min_p'] if 'min_p' in data else 0.0
-        return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature, top_k, top_p, min_p)
+        presence_penalty = data['presence_penalty'] if 'presence_penalty' in data else 0.0
+        return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature, top_k, top_p, min_p, presence_penalty)
 
 def send_initial_chunk(
     job: Job,
@@ -160,6 +165,6 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
                 })
 
     def promise_fn(resolve: Callable, _: Callable):
-        complete_cb(req.model, req.messages, req.max_completion_tokens, req.temperature, req.top_k, req.top_p, req.min_p, start, update, resolve)
+        complete_cb(req.model, req.messages, req.max_completion_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
     job = Promise(promise_fn).get()
     complete(job)

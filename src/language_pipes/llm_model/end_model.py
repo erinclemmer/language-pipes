@@ -114,6 +114,13 @@ class EndModel:
             ).flatten()
             del state_on_device
             
+            # Apply presence penalty to discourage token repetition
+            # Subtracts penalty from logits of tokens that have already appeared
+            if job.presence_penalty != 0 and len(job.input_ids) > 0:
+                unique_tokens = set(job.input_ids)
+                for token_id in unique_tokens:
+                    logits[token_id] -= job.presence_penalty
+
             if job.temperature == 0:
                 # Greedy decoding - just pick the top token
                 head = int(logits.argmax().item())
