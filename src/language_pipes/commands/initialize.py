@@ -70,7 +70,7 @@ def interactive_init(output_path: str):
         print("    If this is the only node or the first/last in a chain, enable this.")
         load_ends = prompt_bool(
             "    Load embedding/output layers",
-            default=True
+            required=True
         )
         
         hosted_models.append({
@@ -203,6 +203,13 @@ def interactive_init(output_path: str):
         print("  performance analysis.")
         config["print_times"] = prompt_bool(
             "  Print timing info?",
+            required=True
+        )
+        
+        print("\n  Print job data (input/output) when jobs complete. Useful for")
+        print("  debugging and monitoring model responses.")
+        config["print_job_data"] = prompt_bool(
+            "  Print job data?",
             required=True
         )
 

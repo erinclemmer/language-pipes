@@ -35,6 +35,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         model_validation = None
         ecdsa_verification = None
         print_times = None
+        print_job_data = None
         job_port = None
         max_pipes = None
         hosted_models = None
@@ -65,6 +66,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
             "ecdsa_verification": data["ecdsa_verification"],
             "job_port": data["job_port"],
             "print_times": data["print_times"],
+            "print_job_data": data["print_job_data"],
             "hosted_models": data["hosted_models"]
         }
     })

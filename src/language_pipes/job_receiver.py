@@ -19,6 +19,7 @@ class JobReceiver:
     private_key_file: str
     ecdsa_verification: bool
     print_times: bool
+    print_job_data: bool
     router: DSNode
     pending_jobs: List[LayerJob]
     get_pipe: Callable[[str], Optional[Pipe]]
@@ -42,6 +43,7 @@ class JobReceiver:
         self.pending_jobs = []
         self.ecdsa_verification = config.ecdsa_verification
         self.print_times = config.print_times
+        self.print_job_data = config.print_job_data
 
         thread, httpd = JobServer.start(config.job_port, self.router, self.receive_data)
         self.thread = thread
@@ -85,6 +87,7 @@ class JobReceiver:
                 layer_job.times.append(lt)
                 if self.print_times:
                     layer_job.print_times(self.router.logger)
+                if self.print_job_data:
                     job.print_job(self.router.logger)
                 layer_job.times = []
                 

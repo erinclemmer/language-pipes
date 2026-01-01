@@ -44,6 +44,7 @@ def edit_config(config_path: str):
             ("model_validation", "Model Validation"),
             ("ecdsa_verification", "ECDSA Verification"),
             ("print_times", "Print Times"),
+            ("print_job_data", "Print Job Data"),
         ]
         
         for key, label in simple_props:
@@ -182,6 +183,12 @@ def edit_config(config_path: str):
                 default=config.get("print_times", False)
             )
         
+        elif selected_key == "print_job_data":
+            config["print_job_data"] = prompt_bool(
+                "Print job data?",
+                default=config.get("print_job_data", False)
+            )
+        
         elif selected_key == "hosted_models":
             config["hosted_models"] = edit_hosted_models(config.get("hosted_models", []))
 
@@ -287,5 +294,5 @@ def edit_single_model(model: dict) -> dict | None:
         elif selected_key == "load_ends":
             edited_model["load_ends"] = prompt_bool(
                 "Load embedding/output layers?",
-                default=edited_model.get("load_ends", True)
+                required=True
             )

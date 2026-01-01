@@ -304,7 +304,7 @@ class JobManager:
         lt.send_time = time()
         layer_job = job.to_layer_job()
 
-        if self.config.print_times:
+        if self.config.print_job_data:
             job.print_job(self.router.logger)
         
         layer_job.times.append(lt)

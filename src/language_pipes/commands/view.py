@@ -24,6 +24,7 @@ def view_config(config_path: str):
         "model_validation": "Verify model weight hashes match across nodes",
         "ecdsa_verification": "Cryptographically sign job packets",
         "print_times": "Show timing info for computations and transfers",
+        "print_job_data": "Show job data (input/output) when jobs complete",
     }
     
     # Display simple properties
@@ -63,6 +64,7 @@ def view_config(config_path: str):
     _print_property("Model Validation", "Enabled" if config.get("model_validation") else "Disabled", descriptions["model_validation"])
     _print_property("ECDSA Verification", "Enabled" if config.get("ecdsa_verification") else "Disabled", descriptions["ecdsa_verification"])
     _print_property("Print Times", "Enabled" if config.get("print_times") else "Disabled", descriptions["print_times"])
+    _print_property("Print Job Data", "Enabled" if config.get("print_job_data") else "Disabled", descriptions["print_job_data"])
     
     # Display hosted models
     models = config.get("hosted_models", [])

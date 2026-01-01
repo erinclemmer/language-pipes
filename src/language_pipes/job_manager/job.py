@@ -141,5 +141,10 @@ Pipe ID: {self.pipe_id}
 Prompt Tokens: {self.prompt_tokens}
 Current Token: {self.current_token}
 Max Tokens: {self.tokens}
+Temperature: {self.temperature}
+Top K: {self.top_k}
+Top P: {self.top_p}
+Min P: {self.min_p}
+Pres Penalty: {self.presence_penalty}
 =================================
 """)

@@ -62,6 +62,7 @@ def build_parser():
     run_parser.add_argument("--hosted-models", nargs="*", metavar="MODEL", 
         help="Hosted models as key=value pairs: id=MODEL,device=DEVICE,memory=GB,load_ends=BOOL (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=false)")
     run_parser.add_argument("--print-times", help="Print timing information for layer computations and network transfers", action="store_true")
+    run_parser.add_argument("--print-job-data", help="Print job data when jobs complete", action="store_true")
 
     return parser
 
@@ -83,6 +84,7 @@ def apply_overrides(data, args):
         "max_pipes": os.getenv("LP_MAX_PIPES"),
         "hosted_models": os.getenv("LP_HOSTED_MODELS"),
         "print_times": os.getenv("LP_PRINT_TIMES"),
+        "print_job_data": os.getenv("LP_PRINT_JOB_DATA"),
     }
 
     def precedence(key, arg, d):
@@ -112,6 +114,7 @@ def apply_overrides(data, args):
         "max_pipes": precedence("max_pipes", args.max_pipes, 1),
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
         "print_times": precedence("print_times", args.print_times, False),
+        "print_job_data": precedence("print_job_data", args.print_job_data, False),
     }
 
     if config["hosted_models"] is None:
@@ -213,7 +216,8 @@ def main(argv = None):
                 "ecdsa_verification": data["ecdsa_verification"],
                 "job_port": data["job_port"],
                 "hosted_models": data["hosted_models"],
-                "print_times": data["print_times"]
+                "print_times": data["print_times"],
+                "print_job_data": data["print_job_data"]
             }
         })
 
