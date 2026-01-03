@@ -45,6 +45,7 @@ def edit_config(config_path: str):
             ("ecdsa_verification", "ECDSA Verification"),
             ("print_times", "Print Times"),
             ("print_job_data", "Print Job Data"),
+            ("prefill_chunk_size", "Prefill Chunk Size"),
         ]
         
         for key, label in simple_props:
@@ -187,6 +188,13 @@ def edit_config(config_path: str):
             config["print_job_data"] = prompt_bool(
                 "Print job data?",
                 default=config.get("print_job_data", False)
+            )
+        
+        elif selected_key == "prefill_chunk_size":
+            config["prefill_chunk_size"] = prompt_int(
+                "Prefill Chunk Size (tokens, prompts longer than this are chunked)",
+                default=config.get("prefill_chunk_size", 128),
+                required=True
             )
         
         elif selected_key == "hosted_models":

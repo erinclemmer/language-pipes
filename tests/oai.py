@@ -130,6 +130,20 @@ class OpenAITests(unittest.TestCase):
         print("\"" + res.choices[0].message.content + "\"")
         self.assertTrue(len(res.choices) > 0)
 
+    def test_double_long(self):
+        start_node("node-1", 1.5, 5000, 5050, 8000)
+        time.sleep(5)
+        start_node("node-2", 3, 5001, 5051, None, 5000)
+        time.sleep(5)
+        with open('mcbeth.txt', 'r', encoding='utf-8') as f:
+            mcbeth = f.read()
+        res = oai_complete(8000, [
+            ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
+            ChatMessage(ChatRole.USER, f"What play is the following text the opening to?\n{mcbeth}")
+        ])
+        print("\"" + res.choices[0].message.content + "\"")
+        self.assertTrue(len(res.choices) > 0)
+
     def test_stream(self):
         start_node("node-1", 2, 5000, 5050, 8000)
         time.sleep(5)

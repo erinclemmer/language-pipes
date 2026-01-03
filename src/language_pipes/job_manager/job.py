@@ -35,6 +35,9 @@ class Job(SignedPacket):
     top_p: float
     min_p: float
     presence_penalty: float
+    # Prefill timing fields
+    prefill_start_time: float
+    chunk_start_time: float
 
     def __init__(
             self,
@@ -82,6 +85,8 @@ class Job(SignedPacket):
         self.top_p = top_p
         self.min_p = min_p
         self.presence_penalty = presence_penalty
+        self.prefill_start_time = 0.0
+        self.chunk_start_time = 0.0
 
     def set_layer(self, state: torch.Tensor, layer: int):
         if self.current_step != ComputeStep.LAYER:

@@ -1,4 +1,5 @@
 import gc
+import ctypes
 import random
 import requests
 from time import time, sleep
@@ -25,7 +26,7 @@ from language_pipes.llm_model.computed import validate_model
 from language_pipes.job_manager.pending_job import PendingJob
 
 CHECK_JOB_INTERVAL = 10
-EXPIRED_JOB_TIME = 30
+EXPIRED_JOB_TIME = 60  # Unified timeout for both prefill and decode phases
 
 try:
     _libc = ctypes.CDLL("libc.so.6")
@@ -75,10 +76,13 @@ class JobManager:
             remove_jobs = []
             for j in self.jobs_pending:
                 stale_time = time() - j.last_update
-
-                if j.job.current_token == 0 and stale_time > (j.job.prompt_tokens * 10):
-                    remove_jobs.append(j.job.job_id)
-                if j.job.current_token > 0 and stale_time > EXPIRED_JOB_TIME:
+                # Unified timeout - prefill chunks regularly update last_update,
+                # so both prefill and decode phases use the same timeout
+                if stale_time > EXPIRED_JOB_TIME:
+                    self.logger.warning(
+                        f"[Stale] job={j.job.job_id[:8]} timed out after {stale_time:.1f}s "
+                        f"(token={j.job.current_token})"
+                    )
                     remove_jobs.append(j.job.job_id)
 
             if len(remove_jobs) == 0:
@@ -187,15 +191,16 @@ class JobManager:
         return available_memory, new_model
 
     def update_job_time(self, job_id: str):
+        """Update the last_update time for a pending job to prevent stale timeout."""
         pending_job = self.get_pending_job(job_id)
         if pending_job is None:
             return
-        pending_job.current_token = 1 # Move to normal stale timeout
         pending_job.last_update = time()
 
     def add_pending_job(self, layer_job: LayerJob):
-        if self.get_pending_job(layer_job.job_id) is not None:
-            return
+        existing = self.get_pending_job(layer_job.job_id)
+        if existing is not None:
+            return existing  # Return existing job instead of None
         job = Job(
             self.router.config.node_id, 
             layer_job.origin_node_id, 
@@ -326,8 +331,7 @@ class JobManager:
             self.raise_exception(f"Could not find pipe {pipe_id}")
 
         job = Job(self.router.config.node_id, self.router.config.node_id, tokens, messages, pipe_id, model_id, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p, presence_penalty=presence_penalty)
-        pending_job = PendingJob(job, time(), resolve, update)
-
+        
         if job_id is not None:
             job.job_id = job_id
         
@@ -335,8 +339,46 @@ class JobManager:
             node_id=self.router.config.node_id,
             is_embed=True
         )
+        
+        # Tokenize first to get prompt length
         end_model.tokenize(job)
-        end_model.compute_embed(job, pending_job.cache)
+        
+        # Create pending job with chunking initialization
+        pending_job = PendingJob(
+            job, time(), resolve, update,
+            prompt_length=job.prompt_tokens,
+            chunk_size=self.config.prefill_chunk_size
+        )
+        
+        # Set prefill start time
+        job.prefill_start_time = time()
+        job.chunk_start_time = job.prefill_start_time
+        
+        # Log prefill start
+        if pending_job.chunking.is_active():
+            self.logger.info(
+                f"[Prefill] job={job.job_id[:8]} started: "
+                f"prompt_tokens={job.prompt_tokens}, "
+                f"chunks={pending_job.chunking.total_chunks}, "
+                f"chunk_size={pending_job.chunking.chunk_size}"
+            )
+        else:
+            self.logger.info(
+                f"[Prefill] job={job.job_id[:8]} started: "
+                f"prompt_tokens={job.prompt_tokens} (no chunking)"
+            )
+        
+        # Get chunk range and compute embed for first chunk
+        chunk_start, chunk_end = pending_job.chunking.get_range()
+        
+        # Log first chunk being processed
+        if pending_job.chunking.is_active():
+            self.logger.info(
+                f"[Prefill] job={job.job_id[:8]} chunk 1/{pending_job.chunking.total_chunks} "
+                f"starting: tokens {chunk_start}-{chunk_end}"
+            )
+        
+        end_model.compute_embed(job, pending_job.cache, chunk_start, chunk_end)
         first_layer_model = pipe.model_for_job(job)
         if first_layer_model is None:
             self.raise_exception("Could not find appropriate model for processing")

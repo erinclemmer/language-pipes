@@ -24,6 +24,7 @@ class ProcessorConfig:
     hosted_models: List[HostedModel]
     print_times: bool
     print_job_data: bool
+    prefill_chunk_size: int  # Chunk size for prefill; prompts longer than this are chunked
 
     @staticmethod
     def from_dict(data: dict) -> "ProcessorConfig":
@@ -35,4 +36,5 @@ class ProcessorConfig:
         config.hosted_models = [HostedModel.from_dict(o) for o in data['hosted_models']]
         config.print_times = data.get('print_times', False)
         config.print_job_data = data.get('print_job_data', False)
+        config.prefill_chunk_size = data.get('prefill_chunk_size', 128)
         return config

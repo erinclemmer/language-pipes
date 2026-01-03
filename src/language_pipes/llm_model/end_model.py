@@ -6,15 +6,6 @@ from uuid import uuid4
 from torch import tensor
 from pathlib import Path
 
-# Try to import malloc_trim to return memory to OS
-try:
-    _libc = ctypes.CDLL("libc.so.6")
-    _malloc_trim = _libc.malloc_trim
-    _malloc_trim.argtypes = [ctypes.c_size_t]
-    _malloc_trim.restype = ctypes.c_int
-except:
-    _malloc_trim = None
-
 from transformers.cache_utils import DynamicCache
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
@@ -75,31 +66,60 @@ class EndModel:
                 t[1][:, -1:, :]
             )
 
-    def compute_embed(self, job: Job, cache: DynamicCache):
+    def compute_embed(self, job: Job, cache: DynamicCache, chunk_start: int = 0, chunk_end: int = -1):
+        """
+        Compute embeddings for a job, optionally for a specific chunk.
+        
+        Args:
+            job: The job to process
+            cache: The KV cache (DynamicCache)
+            chunk_start: Start index in input_ids for this chunk (0 for no chunking)
+            chunk_end: End index (exclusive) in input_ids (-1 means use full sequence)
+        """
         if job.current_step != ComputeStep.EMBED:
-            self.raise_exception('Invalid step for embedding')
+            raise ValueError('Invalid step for embedding')
         if self.input_embedding is None:
-            self.raise_exception("Input Embedding must be loaded before computation")
-        state = None
-        if job.data is not None:
-            state = jobDataToComputationState(job.data, self.device)
-        input_tensor = tensor([job.input_ids if job.current_token == 0 else job.input_ids[-1]])
-        comp_state = compute_embedding(self.input_embedding, tensor([job.input_ids]).to(self.device), self.collector.config, cache)
+            raise RuntimeError("Input Embedding must be loaded before computation")
+        
+        # Determine which tokens to embed and whether this is chunked prefill
+        is_chunked_prefill = False
+        if job.current_token == 0:
+            # Prefill phase - may be chunked
+            if chunk_end == -1:
+                chunk_end = len(job.input_ids)
+            chunk_tokens = job.input_ids[chunk_start:chunk_end]
+            # Chunked prefill: processing a non-first chunk during prefill
+            is_chunked_prefill = chunk_start > 0
+        else:
+            # Decode phase - always single token, no chunking
+            chunk_tokens = [job.input_ids[-1]]
+        
+        # Compute embeddings for the chunk
+        # chunked_prefill=True tells compute_embedding to process all tokens
+        # even when cache is non-empty (for subsequent prefill chunks)
+        comp_state = compute_embedding(
+            self.input_embedding, 
+            tensor([chunk_tokens]).to(self.device), 
+            self.collector.config, 
+            cache,
+            chunked_prefill=is_chunked_prefill
+        )
+        
         job.data = computationStateToJobData(comp_state)
         job.data_hash = job.data.hash_state()
         job.next_step()
 
     def compute_norm(self, job: Job):
         if job.data is None or job.data.state is None:
-            self.raise_exception("Cannot compute norm without job data")
+            raise RuntimeError("Cannot compute norm without job data")
         norm = self.norm(job.data.state.to(self.device))
         job.set_norm(norm)
 
     def compute_head(self, job: Job):
         if self.head is None:
-            self.raise_exception("Head must be loaded before computation")
+            raise RuntimeError("Head must be loaded before computation")
         if job.data is None or job.data.state is None:
-            self.raise_exception("Cannot compute head without job data")
+            raise RuntimeError("Cannot compute head without job data")
         with torch.inference_mode():
             state_on_device = job.data.state.detach().clone()[:, -1, :].to(self.device)
             logits = torch.nn.functional.linear(
