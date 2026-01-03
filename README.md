@@ -14,7 +14,7 @@
 [PyPiVersion-Url]: https://img.shields.io/pypi/v/language-pipes
 [PythonVersion-Url]: https://img.shields.io/pypi/pyversions/language-pipes
 
-Language Pipes is a FOSS distributed network application designed to increase access to local language models.  
+Language Pipes is an open-source distributed network application designed to increase access to local language models.  
 
 ---  
 
