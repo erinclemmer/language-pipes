@@ -149,6 +149,7 @@ Device: {self.device}
             end_layer=self.end_layer
         )
         self.compute_layers(job)
+        job.data_hash = job.data.hash_state()
         lt.send_time = time()
         job.times.append(lt)
 

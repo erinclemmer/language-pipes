@@ -1,3 +1,4 @@
+import hashlib
 import torch
 from typing import Optional, Tuple
 from distributed_state_network.util.byte_helper import ByteHelper
@@ -14,6 +15,13 @@ class JobData:
     position_embeddings_local: Optional[torch.Tensor] = None
     position_embeddings_global: Optional[torch.Tensor] = None
     state: Optional[torch.Tensor] = None
+
+    def validate_state(self, state_hash: bytes) -> bool | None:
+        current_hash = hashlib.sha256(self.to_bytes()).digest()
+        return current_hash == state_hash
+
+    def hash_state(self):
+        return hashlib.sha256(self.to_bytes()).digest()
 
     def to_bytes(self) -> bytes:
         state_bytes = tensor_to_bytes(self.state) if self.state is not None else b''

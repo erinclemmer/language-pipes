@@ -57,7 +57,9 @@ class LayerJob:
     origin_node_id: str
     current_layer: int
     done: bool
+    restart: bool
     data: JobData
+    data_hash: bytes
     times: List[LayerTime]
 
     def __init__(
@@ -67,7 +69,9 @@ class LayerJob:
         origin_node_id: str,
         current_layer: int,
         data: JobData,
+        data_hash: bytes,
         done: bool,
+        restart: bool,
         times: List[LayerTime] = []
     ):
         self.job_id = job_id
@@ -75,7 +79,9 @@ class LayerJob:
         self.origin_node_id = origin_node_id
         self.current_layer = current_layer
         self.data = data
+        self.data_hash = data_hash
         self.done = done
+        self.restart = restart
         self.times = times
 
     def to_bytes(self):
@@ -85,7 +91,9 @@ class LayerJob:
         bts.write_string(self.origin_node_id)
         bts.write_int(self.current_layer)
         bts.write_string("true" if self.done else "false")
+        bts.write_string("true" if self.restart else "false")
         bts.write_bytes(self.data.to_bytes())
+        bts.write_bytes(self.data_hash)
 
         bts.write_int(len(self.times))
         for time in self.times:
@@ -125,7 +133,9 @@ class LayerJob:
         origin_node_id = bts.read_string()
         current_layer = bts.read_int()
         done = bts.read_string() == "true"
+        restart = bts.read_string() == "true"
         job_data = JobData.from_bytes(bts.read_bytes())
+        data_hash = bts.read_bytes()
 
         times = []
         l = bts.read_int()
@@ -134,4 +144,4 @@ class LayerJob:
 
         times.sort(key=lambda x: x.start_layer)
 
-        return LayerJob(job_id, pipe_id, origin_node_id, current_layer, job_data, done, times)
+        return LayerJob(job_id, pipe_id, origin_node_id, current_layer, job_data, data_hash, done, restart, times)

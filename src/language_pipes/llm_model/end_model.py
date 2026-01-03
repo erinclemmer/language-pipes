@@ -94,6 +94,7 @@ class EndModel:
             comp_state.position_embeddings_global = self.chop_position_embeddings(comp_state.position_embeddings_global)
             
         job.data = computationStateToJobData(comp_state)
+        job.data_hash = job.data.hash_state()
         job.next_step()
 
     def compute_norm(self, job: Job):

@@ -69,9 +69,26 @@ class JobReceiver:
             end_model = self.get_end_model(pipe.model_id)
 
             if pipe is None or not pipe.is_complete():
-                self.restart_job(layer_job)
+                job = self.get_pending_job(layer_job.job_id).job
+                self.restart_job(job)
                 return Thread(target=self.job_runner, args=()).start()
             
+            if layer_job.restart:
+                job = self.get_pending_job(layer_job.job_id).job
+                job.current_step = ComputeStep.EMBED
+                lt = LayerTime(
+                    node_id=self.router.config.node_id,
+                    is_embed=True
+                )
+                end_model.compute_embed(job)
+                lt.send_time = time()
+                layer_job = job.to_layer_job()
+                layer_job.times.append(lt)
+                model = pipe.model_for_job(layer_job)
+                if model.virtual:
+                    pipe.send_job(layer_job, model.node_id)
+                    return
+
             if layer_job.done:
                 job = self.get_pending_job(layer_job.job_id).job
                 job.current_step = ComputeStep.NORM
@@ -119,12 +136,22 @@ class JobReceiver:
             print(e)
         Thread(target=self.job_runner, args=()).start()
 
+    def restart_token(self, job: LayerJob):
+        job.restart = True
+        pipe = self.get_pipe(job.pipe_id)
+        pipe.send_job(job, job.origin_node_id)
+
     def receive_data(self, data: bytes):
         job = LayerJob.from_bytes(data)
         
         for j in self.pending_jobs:
             if j.job_id == job.job_id:
                 return
+
+        valid = job.data.validate_state(job.data_hash)
+        if not job.restart and (valid is False or valid is None):
+            self.restart_token(job)
+            return
 
         self.pending_jobs.insert(0, job)
 
