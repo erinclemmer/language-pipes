@@ -21,9 +21,12 @@ class JobReceiver:
     print_times: bool
     print_job_data: bool
     router: DSNode
-    pending_jobs: List[LayerJob]
+    job_queue: List[LayerJob]
     get_pipe: Callable[[str], Optional[Pipe]]
     get_end_model: Callable[[str], Optional[EndModel]]
+    get_pending_job: Callable[[str], Optional[PendingJob]]
+    add_pending_job: Callable[[LayerJob], None]
+    update_pending_job: Callable[[str], None]
     restart_job: Callable[[Job], None]
 
     def __init__(
@@ -33,14 +36,18 @@ class JobReceiver:
             get_pipe: Callable[[str], Optional[Pipe]],
             get_end_model: Callable[[str], Optional[EndModel]],
             get_pending_job: Callable[[str], Optional[PendingJob]],
+            add_pending_job: Callable[[LayerJob], PendingJob],
+            update_pending_job: Callable[[str], None],
             restart_job: Callable[[Job], None]
     ):
         self.router = router
         self.get_pipe = get_pipe
         self.get_end_model = get_end_model
         self.restart_job = restart_job
+        self.add_pending_job = add_pending_job
         self.get_pending_job = get_pending_job
-        self.pending_jobs = []
+        self.update_pending_job = update_pending_job
+        self.job_queue = []
         self.ecdsa_verification = config.ecdsa_verification
         self.print_times = config.print_times
         self.print_job_data = config.print_job_data
@@ -57,13 +64,13 @@ class JobReceiver:
                 if self.router.shutting_down:
                     return
                 
-                if len(self.pending_jobs) == 0:
+                if len(self.job_queue) == 0:
                     sleep(0.1)
                 else:
                     break
             
-            layer_job = self.pending_jobs[-1]
-            self.pending_jobs.pop()
+            layer_job = self.job_queue[-1]
+            self.job_queue.pop()
             
             pipe = self.get_pipe(layer_job.pipe_id)
             end_model = self.get_end_model(pipe.model_id)
@@ -74,13 +81,14 @@ class JobReceiver:
                 return Thread(target=self.job_runner, args=()).start()
             
             if layer_job.restart:
-                job = self.get_pending_job(layer_job.job_id).job
+                pending_job = self.get_pending_job(layer_job.job_id)
+                job = pending_job.job
                 job.current_step = ComputeStep.EMBED
                 lt = LayerTime(
                     node_id=self.router.config.node_id,
                     is_embed=True
                 )
-                end_model.compute_embed(job)
+                end_model.compute_embed(job, pending_job.cache)
                 lt.send_time = time()
                 layer_job = job.to_layer_job()
                 layer_job.times.append(lt)
@@ -90,7 +98,8 @@ class JobReceiver:
                     return
 
             if layer_job.done:
-                job = self.get_pending_job(layer_job.job_id).job
+                pending_job = self.get_pending_job(layer_job.job_id)
+                job = pending_job.job
                 job.current_step = ComputeStep.NORM
                 job.data = layer_job.data
 
@@ -119,13 +128,17 @@ class JobReceiver:
                         node_id=self.router.config.node_id,
                         is_embed=True
                     )
-                    end_model.compute_embed(job)
+                    end_model.compute_embed(job, pending_job.cache)
                     lt.send_time = time()
                     layer_job = job.to_layer_job()
                     layer_job.times.append(lt)
 
             model = pipe.model_for_job(layer_job)
-            model.process_job(layer_job)
+            pending_job = self.get_pending_job(layer_job.job_id)
+            if pending_job is None:
+                pending_job = self.add_pending_job(layer_job)
+            model.process_job(layer_job, pending_job.cache)
+            self.update_pending_job(layer_job.job_id)
 
             if layer_job.done:
                 pipe.send_job(layer_job, layer_job.origin_node_id)
@@ -144,7 +157,7 @@ class JobReceiver:
     def receive_data(self, data: bytes):
         job = LayerJob.from_bytes(data)
         
-        for j in self.pending_jobs:
+        for j in self.job_queue:
             if j.job_id == job.job_id:
                 return
 
@@ -153,7 +166,7 @@ class JobReceiver:
             self.restart_token(job)
             return
 
-        self.pending_jobs.insert(0, job)
+        self.job_queue.insert(0, job)
 
     def stop(self):
         self.httpd.stop()

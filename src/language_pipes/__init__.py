@@ -34,12 +34,14 @@ class LanguagePipes:
         self.router = DSNodeServer.start(self.config.router, self.print_pipes, self.print_pipes)
         self.job_manager = JobManager(config.app_dir, self.router.node, self.config.processor)
         self.job_receiver = JobReceiver(
-            self.config.processor, 
-            self.router.node, 
-            self.job_manager.get_pipe, 
-            self.job_manager.get_end_model, 
-            self.job_manager.get_pending_job,
-            self.job_manager.restart_job
+            config=self.config.processor, 
+            router=self.router.node, 
+            get_pipe=self.job_manager.get_pipe, 
+            get_end_model=self.job_manager.get_end_model, 
+            add_pending_job=self.job_manager.add_pending_job,
+            update_pending_job=self.job_manager.update_job_time,
+            get_pending_job=self.job_manager.get_pending_job,
+            restart_job=self.job_manager.restart_job
         )
         if self.config.oai_port is not None:
             self.start_oai()
@@ -50,7 +52,7 @@ class LanguagePipes:
         self.job_manager.print_pipes()
 
     def start_oai(self):
-        self.oai_server = OAIHttpServer(self.config.oai_port, self.job_manager.complete)
+        self.oai_server = OAIHttpServer(self.config.oai_port, self.job_manager.start_job)
         self.oai_thread = Thread(target=self.oai_server.serve_forever, args=())
         self.oai_thread.start()
         self.job_manager.logger.info(f"OpenAI Server started on port {self.config.oai_port}")

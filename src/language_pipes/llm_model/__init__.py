@@ -7,7 +7,7 @@ from time import time, sleep
 from uuid import uuid4
 from threading import Thread
 from typing import List, Optional, Callable, Dict
-from transformers.cache_utils import DynamicCache, StaticCache
+from transformers.cache_utils import DynamicCache
 
 from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
@@ -21,17 +21,13 @@ from language_pipes.llm_model.computed import ComputedData
 from language_pipes.job_manager.layer_job import LayerJob, LayerTime
 from llm_layer_collector import LlmLayerCollector
 
-
-STALE_JOB_TIME = 30
-
-def compute_layers(job_data, device, layers, past_key_values):
+def compute_layers(job_data, device, layers, cache):
     comp_state = jobDataToComputationState(job_data, device)
-    comp_state.past_key_values = past_key_values
     comp_state = detachCompState(comp_state)
     
     with torch.inference_mode():
         for lyr in layers:
-            comp_state.state = lyr(comp_state).detach()
+            comp_state.state = lyr(comp_state, cache).detach()
     
     return comp_state.state.detach()
 
@@ -49,8 +45,6 @@ class LlmModel:
 
     layers: List[AutoDecoderLayer]
     tokenizer: Callable
-    past_key_values: Dict[str, DynamicCache]
-    past_key_cache_times: Dict[str, float]
 
     start_layer: int
     end_layer: int
@@ -75,8 +69,6 @@ class LlmModel:
         self.start_layer = -1
         self.end_layer = -1
         self.device = device
-        self.past_key_values = { }
-        self.past_key_cache_times = { }
         self.app_dir = app_dir
         model_dir = str(Path(app_dir) / 'models' / self.model_id)
         if not os.path.exists(model_dir):
@@ -95,21 +87,6 @@ class LlmModel:
 
         self.computed = ComputedData(model_dir)
         self.logger = logging.getLogger("LM NET: " + self.node_id)
-
-    def check_stale_jobs(self):
-        while True:
-            now = time()
-            keys_to_remove = []
-            for key in self.past_key_cache_times.keys():
-                if now > self.past_key_cache_times[key]:
-                    keys_to_remove.append(key)
-            for key in keys_to_remove:
-                del self.past_key_cache_times[key]
-                del self.past_key_values[key]
-                gc.collect()
-                torch.cuda.empty_cache()
-
-            sleep(10)
             
     def load(self):
         if self.end_layer > self.num_hidden_layers:
@@ -121,7 +98,6 @@ class LlmModel:
             self.layers = self.collector.load_layer_set(self.start_layer, self.end_layer, self.device)
         self.loaded = True
         self.virtual = False
-        Thread(target=self.check_stale_jobs, args=( )).start()
 
     def print(self):
         self.logger.info(f'''
@@ -136,19 +112,14 @@ Device: {self.device}
 =================================
 ''')
 
-    def process_job(self, job: LayerJob):
-        process_size = job.data.state.size()[1]
-        if process_size > 1:
-            self.past_key_cache_times[job.job_id] = time() + (process_size * 10)
-        else:
-            self.past_key_cache_times[job.job_id] = time() + STALE_JOB_TIME
+    def process_job(self, job: LayerJob, cache: DynamicCache):
         self.logger.info(f'Processing job layer {job.current_layer}')
         lt = LayerTime(
             node_id=self.node_id,
             start_layer=self.start_layer,
             end_layer=self.end_layer
         )
-        self.compute_layers(job)
+        self.compute_layers(job, cache)
         job.data_hash = job.data.hash_state()
         lt.send_time = time()
         job.times.append(lt)
@@ -160,18 +131,16 @@ Device: {self.device}
     def compute_layers(
         self, 
         job: Job,
+        cache: DynamicCache
     ):
         if job.data is None:
             self.raise_exception("cannot compute layers without job data")
-        if job.job_id not in self.past_key_values:
-            self.past_key_values[job.job_id] = DynamicCache()
-            self.past_key_cache_times[job.job_id] = time()
-
+        
         job.set_layer(compute_layers(
-            job.data, 
+            job.data,
             self.device, 
             self.layers, 
-            self.past_key_values[job.job_id]
+            cache,
         ), self.end_layer + 1)
 
         if job.current_layer == self.num_hidden_layers:

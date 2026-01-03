@@ -15,6 +15,7 @@ try:
 except:
     _malloc_trim = None
 
+from transformers.cache_utils import DynamicCache
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 from llm_layer_collector import LlmLayerCollector
@@ -74,7 +75,7 @@ class EndModel:
                 t[1][:, -1:, :]
             )
 
-    def compute_embed(self, job: Job):
+    def compute_embed(self, job: Job, cache: DynamicCache):
         if job.current_step != ComputeStep.EMBED:
             self.raise_exception('Invalid step for embedding')
         if self.input_embedding is None:
@@ -82,17 +83,8 @@ class EndModel:
         state = None
         if job.data is not None:
             state = jobDataToComputationState(job.data, self.device)
-        comp_state = compute_embedding(self.input_embedding, tensor([job.input_ids]).to(self.device), self.collector.config, state)
-        if job.current_token > 0:
-            comp_state.state = comp_state.state[:, -1:, :]
-            if comp_state.causal_mask["full_attention"] is not None:
-                comp_state.causal_mask["full_attention"] = comp_state.causal_mask["full_attention"][:, :, -1:, -1:]
-            comp_state.cache_position = comp_state.cache_position[-1:]
-            comp_state.position_ids = comp_state.position_ids[:, -1:]
-            comp_state.position_embeddings = self.chop_position_embeddings(comp_state.position_embeddings)
-            comp_state.position_embeddings_local = self.chop_position_embeddings(comp_state.position_embeddings_local)
-            comp_state.position_embeddings_global = self.chop_position_embeddings(comp_state.position_embeddings_global)
-            
+        input_tensor = tensor([job.input_ids if job.current_token == 0 else job.input_ids[-1]])
+        comp_state = compute_embedding(self.input_embedding, tensor([job.input_ids]).to(self.device), self.collector.config, cache)
         job.data = computationStateToJobData(comp_state)
         job.data_hash = job.data.hash_state()
         job.next_step()

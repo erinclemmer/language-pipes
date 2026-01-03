@@ -17,7 +17,7 @@ from language_pipes.job_manager.router_pipes import RouterPipes
 from language_pipes.job_manager.job import Job
 from language_pipes.job_manager.pipe import Pipe
 from language_pipes.job_manager.enums import JobStatus
-from language_pipes.job_manager.layer_job import LayerTime
+from language_pipes.job_manager.layer_job import LayerTime, LayerJob
 from language_pipes.util.chat import ChatMessage
 from language_pipes.config.processor import ProcessorConfig
 from language_pipes.llm_model import LlmModel
@@ -98,7 +98,6 @@ class JobManager:
     def print_pipes(self):
         for p in self.router_pipes.network_pipes():
             p.print(self.logger)
-
 
     def raise_exception(self, msg: str):
         self.logger.exception(msg)
@@ -187,6 +186,27 @@ class JobManager:
             new_model = None
         return available_memory, new_model
 
+    def update_job_time(self, job_id: str):
+        pending_job = self.get_pending_job(job_id)
+        if pending_job is None:
+            return
+        pending_job.current_token = 1 # Move to normal stale timeout
+        pending_job.last_update = time()
+
+    def add_pending_job(self, layer_job: LayerJob):
+        if self.get_pending_job(layer_job.job_id) is not None:
+            return
+        job = Job(
+            self.router.config.node_id, 
+            layer_job.origin_node_id, 
+            0, [], layer_job.pipe_id, ""
+        )
+        job.job_id = layer_job.job_id
+        job.prompt_tokens = layer_job.data.state.size()[1]
+        pending_job = PendingJob(job, time(), None, None)
+        self.jobs_pending.append(pending_job)
+        return pending_job
+
     def get_pending_job(self, job_id: str) -> Optional[Job]:
         for j in self.jobs_pending:
             if j.job.job_id == job_id:
@@ -261,12 +281,17 @@ class JobManager:
             cert = self.router.cert_manager.public_path(job.router_id)
             requests.post(f"https://{ip}:{port}", data=job.to_bytes(), headers={ 'Content-Type': 'application/octet-stream' }, verify = cert)
             return
-        self.start_job(job.router_id, job.model_id, pipe.pipe_id, job.messages, job.tokens, job.job_id)
+        self.start_job(
+            job.model_id, 
+            job.messages, 
+            job.tokens, 
+            pipe_id=pipe.pipe_id, 
+            job_id=job.job_id
+        )
 
     def start_job(
         self, 
         model_id: str, 
-        pipe_id: str, 
         messages: List[ChatMessage], 
         tokens: int, 
         temperature: float = 1.0,
@@ -274,32 +299,48 @@ class JobManager:
         top_p: float = 1.0,
         min_p: float = 0.0,
         presence_penalty: float = 0.0,
+        start: Optional[Callable] = None,
+        update: Optional[Callable] = None,
+        resolve: Optional[Promise] = None,
+        pipe_id: Optional[str] = None,
         job_id: Optional[str] = None
-    ) -> Job:
+    ) -> Optional[Job]:
+        end_model = self.get_end_model(model_id)
+        if end_model is None:
+            if resolve is not None:
+                resolve('NO_ENDS')
+                return None
+            self.raise_exception(f"Could not find local end model for {model_id}")
+
+        if pipe_id is None:
+            network_pipe = self.get_job_pipe(model_id)
+            if network_pipe is None:
+                if resolve is not None:
+                    resolve('NO_PIPE')
+                    return None
+                self.raise_exception(f"Could not find pipe for {model_id}")
+            pipe_id = network_pipe.pipe_id
+
         pipe = self.get_pipe(pipe_id)
         if pipe is None:
             self.raise_exception(f"Could not find pipe {pipe_id}")
 
         job = Job(self.router.config.node_id, self.router.config.node_id, tokens, messages, pipe_id, model_id, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p, presence_penalty=presence_penalty)
+        pending_job = PendingJob(job, time(), resolve, update)
 
         if job_id is not None:
             job.job_id = job_id
-        
-        end_model = self.get_end_model(model_id)
-        if end_model is None:
-            self.raise_exception(f"Could not find local end model for {model_id}")
-            return
         
         lt = LayerTime(
             node_id=self.router.config.node_id,
             is_embed=True
         )
         end_model.tokenize(job)
-        end_model.compute_embed(job)
+        end_model.compute_embed(job, pending_job.cache)
         first_layer_model = pipe.model_for_job(job)
         if first_layer_model is None:
             self.raise_exception("Could not find appropriate model for processing")
-            return
+            return None
         
         lt.send_time = time()
         layer_job = job.to_layer_job()
@@ -309,33 +350,9 @@ class JobManager:
         
         layer_job.times.append(lt)
         pipe.send_job(layer_job, first_layer_model.node_id)
+        self.jobs_pending.append(pending_job)
+
+        if start is not None:
+            start(job)
 
         return job
-
-    def complete(
-        self, 
-        model_id: str, 
-        messages: List[ChatMessage], 
-        tokens: int, 
-        temperature: float,
-        top_k: int,
-        top_p: float,
-        min_p: float,
-        presence_penalty: float,
-        start: Callable,
-        update: Callable,
-        resolve: Promise,
-    ) -> Optional[str]:
-        if self.get_end_model(model_id) is None:
-            resolve('NO_ENDS')
-            return None
-        
-        network_pipe = self.get_job_pipe(model_id)
-        if network_pipe is None:
-            resolve('NO_PIPE')
-            return None
-
-        job = self.start_job(model_id, network_pipe.pipe_id, messages, tokens, temperature, top_k, top_p, min_p, presence_penalty)
-        start(job)
-        self.jobs_pending.append(PendingJob(job, time(), resolve, update))
-        return job.job_id

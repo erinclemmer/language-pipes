@@ -1,6 +1,8 @@
 from promise import Promise
 from typing import Callable
 
+from transformers.cache_utils import DynamicCache
+
 from language_pipes.job_manager.job import Job
 
 class PendingJob:
@@ -8,9 +10,11 @@ class PendingJob:
     last_update: int
     resolve: Promise
     update: Callable[[Job], None]
+    cache: DynamicCache
 
     def __init__(self, job: str, last_update: int, resolve: Promise, update: Callable[[Job], None]):
         self.job = job
         self.last_update = last_update
         self.resolve = resolve
         self.update = update
+        self.cache = DynamicCache()
