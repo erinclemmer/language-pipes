@@ -6,8 +6,8 @@ from language_pipes.job_manager.job_data import JobData
 class LayerTime:
     is_embed: bool
     is_head: bool
-    receive_time: int
-    send_time: int
+    receive_time: float
+    send_time: float
     start_layer: int
     end_layer: int
     node_id: str
@@ -26,6 +26,9 @@ class LayerTime:
         self.start_layer = start_layer
         self.end_layer = end_layer
         self.receive_time = time()
+
+    def set_send_time(self):
+        self.send_time = time()
 
     def to_bytes(self) -> bytes:
         bts = ByteHelper()

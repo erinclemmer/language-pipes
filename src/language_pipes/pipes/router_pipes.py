@@ -80,3 +80,7 @@ class RouterPipes:
             return None
         
         return aggregate_models(models)[0]
+
+    def print_pipes(self):
+        for p in self.router_pipes.network_pipes():
+            p.print(self.logger)

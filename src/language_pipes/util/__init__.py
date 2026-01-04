@@ -80,3 +80,7 @@ def clone_model(model_id: str, model_dir: str):
 
 def sanitize_file_name(raw_name: str):
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', raw_name).strip().strip('.') + ".toml"
+
+def raise_exception(logger, msg: str):
+    logger.exception(msg)
+    raise Exception(msg)

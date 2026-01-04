@@ -12,18 +12,24 @@ from uuid import uuid4
 from threading import Thread
 from distributed_state_network import DSNode
 
-from language_pipes.util.meta import MetaPipe
-from language_pipes.llm_model.end_model import EndModel
-from language_pipes.job_manager.router_pipes import RouterPipes
-from language_pipes.job_manager.job import Job
-from language_pipes.job_manager.pipe import Pipe
-from language_pipes.job_manager.enums import JobStatus
-from language_pipes.job_manager.layer_job import LayerTime, LayerJob
+from language_pipes.util import raise_exception
+from language_pipes.util.enums import JobStatus
 from language_pipes.util.chat import ChatMessage
+
+from language_pipes.modeling.end_model import EndModel
+
+from language_pipes.pipes.meta_pipe import MetaPipe
+from language_pipes.pipes.router_pipes import RouterPipes
+from language_pipes.pipes.pipe import Pipe
+
+from language_pipes.jobs.job import Job
+from language_pipes.jobs.layer_job import LayerTime, LayerJob
+from language_pipes.jobs.pending_job import PendingJob
+
 from language_pipes.config.processor import ProcessorConfig
-from language_pipes.llm_model import LlmModel
-from language_pipes.llm_model.computed import validate_model
-from language_pipes.job_manager.pending_job import PendingJob
+
+from language_pipes.modeling.llm_model import LlmModel
+from language_pipes.modeling.computed import validate_model
 
 CHECK_JOB_INTERVAL = 10
 EXPIRED_JOB_TIME = 60  # Unified timeout for both prefill and decode phases
@@ -49,24 +55,27 @@ class JobManager:
     config: ProcessorConfig
     started: bool
 
-    def __init__(self, app_dir: str, router: DSNode, config: ProcessorConfig):
+    def __init__(
+        self, 
+        app_dir: str, 
+        router: DSNode, 
+        config: ProcessorConfig,
+        router_pipes: RouterPipes,
+        get_end_model: Callable[[str], Optional[EndModel]]
+    ):
         self.started = False
         self.router = router
         self.config = config
         self.app_dir = app_dir
         self.logger = self.router.logger
+        self.get_end_model = get_end_model
 
         self.jobs_pending = []
         self.completed_jobs = []
-        self.models = []
-        self.end_models = []
-        self.pipes_hosted = []
-        self.router_pipes = RouterPipes(router)
+        self.router_pipes = router_pipes
         self.router.update_data("job_port", str(self.config.job_port))
-        for m in self.config.hosted_models:
-            self.host_model(m.id, m.max_memory, m.device, m.load_ends)
         
-        self.print_pipes()
+        self.router_pipes.print_pipes()
 
         self.started = True
         Thread(target=self.check_stale_jobs, args=( )).start()
@@ -98,22 +107,6 @@ class JobManager:
                 _malloc_trim(0)
 
             sleep(CHECK_JOB_INTERVAL)
-
-    def print_pipes(self):
-        for p in self.router_pipes.network_pipes():
-            p.print(self.logger)
-
-    def raise_exception(self, msg: str):
-        self.logger.exception(msg)
-        raise Exception(msg)
-
-    def stop(self):
-        for m in self.models:
-            m.cleanup_tensors()
-        for m in self.end_models:
-            m.clean_up()
-        self.models = []
-        self.end_models = []
     
     def get_pipe(self, pipe_id: str) -> Optional[Pipe]:
         meta_pipe = self.router_pipes.network_pipe(pipe_id)
@@ -137,12 +130,22 @@ class JobManager:
             self.logger.exception("Error getting job port: %s", e)
             return None
 
+    def get_job_pipe(self, model_id: str) -> Optional[MetaPipe]:
+        available_pipes: List[MetaPipe] = []
+        for p in self.router_pipes.pipes_for_model(model_id, True):
+            if not p.is_loading():
+                available_pipes.append(p)
+        if len(available_pipes) == 0:
+            return None
+
+        return random.choice(available_pipes)
+
     def update_job(self, job: Job):
         job_id = job.job_id
         if job_id in self.completed_jobs:
             return
         pending_job = self.get_pending_job(job_id)
-        if pending_job is None:
+        if pending_job is None or pending_job.update is None:
             return
         self.logger.info(f'Received job update for {job_id}\n')
         pending_job.last_update = time()
@@ -154,41 +157,11 @@ class JobManager:
             return
         self.completed_jobs.append(job_id)
         pending_job = self.get_pending_job(job_id)
-        if pending_job is None:
+        if pending_job is None or pending_job.resolve is None:
             return
         self.logger.info(f'Received job complete for {job_id}\n')
         pending_job.resolve(job)
         self.jobs_pending = [j for j in self.jobs_pending if j.job.job_id != job_id]
-      
-    def get_model_for_pipe(self, model_id: str, pipe: MetaPipe, device: str, available_memory: int) -> Tuple[int, Optional[LlmModel]]:
-        start_memory = available_memory
-
-        new_model: Optional[LlmModel] = LlmModel.from_id(self.app_dir, model_id, self.router.config.node_id, pipe.pipe_id, device)
-        computed = new_model.computed
-        if self.config.model_validation and len(pipe.segments) > 0 and not validate_model(new_model.computed.to_meta(), pipe.get_computed()):
-            self.logger.warning(f'Computed data for model {model_id} does not match')
-            return available_memory, None
-        
-        num_layers_to_load = int(available_memory // computed.avg_layer_size) - 1
-        total_layers = new_model.collector.config.num_hidden_layers
-        start_layer = pipe.next_start_layer()
-        if num_layers_to_load == -1:
-            start_layer = -1
-            end_layer = -1
-        else:
-            end_layer = min([start_layer + num_layers_to_load, pipe.next_end_layer(total_layers), new_model.num_hidden_layers]) if start_layer != -1 else -1
-            available_memory = available_memory - (end_layer - start_layer + 1) * computed.avg_layer_size
-
-        if num_layers_to_load > -1 and end_layer != -1 and start_layer != -1:
-            self.logger.info(f'Using {(start_memory - available_memory) / 10**9:.2f} GB of memory to load model {model_id}')
-            new_model.start_layer = start_layer
-            new_model.end_layer = end_layer
-            new_model.input_embedding = None
-            new_model.head = None
-            new_model.print()
-        else:
-            new_model = None
-        return available_memory, new_model
 
     def update_job_time(self, job_id: str):
         """Update the last_update time for a pending job to prevent stale timeout."""
@@ -212,69 +185,10 @@ class JobManager:
         self.jobs_pending.append(pending_job)
         return pending_job
 
-    def get_pending_job(self, job_id: str) -> Optional[Job]:
+    def get_pending_job(self, job_id: str) -> Optional[PendingJob]:
         for j in self.jobs_pending:
             if j.job.job_id == job_id:
                 return j
-        return None
-
-    def load_end_model(self, model_id: str, device: int):
-        model = EndModel(self.app_dir, model_id, device)
-        self.end_models.append(model)
-        return model
-
-    def host_model(self, model_id: str, max_memory: float, device: str, load_ends: bool):
-        available_memory = max_memory * 10 ** 9
-        models_to_load: List[LlmModel] = []
-        end_model = None
-        if load_ends:
-            end_model = self.load_end_model(model_id, device)
-        
-        for pipe_id in [p.pipe_id for p in self.router_pipes.pipes_for_model(model_id, False)]:
-            if pipe_id not in self.pipes_hosted and len(self.pipes_hosted) >= self.config.max_pipes:
-                break
-            loaded = True
-            while loaded:
-                pipe = self.router_pipes.network_pipe(pipe_id)
-                if pipe is None: 
-                    break
-                available_memory, model = self.get_model_for_pipe(model_id, pipe, device, available_memory)
-                loaded = model is not None
-                if model is not None:
-                    self.pipes_hosted.append(model.pipe_id)
-                    self.router_pipes.add_model_to_network(model.to_meta())
-                    models_to_load.append(model)
-
-        if len(self.pipes_hosted) < self.config.max_pipes:
-            new_pipe = MetaPipe(str(uuid4()), model_id, [])
-            self.pipes_hosted.append(new_pipe.pipe_id)
-            _, model = self.get_model_for_pipe(model_id, new_pipe, device, available_memory)
-            if model is not None:
-                self.router_pipes.add_model_to_network(model.to_meta())
-                models_to_load.append(model)
-
-        if load_ends:
-            end_model.load()
-
-        for m in models_to_load:
-            m.load()
-            self.router_pipes.update_model(m.to_meta())
-            self.models.append(m)
-
-    def get_job_pipe(self, model_id: str) -> Optional[MetaPipe]:
-        available_pipes: List[MetaPipe] = []
-        for p in self.router_pipes.pipes_for_model(model_id, True):
-            if not p.is_loading():
-                available_pipes.append(p)
-        if len(available_pipes) == 0:
-            return None
-
-        return random.choice(available_pipes)
-    
-    def get_end_model(self, model_id: str) -> Optional[EndModel]:
-        for m in self.end_models:
-            if m.model_id == model_id:
-                return m
         return None
 
     def restart_job(self, job: Job):
@@ -315,7 +229,8 @@ class JobManager:
             if resolve is not None:
                 resolve('NO_ENDS')
                 return None
-            self.raise_exception(f"Could not find local end model for {model_id}")
+            raise_exception(self.logger, f"Could not find local end model for {model_id}")
+            return
 
         if pipe_id is None:
             network_pipe = self.get_job_pipe(model_id)
@@ -323,12 +238,14 @@ class JobManager:
                 if resolve is not None:
                     resolve('NO_PIPE')
                     return None
-                self.raise_exception(f"Could not find pipe for {model_id}")
+                raise_exception(self.logger, f"Could not find pipe for {model_id}")
+                return
             pipe_id = network_pipe.pipe_id
 
         pipe = self.get_pipe(pipe_id)
         if pipe is None:
-            self.raise_exception(f"Could not find pipe {pipe_id}")
+            raise_exception(self.logger, f"Could not find pipe {pipe_id}")
+            return
 
         job = Job(self.router.config.node_id, self.router.config.node_id, tokens, messages, pipe_id, model_id, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p, presence_penalty=presence_penalty)
         
@@ -381,10 +298,10 @@ class JobManager:
         end_model.compute_embed(job, pending_job.cache, chunk_start, chunk_end)
         first_layer_model = pipe.model_for_job(job)
         if first_layer_model is None:
-            self.raise_exception("Could not find appropriate model for processing")
+            raise_exception(self.logger, "Could not find appropriate model for processing")
             return None
         
-        lt.send_time = time()
+        lt.set_send_time()
         layer_job = job.to_layer_job()
 
         if self.config.print_job_data:
