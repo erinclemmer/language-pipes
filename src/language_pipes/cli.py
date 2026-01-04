@@ -63,6 +63,7 @@ def build_parser():
         help="Hosted models as key=value pairs: id=MODEL,device=DEVICE,memory=GB,load_ends=BOOL (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=false)")
     run_parser.add_argument("--print-times", help="Print timing information for layer computations and network transfers", action="store_true")
     run_parser.add_argument("--print-job-data", help="Print job data when jobs complete", action="store_true")
+    run_parser.add_argument("--prefill-chunk-size", help="Number of tokens to process for each batch in prefill", type=int)
 
     return parser
 
@@ -85,6 +86,7 @@ def apply_overrides(data, args):
         "hosted_models": os.getenv("LP_HOSTED_MODELS"),
         "print_times": os.getenv("LP_PRINT_TIMES"),
         "print_job_data": os.getenv("LP_PRINT_JOB_DATA"),
+        "prefill_chunk_size": os.getenv("LP_PREFILL_CHUNK_SIZE")
     }
 
     def precedence(key, arg, d):
@@ -115,6 +117,7 @@ def apply_overrides(data, args):
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
         "print_times": precedence("print_times", args.print_times, False),
         "print_job_data": precedence("print_job_data", args.print_job_data, False),
+        "prefill_chunk_size": precedence("prefill_chunk_size", args.prefill_chunk_size, 8)
     }
 
     if config["hosted_models"] is None:
@@ -217,7 +220,8 @@ def main(argv = None):
                 "job_port": data["job_port"],
                 "hosted_models": data["hosted_models"],
                 "print_times": data["print_times"],
-                "print_job_data": data["print_job_data"]
+                "print_job_data": data["print_job_data"],
+                "prefill_chunk_size": data["prefill_chunk_size"]
             }
         })
 
