@@ -36,6 +36,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         ecdsa_verification = None
         print_times = None
         print_job_data = None
+        prefill_chunk_size = None
         job_port = None
         max_pipes = None
         hosted_models = None
@@ -67,7 +68,8 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
             "job_port": data["job_port"],
             "print_times": data["print_times"],
             "print_job_data": data["print_job_data"],
-            "hosted_models": data["hosted_models"]
+            "hosted_models": data["hosted_models"],
+            "prefill_chunk_size": data["prefill_chunk_size"]
         }
     })
 
