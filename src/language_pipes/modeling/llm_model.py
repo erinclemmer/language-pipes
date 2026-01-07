@@ -133,7 +133,7 @@ Device: {self.device}
 
     def compute_layers(
         self, 
-        job: Job,
+        job: LayerJob,
         cache: DynamicCache
     ):
         if job.data is None:

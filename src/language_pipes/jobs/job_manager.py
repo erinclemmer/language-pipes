@@ -25,32 +25,20 @@ from language_pipes.pipes.pipe import Pipe
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.layer_job import LayerTime, LayerJob
 from language_pipes.jobs.pending_job import PendingJob
+from language_pipes.jobs.job_tracker import JobTracker
 
 from language_pipes.config.processor import ProcessorConfig
 
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.computed import validate_model
 
-CHECK_JOB_INTERVAL = 10
-EXPIRED_JOB_TIME = 60  # Unified timeout for both prefill and decode phases
-
-try:
-    _libc = ctypes.CDLL("libc.so.6")
-    _malloc_trim = _libc.malloc_trim
-    _malloc_trim.argtypes = [ctypes.c_size_t]
-    _malloc_trim.restype = ctypes.c_int
-except:
-    _malloc_trim = None
-
 class JobManager:
     app_dir: str
     started: bool
 
-    completed_jobs: List[str]
-    jobs_pending: List[PendingJob]
-    
     router: DSNode
     config: ProcessorConfig
+    job_tracker: JobTracker
     router_pipes: RouterPipes
 
     get_end_model: Callable[[str], Optional[EndModel]]
@@ -61,6 +49,7 @@ class JobManager:
         router: DSNode, 
         config: ProcessorConfig,
         router_pipes: RouterPipes,
+        job_tracker: JobTracker,
         get_layer_models: Callable[[], List[LlmModel]],
         get_end_model: Callable[[str], Optional[EndModel]]
     ):
@@ -72,43 +61,13 @@ class JobManager:
         self.get_layer_models = get_layer_models
         self.get_end_model = get_end_model
 
-        self.jobs_pending = []
-        self.completed_jobs = []
+        self.job_tracker = job_tracker
         self.router_pipes = router_pipes
         self.router.update_data("job_port", str(self.config.job_port))
         
         self.router_pipes.print_pipes()
 
         self.started = True
-        Thread(target=self.check_stale_jobs, args=( )).start()
-
-    def check_stale_jobs(self):
-        while True:
-            remove_jobs = []
-            for j in self.jobs_pending:
-                stale_time = time() - j.last_update
-                # Unified timeout - prefill chunks regularly update last_update,
-                # so both prefill and decode phases use the same timeout
-                if stale_time > EXPIRED_JOB_TIME:
-                    self.logger.warning(
-                        f"[Stale] job={j.job.job_id[:8]} timed out after {stale_time:.1f}s "
-                        f"(token={j.job.current_token})"
-                    )
-                    remove_jobs.append(j.job.job_id)
-
-            if len(remove_jobs) == 0:
-                sleep(CHECK_JOB_INTERVAL)
-                continue
-        
-            for job_id in remove_jobs:
-                self.jobs_pending = [j for j in self.jobs_pending if j.job.job_id != job_id]
-            
-            gc.collect()
-            torch.cuda.empty_cache()
-            if _malloc_trim is not None:
-                _malloc_trim(0)
-
-            sleep(CHECK_JOB_INTERVAL)
     
     def get_pipe(self, pipe_id: str) -> Optional[Pipe]:
         meta_pipe = self.router_pipes.network_pipe(pipe_id)
@@ -120,8 +79,8 @@ class JobManager:
             router=self.router,
             app_dir=self.app_dir,
             get_job_port=self.get_job_port,
-            complete_job=self.complete_job,
-            update_job=self.update_job,
+            complete_job=self.job_tracker.complete_job,
+            send_job_update=self.job_tracker.send_job_update,
             restart_job=self.restart_job
         )
     
@@ -132,69 +91,8 @@ class JobManager:
             self.logger.exception("Error getting job port: %s", e)
             return None
 
-    def get_job_pipe(self, model_id: str) -> Optional[MetaPipe]:
-        available_pipes: List[MetaPipe] = []
-        for p in self.router_pipes.pipes_for_model(model_id, True):
-            if not p.is_loading():
-                available_pipes.append(p)
-        if len(available_pipes) == 0:
-            return None
-
-        return random.choice(available_pipes)
-
-    def update_job(self, job: Job):
-        job_id = job.job_id
-        if job_id in self.completed_jobs:
-            return
-        pending_job = self.get_pending_job(job_id)
-        if pending_job is None or pending_job.update is None:
-            return
-        self.logger.info(f'Received job update for {job_id}\n')
-        pending_job.last_update = time()
-        return pending_job.update(job)
-
-    def complete_job(self, job: Job):
-        job_id = job.job_id
-        if job_id in self.completed_jobs:
-            return
-        self.completed_jobs.append(job_id)
-        pending_job = self.get_pending_job(job_id)
-        if pending_job is None or pending_job.resolve is None:
-            return
-        self.logger.info(f'Received job complete for {job_id}\n')
-        pending_job.resolve(job)
-        self.jobs_pending = [j for j in self.jobs_pending if j.job.job_id != job_id]
-
-    def update_job_time(self, job_id: str):
-        """Update the last_update time for a pending job to prevent stale timeout."""
-        pending_job = self.get_pending_job(job_id)
-        if pending_job is None:
-            return
-        pending_job.last_update = time()
-
-    def add_pending_job(self, layer_job: LayerJob):
-        existing = self.get_pending_job(layer_job.job_id)
-        if existing is not None:
-            return existing  # Return existing job instead of None
-        job = Job(
-            self.router.config.node_id, 
-            layer_job.origin_node_id, 
-            0, [], layer_job.pipe_id, ""
-        )
-        job.job_id = layer_job.job_id
-        job.prompt_tokens = layer_job.data.state.size()[1]
-        pending_job = PendingJob(job, time(), None, None)
-        self.jobs_pending.append(pending_job)
-        return pending_job
-
-    def get_pending_job(self, job_id: str) -> Optional[PendingJob]:
-        for j in self.jobs_pending:
-            if j.job.job_id == job_id:
-                return j
-        return None
-
     def restart_job(self, job: Job):
-        pipe = self.get_job_pipe(job.model_id)
+        pipe = self.router_pipes.get_job_pipe(job.model_id)
         if pipe is None:
             job.status = JobStatus.ERROR
             ip = self.router.connection_from_node(job.router_id).address
@@ -235,7 +133,7 @@ class JobManager:
             return
 
         if pipe_id is None:
-            network_pipe = self.get_job_pipe(model_id)
+            network_pipe = self.router_pipes.get_job_pipe(model_id)
             if network_pipe is None:
                 if resolve is not None:
                     resolve('NO_PIPE')
@@ -311,7 +209,7 @@ class JobManager:
         
         layer_job.times.append(lt)
         pipe.send_job(layer_job, first_layer_model.node_id)
-        self.jobs_pending.append(pending_job)
+        self.job_tracker.jobs_pending.append(pending_job)
 
         if start is not None:
             start(job)

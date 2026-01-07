@@ -147,4 +147,7 @@ class LayerJob:
 
         times.sort(key=lambda x: x.start_layer)
 
+        if job_data is None:
+            raise Exception("Could not decode job data from layer job bytes")
+
         return LayerJob(job_id, pipe_id, origin_node_id, current_layer, job_data, data_hash, done, restart, times)

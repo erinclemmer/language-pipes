@@ -5,6 +5,7 @@ from distributed_state_network import DSNodeServer
 from language_pipes.oai_server import OAIHttpServer
 from language_pipes.jobs.job_manager import JobManager
 from language_pipes.jobs.job_receiver import JobReceiver
+from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.modeling.model_manager import ModelManager
 
@@ -46,11 +47,14 @@ class LanguagePipes:
             self.config.processor
         )
 
+        self.job_tracker = JobTracker(self.router.node.logger)
+
         self.job_manager = JobManager(
             app_dir=config.app_dir, 
             router=self.router.node, 
             config=self.config.processor, 
             router_pipes=self.router_pipes,
+            job_tracker=self.job_tracker,
             get_layer_models=self.model_manager.get_layer_models,
             get_end_model=self.model_manager.get_end_model
         )
@@ -58,6 +62,7 @@ class LanguagePipes:
         self.job_receiver = JobReceiver(
             config=self.config.processor, 
             router=self.router.node, 
+            job_tracker=self.job_tracker,
             job_manager=self.job_manager,
             get_end_model=self.model_manager.get_end_model
         )

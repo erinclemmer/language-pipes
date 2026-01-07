@@ -139,6 +139,8 @@ class Job(SignedPacket):
 
     def to_layer_job(self) -> LayerJob:
         data_hash = self.data.hash_state() if self.data is not None else b''
+        if self.data is None:
+            raise Exception("Tried to create layer job without job data")
         return LayerJob(self.job_id, self.pipe_id, self.router_id, self.current_layer, self.data, data_hash, False, False, [])
 
     def print_job(self, logger):

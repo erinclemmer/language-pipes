@@ -25,7 +25,7 @@ class Pipe:
     tokenizer: Callable
     get_job_port: Callable[[str], Optional[int]]
     complete_job: Callable[[Job], None]
-    update_job: Callable[[Job], None]
+    send_job_update: Callable[[Job], None]
     model_num_hidden_layers: int
 
     def __init__(
@@ -36,12 +36,12 @@ class Pipe:
             app_dir: str,
             get_job_port: Callable[[str], Optional[int]],
             complete_job: Callable[[Job], None],
-            update_job: Callable[[Job], None],
+            send_job_update: Callable[[Job], None],
             restart_job: Callable[[Job], None]
         ):
         self.get_job_port = get_job_port
         self.complete_job = complete_job
-        self.update_job = update_job
+        self.send_job_update = send_job_update
         self.restart_job = restart_job
         self.router = router
         self.model_id = model_id
@@ -61,23 +61,20 @@ class Pipe:
         raise Exception(msg)
 
     def send_job(self, job: LayerJob, router_id: str):
-        try:
-            ip = self.router.connection_from_node(router_id).address
-            port = self.get_job_port(router_id)
-            if port is None:
-                self.raise_exception(f"SEND JOB => Could not find pipe {self.pipe_id} for {router_id}")
+        ip = self.router.connection_from_node(router_id).address
+        port = self.get_job_port(router_id)
+        if port is None:
+            self.raise_exception(f"SEND JOB => Could not find pipe {self.pipe_id} for {router_id}")
 
-            self.router.logger.info(f'Sending job {job.job_id} to {router_id}')
-            def send(url: str, data: bytes):
-                try:
-                    res = requests.post(url, data=data, headers={'Content-Type': 'application/octet-stream'})
-                    if res.status_code != 200 or res.content == b'DOWN':
-                        self.raise_exception(f"SEND JOB => bad response from {router_id}")
-                except:
-                    self.raise_exception(f"SEND JOB => Could not connect to {router_id}")
-            Thread(target=send, args=(f'http://{ip}:{port}', job.to_bytes(), )).start()
-        except:
-            self.restart_job(job)
+        self.router.logger.info(f'Sending job {job.job_id} to {router_id}')
+        def send(url: str, data: bytes):
+            try:
+                res = requests.post(url, data=data, headers={'Content-Type': 'application/octet-stream'})
+                if res.status_code != 200 or res.content == b'DOWN':
+                    self.raise_exception(f"SEND JOB => bad response from {router_id}")
+            except:
+                self.raise_exception(f"SEND JOB => Could not connect to {router_id}")
+        Thread(target=send, args=(f'http://{ip}:{port}', job.to_bytes(), )).start()
 
     def tokenize(self, prompt: Optional[str], messages: List[ChatMessage]) -> List[int]:
         tokenizer: AutoTokenizer = self.tokenizer()
@@ -108,13 +105,6 @@ class Pipe:
 
         return current_layer == self.model_num_hidden_layers
 
-    def peers(self) -> List[str]:
-        peers: List[str] = []
-        for segment in self.segments:
-            if segment.router_id not in peers:
-                peers.append(segment.router_id)
-        return peers
-
     def model_for_job(self, job: Job, need_physical: bool = False) -> Optional[LlmModel]:
         return self.get_layer(job.current_layer, need_physical)
 
@@ -128,6 +118,8 @@ class Pipe:
                 if job.status == JobStatus.COMPLETED:
                     if job.router_id == self.router.config.node_id:
                         res_tokens = job.input_id_tensor()
+                        if res_tokens is None:
+                            raise Exception("Tried to process job without input ids")
                         job.result = self.tokenizer().decode(res_tokens[job.prompt_tokens:])
                         self.complete_job(job)
                     else:
@@ -150,7 +142,7 @@ class Pipe:
         app_dir: str,
         get_job_port: Callable[[str], Optional[int]],
         complete_job: Callable[[Job], None],
-        update_job: Callable[[Job], None],
+        send_job_update: Callable[[Job], None],
         restart_job: Callable[[Job], None]
     ) -> 'Pipe':
         p = Pipe(
@@ -159,7 +151,7 @@ class Pipe:
             get_job_port=get_job_port,
             app_dir=app_dir,
             complete_job=complete_job,
-            update_job=update_job,
+            send_job_update=send_job_update,
             restart_job=restart_job,
             router=router
         )

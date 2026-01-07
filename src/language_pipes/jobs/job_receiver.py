@@ -9,6 +9,7 @@ from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_handler import JobServer
 from language_pipes.jobs.pending_job import PendingJob
 from language_pipes.jobs.job_manager import JobManager
+from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.layer_job import LayerJob, LayerTime
 
 from language_pipes.modeling.end_model import EndModel
@@ -31,11 +32,13 @@ class JobReceiver:
             config: ProcessorConfig,
             router: DSNode,
             job_manager: JobManager,
+            job_tracker: JobTracker,
             get_end_model: Callable[[str], Optional[EndModel]]
     ):
         self.router = router
         self.get_end_model = get_end_model
         self.job_queue = []
+        self.job_tracker = job_tracker
         self.job_manager = job_manager
         self.print_times = config.print_times
         self.print_job_data = config.print_job_data
@@ -94,7 +97,7 @@ class JobReceiver:
         If should_return is True, caller should return immediately.
         If success is False, the pending job was not found.
         """
-        pending_job = self.job_manager.get_pending_job(layer_job.job_id)
+        pending_job = self.job_tracker.get_pending_job(layer_job.job_id)
         if pending_job is None:
             return layer_job, True, False
         
@@ -216,7 +219,7 @@ class JobReceiver:
             return layer_job, True
         
         # More tokens to generate - update and continue
-        if not pipe.update_job(job):
+        if not pipe.send_job_update(job):
             return layer_job, True
         
         # Embed next token (decode phase - no chunking)
@@ -235,9 +238,9 @@ class JobReceiver:
 
     def _process_and_send(self, layer_job: LayerJob, pipe: Pipe):
         """Process job through local layers and send to next destination."""
-        pending_job = self.job_manager.get_pending_job(layer_job.job_id)
+        pending_job = self.job_tracker.get_pending_job(layer_job.job_id)
         if pending_job is None:
-            pending_job = self.job_manager.add_pending_job(layer_job)
+            pending_job = self.job_tracker.add_pending_job(layer_job)
         
         model = pipe.get_layer(layer_job.current_layer, True)
         if model is None:
@@ -269,7 +272,7 @@ class JobReceiver:
             
             # Pipe unavailable - restart job
             if pipe is None or not pipe.is_complete():
-                pending_job = self.job_manager.get_pending_job(layer_job.job_id)
+                pending_job = self.job_tracker.get_pending_job(layer_job.job_id)
                 if pending_job is not None:
                     self.job_manager.restart_job(pending_job.job)
                 self._schedule_next()
@@ -291,7 +294,7 @@ class JobReceiver:
 
             # Handle completed layer processing (job returned from network)
             if layer_job.done:
-                pending_job = self.job_manager.get_pending_job(layer_job.job_id)
+                pending_job = self.job_tracker.get_pending_job(layer_job.job_id)
                 if pending_job is None:
                     # Job not found - may have timed out or been processed elsewhere
                     self.router.logger.warning(f"Pending job not found for {layer_job.job_id}")

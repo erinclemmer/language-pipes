@@ -187,6 +187,8 @@ class EndModel:
 
     def set_result(self, job: Job):
         res_tokens = job.input_id_tensor()
+        if res_tokens is None:
+            raise Exception("Cannot decode result tensor: no input ids")
         job.result = self.tokenizer.decode(res_tokens[job.prompt_tokens:])
 
     def clean_up(self):
