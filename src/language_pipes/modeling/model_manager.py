@@ -1,12 +1,12 @@
 from typing import List, Optional, Tuple
 
 from uuid import uuid4
-from language_pipes.llm_model import LlmModel
-from language_pipes.util.meta import MetaPipe
-from language_pipes.llm_model.end_model import EndModel
+from language_pipes.pipes.meta_pipe import MetaPipe
+from language_pipes.modeling.llm_model import LlmModel
+from language_pipes.modeling.end_model import EndModel
+from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.config.processor import ProcessorConfig
-from language_pipes.llm_model.computed import validate_model
-from language_pipes.job_manager.router_pipes import RouterPipes
+from language_pipes.modeling.computed import validate_model
 
 class ModelManager:
     node_id: str
@@ -54,6 +54,8 @@ class ModelManager:
         start_memory = available_memory
 
         new_model: Optional[LlmModel] = LlmModel.from_id(self.app_dir, model_id, self.node_id, pipe.pipe_id, device)
+        if new_model is None:
+            return None
         computed = new_model.computed
         if self.config.model_validation and len(pipe.segments) > 0 and not validate_model(new_model.computed.to_meta(), pipe.get_computed()):
             self.logger.warning(f'Computed data for model {model_id} does not match')

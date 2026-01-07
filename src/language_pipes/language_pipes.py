@@ -2,11 +2,11 @@ import logging
 from threading import Thread
 from distributed_state_network import DSNodeServer
 
-from language_pipes.job_manager import JobManager
-from language_pipes.job_receiver import JobReceiver
-from language_pipes.handlers.oai import OAIHttpServer
-from language_pipes.job_manager.router_pipes import RouterPipes
-from language_pipes.llm_model.model_manager import ModelManager
+from language_pipes.oai_server import OAIHttpServer
+from language_pipes.jobs.job_manager import JobManager
+from language_pipes.jobs.job_receiver import JobReceiver
+from language_pipes.pipes.router_pipes import RouterPipes
+from language_pipes.modeling.model_manager import ModelManager
 
 from language_pipes.util import stop_thread
 from language_pipes.config import LpConfig
@@ -33,15 +33,16 @@ class LanguagePipes:
         self.config = config
         self.set_logging_level(self.config.logging_level, self.config.router.node_id)
         
+        self.router_pipes = None
         self.router = DSNodeServer.start(self.config.router, self.print_pipes, self.print_pipes)
 
-        self.router_pipes = RouterPipes(self.router)
+        self.router_pipes = RouterPipes(self.router.node)
 
         self.model_manager = ModelManager(
             config.router.node_id,
             config.app_dir,
             self.router_pipes,
-            self.router.logger,
+            self.router.node.logger,
             self.config.processor
         )
 

@@ -14,9 +14,9 @@ from llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from llm_layer_collector.compute import compute_embedding
 
 from language_pipes.util import clone_model
-from language_pipes.job_manager.job import ComputeStep, Job
-from language_pipes.llm_model.computed import ComputedData
-from language_pipes.job_manager.job_data import computationStateToJobData, jobDataToComputationState
+from language_pipes.jobs.job import ComputeStep, Job
+from language_pipes.modeling.computed import ComputedData
+from language_pipes.jobs.job_data import computationStateToJobData, jobDataToComputationState
 
 class EndModel:
     model_id: str

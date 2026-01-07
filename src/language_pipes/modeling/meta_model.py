@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+from language_pipes.modeling.meta_computed import MetaComputed
+
 @dataclass
 class MetaModel:
     process_id: str

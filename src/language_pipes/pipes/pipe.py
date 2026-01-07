@@ -9,12 +9,12 @@ from transformers import AutoTokenizer
 from transformers.models.auto import AutoConfig
 from distributed_state_network import DSNode
 
-from language_pipes.util.meta import MetaPipe
+from language_pipes.pipes.meta_pipe import MetaPipe
+from language_pipes.modeling.llm_model import LlmModel
+from language_pipes.jobs.layer_job import LayerJob
+from language_pipes.jobs.job import Job
+from language_pipes.util.enums import JobStatus
 from language_pipes.util.chat import ChatMessage
-from language_pipes.job_manager.enums import JobStatus
-from language_pipes.llm_model import LlmModel
-from language_pipes.job_manager.layer_job import LayerJob
-from language_pipes.job_manager.job import Job
 
 class Pipe:
     pipe_id: str
@@ -107,20 +107,6 @@ class Pipe:
                 current_layer = s.end_layer + 1
 
         return current_layer == self.model_num_hidden_layers
-
-    def print(self):
-        self.router.logger.info(f'''
-=================================
-Pipe Status:
-Model ID: {self.model_id}
-Pipe: {self.pipe_id}
-Segments: {', '.join([s.router_id for s in self.segments])}
-Embed: {not self.get_embed() is not None}
-Head: {not self.get_head() is not None}
-End Layer: {self.segments[-1].end_layer}
-Complete: {self.is_complete()}
-=================================
-''')
 
     def peers(self) -> List[str]:
         peers: List[str] = []

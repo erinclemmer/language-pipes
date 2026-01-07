@@ -1,3 +1,8 @@
+from typing import List
+from dataclasses import dataclass
+from language_pipes.modeling.meta_model import MetaModel
+from language_pipes.modeling.meta_computed import MetaComputed
+
 @dataclass
 class MetaPipe:
     pipe_id: str

@@ -1,7 +1,7 @@
 from time import time
 from typing import List
 from distributed_state_network.util.byte_helper import ByteHelper
-from language_pipes.job_manager.job_data import JobData
+from language_pipes.jobs.job_data import JobData
 
 class LayerTime:
     is_embed: bool

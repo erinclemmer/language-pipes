@@ -2,7 +2,8 @@ import json
 from typing import List, Dict, Optional
 from distributed_state_network import DSNode
 
-from language_pipes.util.meta import MetaModel, MetaPipe
+from language_pipes.pipes.meta_pipe import MetaPipe
+from language_pipes.modeling.meta_model import MetaModel
 
 def aggregate_models(models: List[MetaModel]) -> List[MetaPipe]:
     pipes: List[MetaPipe] = []
@@ -82,5 +83,5 @@ class RouterPipes:
         return aggregate_models(models)[0]
 
     def print_pipes(self):
-        for p in self.router_pipes.network_pipes():
-            p.print(self.logger)
+        for p in self.network_pipes():
+            p.print(self.router.logger)
