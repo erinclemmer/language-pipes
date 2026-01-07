@@ -43,17 +43,17 @@ except:
     _malloc_trim = None
 
 class JobManager:
+    app_dir: str
+    started: bool
+
     completed_jobs: List[str]
     jobs_pending: List[PendingJob]
-    models: List[LlmModel]
-    end_models: List[EndModel]
-    app_dir: str
     
     router: DSNode
-    
-    router_pipes: RouterPipes
     config: ProcessorConfig
-    started: bool
+    router_pipes: RouterPipes
+
+    get_end_model: Callable[[str], Optional[EndModel]]
 
     def __init__(
         self, 
@@ -61,6 +61,7 @@ class JobManager:
         router: DSNode, 
         config: ProcessorConfig,
         router_pipes: RouterPipes,
+        get_layer_models: Callable[[], List[LlmModel]],
         get_end_model: Callable[[str], Optional[EndModel]]
     ):
         self.started = False
@@ -68,6 +69,7 @@ class JobManager:
         self.config = config
         self.app_dir = app_dir
         self.logger = self.router.logger
+        self.get_layer_models = get_layer_models
         self.get_end_model = get_end_model
 
         self.jobs_pending = []
@@ -114,7 +116,7 @@ class JobManager:
             return None
         return Pipe.from_meta(
             meta_pipe=meta_pipe,
-            hosted_models=self.models,
+            hosted_models=self.get_layer_models(),
             router=self.router,
             app_dir=self.app_dir,
             get_job_port=self.get_job_port,

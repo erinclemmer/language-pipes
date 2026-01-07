@@ -47,11 +47,12 @@ class LanguagePipes:
         )
 
         self.job_manager = JobManager(
-            config.app_dir, 
-            self.router.node, 
-            self.config.processor, 
-            self.router_pipes,
-            self.model_manager.get_end_model
+            app_dir=config.app_dir, 
+            router=self.router.node, 
+            config=self.config.processor, 
+            router_pipes=self.router_pipes,
+            get_layer_models=self.model_manager.get_layer_models,
+            get_end_model=self.model_manager.get_end_model
         )
 
         self.job_receiver = JobReceiver(

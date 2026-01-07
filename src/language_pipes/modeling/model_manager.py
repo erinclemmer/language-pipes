@@ -44,6 +44,9 @@ class ModelManager:
         self.models = []
         self.end_models = []
 
+    def get_layer_models(self): 
+        return self.models
+
     def get_end_model(self, model_id: str) -> Optional[EndModel]:
         for m in self.end_models:
             if m.model_id == model_id:
