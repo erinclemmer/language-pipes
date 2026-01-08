@@ -154,7 +154,7 @@ Device: {self.device}
             process_id=self.process_id,
             start_layer=self.start_layer,
             end_layer=self.end_layer,
-            router_id=self.node_id,
+            node_id=self.node_id,
             pipe_id=self.pipe_id,
             model_id=self.model_id,
             loaded=self.loaded,
@@ -171,7 +171,7 @@ Device: {self.device}
     def from_meta(meta: MetaModel, app_dir: str) -> 'LlmModel':
         model = LlmModel(
             model_id=meta.model_id,
-            node_id=meta.router_id,
+            node_id=meta.node_id,
             pipe_id=meta.pipe_id,
             device='cpu',
             app_dir=app_dir,

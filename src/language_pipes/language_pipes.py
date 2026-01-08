@@ -32,7 +32,7 @@ class LanguagePipes:
         config: LpConfig
     ):
         self.config = config
-        self.set_logging_level(self.config.logging_level, self.config.router.node_id)
+        self.set_logging_level(self.config.logging_level)
         
         self.router_pipes = None
         self.router = DSNodeServer.start(self.config.router, self.print_pipes, self.print_pipes)
@@ -84,7 +84,7 @@ class LanguagePipes:
         self.oai_thread.start()
         self.job_manager.logger.info(f"OpenAI Server started on port {self.config.oai_port}")
 
-    def set_logging_level(self, logging_level: str, router_id: str):
+    def set_logging_level(self, logging_level: str):
         level = getattr(logging, logging_level.upper(), None)
         if level is None:
             raise ValueError(f"Invalid logging level: {logging_level}")

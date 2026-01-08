@@ -83,9 +83,9 @@ class JobManager:
             send_job_update=self.job_tracker.send_job_update
         )
     
-    def get_job_port(self, router_id: str) -> Optional[int]:
+    def get_job_port(self, node_id: str) -> Optional[int]:
         try:
-            return int(self.router.read_data(router_id, 'job_port'))
+            return int(self.router.read_data(node_id, 'job_port'))
         except Exception as e:
             self.logger.exception("Error getting job port: %s", e)
             return None

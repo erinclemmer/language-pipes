@@ -58,20 +58,20 @@ class Pipe:
         self.router.logger.exception(msg)
         raise Exception(msg)
 
-    def send_job(self, job: LayerJob, router_id: str):
-        ip = self.router.connection_from_node(router_id).address
-        port = self.get_job_port(router_id)
+    def send_job(self, job: LayerJob, node_id: str):
+        ip = self.router.connection_from_node(node_id).address
+        port = self.get_job_port(node_id)
         if port is None:
-            self.raise_exception(f"SEND JOB => Could not find pipe {self.pipe_id} for {router_id}")
+            self.raise_exception(f"SEND JOB => Could not find pipe {self.pipe_id} for {node_id}")
 
-        self.router.logger.info(f'Sending job {job.job_id} to {router_id}')
+        self.router.logger.info(f'Sending job {job.job_id} to {node_id}')
         def send(url: str, data: bytes):
             try:
                 res = requests.post(url, data=data, headers={'Content-Type': 'application/octet-stream'})
                 if res.status_code != 200 or res.content == b'DOWN':
-                    self.raise_exception(f"SEND JOB => bad response from {router_id}")
+                    self.raise_exception(f"SEND JOB => bad response from {node_id}")
             except:
-                self.raise_exception(f"SEND JOB => Could not connect to {router_id}")
+                self.raise_exception(f"SEND JOB => Could not connect to {node_id}")
         Thread(target=send, args=(f'http://{ip}:{port}', job.to_bytes(), )).start()
 
     def tokenize(self, prompt: Optional[str], messages: List[ChatMessage]) -> List[int]:
@@ -114,14 +114,14 @@ class Pipe:
             model_for_job = self.model_for_job(job)
             if model_for_job is None:
                 if job.status == JobStatus.COMPLETED:
-                    if job.router_id == self.router.config.node_id:
+                    if job.node_id == self.router.config.node_id:
                         res_tokens = job.input_id_tensor()
                         if res_tokens is None:
                             raise Exception("Tried to process job without input ids")
                         job.result = self.tokenizer().decode(res_tokens[job.prompt_tokens:])
                         self.complete_job(job)
                     else:
-                        self.send_job(job, job.router_id)
+                        self.send_job(job, job.node_id)
                 return
             
             if model_for_job.virtual:

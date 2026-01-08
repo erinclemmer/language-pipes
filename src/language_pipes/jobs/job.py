@@ -16,7 +16,7 @@ from language_pipes.util.chat import ChatMessage
 from language_pipes.util import tensor_to_bytes, bytes_to_tensor, bytes_to_int
 
 class Job(SignedPacket):
-    router_id: str
+    node_id: str
     from_router_id: str
     input_ids: List[int]
     prompt_tokens: int = 0
@@ -43,7 +43,7 @@ class Job(SignedPacket):
 
     def __init__(
             self,
-            router_id: str,
+            node_id: str,
             from_router_id: str,
             tokens: int,
             messages: List[ChatMessage],
@@ -66,7 +66,7 @@ class Job(SignedPacket):
             presence_penalty: float = 0.0
         ):
         super().__init__(ecdsa_signature)
-        self.router_id = router_id
+        self.node_id = node_id
         self.from_router_id = from_router_id
         self.model_id = model_id
         self.tokens = tokens
@@ -141,7 +141,7 @@ class Job(SignedPacket):
         data_hash = self.data.hash_state() if self.data is not None else b''
         if self.data is None:
             raise Exception("Tried to create layer job without job data")
-        return LayerJob(self.job_id, self.pipe_id, self.router_id, self.current_layer, self.data, data_hash, False, False, [])
+        return LayerJob(self.job_id, self.pipe_id, self.node_id, self.current_layer, self.data, data_hash, False, False, [])
 
     def print_job(self, logger):
         logger.info(f"""

@@ -8,7 +8,7 @@ class MetaModel:
     end_layer: int
     loaded: bool
     
-    router_id: str
+    node_id: str
     pipe_id: str
     model_id: str
     num_layers: int
@@ -19,7 +19,7 @@ class MetaModel:
             "process_id": self.process_id,
             "start_layer": self.start_layer,
             "end_layer": self.end_layer,
-            "router_id": self.router_id,
+            "node_id": self.node_id,
             "pipe_id": self.pipe_id,
             "model_id": self.model_id,
             "num_layers": self.num_layers,
@@ -34,7 +34,7 @@ class MetaModel:
             start_layer=data["start_layer"],
             end_layer=data["end_layer"],
             loaded=data["loaded"],
-            router_id=data["router_id"],
+            node_id=data["node_id"],
             pipe_id=data["pipe_id"],
             model_id=data["model_id"],
             num_layers=data["num_layers"],

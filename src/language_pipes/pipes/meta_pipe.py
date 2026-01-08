@@ -75,8 +75,8 @@ class MetaPipe:
     def peers(self) -> List[str]:
         peers: List[str] = []
         for segment in self.segments:
-            if segment.router_id not in peers:
-                peers.append(segment.router_id)
+            if segment.node_id not in peers:
+                peers.append(segment.node_id)
         return peers
 
     def is_complete(self):
@@ -97,7 +97,7 @@ class MetaPipe:
 Pipe Status:
 Model ID: {self.model_id}
 Pipe: {self.pipe_id}
-Segments: {', '.join([s.router_id for s in self.segments])}
+Segments: {', '.join([s.node_id for s in self.segments])}
 {self.print_pipe()}
 End Layer: {self.segments[-1].end_layer} / {self.num_layers() - 1}
 Complete: {self.is_complete()}
