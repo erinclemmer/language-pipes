@@ -1,8 +1,10 @@
 import json
+import random
 from typing import List, Dict, Optional
 from distributed_state_network import DSNode
 
-from language_pipes.util.meta import MetaModel, MetaPipe
+from language_pipes.pipes.meta_pipe import MetaPipe
+from language_pipes.modeling.meta_model import MetaModel
 
 def aggregate_models(models: List[MetaModel]) -> List[MetaPipe]:
     pipes: List[MetaPipe] = []
@@ -80,3 +82,17 @@ class RouterPipes:
             return None
         
         return aggregate_models(models)[0]
+
+    def print_pipes(self):
+        for p in self.network_pipes():
+            p.print(self.router.logger)
+
+    def get_job_pipe(self, model_id: str) -> Optional[MetaPipe]:
+        available_pipes: List[MetaPipe] = []
+        for p in self.pipes_for_model(model_id, True):
+            if not p.is_loading():
+                available_pipes.append(p)
+        if len(available_pipes) == 0:
+            return None
+
+        return random.choice(available_pipes)

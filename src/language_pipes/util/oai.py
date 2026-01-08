@@ -5,9 +5,9 @@ from typing import Callable, List
 from promise import Promise
 from http.server import BaseHTTPRequestHandler
 
+from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage
 from language_pipes.util.http import _respond_json, _send_sse_headers
-from language_pipes.job_manager.job import Job
 
 class ChatCompletionRequest:
     model: str
@@ -68,7 +68,7 @@ class ChatCompletionRequest:
 
 def send_initial_chunk(
     job: Job,
-    created: int,
+    created: float,
     handler: BaseHTTPRequestHandler
 ):
     msg = {
@@ -91,7 +91,7 @@ def send_initial_chunk(
 def send_update_chunk(
     job: Job,
     delta: object,
-    created: int,
+    created: float,
     finish_reason: str | None,
     handler: BaseHTTPRequestHandler
 ):

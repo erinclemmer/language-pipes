@@ -1,13 +1,13 @@
 from time import time
 from typing import List
 from distributed_state_network.util.byte_helper import ByteHelper
-from language_pipes.job_manager.job_data import JobData
+from language_pipes.jobs.job_data import JobData
 
 class LayerTime:
     is_embed: bool
     is_head: bool
-    receive_time: int
-    send_time: int
+    receive_time: float
+    send_time: float
     start_layer: int
     end_layer: int
     node_id: str
@@ -26,6 +26,9 @@ class LayerTime:
         self.start_layer = start_layer
         self.end_layer = end_layer
         self.receive_time = time()
+
+    def set_send_time(self):
+        self.send_time = time()
 
     def to_bytes(self) -> bytes:
         bts = ByteHelper()
@@ -143,5 +146,8 @@ class LayerJob:
             times.append(LayerTime.from_bytes(bts.read_bytes()))
 
         times.sort(key=lambda x: x.start_layer)
+
+        if job_data is None:
+            raise Exception("Could not decode job data from layer job bytes")
 
         return LayerJob(job_id, pipe_id, origin_node_id, current_layer, job_data, data_hash, done, restart, times)

@@ -7,10 +7,12 @@ import torch
 from distributed_state_network.objects.signed_packet import SignedPacket
 from distributed_state_network.util.byte_helper import ByteHelper
 
-from language_pipes.job_manager.job_data import JobData
-from language_pipes.job_manager.enums import ComputeStep, JobStatus
+from language_pipes.jobs.job_data import JobData
+from language_pipes.jobs.layer_job import LayerJob
+
+from language_pipes.util.enums import ComputeStep, JobStatus
 from language_pipes.util.chat import ChatMessage
-from language_pipes.job_manager.layer_job import LayerJob
+
 from language_pipes.util import tensor_to_bytes, bytes_to_tensor, bytes_to_int
 
 class Job(SignedPacket):
@@ -136,7 +138,10 @@ class Job(SignedPacket):
             self.status = JobStatus.COMPLETED
 
     def to_layer_job(self) -> LayerJob:
-        return LayerJob(self.job_id, self.pipe_id, self.router_id, self.current_layer, self.data, self.data.hash_state(), False, False, [])
+        data_hash = self.data.hash_state() if self.data is not None else b''
+        if self.data is None:
+            raise Exception("Tried to create layer job without job data")
+        return LayerJob(self.job_id, self.pipe_id, self.router_id, self.current_layer, self.data, data_hash, False, False, [])
 
     def print_job(self, logger):
         logger.info(f"""

@@ -97,7 +97,7 @@ def prompt_number_choice(message: str, choices: list, default=None, required=Fal
 def prompt_continue():
     prompt("Press Enter to continue...")
 
-def get_available_models(models_dir: str = None) -> list:
+def get_available_models(models_dir: str | None = None) -> list:
     """Get list of available models from ~/.config/language-pipes/models.
     
     Returns a list of model IDs in the format 'org/model' (e.g., 'Qwen/Qwen3-1.7B').

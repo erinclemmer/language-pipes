@@ -3,57 +3,45 @@ from threading import Thread
 from typing import Callable, Optional, List, Tuple
 from distributed_state_network import DSNode
 
-from language_pipes.job_manager.pipe import Pipe
-from language_pipes.job_manager.job import Job
-from language_pipes.llm_model.end_model import EndModel
-from language_pipes.job_manager.enums import ComputeStep, JobStatus
-from language_pipes.handlers.job import JobServer
-from language_pipes.util import stop_thread
-from language_pipes.job_manager.layer_job import LayerJob, LayerTime
-from language_pipes.config.processor import ProcessorConfig
-from language_pipes.job_manager.pending_job import PendingJob
+from language_pipes.pipes.pipe import Pipe
 
+from language_pipes.jobs.job import Job
+from language_pipes.jobs.job_handler import JobServer
+from language_pipes.jobs.pending_job import PendingJob
+from language_pipes.jobs.job_manager import JobManager
+from language_pipes.jobs.job_tracker import JobTracker
+from language_pipes.jobs.layer_job import LayerJob, LayerTime
+
+from language_pipes.modeling.end_model import EndModel
+
+from language_pipes.util import stop_thread
+from language_pipes.util.enums import ComputeStep, JobStatus
+
+from language_pipes.config.processor import ProcessorConfig
 
 class JobReceiver:
-    port: int
-    public_key_file: str
-    private_key_file: str
-    ecdsa_verification: bool
+    router: DSNode
     print_times: bool
     print_job_data: bool
-    prefill_chunk_size: int
-    router: DSNode
+    job_manager: JobManager
     job_queue: List[LayerJob]
-    get_pipe: Callable[[str], Optional[Pipe]]
     get_end_model: Callable[[str], Optional[EndModel]]
-    get_pending_job: Callable[[str], Optional[PendingJob]]
-    add_pending_job: Callable[[LayerJob], None]
-    update_pending_job: Callable[[str], None]
-    restart_job: Callable[[Job], None]
 
     def __init__(
             self, 
             config: ProcessorConfig,
             router: DSNode,
-            get_pipe: Callable[[str], Optional[Pipe]],
-            get_end_model: Callable[[str], Optional[EndModel]],
-            get_pending_job: Callable[[str], Optional[PendingJob]],
-            add_pending_job: Callable[[LayerJob], PendingJob],
-            update_pending_job: Callable[[str], None],
-            restart_job: Callable[[Job], None]
+            job_manager: JobManager,
+            job_tracker: JobTracker,
+            get_end_model: Callable[[str], Optional[EndModel]]
     ):
         self.router = router
-        self.get_pipe = get_pipe
         self.get_end_model = get_end_model
-        self.restart_job = restart_job
-        self.add_pending_job = add_pending_job
-        self.get_pending_job = get_pending_job
-        self.update_pending_job = update_pending_job
         self.job_queue = []
-        self.ecdsa_verification = config.ecdsa_verification
+        self.job_tracker = job_tracker
+        self.job_manager = job_manager
         self.print_times = config.print_times
         self.print_job_data = config.print_job_data
-        self.prefill_chunk_size = config.prefill_chunk_size
 
         thread, httpd = JobServer.start(config.job_port, self.router, self.receive_data)
         self.thread = thread
@@ -93,7 +81,7 @@ class JobReceiver:
         """Compute embedding and create a new LayerJob."""
         lt = self._create_embed_time()
         end_model.compute_embed(pending_job.job, pending_job.cache, chunk_start, chunk_end)
-        lt.send_time = time()
+        lt.set_send_time()
         layer_job = pending_job.job.to_layer_job()
         layer_job.times.append(lt)
         return layer_job
@@ -109,7 +97,7 @@ class JobReceiver:
         If should_return is True, caller should return immediately.
         If success is False, the pending job was not found.
         """
-        pending_job = self.get_pending_job(layer_job.job_id)
+        pending_job = self.job_tracker.get_pending_job(layer_job.job_id)
         if pending_job is None:
             return layer_job, True, False
         
@@ -118,7 +106,10 @@ class JobReceiver:
         
         layer_job = self._embed_and_create_layer_job(end_model, pending_job)
         
-        model = pipe.model_for_job(layer_job)
+        model = pipe.get_layer(0, False)
+        if model is None:
+            return layer_job, True, False
+        
         if model.virtual:
             pipe.send_job(layer_job, model.node_id)
             return layer_job, True, True
@@ -139,7 +130,7 @@ class JobReceiver:
         job = pending_job.job
         
         # Update job time to prevent stale timeout during prefill
-        pending_job.last_update = time()
+        pending_job.set_last_update()
         
         # Log chunk completion (for the chunk that just returned)
         chunk_time_ms = (time() - job.chunk_start_time) * 1000
@@ -164,7 +155,10 @@ class JobReceiver:
         )
         layer_job.done = False
         
-        model = pipe.model_for_job(layer_job)
+        model = pipe.get_layer(layer_job.current_layer, False)
+        if model is None:
+            return layer_job, True
+
         if model.virtual:
             pipe.send_job(layer_job, model.node_id)
             return layer_job, True
@@ -209,7 +203,7 @@ class JobReceiver:
         lt = self._create_head_time()
         end_model.compute_norm(job)
         end_model.compute_head(job)
-        lt.send_time = time()
+        lt.set_send_time()
         layer_job.times.append(lt)
         
         if self.print_times:
@@ -225,14 +219,17 @@ class JobReceiver:
             return layer_job, True
         
         # More tokens to generate - update and continue
-        if not pipe.update_job(job):
+        if not pipe.send_job_update(job):
             return layer_job, True
         
         # Embed next token (decode phase - no chunking)
         layer_job = self._embed_and_create_layer_job(end_model, pending_job)
         
         # Check if first model is virtual (remote) - if so, send directly
-        model = pipe.model_for_job(layer_job)
+        model = pipe.get_layer(layer_job.current_layer, False)
+        if model is None:
+            return layer_job, True
+        
         if model.virtual:
             pipe.send_job(layer_job, model.node_id)
             return layer_job, True
@@ -241,22 +238,27 @@ class JobReceiver:
 
     def _process_and_send(self, layer_job: LayerJob, pipe: Pipe):
         """Process job through local layers and send to next destination."""
-        pending_job = self.get_pending_job(layer_job.job_id)
+        pending_job = self.job_tracker.get_pending_job(layer_job.job_id)
         if pending_job is None:
-            pending_job = self.add_pending_job(layer_job)
+            pending_job = self.job_tracker.add_pending_job(layer_job)
         
-        model = pipe.model_for_job(layer_job)
+        model = pipe.get_layer(layer_job.current_layer, True)
+        if model is None:
+            return
+
         model.process_job(layer_job, pending_job.cache)
         
         # Only update pending job time for layer-only nodes (not the origin node)
         # Origin node manages its own job state including current_token
         if layer_job.origin_node_id != self.router.config.node_id:
-            self.update_pending_job(layer_job.job_id)
+            pending_job.set_last_update()
 
         if layer_job.done:
             pipe.send_job(layer_job, layer_job.origin_node_id)
         else:
-            next_model = pipe.model_for_job(layer_job)
+            next_model = pipe.get_layer(layer_job.current_layer, False)
+            if next_model is None:
+                return
             pipe.send_job(layer_job, next_model.node_id)
 
     def job_runner(self):
@@ -266,13 +268,13 @@ class JobReceiver:
             if layer_job is None:
                 return
             
-            pipe = self.get_pipe(layer_job.pipe_id)
+            pipe = self.job_manager.get_pipe(layer_job.pipe_id)
             
             # Pipe unavailable - restart job
             if pipe is None or not pipe.is_complete():
-                pending_job = self.get_pending_job(layer_job.job_id)
+                pending_job = self.job_tracker.get_pending_job(layer_job.job_id)
                 if pending_job is not None:
-                    self.restart_job(pending_job.job)
+                    self.job_manager.restart_job(pending_job.job)
                 self._schedule_next()
                 return
             
@@ -280,6 +282,9 @@ class JobReceiver:
             
             # Handle restart request
             if layer_job.restart:
+                if end_model is None:
+                    self._schedule_next()
+                    return
                 layer_job, should_return, success = self._handle_restart(layer_job, pipe, end_model)
                 if not success:
                     self.router.logger.warning(f"Pending job not found for restart: {layer_job.job_id}")
@@ -289,7 +294,7 @@ class JobReceiver:
 
             # Handle completed layer processing (job returned from network)
             if layer_job.done:
-                pending_job = self.get_pending_job(layer_job.job_id)
+                pending_job = self.job_tracker.get_pending_job(layer_job.job_id)
                 if pending_job is None:
                     # Job not found - may have timed out or been processed elsewhere
                     self.router.logger.warning(f"Pending job not found for {layer_job.job_id}")
@@ -298,6 +303,10 @@ class JobReceiver:
                 
                 job = pending_job.job
                 job.data = layer_job.data
+
+                if end_model is None:
+                    self._schedule_next()
+                    return
 
                 # Prefill chunking: more chunks to process?
                 if job.current_token == 0 and pending_job.chunking.has_more():
@@ -327,7 +336,9 @@ class JobReceiver:
     def restart_token(self, job: LayerJob):
         """Mark job for restart and send back to origin."""
         job.restart = True
-        pipe = self.get_pipe(job.pipe_id)
+        pipe = self.job_manager.get_pipe(job.pipe_id)
+        if pipe is None:
+            return
         pipe.send_job(job, job.origin_node_id)
 
     def receive_data(self, data: bytes):

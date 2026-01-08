@@ -36,5 +36,5 @@ class ProcessorConfig:
         config.hosted_models = [HostedModel.from_dict(o) for o in data['hosted_models']]
         config.print_times = data.get('print_times', False)
         config.print_job_data = data.get('print_job_data', False)
-        config.prefill_chunk_size = data.get('prefill_chunk_size', 8)
+        config.prefill_chunk_size = data.get('prefill_chunk_size', 6)
         return config

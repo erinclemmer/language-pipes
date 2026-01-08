@@ -9,8 +9,8 @@ from llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 from language_pipes.util import size_of_tensor, tensor_hash
-from language_pipes.job_manager.enums import ModelPartType
-from language_pipes.util.meta import MetaComputed
+from language_pipes.util.enums import ModelPartType
+from language_pipes.modeling.meta_computed import MetaComputed
 
 def get_size_of_layer(config: PretrainedConfig, layer_idx: int) -> Tuple[float, str]:
     print(f"Calculating layer size for layer {layer_idx}...")
@@ -76,7 +76,7 @@ def get_size_of_layer(config: PretrainedConfig, layer_idx: int) -> Tuple[float, 
 def get_avg_layer_size(model_path: str) -> Tuple[int, List[str]]:
     if not os.path.exists(model_path):
         print(f'Model {model_path} not found')
-        return -1
+        return -1, []
     config = AutoConfig.from_pretrained(model_path)
 
     total_size = 0
@@ -181,6 +181,7 @@ class ComputedData:
             head_hash=self.head_hash,
             layer_hashes=self.layer_hashes
         )
+
     @staticmethod
     def from_meta(data: MetaComputed) -> 'ComputedData':
         c = ComputedData(None)

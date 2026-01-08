@@ -13,13 +13,16 @@ from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 import torch
 
-from language_pipes.util import clone_model
-from language_pipes.util.meta import MetaModel
-from language_pipes.job_manager.job import Job
-from language_pipes.job_manager.job_data import jobDataToComputationState, detachCompState
-from language_pipes.llm_model.computed import ComputedData
-from language_pipes.job_manager.layer_job import LayerJob, LayerTime
 from llm_layer_collector import LlmLayerCollector
+
+from language_pipes.util import clone_model
+
+from language_pipes.modeling.meta_model import MetaModel
+from language_pipes.modeling.computed import ComputedData
+
+from language_pipes.jobs.job import Job
+from language_pipes.jobs.layer_job import LayerJob, LayerTime
+from language_pipes.jobs.job_data import jobDataToComputationState, detachCompState
 
 def compute_layers(job_data, device, layers, cache):
     comp_state = jobDataToComputationState(job_data, device)
@@ -130,7 +133,7 @@ Device: {self.device}
 
     def compute_layers(
         self, 
-        job: Job,
+        job: LayerJob,
         cache: DynamicCache
     ):
         if job.data is None:

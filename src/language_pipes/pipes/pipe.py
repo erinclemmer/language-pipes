@@ -9,12 +9,12 @@ from transformers import AutoTokenizer
 from transformers.models.auto import AutoConfig
 from distributed_state_network import DSNode
 
-from language_pipes.util.meta import MetaPipe
+from language_pipes.pipes.meta_pipe import MetaPipe
+from language_pipes.modeling.llm_model import LlmModel
+from language_pipes.jobs.layer_job import LayerJob
+from language_pipes.jobs.job import Job
+from language_pipes.util.enums import JobStatus
 from language_pipes.util.chat import ChatMessage
-from language_pipes.job_manager.enums import JobStatus
-from language_pipes.llm_model import LlmModel
-from language_pipes.job_manager.layer_job import LayerJob
-from language_pipes.job_manager.job import Job
 
 class Pipe:
     pipe_id: str
@@ -25,7 +25,7 @@ class Pipe:
     tokenizer: Callable
     get_job_port: Callable[[str], Optional[int]]
     complete_job: Callable[[Job], None]
-    update_job: Callable[[Job], None]
+    send_job_update: Callable[[Job], None]
     model_num_hidden_layers: int
 
     def __init__(
@@ -36,12 +36,12 @@ class Pipe:
             app_dir: str,
             get_job_port: Callable[[str], Optional[int]],
             complete_job: Callable[[Job], None],
-            update_job: Callable[[Job], None],
+            send_job_update: Callable[[Job], None],
             restart_job: Callable[[Job], None]
         ):
         self.get_job_port = get_job_port
         self.complete_job = complete_job
-        self.update_job = update_job
+        self.send_job_update = send_job_update
         self.restart_job = restart_job
         self.router = router
         self.model_id = model_id
@@ -61,23 +61,20 @@ class Pipe:
         raise Exception(msg)
 
     def send_job(self, job: LayerJob, router_id: str):
-        try:
-            ip = self.router.connection_from_node(router_id).address
-            port = self.get_job_port(router_id)
-            if port is None:
-                self.raise_exception(f"SEND JOB => Could not find pipe {self.pipe_id} for {router_id}")
+        ip = self.router.connection_from_node(router_id).address
+        port = self.get_job_port(router_id)
+        if port is None:
+            self.raise_exception(f"SEND JOB => Could not find pipe {self.pipe_id} for {router_id}")
 
-            self.router.logger.info(f'Sending job {job.job_id} to {router_id}')
-            def send(url: str, data: bytes):
-                try:
-                    res = requests.post(url, data=data, headers={'Content-Type': 'application/octet-stream'})
-                    if res.status_code != 200 or res.content == b'DOWN':
-                        self.raise_exception(f"SEND JOB => bad response from {router_id}")
-                except:
-                    self.raise_exception(f"SEND JOB => Could not connect to {router_id}")
-            Thread(target=send, args=(f'http://{ip}:{port}', job.to_bytes(), )).start()
-        except:
-            self.restart_job(job)
+        self.router.logger.info(f'Sending job {job.job_id} to {router_id}')
+        def send(url: str, data: bytes):
+            try:
+                res = requests.post(url, data=data, headers={'Content-Type': 'application/octet-stream'})
+                if res.status_code != 200 or res.content == b'DOWN':
+                    self.raise_exception(f"SEND JOB => bad response from {router_id}")
+            except:
+                self.raise_exception(f"SEND JOB => Could not connect to {router_id}")
+        Thread(target=send, args=(f'http://{ip}:{port}', job.to_bytes(), )).start()
 
     def tokenize(self, prompt: Optional[str], messages: List[ChatMessage]) -> List[int]:
         tokenizer: AutoTokenizer = self.tokenizer()
@@ -108,27 +105,6 @@ class Pipe:
 
         return current_layer == self.model_num_hidden_layers
 
-    def print(self):
-        self.router.logger.info(f'''
-=================================
-Pipe Status:
-Model ID: {self.model_id}
-Pipe: {self.pipe_id}
-Segments: {', '.join([s.router_id for s in self.segments])}
-Embed: {not self.get_embed() is not None}
-Head: {not self.get_head() is not None}
-End Layer: {self.segments[-1].end_layer}
-Complete: {self.is_complete()}
-=================================
-''')
-
-    def peers(self) -> List[str]:
-        peers: List[str] = []
-        for segment in self.segments:
-            if segment.router_id not in peers:
-                peers.append(segment.router_id)
-        return peers
-
     def model_for_job(self, job: Job, need_physical: bool = False) -> Optional[LlmModel]:
         return self.get_layer(job.current_layer, need_physical)
 
@@ -142,6 +118,8 @@ Complete: {self.is_complete()}
                 if job.status == JobStatus.COMPLETED:
                     if job.router_id == self.router.config.node_id:
                         res_tokens = job.input_id_tensor()
+                        if res_tokens is None:
+                            raise Exception("Tried to process job without input ids")
                         job.result = self.tokenizer().decode(res_tokens[job.prompt_tokens:])
                         self.complete_job(job)
                     else:
@@ -164,7 +142,7 @@ Complete: {self.is_complete()}
         app_dir: str,
         get_job_port: Callable[[str], Optional[int]],
         complete_job: Callable[[Job], None],
-        update_job: Callable[[Job], None],
+        send_job_update: Callable[[Job], None],
         restart_job: Callable[[Job], None]
     ) -> 'Pipe':
         p = Pipe(
@@ -173,7 +151,7 @@ Complete: {self.is_complete()}
             get_job_port=get_job_port,
             app_dir=app_dir,
             complete_job=complete_job,
-            update_job=update_job,
+            send_job_update=send_job_update,
             restart_job=restart_job,
             router=router
         )

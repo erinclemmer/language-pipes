@@ -10,7 +10,7 @@ from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.start import start_wizard
 from language_pipes.commands.upgrade import upgrade_lp
 
-from language_pipes import LanguagePipes
+from language_pipes.language_pipes import LanguagePipes
 
 VERSION = "0.16.0"
 
@@ -117,7 +117,7 @@ def apply_overrides(data, args):
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
         "print_times": precedence("print_times", args.print_times, False),
         "print_job_data": precedence("print_job_data", args.print_job_data, False),
-        "prefill_chunk_size": precedence("prefill_chunk_size", args.prefill_chunk_size, 8)
+        "prefill_chunk_size": precedence("prefill_chunk_size", args.prefill_chunk_size, 6)
     }
 
     if config["hosted_models"] is None:

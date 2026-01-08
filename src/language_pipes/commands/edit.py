@@ -193,7 +193,7 @@ def edit_config(config_path: str):
         elif selected_key == "prefill_chunk_size":
             config["prefill_chunk_size"] = prompt_int(
                 "Prefill Chunk Size (tokens, prompts longer than this are chunked)",
-                default=config.get("prefill_chunk_size", 8),
+                default=config.get("prefill_chunk_size", 6),
                 required=True
             )
         

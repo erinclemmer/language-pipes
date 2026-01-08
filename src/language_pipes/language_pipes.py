@@ -2,9 +2,12 @@ import logging
 from threading import Thread
 from distributed_state_network import DSNodeServer
 
-from language_pipes.job_manager import JobManager
-from language_pipes.job_receiver import JobReceiver
-from language_pipes.handlers.oai import OAIHttpServer
+from language_pipes.oai_server import OAIHttpServer
+from language_pipes.jobs.job_manager import JobManager
+from language_pipes.jobs.job_receiver import JobReceiver
+from language_pipes.jobs.job_tracker import JobTracker
+from language_pipes.pipes.router_pipes import RouterPipes
+from language_pipes.modeling.model_manager import ModelManager
 
 from language_pipes.util import stop_thread
 from language_pipes.config import LpConfig
@@ -30,28 +33,52 @@ class LanguagePipes:
     ):
         self.config = config
         self.set_logging_level(self.config.logging_level, self.config.router.node_id)
-        self.job_manager = None
+        
+        self.router_pipes = None
         self.router = DSNodeServer.start(self.config.router, self.print_pipes, self.print_pipes)
-        self.job_manager = JobManager(config.app_dir, self.router.node, self.config.processor)
+
+        self.router_pipes = RouterPipes(self.router.node)
+
+        self.model_manager = ModelManager(
+            config.router.node_id,
+            config.app_dir,
+            self.router_pipes,
+            self.router.node.logger,
+            self.config.processor
+        )
+
+        self.job_tracker = JobTracker(self.router.node.logger)
+
+        self.job_manager = JobManager(
+            app_dir=config.app_dir, 
+            router=self.router.node, 
+            config=self.config.processor, 
+            router_pipes=self.router_pipes,
+            job_tracker=self.job_tracker,
+            get_layer_models=self.model_manager.get_layer_models,
+            get_end_model=self.model_manager.get_end_model
+        )
+
         self.job_receiver = JobReceiver(
             config=self.config.processor, 
             router=self.router.node, 
-            get_pipe=self.job_manager.get_pipe, 
-            get_end_model=self.job_manager.get_end_model, 
-            add_pending_job=self.job_manager.add_pending_job,
-            update_pending_job=self.job_manager.update_job_time,
-            get_pending_job=self.job_manager.get_pending_job,
-            restart_job=self.job_manager.restart_job
+            job_tracker=self.job_tracker,
+            job_manager=self.job_manager,
+            get_end_model=self.model_manager.get_end_model
         )
+
         if self.config.oai_port is not None:
             self.start_oai()
 
     def print_pipes(self):
-        if self.job_manager is None:
+        if self.router_pipes is None:
             return
-        self.job_manager.print_pipes()
+        self.router_pipes.print_pipes()
 
     def start_oai(self):
+        if self.config.oai_port is None:
+            self.router.logger.error("Tried to start Open AI server but no port was specified")
+            return
         self.oai_server = OAIHttpServer(self.config.oai_port, self.job_manager.start_job)
         self.oai_thread = Thread(target=self.oai_server.serve_forever, args=())
         self.oai_thread.start()
@@ -67,7 +94,7 @@ class LanguagePipes:
         return self.config.router.port
 
     def stop(self):
-        self.job_manager.stop()
+        self.model_manager.stop()
         self.job_receiver.stop()
         self.router.stop()
         if self.config.oai_port is not None:
