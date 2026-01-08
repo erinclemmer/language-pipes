@@ -36,13 +36,11 @@ class Pipe:
             app_dir: str,
             get_job_port: Callable[[str], Optional[int]],
             complete_job: Callable[[Job], None],
-            send_job_update: Callable[[Job], None],
-            restart_job: Callable[[Job], None]
+            send_job_update: Callable[[Job], None]
         ):
         self.get_job_port = get_job_port
         self.complete_job = complete_job
         self.send_job_update = send_job_update
-        self.restart_job = restart_job
         self.router = router
         self.model_id = model_id
         model_dir = str(Path(app_dir) / 'models' / model_id / 'data')
@@ -124,8 +122,6 @@ class Pipe:
                         self.complete_job(job)
                     else:
                         self.send_job(job, job.router_id)
-                else:
-                    self.restart_job(job)
                 return
             
             if model_for_job.virtual:
@@ -142,8 +138,7 @@ class Pipe:
         app_dir: str,
         get_job_port: Callable[[str], Optional[int]],
         complete_job: Callable[[Job], None],
-        send_job_update: Callable[[Job], None],
-        restart_job: Callable[[Job], None]
+        send_job_update: Callable[[Job], None]
     ) -> 'Pipe':
         p = Pipe(
             model_id=meta_pipe.model_id, 
@@ -152,7 +147,6 @@ class Pipe:
             app_dir=app_dir,
             complete_job=complete_job,
             send_job_update=send_job_update,
-            restart_job=restart_job,
             router=router
         )
         local_segments = []

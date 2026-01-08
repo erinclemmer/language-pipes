@@ -80,8 +80,7 @@ class JobManager:
             app_dir=self.app_dir,
             get_job_port=self.get_job_port,
             complete_job=self.job_tracker.complete_job,
-            send_job_update=self.job_tracker.send_job_update,
-            restart_job=self.restart_job
+            send_job_update=self.job_tracker.send_job_update
         )
     
     def get_job_port(self, router_id: str) -> Optional[int]:
@@ -90,23 +89,6 @@ class JobManager:
         except Exception as e:
             self.logger.exception("Error getting job port: %s", e)
             return None
-
-    def restart_job(self, job: Job):
-        pipe = self.router_pipes.get_job_pipe(job.model_id)
-        if pipe is None:
-            job.status = JobStatus.ERROR
-            ip = self.router.connection_from_node(job.router_id).address
-            port = self.get_job_port(job.router_id)
-            cert = self.router.cert_manager.public_path(job.router_id)
-            requests.post(f"https://{ip}:{port}", data=job.to_bytes(), headers={ 'Content-Type': 'application/octet-stream' }, verify = cert)
-            return
-        self.start_job(
-            job.model_id, 
-            job.messages, 
-            job.tokens, 
-            pipe_id=pipe.pipe_id, 
-            job_id=job.job_id
-        )
 
     def start_job(
         self, 
