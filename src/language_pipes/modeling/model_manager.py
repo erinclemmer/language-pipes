@@ -5,13 +5,13 @@ from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.end_model import EndModel
 from language_pipes.pipes.router_pipes import RouterPipes
-from language_pipes.config.processor import ProcessorConfig
+from language_pipes.config import LpConfig
 from language_pipes.modeling.computed import validate_model
 
 class ModelManager:
     node_id: str
     app_dir: str
-    config: ProcessorConfig
+    config: LpConfig
     router_pipes: RouterPipes
     models: List[LlmModel]
     end_models: List[EndModel]
@@ -23,7 +23,7 @@ class ModelManager:
         app_dir: str, 
         router_pipes: RouterPipes,
         logger,
-        config: ProcessorConfig
+        config: LpConfig
     ):
         self.node_id = node_id
         self.app_dir = app_dir

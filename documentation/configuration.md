@@ -52,6 +52,7 @@ logging_level = "INFO"
 max_pipes = 1
 model_validation = true
 ecdsa_verification = false
+print_times = false
 ```
 
 ---

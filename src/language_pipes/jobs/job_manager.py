@@ -27,7 +27,7 @@ from language_pipes.jobs.layer_job import LayerTime, LayerJob
 from language_pipes.jobs.pending_job import PendingJob
 from language_pipes.jobs.job_tracker import JobTracker
 
-from language_pipes.config.processor import ProcessorConfig
+from language_pipes.config import LpConfig
 
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.computed import validate_model
@@ -37,7 +37,7 @@ class JobManager:
     started: bool
 
     router: DSNode
-    config: ProcessorConfig
+    config: LpConfig
     job_tracker: JobTracker
     router_pipes: RouterPipes
 
@@ -47,7 +47,7 @@ class JobManager:
         self, 
         app_dir: str, 
         router: DSNode, 
-        config: ProcessorConfig,
+        config: LpConfig,
         router_pipes: RouterPipes,
         job_tracker: JobTracker,
         get_layer_models: Callable[[], List[LlmModel]],

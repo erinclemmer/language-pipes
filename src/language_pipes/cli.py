@@ -213,16 +213,14 @@ def main(argv = None):
                     }
                 ] if data["bootstrap_address"] is not None else []
             },
-            "processor": {
-                "max_pipes": data["max_pipes"],
-                "model_validation": data["model_validation"],
-                "ecdsa_verification": data["ecdsa_verification"],
-                "job_port": data["job_port"],
-                "hosted_models": data["hosted_models"],
-                "print_times": data["print_times"],
-                "print_job_data": data["print_job_data"],
-                "prefill_chunk_size": data["prefill_chunk_size"]
-            }
+            "hosted_models": data["hosted_models"],
+            "max_pipes": data["max_pipes"],
+            "model_validation": data["model_validation"],
+            "ecdsa_verification": data["ecdsa_verification"],
+            "job_port": data["job_port"],
+            "print_times": data["print_times"],
+            "print_job_data": data["print_job_data"],
+            "prefill_chunk_size": data["prefill_chunk_size"]
         })
 
         return LanguagePipes(VERSION, config)

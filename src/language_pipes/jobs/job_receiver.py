@@ -17,7 +17,7 @@ from language_pipes.modeling.end_model import EndModel
 from language_pipes.util import stop_thread
 from language_pipes.util.enums import ComputeStep, JobStatus
 
-from language_pipes.config.processor import ProcessorConfig
+from language_pipes.config import LpConfig
 
 class JobReceiver:
     router: DSNode
@@ -29,7 +29,7 @@ class JobReceiver:
 
     def __init__(
             self, 
-            config: ProcessorConfig,
+            config: LpConfig,
             router: DSNode,
             job_manager: JobManager,
             job_tracker: JobTracker,

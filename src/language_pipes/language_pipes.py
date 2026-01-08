@@ -44,7 +44,7 @@ class LanguagePipes:
             config.app_dir,
             self.router_pipes,
             self.router.node.logger,
-            self.config.processor
+            self.config
         )
 
         self.job_tracker = JobTracker(self.router.node.logger)
@@ -52,7 +52,7 @@ class LanguagePipes:
         self.job_manager = JobManager(
             app_dir=config.app_dir, 
             router=self.router.node, 
-            config=self.config.processor, 
+            config=self.config, 
             router_pipes=self.router_pipes,
             job_tracker=self.job_tracker,
             get_layer_models=self.model_manager.get_layer_models,
@@ -60,7 +60,7 @@ class LanguagePipes:
         )
 
         self.job_receiver = JobReceiver(
-            config=self.config.processor, 
+            config=self.config, 
             router=self.router.node, 
             job_tracker=self.job_tracker,
             job_manager=self.job_manager,
