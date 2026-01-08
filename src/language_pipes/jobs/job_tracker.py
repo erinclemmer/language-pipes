@@ -99,9 +99,11 @@ class JobTracker:
         if existing is not None:
             return existing  # Return existing job instead of None
         job = Job(
-            "",
-            layer_job.origin_node_id, 
-            0, [], layer_job.pipe_id, ""
+            origin_node_id=layer_job.origin_node_id,
+            messages=[],
+            model_id="",
+            pipe_id=layer_job.pipe_id,
+            data=layer_job.data
         )
         job.job_id = layer_job.job_id
         if layer_job.data.state is None:

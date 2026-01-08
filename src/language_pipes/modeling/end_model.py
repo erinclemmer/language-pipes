@@ -106,7 +106,6 @@ class EndModel:
         )
         
         job.data = computationStateToJobData(comp_state)
-        job.data_hash = job.data.hash_state()
         job.next_step()
 
     def compute_norm(self, job: Job):

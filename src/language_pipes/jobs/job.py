@@ -4,9 +4,6 @@ from uuid import uuid4
 
 import torch
 
-from distributed_state_network.objects.signed_packet import SignedPacket
-from distributed_state_network.util.byte_helper import ByteHelper
-
 from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.layer_job import LayerJob
 
@@ -15,78 +12,75 @@ from language_pipes.util.chat import ChatMessage
 
 from language_pipes.util import tensor_to_bytes, bytes_to_tensor, bytes_to_int
 
-class Job(SignedPacket):
-    node_id: str
-    from_router_id: str
-    input_ids: List[int]
-    prompt_tokens: int = 0
-    tokens: int
+class Job:
+    # IDs
     job_id: str
     pipe_id: str
     model_id: str
+    origin_node_id: str
+    
+    # Computed
     delta: str
-    current_layer: int
+    prompt_tokens: int = 0
+
+    # State Info
+    input_ids: List[int]
     current_step: ComputeStep
     status: JobStatus
     current_token: int = 0
     data: Optional[JobData]
     messages: List[ChatMessage]
     result: Optional[str]
-    temperature: float
+    
+    # API params
     top_k: int
     top_p: float
     min_p: float
+    temperature: float
     presence_penalty: float
+    max_completion_tokens: int
+    
     # Prefill timing fields
     prefill_start_time: float
     chunk_start_time: float
 
     def __init__(
             self,
-            node_id: str,
-            from_router_id: str,
-            tokens: int,
+            origin_node_id: str,
             messages: List[ChatMessage],
             pipe_id: str,
             model_id: str,
-            ecdsa_signature: Optional[bytes] = None,
-            current_layer: int = 0,
-            job_id: str = "",
-            current_step: ComputeStep = ComputeStep.TOKENIZE,
-            status: JobStatus = JobStatus.IN_PROGRESS,
-            current_token: int = 0,
-            result: Optional[str] = None,
-            input_ids: List[int] = [],
-            prompt_tokens: int = 0,
             data: Optional[JobData] = None,
             temperature: float = 1.0,
             top_k: int = 0,
             top_p: float = 1.0,
             min_p: float = 0.0,
-            presence_penalty: float = 0.0
+            presence_penalty: float = 0.0,
+            max_completion_tokens: int = 1000
         ):
-        super().__init__(ecdsa_signature)
-        self.node_id = node_id
-        self.from_router_id = from_router_id
-        self.model_id = model_id
-        self.tokens = tokens
-        self.input_ids = input_ids
-        self.prompt_tokens = prompt_tokens
-        self.job_id = str(uuid4()) if job_id == "" else job_id
         self.pipe_id = pipe_id
-        self.current_layer = current_layer
-        self.current_step = current_step
-        self.status = status
-        self.current_token = current_token
-        self.result = result
-        self.messages = messages
+        self.model_id = model_id
+        self.job_id = str(uuid4())
+        self.origin_node_id = origin_node_id
+        
+        self.status = JobStatus.IN_PROGRESS
+        self.current_step = ComputeStep.TOKENIZE
+
         self.delta = ''
-        self.data = data if data is not None else JobData()
+        self.data = None
+        self.result = None
+        self.input_ids = []
+        self.prompt_tokens = 0
+        self.current_token = 0
+        self.messages = messages
+
         self.temperature = temperature
         self.top_k = top_k
         self.top_p = top_p
         self.min_p = min_p
         self.presence_penalty = presence_penalty
+        self.max_completion_tokens = max_completion_tokens
+        
         self.prefill_start_time = 0.0
         self.chunk_start_time = 0.0
 
@@ -126,13 +120,12 @@ class Job(SignedPacket):
             self.current_step = ComputeStep.LAYER
         elif self.current_step == ComputeStep.LAYER:
             self.current_step = ComputeStep.NORM
-            self.current_layer = 0
         elif self.current_step == ComputeStep.NORM:
             self.current_step = ComputeStep.HEAD
-        elif self.current_token < self.tokens:
+        elif self.current_token < self.max_completion_tokens:
             self.current_token += 1
             self.current_step = ComputeStep.EMBED
-            if self.current_token == self.tokens:
+            if self.current_token == self.max_completion_tokens:
                 self.status = JobStatus.COMPLETED
         else:
             self.status = JobStatus.COMPLETED
@@ -141,7 +134,7 @@ class Job(SignedPacket):
         data_hash = self.data.hash_state() if self.data is not None else b''
         if self.data is None:
             raise Exception("Tried to create layer job without job data")
-        return LayerJob(self.job_id, self.pipe_id, self.node_id, self.current_layer, self.data, data_hash, False, False, [])
+        return LayerJob(self.job_id, self.pipe_id, self.origin_node_id, 0, self.data, data_hash, False, False, [])
 
     def print_job(self, logger):
         logger.info(f"""
@@ -150,7 +143,7 @@ Job ID: {self.job_id}
 Pipe ID: {self.pipe_id}
 Prompt Tokens: {self.prompt_tokens}
 Current Token: {self.current_token}
-Max Tokens: {self.tokens}
+Max Tokens: {self.max_completion_tokens}
 Temperature: {self.temperature}
 Top K: {self.top_k}
 Top P: {self.top_p}

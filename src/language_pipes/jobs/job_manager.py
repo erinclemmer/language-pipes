@@ -94,7 +94,7 @@ class JobManager:
         self, 
         model_id: str, 
         messages: List[ChatMessage], 
-        tokens: int, 
+        max_completion_tokens: int, 
         temperature: float = 1.0,
         top_k: int = 0,
         top_p: float = 1.0,
@@ -129,7 +129,18 @@ class JobManager:
             raise_exception(self.logger, f"Could not find pipe {pipe_id}")
             return
 
-        job = Job(self.router.config.node_id, self.router.config.node_id, tokens, messages, pipe_id, model_id, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p, presence_penalty=presence_penalty)
+        job = Job(
+            origin_node_id=self.router.config.node_id, 
+            messages=messages, 
+            pipe_id=pipe_id, 
+            model_id=pipe.model_id,
+            temperature=temperature, 
+            top_k=top_k, 
+            top_p=top_p, 
+            min_p=min_p, 
+            presence_penalty=presence_penalty,
+            max_completion_tokens=max_completion_tokens
+        )
         
         if job_id is not None:
             job.job_id = job_id
@@ -178,7 +189,7 @@ class JobManager:
             )
         
         end_model.compute_embed(job, pending_job.cache, chunk_start, chunk_end)
-        first_layer_model = pipe.model_for_job(job)
+        first_layer_model = pipe.get_layer(0, False)
         if first_layer_model is None:
             raise_exception(self.logger, "Could not find appropriate model for processing")
             return None

@@ -103,33 +103,6 @@ class Pipe:
 
         return current_layer == self.model_num_hidden_layers
 
-    def model_for_job(self, job: Job, need_physical: bool = False) -> Optional[LlmModel]:
-        return self.get_layer(job.current_layer, need_physical)
-
-    def process_job(
-            self,
-            job: Job
-        ):
-        while True:
-            model_for_job = self.model_for_job(job)
-            if model_for_job is None:
-                if job.status == JobStatus.COMPLETED:
-                    if job.node_id == self.router.config.node_id:
-                        res_tokens = job.input_id_tensor()
-                        if res_tokens is None:
-                            raise Exception("Tried to process job without input ids")
-                        job.result = self.tokenizer().decode(res_tokens[job.prompt_tokens:])
-                        self.complete_job(job)
-                    else:
-                        self.send_job(job, job.node_id)
-                return
-            
-            if model_for_job.virtual:
-                self.send_job(job, model_for_job.node_id)
-                return
-            
-            model_for_job.process_job(job)
-
     @staticmethod
     def from_meta(
         meta_pipe: MetaPipe, 
