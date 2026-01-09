@@ -58,7 +58,7 @@ class JobReceiver:
             if len(self.job_queue) > 0:
                 layer_job = self.job_queue.pop()
                 return layer_job
-            sleep(0.1)
+            sleep(0.01)
 
     def _job_runner_loop(self):
         """Main job processing loop using FSM."""
