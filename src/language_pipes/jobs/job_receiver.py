@@ -11,7 +11,7 @@ from language_pipes.jobs.pending_job import PendingJob
 from language_pipes.jobs.job_manager import JobManager
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.layer_job import LayerJob, LayerTime
-from language_pipes.jobs.job_receiver_fsm import JobReceiverFSM
+from language_pipes.jobs.job_receiver_fsm import JobReceiverFSM, FSMContext
 
 from language_pipes.modeling.end_model import EndModel
 
@@ -62,8 +62,36 @@ class JobReceiver:
 
     def _job_runner_loop(self):
         """Main job processing loop using FSM."""
+        layer_job = self._wait_for_job()
+        pending_job = self.job_tracker.get_pending_job(layer_job.job_id)
+        if pending_job is None:
+            if layer_job.done:
+                # Ensure we only process the ends of jobs we sent out
+                return
+            else:
+                pending_job = self.job_tracker.add_pending_job(layer_job)
+
+        pipe = self.job_manager.get_pipe(layer_job.pipe_id)
+        if pipe is None:
+            return
+
+        end_model = self.get_end_model(pipe.model_id)
+        
+        fsm = JobReceiverFSM(
+            self.router.config.node_id,
+            self.print_job_data, 
+            self.print_times
+        )
+
+        fsm.ctx = FSMContext(
+            logger=self.router.logger,
+            layer_job=layer_job,
+            pipe=pipe,
+            end_model=end_model,
+            pending_job=pending_job
+        )
+
         try:
-            fsm = JobReceiverFSM(self)
             fsm.run()
         except Exception as e:
             print(e)
