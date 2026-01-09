@@ -15,7 +15,8 @@ class ReceiverState(Enum):
     """States for the JobReceiver finite state machine."""
     VALIDATING = auto()    # Validating pipe and getting resources
     PREFILL_CHUNK = auto() # Processing prefill chunks
-    OUTPUT = auto()        # Computing norm/head, handling completion
+    HEAD = auto()          # Computing norm/head, handling completion
+    EMBED = auto()         # Embedding the next token for decoding
     PROCESS_LAYERS = auto() # Processing through local layers
     SEND = auto()          # Sending job to next destination
     DONE = auto()          # Current job iteration complete
@@ -80,7 +81,7 @@ def log_done_error(ctx: FSMContext, message: str) -> None:
         ctx.logger.error(message)
 
 def next_state_after_origin_completion(ctx: FSMContext) -> ReceiverState:
-    return ReceiverState.PREFILL_CHUNK if should_prefill_chunk(ctx.pending_job) else ReceiverState.OUTPUT
+    return ReceiverState.PREFILL_CHUNK if should_prefill_chunk(ctx.pending_job) else ReceiverState.HEAD
 
 def next_state_after_local_job(ctx: FSMContext) -> ReceiverState:
     return ReceiverState.PREFILL_CHUNK if should_prefill_chunk(ctx.pending_job) else ReceiverState.PROCESS_LAYERS
@@ -111,7 +112,7 @@ class JobReceiverFSM:
     State Transitions (and why they happen):
     
     VALIDATING -> DONE (missing job/context resources or pipe unavailable)
-    VALIDATING -> OUTPUT (job.done and prefill finished or decode)
+    VALIDATING -> HEAD (job.done and prefill finished or decode)
     VALIDATING -> PREFILL_CHUNK (job.done and more prefill chunks)
     VALIDATING -> PROCESS_LAYERS (job still needs local layer processing)
     
@@ -119,9 +120,14 @@ class JobReceiverFSM:
     PREFILL_CHUNK -> SEND (next layer is virtual/remote)
     PREFILL_CHUNK -> PROCESS_LAYERS (next layer is local)
     
-    OUTPUT -> DONE (job complete or failed to send update)
-    OUTPUT -> SEND (next layer is virtual/remote)
-    OUTPUT -> PROCESS_LAYERS (next layer is local)
+    HEAD -> DONE (job complete or failed to send update)
+    HEAD -> EMBED (more tokens to generate locally)
+    HEAD -> SEND (next layer is virtual/remote)
+    HEAD -> PROCESS_LAYERS (next layer is local)
+
+    EMBED -> DONE (missing model)
+    EMBED -> SEND (next layer is virtual/remote)
+    EMBED -> PROCESS_LAYERS (next layer is local)
     
     PROCESS_LAYERS -> DONE (missing local model)
     PROCESS_LAYERS -> SEND (next layer set is not local)
@@ -157,8 +163,10 @@ class JobReceiverFSM:
                 return self._state_validating()
             case ReceiverState.PREFILL_CHUNK:
                 return self._state_prefill_chunk()
-            case ReceiverState.OUTPUT:
-                return self._state_output()
+            case ReceiverState.HEAD:
+                return self._state_head()
+            case ReceiverState.EMBED:
+                return self._state_embed()
             case ReceiverState.PROCESS_LAYERS:
                 return self._state_process_layers()
             case ReceiverState.SEND:
@@ -231,8 +239,8 @@ class JobReceiverFSM:
         
         return get_next_state(self.node_id, self.ctx)
     
-    def _state_output(self) -> ReceiverState:
-        """Handle norm/head computation and prepare next token."""
+    def _state_head(self) -> ReceiverState:
+        """Handle norm/head computation and prepare to embed the next token."""
         layer_job = self.ctx.layer_job
         pending_job = self.ctx.pending_job
         pipe = self.ctx.pipe
@@ -272,10 +280,14 @@ class JobReceiverFSM:
         if not pipe.send_job_update(job):
             log_done_error(self.ctx, "[FSM] Failed to send job update; completing with error.")
             return ReceiverState.DONE
-        
-        # Embed next token (decode phase - no chunking)
-        self.ctx.layer_job = embed(self.ctx)
 
+        return ReceiverState.EMBED
+
+    def _state_embed(self) -> ReceiverState:
+        """Embed the next token (decode phase - no chunking)."""
+        job = self.ctx.pending_job.job
+        job.current_step = ComputeStep.EMBED
+        self.ctx.layer_job = embed(self.ctx)
         return get_next_state(self.node_id, self.ctx)
 
     def _state_process_layers(self) -> ReceiverState:
