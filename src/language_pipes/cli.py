@@ -10,7 +10,7 @@ from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.start import start_wizard
 from language_pipes.commands.upgrade import upgrade_lp
 
-from language_pipes.language_pipes import LanguagePipes
+from language_pipes.lp import LanguagePipes
 
 VERSION = "0.16.0"
 

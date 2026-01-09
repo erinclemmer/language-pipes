@@ -9,7 +9,7 @@ from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.edit import edit_config
 from language_pipes.commands.view import view_config
-from language_pipes.language_pipes import LanguagePipes
+from language_pipes.lp import LanguagePipes
 from language_pipes.util.user_prompts import prompt_bool, prompt, prompt_choice, prompt_number_choice, select_config, get_config_files
 from language_pipes.util import sanitize_file_name
 
