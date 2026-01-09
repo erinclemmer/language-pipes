@@ -36,12 +36,12 @@ def create_head_time(node_id: str) -> LayerTime:
     """Create a LayerTime for head operations."""
     return LayerTime(node_id=node_id, is_head=True)
 
-def embed(
-    ctx: FSMContext,
-    chunk_start: int = 0,
-    chunk_end: int = -1
-) -> LayerJob:
+def embed(ctx: FSMContext) -> LayerJob:
     lt = create_embed_time(ctx.layer_job.origin_node_id)
+    if ctx.pending_job.chunking.is_active() and ctx.pending_job.job.current_token == 0:
+        chunk_start, chunk_end = ctx.pending_job.chunking.get_range()
+    else:
+        chunk_start, chunk_end = (0, -1)
     ctx.end_model.compute_embed(ctx.pending_job.job, ctx.pending_job.cache, chunk_start, chunk_end)
     lt.set_send_time()
     layer_job = ctx.pending_job.job.to_layer_job()
@@ -202,16 +202,14 @@ class JobReceiverFSM:
         # Log chunk completion
         log_prefill_chunk_complete(self.ctx.logger, job, pending_job)
         
-        chunk_start, chunk_end = pending_job.chunking.get_range()
         pending_job.chunking.advance()
+        chunk_start, chunk_end = pending_job.chunking.get_range()
         
         # Log next chunk start
         log_prefill_chunk_start(self.ctx.logger, job, pending_job, chunk_start, chunk_end)
         
         job.current_step = ComputeStep.EMBED
-        self.ctx.layer_job = embed(
-            self.ctx, chunk_start, chunk_end
-        )
+        self.ctx.layer_job = embed(self.ctx)
         self.ctx.layer_job.done = False
 
         job.delta = ""
