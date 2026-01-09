@@ -14,7 +14,6 @@ from language_pipes.util.enums import ComputeStep, JobStatus
 class ReceiverState(Enum):
     """States for the JobReceiver finite state machine."""
     VALIDATING = auto()    # Validating pipe and getting resources
-    PREFILL_CHUNK = auto() # Processing prefill chunks
     HEAD = auto()          # Computing norm/head, handling completion
     EMBED = auto()         # Embedding the next token for decoding
     PROCESS_LAYERS = auto() # Processing through local layers
@@ -76,15 +75,20 @@ def log_prefill_summary(logger, job) -> None:
         f"throughput={tokens_per_sec:.1f} tok/s"
     )
 
+def disable_chunking(pending_job: PendingJob) -> None:
+    pending_job.chunking.current_chunk = 0
+    pending_job.chunking.total_chunks = 0
+    pending_job.chunking.chunk_size = 0
+
 def log_done_error(ctx: FSMContext, message: str) -> None:
     if ctx.logger is not None:
         ctx.logger.error(message)
 
 def next_state_after_origin_completion(ctx: FSMContext) -> ReceiverState:
-    return ReceiverState.PREFILL_CHUNK if should_prefill_chunk(ctx.pending_job) else ReceiverState.HEAD
+    return ReceiverState.EMBED if should_prefill_chunk(ctx.pending_job) else ReceiverState.HEAD
 
 def next_state_after_local_job(ctx: FSMContext) -> ReceiverState:
-    return ReceiverState.PREFILL_CHUNK if should_prefill_chunk(ctx.pending_job) else ReceiverState.PROCESS_LAYERS
+    return ReceiverState.EMBED if should_prefill_chunk(ctx.pending_job) else ReceiverState.PROCESS_LAYERS
 
 def get_next_state(node_id: str, ctx: FSMContext) -> ReceiverState:
     if ctx.layer_job.done:
@@ -113,19 +117,15 @@ class JobReceiverFSM:
     
     VALIDATING -> DONE (missing job/context resources or pipe unavailable)
     VALIDATING -> HEAD (job.done and prefill finished or decode)
-    VALIDATING -> PREFILL_CHUNK (job.done and more prefill chunks)
+    VALIDATING -> EMBED (job.done and more prefill chunks)
     VALIDATING -> PROCESS_LAYERS (job still needs local layer processing)
-    
-    PREFILL_CHUNK -> DONE (failed to send update or missing model)
-    PREFILL_CHUNK -> SEND (next layer is virtual/remote)
-    PREFILL_CHUNK -> PROCESS_LAYERS (next layer is local)
     
     HEAD -> DONE (job complete or failed to send update)
     HEAD -> EMBED (more tokens to generate locally)
     HEAD -> SEND (next layer is virtual/remote)
     HEAD -> PROCESS_LAYERS (next layer is local)
 
-    EMBED -> DONE (missing model)
+    EMBED -> DONE (failed to send update or missing model)
     EMBED -> SEND (next layer is virtual/remote)
     EMBED -> PROCESS_LAYERS (next layer is local)
     
@@ -161,8 +161,6 @@ class JobReceiverFSM:
         match self.state:
             case ReceiverState.VALIDATING:
                 return self._state_validating()
-            case ReceiverState.PREFILL_CHUNK:
-                return self._state_prefill_chunk()
             case ReceiverState.HEAD:
                 return self._state_head()
             case ReceiverState.EMBED:
@@ -208,37 +206,6 @@ class JobReceiverFSM:
             return next_state_after_origin_completion(self.ctx)
         return next_state_after_local_job(self.ctx)
 
-    def _state_prefill_chunk(self) -> ReceiverState:
-        """Handle the next prefill chunk."""
-        layer_job = self.ctx.layer_job
-        pending_job = self.ctx.pending_job
-        pipe = self.ctx.pipe
-        end_model = self.ctx.end_model
-        job = pending_job.job
-        
-        # Update job time to prevent stale timeout during prefill
-        pending_job.set_last_update()
-        
-        # Log chunk completion
-        log_prefill_chunk_complete(self.ctx.logger, job, pending_job)
-        
-        pending_job.chunking.advance()
-        chunk_start, chunk_end = pending_job.chunking.get_range()
-        
-        # Log next chunk start
-        log_prefill_chunk_start(self.ctx.logger, job, pending_job, chunk_start, chunk_end)
-        
-        job.current_step = ComputeStep.EMBED
-        self.ctx.layer_job = embed(self.ctx)
-        self.ctx.layer_job.done = False
-
-        job.delta = ""
-        if not pipe.send_job_update(job):
-            log_done_error(self.ctx, "[FSM] Failed to send prefill job update; completing with error.")
-            return ReceiverState.DONE
-        
-        return get_next_state(self.node_id, self.ctx)
-    
     def _state_head(self) -> ReceiverState:
         """Handle norm/head computation and prepare to embed the next token."""
         layer_job = self.ctx.layer_job
@@ -253,6 +220,7 @@ class JobReceiverFSM:
                 log_prefill_chunk_complete(self.ctx.logger, job, pending_job)
             
             log_prefill_summary(self.ctx.logger, job)
+            disable_chunking(pending_job)
         
         job.current_step = ComputeStep.NORM
         
@@ -284,10 +252,23 @@ class JobReceiverFSM:
         return ReceiverState.EMBED
 
     def _state_embed(self) -> ReceiverState:
-        """Embed the next token (decode phase - no chunking)."""
-        job = self.ctx.pending_job.job
+        """Embed the next token, handling prefill chunks when needed."""
+        pending_job = self.ctx.pending_job
+        job = pending_job.job
+        if should_prefill_chunk(pending_job):
+            pending_job.set_last_update()
+            log_prefill_chunk_complete(self.ctx.logger, job, pending_job)
+            pending_job.chunking.advance()
+            chunk_start, chunk_end = pending_job.chunking.get_range()
+            log_prefill_chunk_start(self.ctx.logger, job, pending_job, chunk_start, chunk_end)
         job.current_step = ComputeStep.EMBED
         self.ctx.layer_job = embed(self.ctx)
+        self.ctx.layer_job.done = False
+        if should_prefill_chunk(pending_job) or pending_job.chunking.is_active():
+            job.delta = ""
+            if not self.ctx.pipe.send_job_update(job):
+                log_done_error(self.ctx, "[FSM] Failed to send prefill job update; completing with error.")
+                return ReceiverState.DONE
         return get_next_state(self.node_id, self.ctx)
 
     def _state_process_layers(self) -> ReceiverState:
