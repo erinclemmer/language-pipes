@@ -75,15 +75,17 @@ def log_prefill_summary(logger, job) -> None:
         f"throughput={tokens_per_sec:.1f} tok/s"
     )
 
+def next_state_after_origin_completion(ctx: FSMContext) -> ReceiverState:
+    return ReceiverState.PREFILL_CHUNK if should_prefill_chunk(ctx.pending_job) else ReceiverState.OUTPUT
+
+def next_state_after_local_job(ctx: FSMContext) -> ReceiverState:
+    return ReceiverState.PREFILL_CHUNK if should_prefill_chunk(ctx.pending_job) else ReceiverState.PROCESS_LAYERS
+
 def get_next_state(node_id: str, ctx: FSMContext) -> ReceiverState:
     if ctx.layer_job.done:
-        if ctx.layer_job.origin_node_id == node_id:
-            if should_prefill_chunk(ctx.pending_job):
-                return ReceiverState.PREFILL_CHUNK
-            else:
-                return ReceiverState.OUTPUT
-        else:
+        if ctx.layer_job.origin_node_id != node_id:
             return ReceiverState.SEND
+        return next_state_after_origin_completion(ctx)
     
     model = ctx.pipe.get_layer(ctx.layer_job.current_layer, False)
     if model is None:
@@ -180,20 +182,11 @@ class JobReceiverFSM:
             if self.ctx.pending_job is None:
                 return ReceiverState.DONE
             
-            job = self.ctx.pending_job.job
-            job.data = layer_job.data
+            self.ctx.pending_job.job.data = layer_job.data
 
             # Prefill chunking: more chunks?
-            if should_prefill_chunk(self.ctx.pending_job):
-                return ReceiverState.PREFILL_CHUNK
-            else:
-                return ReceiverState.OUTPUT
-        else:
-            job = self.ctx.pending_job.job
-            if should_prefill_chunk(self.ctx.pending_job):
-                return ReceiverState.PREFILL_CHUNK
-            else:
-                return ReceiverState.PROCESS_LAYERS
+            return next_state_after_origin_completion(self.ctx)
+        return next_state_after_local_job(self.ctx)
 
     def _state_prefill_chunk(self) -> ReceiverState:
         """Handle the next prefill chunk."""
