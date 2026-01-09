@@ -48,10 +48,37 @@ def embed(
     layer_job.times.append(lt)
     return layer_job
 
+def should_prefill_chunk(pending_job: PendingJob) -> bool:
+    return pending_job.job.current_token == 0 and pending_job.chunking.has_more()
+
+def log_prefill_chunk_complete(logger, job, pending_job) -> None:
+    chunk_time_ms = (time() - job.chunk_start_time) * 1000
+    logger.info(
+        f"[Prefill] job={job.job_id[:8]} chunk {pending_job.chunking.current_chunk + 1}/"
+        f"{pending_job.chunking.total_chunks} completed in {chunk_time_ms:.1f}ms"
+    )
+
+def log_prefill_chunk_start(logger, job, pending_job, chunk_start: int, chunk_end: int) -> None:
+    job.chunk_start_time = time()
+    logger.info(
+        f"[Prefill] job={job.job_id[:8]} chunk {pending_job.chunking.current_chunk + 1}/"
+        f"{pending_job.chunking.total_chunks} starting: tokens {chunk_start}-{chunk_end}"
+    )
+
+def log_prefill_summary(logger, job) -> None:
+    total_prefill_ms = (time() - job.prefill_start_time) * 1000
+    tokens_per_sec = (job.prompt_tokens / total_prefill_ms) * 1000 if total_prefill_ms > 0 else 0
+    logger.info(
+        f"[Prefill] job={job.job_id[:8]} finished: "
+        f"prompt_tokens={job.prompt_tokens}, "
+        f"total_time={total_prefill_ms:.1f}ms, "
+        f"throughput={tokens_per_sec:.1f} tok/s"
+    )
+
 def get_next_state(node_id: str, ctx: FSMContext) -> ReceiverState:
     if ctx.layer_job.done:
         if ctx.layer_job.origin_node_id == node_id:
-            if ctx.pending_job.job.current_token == 0 and ctx.pending_job.chunking.has_more():
+            if should_prefill_chunk(ctx.pending_job):
                 return ReceiverState.PREFILL_CHUNK
             else:
                 return ReceiverState.OUTPUT
@@ -157,13 +184,13 @@ class JobReceiverFSM:
             job.data = layer_job.data
 
             # Prefill chunking: more chunks?
-            if job.current_token == 0 and self.ctx.pending_job.chunking.has_more():
+            if should_prefill_chunk(self.ctx.pending_job):
                 return ReceiverState.PREFILL_CHUNK
             else:
                 return ReceiverState.OUTPUT
         else:
             job = self.ctx.pending_job.job
-            if job.current_token == 0 and self.ctx.pending_job.chunking.has_more():
+            if should_prefill_chunk(self.ctx.pending_job):
                 return ReceiverState.PREFILL_CHUNK
             else:
                 return ReceiverState.PROCESS_LAYERS
@@ -180,21 +207,13 @@ class JobReceiverFSM:
         pending_job.set_last_update()
         
         # Log chunk completion
-        chunk_time_ms = (time() - job.chunk_start_time) * 1000
-        self.ctx.logger.info(
-            f"[Prefill] job={job.job_id[:8]} chunk {pending_job.chunking.current_chunk + 1}/"
-            f"{pending_job.chunking.total_chunks} completed in {chunk_time_ms:.1f}ms"
-        )
+        log_prefill_chunk_complete(self.ctx.logger, job, pending_job)
         
         chunk_start, chunk_end = pending_job.chunking.get_range()
         pending_job.chunking.advance()
         
         # Log next chunk start
-        job.chunk_start_time = time()
-        self.ctx.logger.info(
-            f"[Prefill] job={job.job_id[:8]} chunk {pending_job.chunking.current_chunk + 1}/"
-            f"{pending_job.chunking.total_chunks} starting: tokens {chunk_start}-{chunk_end}"
-        )
+        log_prefill_chunk_start(self.ctx.logger, job, pending_job, chunk_start, chunk_end)
         
         job.current_step = ComputeStep.EMBED
         self.ctx.layer_job = embed(
@@ -219,20 +238,9 @@ class JobReceiverFSM:
         # Log prefill completion when transitioning from prefill to decode
         if job.current_token == 0:
             if pending_job.chunking.is_active():
-                chunk_time_ms = (time() - job.chunk_start_time) * 1000
-                self.ctx.logger.info(
-                    f"[Prefill] job={job.job_id[:8]} chunk {pending_job.chunking.current_chunk + 1}/"
-                    f"{pending_job.chunking.total_chunks} completed in {chunk_time_ms:.1f}ms"
-                )
+                log_prefill_chunk_complete(self.ctx.logger, job, pending_job)
             
-            total_prefill_ms = (time() - job.prefill_start_time) * 1000
-            tokens_per_sec = (job.prompt_tokens / total_prefill_ms) * 1000 if total_prefill_ms > 0 else 0
-            self.ctx.logger.info(
-                f"[Prefill] job={job.job_id[:8]} finished: "
-                f"prompt_tokens={job.prompt_tokens}, "
-                f"total_time={total_prefill_ms:.1f}ms, "
-                f"throughput={tokens_per_sec:.1f} tok/s"
-            )
+            log_prefill_summary(self.ctx.logger, job)
         
         job.current_step = ComputeStep.NORM
         
