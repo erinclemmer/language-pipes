@@ -23,7 +23,7 @@ from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.pipes.pipe import Pipe
 
 from language_pipes.jobs.job import Job
-from language_pipes.jobs.layer_job import LayerTime, LayerJob
+from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.pending_job import PendingJob
 from language_pipes.jobs.job_tracker import JobTracker
 
@@ -145,11 +145,6 @@ class JobManager:
         if job_id is not None:
             job.job_id = job_id
         
-        lt = LayerTime(
-            node_id=self.router.config.node_id,
-            is_embed=True
-        )
-        
         # Tokenize first to get prompt length
         end_model.tokenize(job)
         
@@ -178,30 +173,13 @@ class JobManager:
                 f"prompt_tokens={job.prompt_tokens} (no chunking)"
             )
         
-        # Get chunk range and compute embed for first chunk
-        chunk_start, chunk_end = pending_job.chunking.get_range()
-        
-        # Log first chunk being processed
-        if pending_job.chunking.is_active():
-            self.logger.info(
-                f"[Prefill] job={job.job_id[:8]} chunk 1/{pending_job.chunking.total_chunks} "
-                f"starting: tokens {chunk_start}-{chunk_end}"
-            )
-        
-        end_model.compute_embed(job, pending_job.cache, chunk_start, chunk_end)
-        first_layer_model = pipe.get_layer(0, False)
-        if first_layer_model is None:
-            raise_exception(self.logger, "Could not find appropriate model for processing")
-            return None
-        
-        lt.set_send_time()
+        job.data = JobData()
         layer_job = job.to_layer_job()
 
         if self.config.print_job_data:
             job.print_job(self.router.logger)
         
-        layer_job.times.append(lt)
-        pipe.send_job(layer_job, first_layer_model.node_id)
+        pipe.send_job(layer_job, self.router.config.node_id)
         self.job_tracker.jobs_pending.append(pending_job)
 
         if start is not None:
