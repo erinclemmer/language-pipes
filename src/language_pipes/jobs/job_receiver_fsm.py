@@ -108,26 +108,26 @@ class JobReceiverFSM:
     """
     Finite state machine for processing jobs.
     
-    State Transitions:
+    State Transitions (and why they happen):
     
-    VALIDATING -> DONE (Error occurred)
-    VALIDATING -> OUTPUT (job.done and final chunk or decode)
-    VALIDATING -> PREFILL_CHUNK (job.done and more chunks)
-    VALIDATING -> PROCESS_LAYERS (layer job not done)
+    VALIDATING -> DONE (missing job/context resources or pipe unavailable)
+    VALIDATING -> OUTPUT (job.done and prefill finished or decode)
+    VALIDATING -> PREFILL_CHUNK (job.done and more prefill chunks)
+    VALIDATING -> PROCESS_LAYERS (job still needs local layer processing)
     
-    PREFILL_CHUNK -> DONE (Error occurred)
-    PREFILL_CHUNK -> SEND (first layer is virtual)
-    PREFILL_CHUNK -> PROCESS_LAYERS (first layer is local)
+    PREFILL_CHUNK -> DONE (failed to send update or missing model)
+    PREFILL_CHUNK -> SEND (next layer is virtual/remote)
+    PREFILL_CHUNK -> PROCESS_LAYERS (next layer is local)
     
-    OUTPUT -> DONE (Error occurred)
-    OUTPUT -> SEND (first layer is virtual)
-    OUTPUT -> PROCESS_LAYERS (first layer is local)
+    OUTPUT -> DONE (job complete or failed to send update)
+    OUTPUT -> SEND (next layer is virtual/remote)
+    OUTPUT -> PROCESS_LAYERS (next layer is local)
     
-    PROCESS_LAYERS -> DONE (Error occurred)
+    PROCESS_LAYERS -> DONE (missing local model)
     PROCESS_LAYERS -> SEND (next layer set is not local)
     PROCESS_LAYERS -> PROCESS_LAYERS (next layer set is local)
     
-    SEND -> DONE (always)
+    SEND -> DONE (handoff complete)
     """
     
     state: ReceiverState
