@@ -237,6 +237,11 @@ class JobReceiverFSM:
             end_model, pending_job, chunk_start, chunk_end
         )
         self.ctx.layer_job.done = False
+
+        job.delta = ""
+        if not pipe.send_job_update(job):
+            self.state = ReceiverState.DONE
+            return
         
         model = pipe.get_layer(self.ctx.layer_job.current_layer, False)
         if model is None:

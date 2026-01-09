@@ -71,8 +71,12 @@ def oai_stream(port: int, messages: List[ChatMessage], retries: int = 0):
             max_completion_tokens=100,
             messages=[m.to_json() for m in messages]
         )
+        s = ""
         for chunk in stream:
-            print(chunk.choices[0].delta.content)
+            c = chunk.choices[0].delta.content
+            print(c)
+            s += c
+        print(s)
         
     except Exception as e:
         print(e)
