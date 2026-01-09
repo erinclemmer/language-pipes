@@ -75,6 +75,10 @@ def log_prefill_summary(logger, job) -> None:
         f"throughput={tokens_per_sec:.1f} tok/s"
     )
 
+def log_done_error(ctx: FSMContext, message: str) -> None:
+    if ctx.logger is not None:
+        ctx.logger.error(message)
+
 def next_state_after_origin_completion(ctx: FSMContext) -> ReceiverState:
     return ReceiverState.PREFILL_CHUNK if should_prefill_chunk(ctx.pending_job) else ReceiverState.OUTPUT
 
@@ -89,6 +93,10 @@ def get_next_state(node_id: str, ctx: FSMContext) -> ReceiverState:
     
     model = ctx.pipe.get_layer(ctx.layer_job.current_layer, False)
     if model is None:
+        log_done_error(
+            ctx,
+            f"[FSM] Missing model for layer={ctx.layer_job.current_layer}; completing with error."
+        )
         return ReceiverState.DONE
     
     if model.virtual:
@@ -160,26 +168,30 @@ class JobReceiverFSM:
         """Validate pipe availability and gather resources."""
         layer_job = self.ctx.layer_job
         if layer_job is None:
-            self.state = ReceiverState.DONE
-            return
+            log_done_error(self.ctx, "[FSM] Missing layer job; completing with error.")
+            return ReceiverState.DONE
         
         pipe = self.ctx.pipe
         
         # Pipe unavailable - drop job
         if pipe is None or not pipe.is_complete():
+            log_done_error(self.ctx, "[FSM] Pipe unavailable or incomplete; completing with error.")
             return ReceiverState.DONE
         
         if layer_job.done:
             # Ensure we only process the ends of jobs we sent out
             if layer_job.origin_node_id != self.node_id:
+                log_done_error(self.ctx, "[FSM] Layer job origin mismatch; completing with error.")
                 return ReceiverState.DONE
             
             # Ensure we have the end model ready            
             if self.ctx.end_model is None:
+                log_done_error(self.ctx, "[FSM] End model unavailable; completing with error.")
                 return ReceiverState.DONE
             
             # Job returned from network - check pending job
             if self.ctx.pending_job is None:
+                log_done_error(self.ctx, "[FSM] Pending job missing; completing with error.")
                 return ReceiverState.DONE
             
             self.ctx.pending_job.job.data = layer_job.data
@@ -214,6 +226,7 @@ class JobReceiverFSM:
 
         job.delta = ""
         if not pipe.send_job_update(job):
+            log_done_error(self.ctx, "[FSM] Failed to send prefill job update; completing with error.")
             return ReceiverState.DONE
         
         return get_next_state(self.node_id, self.ctx)
@@ -257,6 +270,7 @@ class JobReceiverFSM:
         
         # More tokens to generate - update and continue
         if not pipe.send_job_update(job):
+            log_done_error(self.ctx, "[FSM] Failed to send job update; completing with error.")
             return ReceiverState.DONE
         
         # Embed next token (decode phase - no chunking)
@@ -272,6 +286,10 @@ class JobReceiverFSM:
         
         model = pipe.get_layer(layer_job.current_layer, True)
         if model is None:
+            log_done_error(
+                self.ctx,
+                f"[FSM] Missing local model for layer={layer_job.current_layer}; completing with error."
+            )
             return ReceiverState.DONE
         
         model.process_job(layer_job, pending_job.cache)
