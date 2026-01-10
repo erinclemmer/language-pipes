@@ -47,7 +47,7 @@ def oai_complete(port: int, messages: List[ChatMessage], retries: int = 0):
         response = client.chat.completions.create(
             model=MODEL,
             temperature=0.2,
-            max_completion_tokens=100,
+            max_completion_tokens=50,
             messages=[m.to_json() for m in messages]
         )
         return response

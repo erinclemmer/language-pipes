@@ -169,7 +169,7 @@ class JobProcessor:
         job.compute_step = ComputeStep.NORM
         job.current_layer = 0
 
-        head_time = create_head_time(self.ctx.config.router.node_id)
+        head_time = create_head_time(self.ctx.config.node_id)
         job.add_timing(head_time)
 
         end_model.compute_norm(job)
@@ -216,7 +216,7 @@ class JobProcessor:
             chunk_start, chunk_end = job.chunking.get_range()
         else:
             chunk_start, chunk_end = (0, -1)
-        embed_time = create_embed_time(self.ctx.config.router.node_id)
+        embed_time = create_embed_time(self.ctx.config.node_id)
         job.add_timing(embed_time)
         self.ctx.end_model.compute_embed(job, chunk_start, chunk_end)
         embed_time.set_send_time()
