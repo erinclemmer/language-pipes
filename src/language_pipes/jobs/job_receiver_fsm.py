@@ -10,6 +10,7 @@ from language_pipes.modeling.end_model import EndModel
 
 from language_pipes.util.enums import ComputeStep, JobStatus
 from language_pipes.config import LpConfig
+from language_pipes.util.chunk_state import log_prefill_chunk_complete, log_prefill_chunk_start, log_prefill_summary
 
 class ReceiverState(Enum):
     """States for the JobReceiver finite state machine."""
@@ -39,39 +40,20 @@ def create_head_time(node_id: str) -> LayerTime:
 def should_prefill_chunk(job) -> bool:
     return job.current_token == 0 and job.chunking.has_more()
 
-def log_prefill_chunk_complete(logger, job) -> None:
-    chunk_time_ms = (time() - job.chunk_start_time) * 1000
-    logger.info(
-        f"[Prefill] job={job.job_id[:8]} chunk {job.chunking.current_chunk + 1}/"
-        f"{job.chunking.total_chunks} completed in {chunk_time_ms:.1f}ms"
-    )
-
-def log_prefill_chunk_start(logger, job, chunk_start: int, chunk_end: int) -> None:
-    job.chunk_start_time = time()
-    logger.info(
-        f"[Prefill] job={job.job_id[:8]} chunk {job.chunking.current_chunk + 1}/"
-        f"{job.chunking.total_chunks} starting: tokens {chunk_start}-{chunk_end}"
-    )
-
-def log_prefill_summary(logger, job) -> None:
-    total_prefill_ms = (time() - job.prefill_start_time) * 1000
-    tokens_per_sec = (job.prompt_tokens / total_prefill_ms) * 1000 if total_prefill_ms > 0 else 0
-    logger.info(
-        f"[Prefill] job={job.job_id[:8]} finished: "
-        f"prompt_tokens={job.prompt_tokens}, "
-        f"total_time={total_prefill_ms:.1f}ms, "
-        f"throughput={tokens_per_sec:.1f} tok/s"
-    )
-
 def log_done_error(ctx: FSMContext, message: str) -> None:
     if ctx.logger is not None:
         ctx.logger.error(message)
 
 def get_next_state(ctx: FSMContext) -> ReceiverState:
-    if ctx.job.compute_step == ComputeStep.HEAD or ctx.job.compute_step == ComputeStep.EMBED:
-        if ctx.job.origin_node_id != ctx.config.node_id:
+    cs = ctx.job.compute_step
+    if cs == ComputeStep.HEAD or cs == ComputeStep.EMBED or cs == ComputeStep.TOKENIZE:
+        if ctx.job.origin_node_id != ctx.config.router.node_id:
             return ReceiverState.SEND
-        return ReceiverState.EMBED if should_prefill_chunk(ctx.job) or ctx.job.compute_step == ComputeStep.EMBED else ReceiverState.HEAD
+        
+        if should_prefill_chunk(ctx.job) or cs == ComputeStep.EMBED or cs == ComputeStep.TOKENIZE:
+            return ReceiverState.EMBED  
+        else:
+            return ReceiverState.HEAD
 
     model = ctx.pipe.get_layer(ctx.job.current_layer, False)
     if model is None:
@@ -153,7 +135,7 @@ class JobReceiverFSM:
         
         if self.ctx.job.compute_step == ComputeStep.HEAD:
             # Ensure we only process the ends of jobs we sent out
-            if self.ctx.job.origin_node_id != self.ctx.config.node_id:
+            if self.ctx.job.origin_node_id != self.ctx.config.router.node_id:
                 log_done_error(self.ctx, "[FSM] Layer job origin mismatch; completing with error.")
                 return ReceiverState.DONE
             
@@ -251,7 +233,7 @@ class JobReceiverFSM:
             )
             return ReceiverState.DONE
         
-        model.process_job(job, job.cache)
+        model.process_job(job)
         job.set_last_update()
         
         return get_next_state(self.ctx)
