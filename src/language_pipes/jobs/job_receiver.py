@@ -9,7 +9,7 @@ from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_handler import JobServer
 from language_pipes.jobs.job_manager import JobManager
 from language_pipes.jobs.job_tracker import JobTracker
-from language_pipes.jobs.layer_job import LayerJob, LayerTime
+from language_pipes.jobs.network_job import NetworkJob, LayerTime
 from language_pipes.jobs.job_receiver_fsm import JobReceiverFSM, FSMContext
 
 from language_pipes.modeling.end_model import EndModel
@@ -24,7 +24,7 @@ class JobReceiver:
     print_times: bool
     print_job_data: bool
     job_manager: JobManager
-    job_queue: List[LayerJob]
+    job_queue: List[NetworkJob]
     get_end_model: Callable[[str], Optional[EndModel]]
 
     def __init__(
@@ -49,28 +49,28 @@ class JobReceiver:
         Thread(target=self._job_runner_loop, args=()).start()
         router.logger.info(f"Started Job Receiver on port {config.job_port}")
 
-    def _wait_for_job(self) -> Optional[LayerJob]:
+    def _wait_for_job(self) -> Optional[NetworkJob]:
         """Wait for a job from the queue. Returns None if shutting down."""
         while True:
             if self.router.shutting_down:
                 return None
             if len(self.job_queue) > 0:
-                layer_job = self.job_queue.pop()
-                return layer_job
+                network_job = self.job_queue.pop()
+                return network_job
             sleep(0.01)
 
     def _job_runner_loop(self):
         """Main job processing loop using FSM."""
-        layer_job = self._wait_for_job()
-        job = self.job_tracker.get_job(layer_job.job_id)
+        network_job = self._wait_for_job()
+        job = self.job_tracker.get_job(network_job.job_id)
         if job is None:
-            job = self.job_tracker.add_job(layer_job)
+            job = self.job_tracker.add_job(network_job)
 
         # Validate layer job
-        if not job.receive_layer_job(layer_job):
+        if not job.receive_layer_job(network_job):
             return
 
-        pipe = self.job_manager.get_pipe(layer_job.pipe_id)
+        pipe = self.job_manager.get_pipe(network_job.pipe_id)
         if pipe is None:
             return
 
@@ -96,21 +96,21 @@ class JobReceiver:
         
         Thread(target=self._job_runner_loop, args=()).start()
 
-    def restart_token(self, layer_job: LayerJob):
+    def restart_token(self, network_job: NetworkJob):
         """Mark job for restart and send back to origin."""
-        layer_job.restart = True
-        layer_job.data = None
-        layer_job.data_hash = b''
-        layer_job.compute_step = ComputeStep.EMBED
-        layer_job.current_layer = 0
-        pipe = self.job_manager.get_pipe(layer_job.pipe_id)
+        network_job.restart = True
+        network_job.data = None
+        network_job.data_hash = b''
+        network_job.compute_step = ComputeStep.EMBED
+        network_job.current_layer = 0
+        pipe = self.job_manager.get_pipe(network_job.pipe_id)
         if pipe is None:
             return
-        pipe.send_job(layer_job, layer_job.origin_node_id)
+        pipe.send_job(network_job, network_job.origin_node_id)
 
     def receive_data(self, data: bytes):
         """Receive and validate incoming job data."""
-        job = LayerJob.from_bytes(data)
+        job = NetworkJob.from_bytes(data)
         
         # Ignore duplicate jobs
         for j in self.job_queue:

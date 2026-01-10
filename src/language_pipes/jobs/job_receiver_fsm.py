@@ -3,7 +3,7 @@ from enum import Enum, auto
 from dataclasses import dataclass
 from typing import Optional
 
-from language_pipes.jobs.layer_job import LayerJob, LayerTime
+from language_pipes.jobs.network_job import NetworkJob, LayerTime
 
 from language_pipes.pipes.pipe import Pipe
 from language_pipes.modeling.end_model import EndModel
@@ -262,12 +262,12 @@ class JobReceiverFSM:
         """Send job to next destination."""
         job = self.ctx.job
         pipe = self.ctx.pipe
-        layer_job = job.to_layer_job()
+        network_job = job.to_layer_job()
 
         if job.compute_step == ComputeStep.HEAD:
-            pipe.send_job(layer_job, layer_job.origin_node_id)
+            pipe.send_job(network_job, network_job.origin_node_id)
         else:
-            next_model = pipe.get_layer(layer_job.current_layer, False)
-            pipe.send_job(layer_job, next_model.node_id)
+            next_model = pipe.get_layer(network_job.current_layer, False)
+            pipe.send_job(network_job, next_model.node_id)
         
         return ReceiverState.DONE

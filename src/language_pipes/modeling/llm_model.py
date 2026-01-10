@@ -22,7 +22,7 @@ from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.computed import ComputedData
 
 from language_pipes.jobs.job import Job
-from language_pipes.jobs.layer_job import LayerJob, LayerTime
+from language_pipes.jobs.network_job import NetworkJob, LayerTime
 from language_pipes.jobs.job_data import jobDataToComputationState, detachCompState
 
 def compute_layers(job_data, device, layers, cache):

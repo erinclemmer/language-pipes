@@ -148,12 +148,11 @@ class JobManager:
         job.init_chunking(self.config.prefill_chunk_size)
         job.chunking.print_start(self.logger)
         
-        layer_job = job.to_layer_job()
-
         if self.config.print_job_data:
             job.print_job(self.router.logger)
         
-        pipe.send_job(layer_job, self.router.config.node_id)
+        network_job = job.to_layer_job()
+        pipe.send_job(network_job, self.router.config.node_id)
         self.job_tracker.jobs_pending.append(job)
 
         if start is not None:

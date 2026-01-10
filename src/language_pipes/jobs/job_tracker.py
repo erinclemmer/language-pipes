@@ -7,7 +7,7 @@ from time import time, sleep
 from threading import Thread
 
 from language_pipes.jobs.job import Job
-from language_pipes.jobs.layer_job import LayerJob
+from language_pipes.jobs.network_job import NetworkJob
 
 CHECK_JOB_INTERVAL = 10
 EXPIRED_JOB_TIME = 60  # Unified timeout for both prefill and decode phases
@@ -94,21 +94,21 @@ class JobTracker:
             return
         job.last_update = time()
 
-    def add_job(self, layer_job: LayerJob) -> Job:
-        existing = self.get_job(layer_job.job_id)
+    def add_job(self, network_job: NetworkJob) -> Job:
+        existing = self.get_job(network_job.job_id)
         if existing is not None:
             return existing  # Return existing job instead of None
         job = Job(
-            origin_node_id=layer_job.origin_node_id,
+            origin_node_id=network_job.origin_node_id,
             messages=[],
             model_id="",
-            pipe_id=layer_job.pipe_id,
-            data=layer_job.data
+            pipe_id=network_job.pipe_id,
+            data=network_job.data
         )
-        job.job_id = layer_job.job_id
-        if layer_job.data.state is None:
+        job.job_id = network_job.job_id
+        if network_job.data.state is None:
             raise Exception("job should be embedded before adding a pending job")
-        job.prompt_tokens = layer_job.data.state.size()[1]
+        job.prompt_tokens = network_job.data.state.size()[1]
         job.last_update = time()
         self.jobs_pending.append(job)
         return job

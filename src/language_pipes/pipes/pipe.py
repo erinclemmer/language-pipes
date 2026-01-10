@@ -11,7 +11,7 @@ from distributed_state_network import DSNode
 
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.llm_model import LlmModel
-from language_pipes.jobs.layer_job import LayerJob
+from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.jobs.job import Job
 from language_pipes.util.enums import JobStatus
 from language_pipes.util.chat import ChatMessage
@@ -58,7 +58,7 @@ class Pipe:
         self.router.logger.exception(msg)
         raise Exception(msg)
 
-    def send_job(self, job: LayerJob, node_id: str):
+    def send_job(self, job: NetworkJob, node_id: str):
         ip = self.router.connection_from_node(node_id).address
         port = self.get_job_port(node_id)
         if port is None:

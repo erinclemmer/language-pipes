@@ -56,7 +56,7 @@ class LayerTime:
         lt.end_layer = bts.read_int()
         return lt
 
-class LayerJob:
+class NetworkJob:
     job_id: str
     pipe_id: str
     origin_node_id: str
@@ -145,7 +145,7 @@ class LayerJob:
 
         times.sort(key=lambda x: x.start_layer)
 
-        return LayerJob(
+        return NetworkJob(
             job_id=job_id, 
             pipe_id=pipe_id, 
             origin_node_id=origin_node_id, 

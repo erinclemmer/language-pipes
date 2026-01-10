@@ -6,7 +6,7 @@ from uuid import uuid4
 import torch
 
 from language_pipes.jobs.job_data import JobData
-from language_pipes.jobs.layer_job import LayerJob, LayerTime
+from language_pipes.jobs.network_job import NetworkJob, LayerTime
 from transformers.cache_utils import DynamicCache
 from language_pipes.util.chunk_state import ChunkState
 from promise import Promise
@@ -161,27 +161,27 @@ class Job:
         else:
             self.status = JobStatus.COMPLETED
 
-    def receive_layer_job(self, layer_job: LayerJob) -> bool:
-        if layer_job.job_id != self.job_id or layer_job.pipe_id != self.pipe_id:
+    def receive_layer_job(self, network_job: NetworkJob) -> bool:
+        if network_job.job_id != self.job_id or network_job.pipe_id != self.pipe_id:
             return False
-        if layer_job.origin_node_id != self.origin_node_id:
+        if network_job.origin_node_id != self.origin_node_id:
             return False
 
-        if layer_job.compute_step == ComputeStep.HEAD and self.chunking.has_more():
+        if network_job.compute_step == ComputeStep.HEAD and self.chunking.has_more():
             self.compute_step = ComputeStep.EMBED
             self.current_layer = 0
         else:
-            self.compute_step = layer_job.compute_step
-            self.current_layer = layer_job.current_layer
+            self.compute_step = network_job.compute_step
+            self.current_layer = network_job.current_layer
             
-        self.data = layer_job.data
-        self.times.append(layer_job.times)
+        self.data = network_job.data
+        self.times.append(network_job.times)
         
         return True
 
-    def to_layer_job(self) -> LayerJob:
+    def to_layer_job(self) -> NetworkJob:
         data_hash = self.data.hash_state() if self.data is not None else b''
-        return LayerJob(
+        return NetworkJob(
             job_id=self.job_id, 
             pipe_id=self.pipe_id, 
             origin_node_id=self.origin_node_id, 
