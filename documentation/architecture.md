@@ -1,244 +1,122 @@
 # Architecture Overview
 
-Language Pipes distributes large language model inference across multiple machines by splitting models into segments and coordinating computation between nodes. This document explains how the system works internally, its key components, and the flow of inference requests.
+Language Pipes distributes transformer inference across multiple machines by splitting a model into **layer segments** that are coordinated over a peer-to-peer control plane. This document describes how the current implementation works, from node startup through job execution.
 
-## Core Concept: Distributed Model Segments
+## High-Level Runtime Components
 
-Traditional language model inference loads the entire model into memory on a single machine. Language Pipes instead splits models into **segments** that can be distributed across multiple nodes:
+Each node runs a single `LanguagePipes` instance that wires together networking, model hosting, and job execution:
 
-```
-Traditional Setup:
-[Full Model] → Single Machine (32GB+ RAM required)
-
-Language Pipes:
-[Embedding] → Node A (2GB RAM)
-[Layers 0-15] → Node B (16GB RAM) 
-[Layers 16-31] → Node C (16GB RAM)
-[Head/Norm] → Node D (2GB RAM)
-```
-
-Each node only needs enough memory for its assigned segments, making large models accessible to networks of smaller machines.
-
-## System Architecture
-This architecture enables democratized access to large language models by distributing computational and memory requirements across networks of smaller machines, while maintaining reasonable performance characteristics for many use cases.
-
-### High-Level Components
+- **DSNodeServer (distributed_state_network)**: peer discovery and shared state storage (e.g., model metadata, job ports).
+- **RouterPipes**: aggregates the shared model metadata into logical pipes.
+- **ModelManager**: loads model segments (layers) and optional model ends (embedding/norm/head) based on memory limits.
+- **PipeManager**: merges local segments with remote metadata to create runnable `Pipe` objects.
+- **JobFactory**: creates new jobs from API requests and injects them into the job pipeline.
+- **JobReceiver + JobServer**: HTTP server that receives serialized job payloads and runs the job processor FSM.
+- **OAIHttpServer**: optional OpenAI-compatible API that converts requests into jobs.
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│     Node A      │    │     Node B      │    │     Node C      │
-│                 │    │                 │    │                 │
-│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
-│ │ JobFactory  │ │    │ │ JobFactory  │ │    │ │ JobFactory  │ │
-│ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
-│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
-│ │JobReceiver  │◄┼────┼►│JobReceiver  │◄┼────┼►│JobReceiver  │ │
-│ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
-│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
-│ │ LlmModel    │ │    │ │ LlmModel    │ │    │ │ LlmModel    │ │
-│ │ (Embedding) │ │    │ │ (Layers)    │ │    │ │ (Head/Norm) │ │
-│ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+Client ──► OAIHttpServer ──► JobFactory ──► JobReceiver ──► JobProcessor FSM
+                    ▲                                  │
+                    └──────── results/stream updates ──┘
 ```
 
-### Core Components
+## Model Metadata and Pipe Construction
 
-#### 1. JobFactory
-- **Purpose**: Orchestrates job distribution and completion across the network
-- **Key Functions**:
-  - Manages local model segments
-  - Routes jobs to appropriate nodes
-  - Handles job completion and error recovery
-  - Maintains network-wide view of available model segments
+### MetaModel and MetaPipe (control plane)
 
-#### 2. JobReceiver  
-- **Purpose**: Receives and processes computation jobs from other nodes
-- **Key Functions**:
-  - Accepts incoming HTTPS/HTTP requests containing jobs
-  - Validates job signatures for security
-  - Queues jobs for processing
-  - Sends responses back to requesting nodes
+Each loaded segment publishes a `MetaModel` record (process ID, layer range, model ID, pipe ID) to the distributed state network. `RouterPipes` collects every node’s `MetaModel` list and aggregates them into `MetaPipe` objects keyed by `pipe_id`.
 
-#### 3. LlmModel
-- **Purpose**: Represents a model segment hosted on a local node
-- **Key Properties**:
-  - Model segments (embedding, specific layers, head/norm)
-  - Device allocation (CPU/GPU)
-  - Memory usage tracking
-  - Computation capabilities
+A `MetaPipe` is **complete** when its segments cover layer 0 through `num_layers - 1` without gaps and each segment is marked `loaded`.
 
-#### 4. Pipe
-- **Purpose**: Represents a complete model distributed across multiple nodes
-- **Key Functions**:
-  - Tracks which nodes host which model segments
-  - Routes jobs through the correct sequence of nodes
-  - Validates model completeness before accepting jobs
+### Pipe (data plane)
 
-## Inference Flow
+A `Pipe` is built from a `MetaPipe` plus any locally hosted `LlmModel` segments. The resulting `Pipe` contains:
 
-### Job Processing Pipeline
+- **Local segments** (real `LlmModel` instances).
+- **Remote segments** (virtual `LlmModel` placeholders from metadata).
 
-Every inference request flows through five distinct computation steps:
+The `Pipe` exposes helpers for:
 
-```
-1. TOKENIZE  →  2. EMBED  →  3. LAYER  →  4. NORM  →  5. HEAD
-   ┌─────────┐    ┌───────┐    ┌───────┐    ┌──────┐    ┌──────┐
-   │ Text to │    │ Token │    │Process│    │ RMS  │    │Output│
-   │ tokens  │    │ embed │    │layers │    │ Norm │    │token │
-   └─────────┘    └───────┘    └───────┘    └──────┘    └──────┘
-```
+- `get_layer(start_layer)`: find the segment responsible for the current layer index.
+- `send_job(...)`: send a serialized job to another node’s job server (HTTP POST).
+- `is_complete()`: check whether the segment list covers the full layer range.
 
-#### Step 1: TOKENIZE
-- **Location**: Any node with the model's tokenizer
-- **Process**: Convert input text to numerical token IDs
-- **Output**: Array of token IDs representing the input
+## Model Hosting and Placement
 
-#### Step 2: EMBED  
-- **Location**: Node hosting the embedding layer
-- **Process**: Convert token IDs to dense vector representations
-- **Output**: High-dimensional embeddings for each token
+`ModelManager` hosts model segments based on configuration:
 
-#### Step 3: LAYER
-- **Location**: Nodes hosting transformer layers (may span multiple nodes)
-- **Process**: Apply attention and feed-forward transformations
-- **Output**: Transformed hidden states
-- **Special Handling**: Jobs may visit multiple nodes sequentially as they progress through layer ranges
+- **Hosted models** are declared with `id`, `device`, `max_memory`, and `load_ends`.
+- For each hosted model, the manager estimates how many layers fit in memory using `ComputedData.avg_layer_size`.
+- It tries to **fill gaps** in existing pipes first, then creates a new pipe if `max_pipes` allows it.
+- When `load_ends` is enabled, the node also loads the **EndModel** (embedding, RMS norm, output head, tokenizer).
+- If `model_validation` is enabled, computed hashes must match the network pipe’s hashes before loading.
 
-#### Step 4: NORM
-- **Location**: Node hosting the RMS normalization layer
-- **Process**: Apply final normalization to hidden states
-- **Output**: Normalized hidden states ready for output projection
+## Inference Flow (Jobs)
 
-#### Step 5: HEAD
-- **Location**: Node hosting the language modeling head
-- **Process**: Project hidden states to vocabulary logits and select next token
-- **Output**: Selected token ID for the response
+### Request Entry
 
-### Multi-Token Generation
+1. **API request** hits `OAIHttpServer` at `/v1/chat/completions`.
+2. The handler constructs a `ChatCompletionRequest` and calls `JobFactory.start_job(...)`.
+3. `JobFactory` finds an available `Pipe` for the requested model, creates a `Job`, and sends the initial `NetworkJob` to the **origin node** (usually itself).
 
-For generating complete responses (not just single tokens), the system repeats the inference pipeline:
+### Job Processing FSM
+
+Each job is processed by `JobProcessor`, a finite-state machine driven by the job’s `ComputeStep`:
 
 ```
-Token 1: TOKENIZE → EMBED → LAYER → NORM → HEAD → Token ID
-Token 2: Use Token 1 output → EMBED → LAYER → NORM → HEAD → Token ID  
-Token 3: Use Token 1+2 output → EMBED → LAYER → NORM → HEAD → Token ID
-...continue until stop token or max length
+TOKENIZE → EMBED → LAYER → NORM → HEAD → (repeat for next token)
 ```
 
-## Network Coordination
+Key behaviors:
 
-### Peer Discovery and State Management
+- **TOKENIZE/EMBED (origin only)**
+  - The origin node must have the **EndModel** loaded.
+  - `EndModel.tokenize` builds the prompt using the tokenizer’s chat template and encodes IDs.
+  - `EndModel.compute_embed` produces the initial hidden state and attaches it to `JobData`.
+  - Prefill is chunked using `prefill_chunk_size` to reduce latency for large prompts; the FSM sends intermediate updates after each chunk.
 
-Language Pipes uses a distributed state network for peer discovery and coordination:
+- **LAYER (distributed)**
+  - The current layer index (`job.current_layer`) determines which segment should run next.
+  - If the segment is local, `LlmModel.process_job` runs through its range and updates the hidden state.
+  - If the segment is remote, the job is serialized and sent to the next node via HTTP.
+  - Each segment sets `current_layer = end_layer + 1` so the next hop starts at the correct boundary.
 
-- **Node Registration**: Each node announces its available model segments
-- **State Synchronization**: Network maintains consistent view of all available segments
-- **Dynamic Membership**: Nodes can join/leave without manual reconfiguration
-- **Health Monitoring**: Failed nodes are detected and routes updated automatically
+- **NORM/HEAD (origin only)**
+  - Once layers are complete, the job returns to the origin.
+  - The origin runs `compute_norm` and `compute_head`, samples the next token, and updates job status.
+  - If generation is complete, the result is decoded and the job is marked complete; otherwise the FSM loops back to EMBED for the next token.
 
-### Model Segment Allocation
+### Network Job Serialization
 
-When a node starts, it automatically determines which model segments to load based on:
+`NetworkJob` payloads include:
 
-1. **Available Memory**: Calculates how much of the model fits in allocated memory
-2. **Network Gaps**: Identifies missing segments in existing network pipes  
-3. **Load Balancing**: Avoids overloading specific nodes or network links
+- Job metadata (IDs, pipe ID, compute step, current layer).
+- `JobData` tensors: hidden state, position IDs, attention masks, and cache position.
+- A SHA-256 hash of the job state for integrity.
 
-## Privacy Architecture
+`JobReceiver` validates the hash before enqueuing a job; if validation fails, it requests a restart by sending the job back to the origin for re-embedding.
 
-### The End Model: Keeping Prompts Local
+## Distributed State and Coordination
 
-A key design principle of Language Pipes is that **your prompt text never needs to leave your computer**. This is achieved through the **End Model** architecture.
+Language Pipes uses the **distributed_state_network** control plane for peer discovery and shared metadata:
 
-The End Model consists of three components grouped together:
-- **Embedding Layer** — Converts text tokens into numerical vectors
-- **RMS Normalization** — Final normalization before output
-- **Output Head** — Converts hidden states back to token probabilities
+- Nodes advertise **model segments** in a `models` key.
+- Nodes advertise their **job receiver port** in `job_port`.
+- `RouterPipes` aggregates these entries across all peers to build the available pipes.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     END MODEL NODE                              │
-│                                                                 │
-│  "Hello AI" ──► Tokenizer ──► [15496, 9552] ──► Embedding      │
-│                                                   ↓             │
-│                                    Hidden State: [0.23, -0.14]  │
-└───────────────────────────────────────┬─────────────────────────┘
-                                        │
-                    Only hidden states  │  (numerical tensors)
-                    leave your machine  │
-                                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     LAYER NODES                                 │
-│                                                                 │
-│  Receive tensors ──► Process through layers ──► Return tensors │
-│  [0.23, -0.14, ...]       (no text access)      [0.87, 0.12]   │
-└─────────────────────────────────────────────────────────────────┘
-```
+Job payloads themselves are sent over **HTTP** to the advertised job port. The control plane can be configured with network keys and optional ECDSA verification via `DSNodeConfig`, while job payloads use hash validation at the application layer.
 
-### What Each Node Sees
+## Privacy Architecture (End Model)
 
-| Node Type | Sees Raw Text | Sees Token IDs | Sees Hidden States |
-|-----------|:-------------:|:--------------:|:------------------:|
-| End Model | ✓ | ✓ | ✓ |
-| Layer Node | ✗ | ✗ | ✓ |
+Only the node hosting the **EndModel** can see raw text:
 
-**Layer nodes cannot reconstruct your prompts.** Without the embedding layer weights and tokenizer vocabulary, the hidden state tensors are meaningless numerical arrays.
+- The **EndModel** handles tokenization, embedding, normalization, and head projection.
+- All other nodes only receive **hidden-state tensors** and cannot decode text without the tokenizer and embedding/head weights.
 
-### Privacy Deployment Pattern
+For privacy-sensitive deployments, keep `load_ends = true` on your own machine and let other nodes host only layer segments.
 
-For maximum privacy, host the End Model yourself:
+## Observability and Diagnostics
 
-```toml
-# Your machine - keeps prompts private
-[[hosted_models]]
-id = "Qwen/Qwen3-1.7B"
-load_ends = true    # ← You control the End Model
-max_memory = 2
-
-# Friend's GPU - contributes compute, never sees prompts  
-[[hosted_models]]
-id = "Qwen/Qwen3-1.7B"
-load_ends = false   # ← Only processes tensors
-max_memory = 8
-```
-
----
-
-## Security Architecture
-
-### Certificate-Based Trust
-
-- **Node Identity**: Each node has a unique certificate for identification
-- **Message Signing**: All job messages are cryptographically signed
-- **Verification**: Receiving nodes verify sender identity before processing
-
-### Encrypted Communication
-
-- **Transport Security**: HTTPS used for all inter-node communication
-- **Network Keys**: Shared network keys for joining trusted networks
-- **Data Protection**: Job payloads encrypted during transmission
-
-## Integration Points
-
-### OpenAI-Compatible API
-
-The system exposes a standard OpenAI-compatible endpoint that allows seamless integration with existing applications expecting OpenAI API format:  
-
-```http
-POST /v1/chat/completions
-Content-Type: application/json
-
-{
-  "model": "llama-7b",
-  "messages": [...],
-  "max_completion_tokens": 100
-}
-```
-See [OpenAI's documentation](https://platform.openai.com/docs/api-reference/chat) for a more complete explanation.
-
-
-### External Dependencies
-
-- **[HuggingFace Integration](https://huggingface.co)**: Automatic model download and tokenizer loading
-- **[PyTorch Backend](https://pytorch.org)**: Model computation and tensor operations  
-- **[Distributed State Network](https://github.com/erinclemmer/distributed_state_network)**: Peer discovery and coordination
+- **Job timing**: `NetworkJob.times` tracks per-hop processing and network round-trip timing.
+- **Prefill logging**: chunked prefill logs per-chunk timing and throughput.
+- **Optional debug output**: `print_job_data` dumps job configuration when enabled.
