@@ -5,6 +5,7 @@ from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.end_model import EndModel
 from language_pipes.pipes.router_pipes import RouterPipes
+from language_pipes.pipes.pipe import Pipe
 from language_pipes.config import LpConfig
 from language_pipes.modeling.computed import validate_model
 
@@ -44,14 +45,31 @@ class ModelManager:
         self.models = []
         self.end_models = []
 
-    def get_layer_models(self): 
-        return self.models
-
     def get_end_model(self, model_id: str) -> Optional[EndModel]:
         for m in self.end_models:
             if m.model_id == model_id:
                 return m
         return None
+
+    def _get_pipe_from_meta(self, meta_pipe: MetaPipe) -> Pipe:
+        return Pipe.from_meta(
+            meta_pipe=meta_pipe,
+            hosted_models=self.models,
+            router=self.router_pipes.router,
+            app_dir=self.config.app_dir
+        )
+
+    def get_pipe_by_pipe_id(self, pipe_id: str) -> Optional[Pipe]:
+        meta_pipe = self.router_pipes.get_pipe_by_pipe_id(pipe_id)
+        if meta_pipe is None:
+            return None
+        return self._get_pipe_from_meta(meta_pipe)
+
+    def get_pipe_by_model_id(self, model_id: str) -> Optional[Pipe]:
+        meta_pipe = self.router_pipes.get_pipe_by_model_id(model_id)
+        if meta_pipe is None:
+            return None
+        return self._get_pipe_from_meta(meta_pipe)
 
     def _get_model_for_pipe(self, model_id: str, pipe: MetaPipe, device: str, available_memory: int | float) -> Tuple[int | float, Optional[LlmModel]]:
         start_memory = available_memory
@@ -100,7 +118,7 @@ class ModelManager:
                 break
             loaded = True
             while loaded:
-                pipe = self.router_pipes.network_pipe(pipe_id)
+                pipe = self.router_pipes.get_pipe_by_pipe_id(pipe_id)
                 if pipe is None: 
                     break
                 available_memory, model = self._get_model_for_pipe(model_id, pipe, device, available_memory)

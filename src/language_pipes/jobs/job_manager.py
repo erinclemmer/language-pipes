@@ -45,34 +45,19 @@ class JobManager:
         self, 
         router: DSNode, 
         config: LpConfig,
-        router_pipes: RouterPipes,
         job_tracker: JobTracker,
-        get_layer_models: Callable[[], List[LlmModel]]
+        get_pipe_by_model_id: Callable[[str], Optional[Pipe]]
     ):
         self.started = False
         self.router = router
         self.config = config
+        self.get_pipe_by_model_id = get_pipe_by_model_id
         self.logger = self.router.logger
-        self.get_layer_models = get_layer_models
 
         self.job_tracker = job_tracker
-        self.router_pipes = router_pipes
         self.router.update_data("job_port", str(self.config.job_port))
         
-        self.router_pipes.print_pipes()
-
         self.started = True
-    
-    def get_pipe(self, pipe_id: str) -> Optional[Pipe]:
-        meta_pipe = self.router_pipes.network_pipe(pipe_id)
-        if meta_pipe is None:
-            return None
-        return Pipe.from_meta(
-            meta_pipe=meta_pipe,
-            hosted_models=self.get_layer_models(),
-            router=self.router,
-            app_dir=self.config.app_dir
-        )
 
     def start_job(
         self, 
@@ -88,24 +73,16 @@ class JobManager:
         update: Optional[Callable] = None,
         resolve: Optional[Promise] = None
     ) -> Optional[Job]:
-        meta_pipe = self.router_pipes.get_meta_pipe(model_id)
-        if meta_pipe is None:
-            if resolve is not None:
-                resolve('NO_PIPE')
-                return None
-            raise_exception(self.logger, f"Could not find pipe for {model_id}")
-            return
-        pipe_id = meta_pipe.pipe_id
-
-        pipe = self.get_pipe(pipe_id)
+        pipe = self.get_pipe_by_model_id(model_id)
         if pipe is None:
-            raise_exception(self.logger, f"Could not find pipe {pipe_id}")
+            resolve('No pipe available')
+            raise_exception(self.logger, f"Could not find pipe for model {model_id}")
             return
 
         job = Job(
             origin_node_id=self.router.config.node_id, 
             messages=messages, 
-            pipe_id=pipe_id, 
+            pipe_id=pipe.pipe_id, 
             model_id=pipe.model_id,
             temperature=temperature, 
             top_k=top_k, 

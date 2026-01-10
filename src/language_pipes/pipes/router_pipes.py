@@ -73,7 +73,7 @@ class RouterPipes:
     def network_pipes(self) -> List[MetaPipe]:
         return aggregate_models(self.all_models())
 
-    def network_pipe(self, pipe_id: str) -> Optional[MetaPipe]:
+    def get_pipe_by_pipe_id(self, pipe_id: str) -> Optional[MetaPipe]:
         models: List[MetaModel] = []
         for model in self.all_models():
             if model.pipe_id == pipe_id:
@@ -83,11 +83,7 @@ class RouterPipes:
         
         return aggregate_models(models)[0]
 
-    def print_pipes(self):
-        for p in self.network_pipes():
-            p.print(self.router.logger)
-
-    def get_meta_pipe(self, model_id: str) -> Optional[MetaPipe]:
+    def get_pipe_by_model_id(self, model_id: str) -> Optional[MetaPipe]:
         available_pipes: List[MetaPipe] = []
         for p in self.pipes_for_model(model_id, True):
             if not p.is_loading():
@@ -96,3 +92,7 @@ class RouterPipes:
             return None
 
         return random.choice(available_pipes)
+
+    def print_pipes(self):
+        for p in self.network_pipes():
+            p.print(self.router.logger)

@@ -47,14 +47,15 @@ class LanguagePipes:
             self.config
         )
 
+        self.router_pipes.print_pipes()
+
         self.job_tracker = JobTracker(self.router.node.logger)
 
         self.job_manager = JobManager(
             router=self.router.node, 
             config=self.config, 
-            router_pipes=self.router_pipes,
             job_tracker=self.job_tracker,
-            get_layer_models=self.model_manager.get_layer_models
+            get_pipe_by_model_id=self.model_manager.get_pipe_by_model_id
         )
 
         self.job_receiver = JobReceiver(
@@ -62,7 +63,7 @@ class LanguagePipes:
             router=self.router.node, 
             job_tracker=self.job_tracker,
             job_manager=self.job_manager,
-            get_end_model=self.model_manager.get_end_model
+            model_manager=self.model_manager
         )
 
         if self.config.oai_port is not None:

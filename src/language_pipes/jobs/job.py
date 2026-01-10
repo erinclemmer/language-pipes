@@ -163,7 +163,7 @@ class Job:
         else:
             self.status = JobStatus.COMPLETED
 
-    def receive_layer_job(self, network_job: NetworkJob) -> bool:
+    def receive_network_job(self, network_job: NetworkJob) -> bool:
         if network_job.job_id != self.job_id or network_job.pipe_id != self.pipe_id:
             return False
         if network_job.origin_node_id != self.origin_node_id:

@@ -12,7 +12,7 @@ from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob, LayerTime
 from language_pipes.jobs.job_receiver_fsm import JobReceiverFSM, FSMContext
 
-from language_pipes.modeling.end_model import EndModel
+from language_pipes.modeling.model_manager import ModelManager
 
 from language_pipes.util import stop_thread
 from language_pipes.util.enums import JobStatus
@@ -26,7 +26,7 @@ class JobReceiver:
     config: LpConfig
     job_manager: JobManager
     job_queue: List[NetworkJob]
-    get_end_model: Callable[[str], Optional[EndModel]]
+    model_manager: ModelManager
 
     def __init__(
             self, 
@@ -34,13 +34,13 @@ class JobReceiver:
             router: DSNode,
             job_manager: JobManager,
             job_tracker: JobTracker,
-            get_end_model: Callable[[str], Optional[EndModel]]
+            model_manager: ModelManager
     ):
         self.router = router
-        self.get_end_model = get_end_model
         self.job_queue = []
         self.job_tracker = job_tracker
         self.job_manager = job_manager
+        self.model_manager = model_manager
         self.config = config
 
         thread, httpd = JobServer.start(config.job_port, self.router, self.receive_data)
@@ -66,15 +66,15 @@ class JobReceiver:
         if job is None:
             job = self.job_tracker.add_job(network_job)
 
-        # Validate layer job
-        if not job.receive_layer_job(network_job):
+        # Validate network job
+        if not job.receive_network_job(network_job):
             return
 
-        pipe = self.job_manager.get_pipe(network_job.pipe_id)
+        pipe = self.model_manager.get_pipe_by_pipe_id(network_job.pipe_id)
         if pipe is None:
             return
 
-        end_model = self.get_end_model(pipe.model_id)
+        end_model = self.model_manager.get_end_model(pipe.model_id)
         
         fsm = JobReceiverFSM(FSMContext(
             logger=self.router.logger,
