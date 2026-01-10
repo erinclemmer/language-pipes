@@ -32,8 +32,6 @@ from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.computed import validate_model
 
 class JobManager:
-    started: bool
-
     router: DSNode
     config: LpConfig
     job_tracker: JobTracker
@@ -43,21 +41,15 @@ class JobManager:
 
     def __init__(
         self, 
-        router: DSNode, 
+        logger,
         config: LpConfig,
         job_tracker: JobTracker,
         get_pipe_by_model_id: Callable[[str], Optional[Pipe]]
     ):
-        self.started = False
-        self.router = router
         self.config = config
-        self.get_pipe_by_model_id = get_pipe_by_model_id
-        self.logger = self.router.logger
-
+        self.logger = logger
         self.job_tracker = job_tracker
-        self.router.update_data("job_port", str(self.config.job_port))
-        
-        self.started = True
+        self.get_pipe_by_model_id = get_pipe_by_model_id
 
     def start_job(
         self, 
@@ -80,7 +72,7 @@ class JobManager:
             return
 
         job = Job(
-            origin_node_id=self.router.config.node_id, 
+            origin_node_id=self.config.router.node_id, 
             messages=messages, 
             pipe_id=pipe.pipe_id, 
             model_id=pipe.model_id,
@@ -96,10 +88,10 @@ class JobManager:
         )
         
         if self.config.print_job_data:
-            job.print_job(self.router.logger)
+            job.print_job(self.logger)
         
         network_job = job.to_layer_job()
-        pipe.send_job(network_job, self.router.config.node_id)
+        pipe.send_job(network_job, self.config.router.node_id)
         self.job_tracker.jobs_pending.append(job)
 
         if start is not None:

@@ -48,6 +48,7 @@ class JobReceiver:
         self.httpd = httpd
         Thread(target=self._job_runner_loop, args=()).start()
         router.logger.info(f"Started Job Receiver on port {config.job_port}")
+        self.router.update_data("job_port", str(self.config.job_port))
 
     def _wait_for_job(self) -> Optional[NetworkJob]:
         """Wait for a job from the queue. Returns None if shutting down."""

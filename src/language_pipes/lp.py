@@ -12,9 +12,6 @@ from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.util import stop_thread
 from language_pipes.config import LpConfig
 
-def serve(httpd):
-    httpd.serve_forever()
-
 class LanguagePipes:
     router: DSNodeServer
     
@@ -35,7 +32,11 @@ class LanguagePipes:
         self.set_logging_level(self.config.logging_level)
         
         self.router_pipes = None
-        self.router = DSNodeServer.start(self.config.router, self.print_pipes, self.print_pipes)
+        self.router = DSNodeServer.start(
+            config=self.config.router, 
+            update_callback=self.print_pipes, 
+            disconnect_callback=self.print_pipes
+        )
 
         self.router_pipes = RouterPipes(self.router.node)
 
@@ -52,7 +53,7 @@ class LanguagePipes:
         self.job_tracker = JobTracker(self.router.node.logger)
 
         self.job_manager = JobManager(
-            router=self.router.node, 
+            logger=self.router.node.logger,
             config=self.config, 
             job_tracker=self.job_tracker,
             get_pipe_by_model_id=self.model_manager.get_pipe_by_model_id
