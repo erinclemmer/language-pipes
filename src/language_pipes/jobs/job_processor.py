@@ -9,7 +9,6 @@ from language_pipes.pipes.pipe import Pipe
 from language_pipes.modeling.end_model import EndModel
 
 from language_pipes.util.enums import ComputeStep, JobStatus
-from language_pipes.jobs.timing_stats import TimingStats
 from language_pipes.config import LpConfig
 from language_pipes.util.chunk_state import log_prefill_chunk_complete, log_prefill_chunk_start, log_prefill_summary
 
@@ -177,9 +176,8 @@ class JobProcessor:
         end_model.compute_head(job)
         head_time.set_send_time()
         if self.ctx.config.print_times and job.current_times:
-            stats = TimingStats()
-            stats.add_token(job.current_times)
-            stats.log_summary(self.ctx.logger, job.job_id)
+            job.timing_stats.add_token(job.current_times)
+            job.timing_stats.log_summary(self.ctx.logger, job.job_id)
         job.finalize_token_timing()
         
         if self.ctx.config.print_job_data:

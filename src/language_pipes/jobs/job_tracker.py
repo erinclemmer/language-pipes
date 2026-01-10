@@ -77,9 +77,10 @@ class JobTracker:
             return
         self.logger.info(f'Received job complete for {job_id}\n')
         if self.config.print_times and job.times:
-            stats = TimingStats()
-            for token_times in job.times:
-                stats.add_token(token_times)
+            stats = job.timing_stats
+            if not stats.network_ms and not stats.embed_ms and not stats.head_ms and not stats.layer_ms and not stats.token_ms:
+                for token_times in job.times:
+                    stats.add_token(token_times)
             stats.log_summary(self.logger, job_id)
         job.resolve(job)
         self.jobs_pending = [j for j in self.jobs_pending if j.job_id != job_id]
