@@ -13,33 +13,34 @@ class JobHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length)
-        Thread(target=self.server.cb, args=(body, )).start()
-        _respond_bytes(self, b'UP' if not self.server.router.shutting_down else b'DOWN')
+        Thread(target=self.server.data_cb, args=(body, )).start()
+        _respond_bytes(self, b'UP' if not self.server.is_shutdown() else b'DOWN')
 
     def log_message(self, format, *args):
         pass
 
 class JobServer(HTTPServer):
     router: DSNode
-    cb: Callable # Callback into job receiver
+    is_shutdown: Callable[[], bool]
+    data_cb: Callable # Callback into job receiver
 
     def __init__(
         self, 
         port: int,
-        router: DSNode,
-        cb: Callable
+        is_shutdown: Callable[[], bool],
+        data_cb: Callable
     ):
         super().__init__(("0.0.0.0", port), JobHandler)
-        self.router = router
-        self.cb = cb
+        self.is_shutdown = is_shutdown
+        self.data_cb = data_cb
 
     def stop(self):
         self.shutdown()
         self.socket.close()
 
     @staticmethod 
-    def start(port: int, router: DSNode, cb: Callable) -> Tuple[Thread, 'JobServer']:
-        httpd = JobServer(port, router, cb)
+    def start(port: int, is_shutdown: Callable, data_cb: Callable) -> Tuple[Thread, 'JobServer']:
+        httpd = JobServer(port, is_shutdown, data_cb)
         httpd_thread = threading.Thread(target=httpd.serve_forever, args=())
         httpd_thread.start()
 

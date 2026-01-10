@@ -5,6 +5,7 @@ from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.end_model import EndModel
 from language_pipes.pipes.router_pipes import RouterPipes
+from language_pipes.pipes.pipe import Pipe
 from language_pipes.config import LpConfig
 from language_pipes.modeling.computed import validate_model
 
@@ -19,14 +20,10 @@ class ModelManager:
 
     def __init__(
         self, 
-        node_id: str,
-        app_dir: str, 
-        router_pipes: RouterPipes,
         logger,
-        config: LpConfig
+        config: LpConfig,
+        router_pipes: RouterPipes
     ):
-        self.node_id = node_id
-        self.app_dir = app_dir
         self.config = config
         self.logger = logger
         self.router_pipes = router_pipes
@@ -44,9 +41,6 @@ class ModelManager:
         self.models = []
         self.end_models = []
 
-    def get_layer_models(self): 
-        return self.models
-
     def get_end_model(self, model_id: str) -> Optional[EndModel]:
         for m in self.end_models:
             if m.model_id == model_id:
@@ -56,7 +50,7 @@ class ModelManager:
     def _get_model_for_pipe(self, model_id: str, pipe: MetaPipe, device: str, available_memory: int | float) -> Tuple[int | float, Optional[LlmModel]]:
         start_memory = available_memory
 
-        new_model: Optional[LlmModel] = LlmModel.from_id(self.app_dir, model_id, self.node_id, pipe.pipe_id, device)
+        new_model: Optional[LlmModel] = LlmModel.from_id(self.config.app_dir, model_id, self.config.router.node_id, pipe.pipe_id, device)
         if new_model is None:
             return None
         computed = new_model.computed
@@ -84,7 +78,7 @@ class ModelManager:
         return available_memory, new_model
 
     def _load_end_model(self, model_id: str, device: str):
-        model = EndModel(self.app_dir, model_id, device)
+        model = EndModel(self.config.app_dir, model_id, device)
         self.end_models.append(model)
         return model
 
@@ -100,7 +94,7 @@ class ModelManager:
                 break
             loaded = True
             while loaded:
-                pipe = self.router_pipes.network_pipe(pipe_id)
+                pipe = self.router_pipes.get_pipe_by_pipe_id(pipe_id)
                 if pipe is None: 
                     break
                 available_memory, model = self._get_model_for_pipe(model_id, pipe, device, available_memory)

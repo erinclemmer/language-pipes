@@ -29,7 +29,7 @@ This architecture enables democratized access to large language models by distri
 │     Node A      │    │     Node B      │    │     Node C      │
 │                 │    │                 │    │                 │
 │ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
-│ │ JobManager  │ │    │ │ JobManager  │ │    │ │ JobManager  │ │
+│ │ JobFactory  │ │    │ │ JobFactory  │ │    │ │ JobFactory  │ │
 │ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
 │ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
 │ │JobReceiver  │◄┼────┼►│JobReceiver  │◄┼────┼►│JobReceiver  │ │
@@ -43,7 +43,7 @@ This architecture enables democratized access to large language models by distri
 
 ### Core Components
 
-#### 1. JobManager
+#### 1. JobFactory
 - **Purpose**: Orchestrates job distribution and completion across the network
 - **Key Functions**:
   - Manages local model segments

@@ -4,15 +4,16 @@ from typing import Callable, Optional, List, Tuple
 from distributed_state_network import DSNode
 
 from language_pipes.pipes.pipe import Pipe
+from language_pipes.pipes.pipe_manager import PipeManager
 
 from language_pipes.jobs.job import Job
-from language_pipes.jobs.job_handler import JobServer
-from language_pipes.jobs.job_manager import JobManager
+from language_pipes.jobs.job_server import JobServer
+from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob, LayerTime
-from language_pipes.jobs.job_receiver_fsm import JobReceiverFSM, FSMContext
+from language_pipes.jobs.job_processor import JobProcessor, JobContext
 
-from language_pipes.modeling.end_model import EndModel
+from language_pipes.modeling.model_manager import ModelManager
 
 from language_pipes.util import stop_thread
 from language_pipes.util.enums import JobStatus
@@ -23,36 +24,48 @@ class JobReceiver:
     router: DSNode
     print_times: bool
     print_job_data: bool
-    job_manager: JobManager
+    config: LpConfig
+    job_factory: JobFactory
     job_queue: List[NetworkJob]
-    get_end_model: Callable[[str], Optional[EndModel]]
+    pipe_manager: PipeManager
+    model_manager: ModelManager
+    is_shutdown: Callable[[], bool]
 
     def __init__(
             self, 
             config: LpConfig,
-            router: DSNode,
-            job_manager: JobManager,
+            logger,
+            job_factory: JobFactory,
             job_tracker: JobTracker,
-            get_end_model: Callable[[str], Optional[EndModel]]
+            pipe_manager: PipeManager,
+            model_manager: ModelManager,
+            is_shutdown: Callable[[], bool]
     ):
-        self.router = router
-        self.get_end_model = get_end_model
         self.job_queue = []
         self.job_tracker = job_tracker
-        self.job_manager = job_manager
-        self.print_times = config.print_times
-        self.print_job_data = config.print_job_data
+        self.job_factory = job_factory
+        self.model_manager = model_manager
+        self.pipe_manager = pipe_manager
+        self.config = config
+        self.is_shutdown = is_shutdown
+        self.logger = logger
 
-        thread, httpd = JobServer.start(config.job_port, self.router, self.receive_data)
+        thread, httpd = JobServer.start(
+            port=config.job_port, 
+            is_shutdown=is_shutdown, 
+            data_cb=self.receive_data
+        )
+
         self.thread = thread
         self.httpd = httpd
+
         Thread(target=self._job_runner_loop, args=()).start()
-        router.logger.info(f"Started Job Receiver on port {config.job_port}")
+        logger.info(f"Started Job Receiver on port {config.job_port}")
 
     def _wait_for_job(self) -> Optional[NetworkJob]:
         """Wait for a job from the queue. Returns None if shutting down."""
         while True:
-            if self.router.shutting_down:
+            if self.is_shutdown():
                 return None
             if len(self.job_queue) > 0:
                 network_job = self.job_queue.pop()
@@ -66,28 +79,23 @@ class JobReceiver:
         if job is None:
             job = self.job_tracker.add_job(network_job)
 
-        # Validate layer job
-        if not job.receive_layer_job(network_job):
+        # Validate network job
+        if not job.receive_network_job(network_job):
             return
 
-        pipe = self.job_manager.get_pipe(network_job.pipe_id)
+        pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
         if pipe is None:
             return
 
-        end_model = self.get_end_model(pipe.model_id)
+        end_model = self.model_manager.get_end_model(pipe.model_id)
         
-        fsm = JobReceiverFSM(
-            self.router.config.node_id,
-            self.print_job_data, 
-            self.print_times
-        )
-
-        fsm.ctx = FSMContext(
-            logger=self.router.logger,
+        fsm = JobProcessor(JobContext(
+            logger=self.logger,
             pipe=pipe,
             end_model=end_model,
-            job=job
-        )
+            job=job,
+            config=self.config
+        ))
 
         try:
             fsm.run()
@@ -103,7 +111,7 @@ class JobReceiver:
         network_job.data_hash = b''
         network_job.compute_step = ComputeStep.EMBED
         network_job.current_layer = 0
-        pipe = self.job_manager.get_pipe(network_job.pipe_id)
+        pipe = self.job_factory.get_pipe(network_job.pipe_id)
         if pipe is None:
             return
         pipe.send_job(network_job, network_job.origin_node_id)

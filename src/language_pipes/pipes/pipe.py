@@ -23,7 +23,6 @@ class Pipe:
 
     router: DSNode
     tokenizer: Callable
-    complete_job: Callable[[Job], None]
     model_num_hidden_layers: int
 
     def __init__(
@@ -31,10 +30,8 @@ class Pipe:
             router: DSNode,
             pipe_id: Optional[str],
             model_id: str,
-            app_dir: str,
-            complete_job: Callable[[Job], None]
+            app_dir: str
         ):
-        self.complete_job = complete_job
         self.router = router
         self.model_id = model_id
         model_dir = str(Path(app_dir) / 'models' / model_id / 'data')
@@ -109,14 +106,12 @@ class Pipe:
         meta_pipe: MetaPipe, 
         hosted_models: List[LlmModel], 
         router: DSNode,
-        app_dir: str,
-        complete_job: Callable[[Job], None]
+        app_dir: str
     ) -> 'Pipe':
         p = Pipe(
             model_id=meta_pipe.model_id, 
             pipe_id=meta_pipe.pipe_id,
             app_dir=app_dir,
-            complete_job=complete_job,
             router=router
         )
         local_segments = []

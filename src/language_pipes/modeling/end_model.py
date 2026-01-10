@@ -66,7 +66,7 @@ class EndModel:
                 t[1][:, -1:, :]
             )
 
-    def compute_embed(self, job: Job, cache: DynamicCache, chunk_start: int = 0, chunk_end: int = -1):
+    def compute_embed(self, job: Job, chunk_start: int = 0, chunk_end: int = -1):
         """
         Compute embeddings for a job, optionally for a specific chunk.
         
@@ -101,7 +101,7 @@ class EndModel:
             self.input_embedding, 
             tensor([chunk_tokens]).to(self.device), 
             self.collector.config, 
-            cache,
+            job.cache,
             chunked_prefill=is_chunked_prefill
         )
         

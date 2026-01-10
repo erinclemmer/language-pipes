@@ -49,7 +49,31 @@ class RouterPipes:
             json.dumps([m.to_json() for m in current_models])
         )
 
-    def all_models(self) -> List[MetaModel]:
+    def get_pipe_by_pipe_id(self, pipe_id: str) -> Optional[MetaPipe]:
+        models: List[MetaModel] = []
+        for model in self._all_models():
+            if model.pipe_id == pipe_id:
+                models.append(model)
+        if len(models) == 0:
+            return None
+        
+        return aggregate_models(models)[0]
+
+    def get_pipe_by_model_id(self, model_id: str) -> Optional[MetaPipe]:
+        available_pipes: List[MetaPipe] = []
+        for p in self.pipes_for_model(model_id, True):
+            if not p.is_loading():
+                available_pipes.append(p)
+        if len(available_pipes) == 0:
+            return None
+
+        return random.choice(available_pipes)
+
+    def print_pipes(self):
+        for p in self._network_pipes():
+            p.print(self.router.logger)
+
+    def _all_models(self) -> List[MetaModel]:
         network_models: Dict[str, List[MetaModel]] = { }
         for peer in self.router.peers():
             peer_models = json.loads(self.router.read_data(peer, 'models') or '[]')
@@ -63,36 +87,12 @@ class RouterPipes:
 
     def pipes_for_model(self, model_id: str, find_completed: bool) -> List[MetaPipe]:
         models: List[MetaModel] = []
-        for model in self.all_models():
+        for model in self._all_models():
             if model.model_id != model_id:
                 continue
             models.append(model)
 
         return [pipe for pipe in aggregate_models(models) if pipe.is_complete() == find_completed]
 
-    def network_pipes(self) -> List[MetaPipe]:
-        return aggregate_models(self.all_models())
-
-    def network_pipe(self, pipe_id: str) -> Optional[MetaPipe]:
-        models: List[MetaModel] = []
-        for model in self.all_models():
-            if model.pipe_id == pipe_id:
-                models.append(model)
-        if len(models) == 0:
-            return None
-        
-        return aggregate_models(models)[0]
-
-    def print_pipes(self):
-        for p in self.network_pipes():
-            p.print(self.router.logger)
-
-    def get_job_pipe(self, model_id: str) -> Optional[MetaPipe]:
-        available_pipes: List[MetaPipe] = []
-        for p in self.pipes_for_model(model_id, True):
-            if not p.is_loading():
-                available_pipes.append(p)
-        if len(available_pipes) == 0:
-            return None
-
-        return random.choice(available_pipes)
+    def _network_pipes(self) -> List[MetaPipe]:
+        return aggregate_models(self._all_models())

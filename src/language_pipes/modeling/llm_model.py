@@ -116,9 +116,9 @@ Device: {self.device}
 =================================
 ''')
 
-    def process_job(self, job: Job, cache: DynamicCache):
+    def process_job(self, job: Job):
         self.logger.info(f'Processing job layer {job.current_layer}')
-        self.compute_layers(job, cache)
+        self.compute_layers(job)
         job.data_hash = job.data.hash_state()
 
     def raise_exception(self, msg):
@@ -127,8 +127,7 @@ Device: {self.device}
 
     def compute_layers(
         self, 
-        job: Job,
-        cache: DynamicCache
+        job: Job
     ):
         if job.data is None:
             self.raise_exception("cannot compute layers without job data")
@@ -137,7 +136,7 @@ Device: {self.device}
             job.data,
             self.device, 
             self.layers, 
-            cache,
+            job.cache,
         ), self.end_layer + 1)
 
         if job.current_layer == self.num_hidden_layers:

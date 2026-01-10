@@ -73,8 +73,9 @@ class Job:
             min_p: float = 0.0,
             presence_penalty: float = 0.0,
             max_completion_tokens: int = 1000,
-            resolve: Promise | None = None,
-            update: Callable[["Job"], None] | None = None
+            resolve: Optional[Promise] = None,
+            update: Optional[Callable[["Job"], None]] = None,
+            complete: Optional[Callable[["Job"], None]] = None
         ):
         self.pipe_id = pipe_id
         self.model_id = model_id
@@ -108,6 +109,7 @@ class Job:
         self.chunking = ChunkState()
         self.resolve = resolve
         self.update = update
+        self.complete = lambda: complete(self)
         self.last_update = time()
 
     def init_chunking(self, chunk_size: int):
@@ -161,7 +163,7 @@ class Job:
         else:
             self.status = JobStatus.COMPLETED
 
-    def receive_layer_job(self, network_job: NetworkJob) -> bool:
+    def receive_network_job(self, network_job: NetworkJob) -> bool:
         if network_job.job_id != self.job_id or network_job.pipe_id != self.pipe_id:
             return False
         if network_job.origin_node_id != self.origin_node_id:
