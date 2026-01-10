@@ -1,7 +1,7 @@
 from time import time
 from typing import List
 
-from distributed_state_network.util.byte_helper import ByteHelper
+from language_pipes.util.byte_helper import ByteHelper
 from language_pipes.util.enums import ComputeStep
 from language_pipes.jobs.job_data import JobData
 

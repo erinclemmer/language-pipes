@@ -44,7 +44,7 @@ def log_done_error(ctx: JobContext, message: str) -> None:
 def get_next_state(ctx: JobContext) -> JobState:
     cs = ctx.job.compute_step
     if cs == ComputeStep.HEAD or cs == ComputeStep.EMBED or cs == ComputeStep.TOKENIZE:
-        if ctx.job.origin_node_id != ctx.config.router.node_id:
+        if ctx.job.origin_node_id != ctx.config.node_id:
             return JobState.SEND
         
         if should_prefill_chunk(ctx.job) or cs == ComputeStep.EMBED or cs == ComputeStep.TOKENIZE:
@@ -132,7 +132,7 @@ class JobProcessor:
         
         if self.ctx.job.compute_step == ComputeStep.HEAD:
             # Ensure we only process the ends of jobs we sent out
-            if self.ctx.job.origin_node_id != self.ctx.config.router.node_id:
+            if self.ctx.job.origin_node_id != self.ctx.config.node_id:
                 log_done_error(self.ctx, "[FSM] Layer job origin mismatch; completing with error.")
                 return JobState.DONE
             

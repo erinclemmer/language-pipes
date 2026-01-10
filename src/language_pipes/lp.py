@@ -1,6 +1,5 @@
 import logging
 from threading import Thread
-from distributed_state_network import DSNodeServer
 
 from language_pipes.oai_server import OAIHttpServer
 
@@ -15,9 +14,10 @@ from language_pipes.modeling.model_manager import ModelManager
 
 from language_pipes.util import stop_thread
 from language_pipes.config import LpConfig
+from language_pipes.network import StateNetworkServer, start_state_network
 
 class LanguagePipes:
-    router: DSNodeServer
+    router: StateNetworkServer
     
     job_factory: JobFactory
     job_receiver: JobReceiver
@@ -36,10 +36,10 @@ class LanguagePipes:
         self.set_logging_level(self.config.logging_level)
         
         self.router_pipes = None
-        self.router = DSNodeServer.start(
-            config=self.config.router, 
-            update_callback=self.print_pipes, 
-            disconnect_callback=self.print_pipes
+        self.router = start_state_network(
+            config=self.config.router,
+            update_callback=self.print_pipes,
+            disconnect_callback=self.print_pipes,
         )
         logger = self.router.node.logger
 
@@ -72,7 +72,8 @@ class LanguagePipes:
             logger=logger,
             config=self.config, 
             job_tracker=self.job_tracker,
-            get_pipe_by_model_id=self.pipe_manager.get_pipe_by_model_id
+            get_pipe_by_model_id=self.pipe_manager.get_pipe_by_model_id,
+            node_id=self.config.node_id,
         )
 
         is_shutdown = lambda: self.router.node.shutting_down
@@ -115,7 +116,10 @@ class LanguagePipes:
         logging.basicConfig(level=level)
 
     def router_port(self) -> int:
-        return self.config.router.port
+        port = self.config.router.settings.get("port")
+        if port is None:
+            return int(self.router.node.config.port)
+        return int(port)
 
     def stop(self):
         self.model_manager.stop()

@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from transformers import AutoTokenizer
 from transformers.models.auto import AutoConfig
-from distributed_state_network import DSNode
+from language_pipes.network.types import StateNetworkNode
 
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.llm_model import LlmModel
@@ -21,13 +21,13 @@ class Pipe:
     model_id: str
     segments: List[LlmModel]
 
-    router: DSNode
+    router: StateNetworkNode
     tokenizer: Callable
     model_num_hidden_layers: int
 
     def __init__(
             self, 
-            router: DSNode,
+            router: StateNetworkNode,
             pipe_id: Optional[str],
             model_id: str,
             app_dir: str
@@ -105,7 +105,7 @@ class Pipe:
     def from_meta(
         meta_pipe: MetaPipe, 
         hosted_models: List[LlmModel], 
-        router: DSNode,
+        router: StateNetworkNode,
         app_dir: str
     ) -> 'Pipe':
         p = Pipe(

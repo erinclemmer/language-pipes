@@ -1,7 +1,6 @@
 from time import sleep, time
 from threading import Thread
 from typing import Callable, Optional, List, Tuple
-from distributed_state_network import DSNode
 
 from language_pipes.pipes.pipe import Pipe
 from language_pipes.pipes.pipe_manager import PipeManager
@@ -21,7 +20,6 @@ from language_pipes.util.enums import JobStatus
 from language_pipes.config import LpConfig
 
 class JobReceiver:
-    router: DSNode
     print_times: bool
     print_job_data: bool
     config: LpConfig

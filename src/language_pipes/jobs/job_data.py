@@ -1,7 +1,7 @@
 import hashlib
 import torch
 from typing import Optional, Tuple
-from distributed_state_network.util.byte_helper import ByteHelper
+from language_pipes.util.byte_helper import ByteHelper
 from llm_layer_collector.compute import LLmComputationState
 
 from language_pipes.util import tensor_to_bytes, bytes_to_tensor, maybeTo

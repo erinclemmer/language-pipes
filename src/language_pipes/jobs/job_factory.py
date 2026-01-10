@@ -10,7 +10,6 @@ from promise import Promise
 
 from uuid import uuid4
 from threading import Thread
-from distributed_state_network import DSNode
 
 from language_pipes.util import raise_exception
 from language_pipes.util.enums import JobStatus
@@ -32,7 +31,6 @@ from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.computed import validate_model
 
 class JobFactory:
-    router: DSNode
     config: LpConfig
     job_tracker: JobTracker
     router_pipes: RouterPipes
@@ -44,12 +42,14 @@ class JobFactory:
         logger,
         config: LpConfig,
         job_tracker: JobTracker,
-        get_pipe_by_model_id: Callable[[str], Optional[Pipe]]
+        get_pipe_by_model_id: Callable[[str], Optional[Pipe]],
+        node_id: str,
     ):
         self.config = config
         self.logger = logger
         self.job_tracker = job_tracker
         self.get_pipe_by_model_id = get_pipe_by_model_id
+        self.node_id = node_id
 
     def start_job(
         self, 
@@ -72,7 +72,7 @@ class JobFactory:
             return
 
         job = Job(
-            origin_node_id=self.config.router.node_id, 
+            origin_node_id=self.node_id,
             messages=messages, 
             pipe_id=pipe.pipe_id, 
             model_id=pipe.model_id,
@@ -91,7 +91,7 @@ class JobFactory:
             job.print_job(self.logger)
         
         network_job = job.to_layer_job()
-        pipe.send_job(network_job, self.config.router.node_id)
+        pipe.send_job(network_job, self.node_id)
         self.job_tracker.jobs_pending.append(job)
 
         if start is not None:

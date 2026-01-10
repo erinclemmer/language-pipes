@@ -1,7 +1,7 @@
 import json
 import random
 from typing import List, Dict, Optional
-from distributed_state_network import DSNode
+from language_pipes.network.types import StateNetworkNode
 
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.meta_model import MetaModel
@@ -22,9 +22,9 @@ def aggregate_models(models: List[MetaModel]) -> List[MetaPipe]:
     return pipes
 
 class RouterPipes:
-    router: DSNode
+    router: StateNetworkNode
 
-    def __init__(self, router: DSNode):
+    def __init__(self, router: StateNetworkNode):
         self.router = router
 
     def add_model_to_network(self, model: MetaModel):
