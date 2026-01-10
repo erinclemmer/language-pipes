@@ -6,7 +6,7 @@ from distributed_state_network import DSNode
 from language_pipes.pipes.pipe import Pipe
 
 from language_pipes.jobs.job import Job
-from language_pipes.jobs.job_handler import JobServer
+from language_pipes.jobs.job_server import JobServer
 from language_pipes.jobs.job_manager import JobManager
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob, LayerTime
@@ -27,33 +27,41 @@ class JobReceiver:
     job_manager: JobManager
     job_queue: List[NetworkJob]
     model_manager: ModelManager
+    is_shutdown: Callable[[], bool]
 
     def __init__(
             self, 
             config: LpConfig,
-            router: DSNode,
+            logger,
             job_manager: JobManager,
             job_tracker: JobTracker,
-            model_manager: ModelManager
+            model_manager: ModelManager,
+            is_shutdown: Callable[[], bool]
     ):
-        self.router = router
         self.job_queue = []
         self.job_tracker = job_tracker
         self.job_manager = job_manager
         self.model_manager = model_manager
         self.config = config
+        self.is_shutdown = is_shutdown
+        self.logger = logger
 
-        thread, httpd = JobServer.start(config.job_port, self.router, self.receive_data)
+        thread, httpd = JobServer.start(
+            port=config.job_port, 
+            is_shutdown=is_shutdown, 
+            data_cb=self.receive_data
+        )
+
         self.thread = thread
         self.httpd = httpd
+
         Thread(target=self._job_runner_loop, args=()).start()
-        router.logger.info(f"Started Job Receiver on port {config.job_port}")
-        self.router.update_data("job_port", str(self.config.job_port))
+        logger.info(f"Started Job Receiver on port {config.job_port}")
 
     def _wait_for_job(self) -> Optional[NetworkJob]:
         """Wait for a job from the queue. Returns None if shutting down."""
         while True:
-            if self.router.shutting_down:
+            if self.is_shutdown():
                 return None
             if len(self.job_queue) > 0:
                 network_job = self.job_queue.pop()
@@ -78,7 +86,7 @@ class JobReceiver:
         end_model = self.model_manager.get_end_model(pipe.model_id)
         
         fsm = JobReceiverFSM(FSMContext(
-            logger=self.router.logger,
+            logger=self.logger,
             pipe=pipe,
             end_model=end_model,
             job=job,

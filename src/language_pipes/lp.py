@@ -37,35 +37,39 @@ class LanguagePipes:
             update_callback=self.print_pipes, 
             disconnect_callback=self.print_pipes
         )
+        logger = self.router.node.logger
 
         self.router_pipes = RouterPipes(self.router.node)
 
         self.model_manager = ModelManager(
-            config.router.node_id,
-            config.app_dir,
-            self.router_pipes,
-            self.router.node.logger,
-            self.config
+            logger=logger,
+            config=self.config,
+            router_pipes=self.router_pipes
         )
 
         self.router_pipes.print_pipes()
 
-        self.job_tracker = JobTracker(self.router.node.logger)
+        self.job_tracker = JobTracker(logger)
 
         self.job_manager = JobManager(
-            logger=self.router.node.logger,
+            logger=logger,
             config=self.config, 
             job_tracker=self.job_tracker,
             get_pipe_by_model_id=self.model_manager.get_pipe_by_model_id
         )
 
+        is_shutdown = lambda: self.router.node.shutting_down
+
         self.job_receiver = JobReceiver(
+            logger=logger, 
             config=self.config, 
-            router=self.router.node, 
             job_tracker=self.job_tracker,
             job_manager=self.job_manager,
-            model_manager=self.model_manager
+            model_manager=self.model_manager,
+            is_shutdown=is_shutdown
         )
+
+        self.router.node.update_data("job_port", str(self.config.job_port))
 
         if self.config.oai_port is not None:
             self.start_oai()

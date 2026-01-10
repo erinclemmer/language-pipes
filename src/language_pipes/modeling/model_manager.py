@@ -20,14 +20,10 @@ class ModelManager:
 
     def __init__(
         self, 
-        node_id: str,
-        app_dir: str, 
-        router_pipes: RouterPipes,
         logger,
-        config: LpConfig
+        config: LpConfig,
+        router_pipes: RouterPipes
     ):
-        self.node_id = node_id
-        self.app_dir = app_dir
         self.config = config
         self.logger = logger
         self.router_pipes = router_pipes
@@ -74,7 +70,7 @@ class ModelManager:
     def _get_model_for_pipe(self, model_id: str, pipe: MetaPipe, device: str, available_memory: int | float) -> Tuple[int | float, Optional[LlmModel]]:
         start_memory = available_memory
 
-        new_model: Optional[LlmModel] = LlmModel.from_id(self.app_dir, model_id, self.node_id, pipe.pipe_id, device)
+        new_model: Optional[LlmModel] = LlmModel.from_id(self.config.app_dir, model_id, self.config.router.node_id, pipe.pipe_id, device)
         if new_model is None:
             return None
         computed = new_model.computed
@@ -102,7 +98,7 @@ class ModelManager:
         return available_memory, new_model
 
     def _load_end_model(self, model_id: str, device: str):
-        model = EndModel(self.app_dir, model_id, device)
+        model = EndModel(self.config.app_dir, model_id, device)
         self.end_models.append(model)
         return model
 
