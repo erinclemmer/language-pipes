@@ -42,7 +42,7 @@ class DsnNetworkServer:
     def __init__(self, server: DSNodeServer):
         self._server = server
         self.node: StateNetworkNode = DsnNetworkAdapter(server.node)
-        self.logger = server.logger
+        self.logger = server.node.logger
 
     def stop(self) -> None:
         self._server.stop()

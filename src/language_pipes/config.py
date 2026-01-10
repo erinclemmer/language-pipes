@@ -50,7 +50,7 @@ class LpConfig:
         node_id = data.get('node_id') or router_config.get_node_id()
         if node_id is None:
             raise ValueError("router.node_id is required")
-        if router_config.get_node_id() is None:
+        if router_config.get_node_id() != node_id:
             router_config = NetworkConfig(
                 provider=router_config.provider,
                 settings={**router_config.settings, "node_id": node_id},
