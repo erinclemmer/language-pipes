@@ -11,7 +11,7 @@ from language_pipes.jobs.job_server import JobServer
 from language_pipes.jobs.job_manager import JobManager
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob, LayerTime
-from language_pipes.jobs.job_receiver_fsm import JobReceiverFSM, FSMContext
+from language_pipes.jobs.job_processor import JobProcessor, JobContext
 
 from language_pipes.modeling.model_manager import ModelManager
 
@@ -89,7 +89,7 @@ class JobReceiver:
 
         end_model = self.model_manager.get_end_model(pipe.model_id)
         
-        fsm = JobReceiverFSM(FSMContext(
+        fsm = JobProcessor(JobContext(
             logger=self.logger,
             pipe=pipe,
             end_model=end_model,

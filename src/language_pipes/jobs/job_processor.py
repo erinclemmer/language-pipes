@@ -12,8 +12,7 @@ from language_pipes.util.enums import ComputeStep, JobStatus
 from language_pipes.config import LpConfig
 from language_pipes.util.chunk_state import log_prefill_chunk_complete, log_prefill_chunk_start, log_prefill_summary
 
-class ReceiverState(Enum):
-    """States for the JobReceiver finite state machine."""
+class JobState(Enum):
     VALIDATING = auto()    # Validating pipe and getting resources
     HEAD = auto()          # Computing norm/head, handling completion
     EMBED = auto()         # Embedding the next token for decoding
@@ -22,8 +21,7 @@ class ReceiverState(Enum):
     DONE = auto()          # Current job iteration complete
 
 @dataclass
-class FSMContext:
-    """Context passed between FSM states."""
+class JobContext:
     config: LpConfig
     logger: Optional[any] = None
     job: Optional["Job"] = None
@@ -34,26 +32,25 @@ def create_embed_time(node_id: str) -> LayerTime:
     return LayerTime(node_id=node_id, is_embed=True)
 
 def create_head_time(node_id: str) -> LayerTime:
-    """Create a LayerTime for head operations."""
     return LayerTime(node_id=node_id, is_head=True)
 
 def should_prefill_chunk(job) -> bool:
     return job.current_token == 0 and job.chunking.has_more()
 
-def log_done_error(ctx: FSMContext, message: str) -> None:
+def log_done_error(ctx: JobContext, message: str) -> None:
     if ctx.logger is not None:
         ctx.logger.error(message)
 
-def get_next_state(ctx: FSMContext) -> ReceiverState:
+def get_next_state(ctx: JobContext) -> JobState:
     cs = ctx.job.compute_step
     if cs == ComputeStep.HEAD or cs == ComputeStep.EMBED or cs == ComputeStep.TOKENIZE:
         if ctx.job.origin_node_id != ctx.config.router.node_id:
-            return ReceiverState.SEND
+            return JobState.SEND
         
         if should_prefill_chunk(ctx.job) or cs == ComputeStep.EMBED or cs == ComputeStep.TOKENIZE:
-            return ReceiverState.EMBED  
+            return JobState.EMBED  
         else:
-            return ReceiverState.HEAD
+            return JobState.HEAD
 
     model = ctx.pipe.get_layer(ctx.job.current_layer, False)
     if model is None:
@@ -61,17 +58,17 @@ def get_next_state(ctx: FSMContext) -> ReceiverState:
             ctx,
             f"[FSM] Missing model for layer={ctx.job.current_layer}; completing with error."
         )
-        return ReceiverState.DONE
+        return JobState.DONE
 
     if model.virtual:
-        return ReceiverState.SEND
-    return ReceiverState.PROCESS_LAYERS
+        return JobState.SEND
+    return JobState.PROCESS_LAYERS
 
-class JobReceiverFSM:
+class JobProcessor:
     """
     Finite state machine for processing jobs.
     
-    State Transitions (and why they happen):
+    State Transitions:
     
     VALIDATING -> DONE (missing job/context resources or pipe unavailable)
     VALIDATING -> HEAD (job.done and prefill finished or decode)
@@ -94,64 +91,64 @@ class JobReceiverFSM:
     SEND -> DONE (handoff complete)
     """
     
-    state: ReceiverState
-    ctx: FSMContext
+    state: JobState
+    ctx: JobContext
     receiver: 'JobReceiver'
     
-    def __init__(self, ctx: FSMContext):
-        self.state = ReceiverState.VALIDATING
+    def __init__(self, ctx: JobContext):
+        self.state = JobState.VALIDATING
         self.ctx = ctx
     
     def run(self) -> bool:
-        while self.state != ReceiverState.DONE:
+        while self.state != JobState.DONE:
             self.state = self._transition()
     
-    def _transition(self) -> ReceiverState:
+    def _transition(self) -> JobState:
         """Execute current state and transition to next."""
         match self.state:
-            case ReceiverState.VALIDATING:
+            case JobState.VALIDATING:
                 return self._state_validating()
-            case ReceiverState.HEAD:
+            case JobState.HEAD:
                 return self._state_head()
-            case ReceiverState.EMBED:
+            case JobState.EMBED:
                 return self._state_embed()
-            case ReceiverState.PROCESS_LAYERS:
+            case JobState.PROCESS_LAYERS:
                 return self._state_process_layers()
-            case ReceiverState.SEND:
+            case JobState.SEND:
                 return self._state_send()
     
-    def _state_validating(self) -> ReceiverState:
+    def _state_validating(self) -> JobState:
         """Validate context for processing"""
         if self.ctx.job is None:
             log_done_error(self.ctx, "[FSM] Missing job; completing with error.")
-            return ReceiverState.DONE
+            return JobState.DONE
         
         pipe = self.ctx.pipe
         
         # Ensure we have an available pipe
         if pipe is None or not pipe.is_complete():
             log_done_error(self.ctx, "[FSM] Pipe unavailable or incomplete; completing with error.")
-            return ReceiverState.DONE
+            return JobState.DONE
         
         if self.ctx.job.compute_step == ComputeStep.HEAD:
             # Ensure we only process the ends of jobs we sent out
             if self.ctx.job.origin_node_id != self.ctx.config.router.node_id:
                 log_done_error(self.ctx, "[FSM] Layer job origin mismatch; completing with error.")
-                return ReceiverState.DONE
+                return JobState.DONE
             
             # Ensure we have the end model ready            
             if self.ctx.end_model is None:
                 log_done_error(self.ctx, "[FSM] End model unavailable; completing with error.")
-                return ReceiverState.DONE
+                return JobState.DONE
             
             # Job returned from network - check pending job
             if self.ctx.job is None:
                 log_done_error(self.ctx, "[FSM] Job missing; completing with error.")
-                return ReceiverState.DONE
+                return JobState.DONE
 
         return get_next_state(self.ctx)
 
-    def _state_head(self) -> ReceiverState:
+    def _state_head(self) -> JobState:
         """Handle norm/head computation and prepare to embed the next token."""
         job = self.ctx.job
         pipe = self.ctx.pipe
@@ -161,7 +158,7 @@ class JobReceiverFSM:
         if job.current_token == 0:
             if job.chunking.has_more():
                 log_done_error(self.ctx, "Received head state for job that was not done chunking")
-                return ReceiverState.DONE
+                return JobState.DONE
 
             if job.chunking.is_active():
                 log_prefill_chunk_complete(self.ctx.logger, job)
@@ -182,16 +179,16 @@ class JobReceiverFSM:
         if job.status == JobStatus.COMPLETED:
             end_model.set_result(job)
             job.complete()
-            return ReceiverState.DONE
+            return JobState.DONE
         
         # More tokens to generate - update and continue
         if not job.send_update():
             log_done_error(self.ctx, "[FSM] Failed to send job update; completing with error.")
-            return ReceiverState.DONE
+            return JobState.DONE
 
-        return ReceiverState.EMBED
+        return JobState.EMBED
 
-    def _state_embed(self) -> ReceiverState:
+    def _state_embed(self) -> JobState:
         """Embed the next token, handling prefill chunks when needed."""
         job = self.ctx.job
         if job.prompt_tokens == 0:
@@ -217,10 +214,10 @@ class JobReceiverFSM:
             job.delta = ""
             if not job.send_update():
                 log_done_error(self.ctx, "[FSM] Failed to send prefill job update; completing with error.")
-                return ReceiverState.DONE
+                return JobState.DONE
         return get_next_state(self.ctx)
 
-    def _state_process_layers(self) -> ReceiverState:
+    def _state_process_layers(self) -> JobState:
         """Process job through local layers."""
         pipe = self.ctx.pipe
         job = self.ctx.job
@@ -231,14 +228,14 @@ class JobReceiverFSM:
                 self.ctx,
                 f"[FSM] Missing local model for layer={job.current_layer}; completing with error."
             )
-            return ReceiverState.DONE
+            return JobState.DONE
         
         model.process_job(job)
         job.set_last_update()
         
         return get_next_state(self.ctx)
     
-    def _state_send(self) -> ReceiverState:
+    def _state_send(self) -> JobState:
         """Send job to next destination."""
         job = self.ctx.job
         pipe = self.ctx.pipe
@@ -250,4 +247,4 @@ class JobReceiverFSM:
             next_model = pipe.get_layer(network_job.current_layer, False)
             pipe.send_job(network_job, next_model.node_id)
         
-        return ReceiverState.DONE
+        return JobState.DONE

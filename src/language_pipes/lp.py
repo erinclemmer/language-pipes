@@ -43,14 +43,18 @@ class LanguagePipes:
         )
         logger = self.router.node.logger
 
+        # Network pipe data for MetaPipe objects
         self.router_pipes = RouterPipes(self.router.node)
 
+        # Local pipe data for LlmModel objects
         self.model_manager = ModelManager(
             logger=logger,
             config=self.config,
+            # Used for placing model data on the network
             router_pipes=self.router_pipes
         )
 
+        # Merge local and network data to get Pipe object
         self.pipe_manager = PipeManager(
             config=self.config,
             model_manager=self.model_manager,
