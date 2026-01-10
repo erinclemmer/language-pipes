@@ -54,8 +54,7 @@ class LanguagePipes:
             config=self.config, 
             router_pipes=self.router_pipes,
             job_tracker=self.job_tracker,
-            get_layer_models=self.model_manager.get_layer_models,
-            get_end_model=self.model_manager.get_end_model
+            get_layer_models=self.model_manager.get_layer_models
         )
 
         self.job_receiver = JobReceiver(

@@ -23,6 +23,7 @@ class JobReceiver:
     router: DSNode
     print_times: bool
     print_job_data: bool
+    config: LpConfig
     job_manager: JobManager
     job_queue: List[NetworkJob]
     get_end_model: Callable[[str], Optional[EndModel]]
@@ -40,8 +41,7 @@ class JobReceiver:
         self.job_queue = []
         self.job_tracker = job_tracker
         self.job_manager = job_manager
-        self.print_times = config.print_times
-        self.print_job_data = config.print_job_data
+        self.config = config
 
         thread, httpd = JobServer.start(config.job_port, self.router, self.receive_data)
         self.thread = thread
@@ -76,18 +76,13 @@ class JobReceiver:
 
         end_model = self.get_end_model(pipe.model_id)
         
-        fsm = JobReceiverFSM(
-            self.router.config.node_id,
-            self.print_job_data, 
-            self.print_times
-        )
-
-        fsm.ctx = FSMContext(
+        fsm = JobReceiverFSM(FSMContext(
             logger=self.router.logger,
             pipe=pipe,
             end_model=end_model,
-            job=job
-        )
+            job=job,
+            config=self.config
+        ))
 
         try:
             fsm.run()

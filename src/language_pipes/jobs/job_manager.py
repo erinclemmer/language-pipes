@@ -39,7 +39,7 @@ class JobManager:
     job_tracker: JobTracker
     router_pipes: RouterPipes
 
-    get_end_model: Callable[[str], Optional[EndModel]]
+    get_layer_models: Callable[[], List[LlmModel]]
 
     def __init__(
         self, 
@@ -47,15 +47,13 @@ class JobManager:
         config: LpConfig,
         router_pipes: RouterPipes,
         job_tracker: JobTracker,
-        get_layer_models: Callable[[], List[LlmModel]],
-        get_end_model: Callable[[str], Optional[EndModel]]
+        get_layer_models: Callable[[], List[LlmModel]]
     ):
         self.started = False
         self.router = router
         self.config = config
         self.logger = self.router.logger
         self.get_layer_models = get_layer_models
-        self.get_end_model = get_end_model
 
         self.job_tracker = job_tracker
         self.router_pipes = router_pipes
@@ -90,22 +88,14 @@ class JobManager:
         update: Optional[Callable] = None,
         resolve: Optional[Promise] = None
     ) -> Optional[Job]:
-        end_model = self.get_end_model(model_id)
-        if end_model is None:
-            if resolve is not None:
-                resolve('NO_ENDS')
-                return None
-            raise_exception(self.logger, f"Could not find local end model for {model_id}")
-            return
-
-        network_pipe = self.router_pipes.get_job_pipe(model_id)
-        if network_pipe is None:
+        meta_pipe = self.router_pipes.get_meta_pipe(model_id)
+        if meta_pipe is None:
             if resolve is not None:
                 resolve('NO_PIPE')
                 return None
             raise_exception(self.logger, f"Could not find pipe for {model_id}")
             return
-        pipe_id = network_pipe.pipe_id
+        pipe_id = meta_pipe.pipe_id
 
         pipe = self.get_pipe(pipe_id)
         if pipe is None:
@@ -127,14 +117,6 @@ class JobManager:
             update=update,
             complete=self.job_tracker.complete_job
         )
-        
-        # Tokenize first to get prompt length
-        end_model.tokenize(job)
-        
-        # Init chunking
-        self.logger.info(f"[Prefill] job={job.job_id[:8]} started")
-        job.init_chunking(self.config.prefill_chunk_size)
-        job.chunking.print_start(self.logger)
         
         if self.config.print_job_data:
             job.print_job(self.router.logger)

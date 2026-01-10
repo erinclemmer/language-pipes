@@ -9,6 +9,7 @@ from language_pipes.pipes.pipe import Pipe
 from language_pipes.modeling.end_model import EndModel
 
 from language_pipes.util.enums import ComputeStep, JobStatus
+from language_pipes.config import LpConfig
 
 class ReceiverState(Enum):
     """States for the JobReceiver finite state machine."""
@@ -22,6 +23,7 @@ class ReceiverState(Enum):
 @dataclass
 class FSMContext:
     """Context passed between FSM states."""
+    config: LpConfig
     logger: Optional[any] = None
     job: Optional["Job"] = None
     pipe: Optional[Pipe] = None
@@ -33,13 +35,6 @@ def create_embed_time(node_id: str) -> LayerTime:
 def create_head_time(node_id: str) -> LayerTime:
     """Create a LayerTime for head operations."""
     return LayerTime(node_id=node_id, is_head=True)
-
-def embed(ctx: FSMContext):
-    if ctx.job.chunking.is_active() and ctx.job.current_token == 0:
-        chunk_start, chunk_end = ctx.job.chunking.get_range()
-    else:
-        chunk_start, chunk_end = (0, -1)
-    ctx.end_model.compute_embed(ctx.job, ctx.job.cache, chunk_start, chunk_end)
 
 def should_prefill_chunk(job) -> bool:
     return job.current_token == 0 and job.chunking.has_more()
@@ -72,9 +67,9 @@ def log_done_error(ctx: FSMContext, message: str) -> None:
     if ctx.logger is not None:
         ctx.logger.error(message)
 
-def get_next_state(node_id: str, ctx: FSMContext) -> ReceiverState:
+def get_next_state(ctx: FSMContext) -> ReceiverState:
     if ctx.job.compute_step == ComputeStep.HEAD or ctx.job.compute_step == ComputeStep.EMBED:
-        if ctx.job.origin_node_id != node_id:
+        if ctx.job.origin_node_id != ctx.config.node_id:
             return ReceiverState.SEND
         return ReceiverState.EMBED if should_prefill_chunk(ctx.job) or ctx.job.compute_step == ComputeStep.EMBED else ReceiverState.HEAD
 
@@ -121,17 +116,9 @@ class JobReceiverFSM:
     ctx: FSMContext
     receiver: 'JobReceiver'
     
-    def __init__(
-        self,
-        node_id: str,
-        print_job: bool,
-        print_times: bool,
-    ):
-        self.node_id = node_id
-        self.print_times = print_times
-        self.print_job = print_job
+    def __init__(self, ctx: FSMContext):
         self.state = ReceiverState.VALIDATING
-        self.ctx = FSMContext()
+        self.ctx = ctx
     
     def run(self) -> bool:
         while self.state != ReceiverState.DONE:
@@ -166,7 +153,7 @@ class JobReceiverFSM:
         
         if self.ctx.job.compute_step == ComputeStep.HEAD:
             # Ensure we only process the ends of jobs we sent out
-            if self.ctx.job.origin_node_id != self.node_id:
+            if self.ctx.job.origin_node_id != self.ctx.config.node_id:
                 log_done_error(self.ctx, "[FSM] Layer job origin mismatch; completing with error.")
                 return ReceiverState.DONE
             
@@ -180,7 +167,7 @@ class JobReceiverFSM:
                 log_done_error(self.ctx, "[FSM] Job missing; completing with error.")
                 return ReceiverState.DONE
 
-        return get_next_state(self.node_id, self.ctx)
+        return get_next_state(self.ctx)
 
     def _state_head(self) -> ReceiverState:
         """Handle norm/head computation and prepare to embed the next token."""
@@ -206,7 +193,7 @@ class JobReceiverFSM:
         end_model.compute_norm(job)
         end_model.compute_head(job)
         
-        if self.print_job:
+        if self.ctx.config.print_job_data:
             job.print_job(self.ctx.logger)
 
         # Job completed
@@ -225,6 +212,12 @@ class JobReceiverFSM:
     def _state_embed(self) -> ReceiverState:
         """Embed the next token, handling prefill chunks when needed."""
         job = self.ctx.job
+        if job.prompt_tokens == 0:
+            self.ctx.logger.info(f"[Prefill] job={job.job_id[:8]} started")
+            self.ctx.end_model.tokenize(job)
+            job.init_chunking(self.ctx.config.prefill_chunk_size)
+            job.chunking.print_start(self.ctx.logger)
+
         if should_prefill_chunk(job):
             job.set_last_update()
             log_prefill_chunk_complete(self.ctx.logger, job)
@@ -232,13 +225,18 @@ class JobReceiverFSM:
             chunk_start, chunk_end = job.chunking.get_range()
             log_prefill_chunk_start(self.ctx.logger, job, chunk_start, chunk_end)
 
-        embed(self.ctx)
+        if job.chunking.is_active() and job.current_token == 0:
+            chunk_start, chunk_end = job.chunking.get_range()
+        else:
+            chunk_start, chunk_end = (0, -1)
+        self.ctx.end_model.compute_embed(job, chunk_start, chunk_end)
+        
         if should_prefill_chunk(job) or job.chunking.is_active():
             job.delta = ""
-            if not self.ctx.job.send_update():
+            if not job.send_update():
                 log_done_error(self.ctx, "[FSM] Failed to send prefill job update; completing with error.")
                 return ReceiverState.DONE
-        return get_next_state(self.node_id, self.ctx)
+        return get_next_state(self.ctx)
 
     def _state_process_layers(self) -> ReceiverState:
         """Process job through local layers."""
@@ -256,7 +254,7 @@ class JobReceiverFSM:
         model.process_job(job, job.cache)
         job.set_last_update()
         
-        return get_next_state(self.node_id, self.ctx)
+        return get_next_state(self.ctx)
     
     def _state_send(self) -> ReceiverState:
         """Send job to next destination."""

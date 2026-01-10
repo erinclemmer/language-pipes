@@ -87,7 +87,7 @@ class RouterPipes:
         for p in self.network_pipes():
             p.print(self.router.logger)
 
-    def get_job_pipe(self, model_id: str) -> Optional[MetaPipe]:
+    def get_meta_pipe(self, model_id: str) -> Optional[MetaPipe]:
         available_pipes: List[MetaPipe] = []
         for p in self.pipes_for_model(model_id, True):
             if not p.is_loading():
