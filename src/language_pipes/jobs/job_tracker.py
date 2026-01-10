@@ -64,17 +64,6 @@ class JobTracker:
                 return j
         return None
 
-    def send_job_update(self, job: Job):
-        job_id = job.job_id
-        if job_id in self.jobs_completed:
-            return
-        job = self.get_job(job_id)
-        if job is None or job.update is None:
-            return
-        self.logger.info(f'Received job update for {job_id}\n')
-        job.last_update = time()
-        return job.update(job)
-
     def complete_job(self, job: Job):
         job_id = job.job_id
         if job_id in self.jobs_completed:

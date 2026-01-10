@@ -216,7 +216,7 @@ class JobReceiverFSM:
             return ReceiverState.DONE
         
         # More tokens to generate - update and continue
-        if not pipe.send_job_update(job):
+        if not job.send_update():
             log_done_error(self.ctx, "[FSM] Failed to send job update; completing with error.")
             return ReceiverState.DONE
 
@@ -235,7 +235,7 @@ class JobReceiverFSM:
         embed(self.ctx)
         if should_prefill_chunk(job) or job.chunking.is_active():
             job.delta = ""
-            if not self.ctx.pipe.send_job_update(job):
+            if not self.ctx.job.send_update():
                 log_done_error(self.ctx, "[FSM] Failed to send prefill job update; completing with error.")
                 return ReceiverState.DONE
         return get_next_state(self.node_id, self.ctx)

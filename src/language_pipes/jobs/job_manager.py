@@ -77,17 +77,8 @@ class JobManager:
             hosted_models=self.get_layer_models(),
             router=self.router,
             app_dir=self.app_dir,
-            get_job_port=self.get_job_port,
-            complete_job=self.job_tracker.complete_job,
-            send_job_update=self.job_tracker.send_job_update
+            complete_job=self.job_tracker.complete_job
         )
-    
-    def get_job_port(self, node_id: str) -> Optional[int]:
-        try:
-            return int(self.router.read_data(node_id, 'job_port'))
-        except Exception as e:
-            self.logger.exception("Error getting job port: %s", e)
-            return None
 
     def start_job(
         self, 

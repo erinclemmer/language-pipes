@@ -74,6 +74,13 @@ def move_position_embeddings(t: Optional[Tuple[torch.Tensor, torch.Tensor]], dev
         t[1].detach().to(device)
     )
 
+def maybeTo(t: Optional[torch.Tensor], device: str) -> Optional[torch.Tensor]:
+    if t is None:
+        return None
+    if str(t.device) == device:
+        return t.detach()
+    return t.detach().to(device)
+
 def computationStateToJobData(data: LLmComputationState) -> JobData:
     job_data = JobData()
     job_data.state = maybeTo(data.state, 'cpu')
@@ -85,13 +92,6 @@ def computationStateToJobData(data: LLmComputationState) -> JobData:
     job_data.causal_mask = maybeTo(data.causal_mask["full_attention"], 'cpu')
     job_data.sliding_causal_mask = maybeTo(data.causal_mask["sliding_attention"], 'cpu')
     return job_data
-
-def maybeTo(t: Optional[torch.Tensor], device: str) -> Optional[torch.Tensor]:
-    if t is None:
-        return None
-    if str(t.device) == device:
-        return t.detach()
-    return t.detach().to(device)
 
 def jobDataToComputationState(data: JobData, device: str) -> LLmComputationState:
     state = LLmComputationState()

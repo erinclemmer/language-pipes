@@ -102,10 +102,6 @@ class NetworkJob:
 
         return bts.get_bytes()
 
-    def set_layer(self, state, current_layer: int):
-        self.data.state = state
-        self.current_layer = current_layer
-
     def print_times(self, logger):
         logger.info("Times:")
         for i in range(0, len(self.times)):

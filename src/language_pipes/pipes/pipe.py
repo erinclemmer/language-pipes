@@ -23,9 +23,7 @@ class Pipe:
 
     router: DSNode
     tokenizer: Callable
-    get_job_port: Callable[[str], Optional[int]]
     complete_job: Callable[[Job], None]
-    send_job_update: Callable[[Job], None]
     model_num_hidden_layers: int
 
     def __init__(
@@ -34,13 +32,9 @@ class Pipe:
             pipe_id: Optional[str],
             model_id: str,
             app_dir: str,
-            get_job_port: Callable[[str], Optional[int]],
-            complete_job: Callable[[Job], None],
-            send_job_update: Callable[[Job], None]
+            complete_job: Callable[[Job], None]
         ):
-        self.get_job_port = get_job_port
         self.complete_job = complete_job
-        self.send_job_update = send_job_update
         self.router = router
         self.model_id = model_id
         model_dir = str(Path(app_dir) / 'models' / model_id / 'data')
@@ -57,6 +51,13 @@ class Pipe:
     def raise_exception(self, msg: str):
         self.router.logger.exception(msg)
         raise Exception(msg)
+
+    def get_job_port(self, node_id: str) -> Optional[int]:
+        try:
+            return int(self.router.read_data(node_id, 'job_port'))
+        except Exception as e:
+            self.logger.exception("Error getting job port: %s", e)
+            return None
 
     def send_job(self, job: NetworkJob, node_id: str):
         ip = self.router.connection_from_node(node_id).address
@@ -109,17 +110,13 @@ class Pipe:
         hosted_models: List[LlmModel], 
         router: DSNode,
         app_dir: str,
-        get_job_port: Callable[[str], Optional[int]],
-        complete_job: Callable[[Job], None],
-        send_job_update: Callable[[Job], None]
+        complete_job: Callable[[Job], None]
     ) -> 'Pipe':
         p = Pipe(
             model_id=meta_pipe.model_id, 
-            pipe_id=meta_pipe.pipe_id, 
-            get_job_port=get_job_port,
+            pipe_id=meta_pipe.pipe_id,
             app_dir=app_dir,
             complete_job=complete_job,
-            send_job_update=send_job_update,
             router=router
         )
         local_segments = []

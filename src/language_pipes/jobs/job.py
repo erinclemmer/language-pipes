@@ -179,6 +179,12 @@ class Job:
         
         return True
 
+    def send_update(self):
+        self.last_update_time = time()
+        if self.update is not None:
+            return self.update(self)
+        return True
+
     def to_layer_job(self) -> NetworkJob:
         data_hash = self.data.hash_state() if self.data is not None else b''
         return NetworkJob(
