@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
-from distributed_state_network import DSNodeConfig
+from language_pipes.network.config import NetworkConfig
 
 @dataclass
 class HostedModel:
@@ -28,8 +28,9 @@ class LpConfig:
     # API server
     oai_port: Optional[int]
     
-    # Network configuration (external DSNodeConfig)
-    router: DSNodeConfig
+    # Network configuration (provider-specific)
+    router: NetworkConfig
+    node_id: str
     
     # Model hosting
     hosted_models: List[HostedModel]
@@ -45,6 +46,15 @@ class LpConfig:
 
     @staticmethod
     def from_dict(data: Dict) -> 'LpConfig':
+        router_config = NetworkConfig.from_dict(data['router'])
+        node_id = data.get('node_id') or router_config.get_node_id()
+        if node_id is None:
+            raise ValueError("router.node_id is required")
+        if router_config.get_node_id() != node_id:
+            router_config = NetworkConfig(
+                provider=router_config.provider,
+                settings={**router_config.settings, "node_id": node_id},
+            )
         return LpConfig(
             # Core settings
             logging_level=data['logging_level'],
@@ -54,7 +64,8 @@ class LpConfig:
             oai_port=data.get('oai_port'),
             
             # Network configuration
-            router=DSNodeConfig.from_dict(data['router']),
+            router=router_config,
+            node_id=node_id,
             
             # Model hosting
             hosted_models=[HostedModel.from_dict(m) for m in data['hosted_models']],

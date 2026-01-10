@@ -3,7 +3,6 @@ import threading
 from threading import Thread
 from typing import Tuple, Callable
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from distributed_state_network import DSNode
 
 from language_pipes.util.http import _respond_bytes
 
@@ -20,7 +19,6 @@ class JobHandler(BaseHTTPRequestHandler):
         pass
 
 class JobServer(HTTPServer):
-    router: DSNode
     is_shutdown: Callable[[], bool]
     data_cb: Callable # Callback into job receiver
 

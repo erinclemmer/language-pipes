@@ -50,7 +50,13 @@ class ModelManager:
     def _get_model_for_pipe(self, model_id: str, pipe: MetaPipe, device: str, available_memory: int | float) -> Tuple[int | float, Optional[LlmModel]]:
         start_memory = available_memory
 
-        new_model: Optional[LlmModel] = LlmModel.from_id(self.config.app_dir, model_id, self.config.router.node_id, pipe.pipe_id, device)
+        new_model: Optional[LlmModel] = LlmModel.from_id(
+            self.config.app_dir,
+            model_id,
+            self.config.node_id,
+            pipe.pipe_id,
+            device,
+        )
         if new_model is None:
             return None
         computed = new_model.computed

@@ -1,7 +1,7 @@
 import json
 import random
 from typing import List, Dict, Optional
-from distributed_state_network import DSNode
+from language_pipes.network.types import StateNetworkNode
 
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.meta_model import MetaModel
@@ -22,13 +22,13 @@ def aggregate_models(models: List[MetaModel]) -> List[MetaPipe]:
     return pipes
 
 class RouterPipes:
-    router: DSNode
+    router: StateNetworkNode
 
-    def __init__(self, router: DSNode):
+    def __init__(self, router: StateNetworkNode):
         self.router = router
 
     def add_model_to_network(self, model: MetaModel):
-        models_string = self.router.read_data(self.router.config.node_id, 'models') or '[]'
+        models_string = self.router.read_data(self.router.node_id, 'models') or '[]'
         current_models = [MetaModel.from_dict(m) for m in json.loads(models_string)]
         current_models.append(model)
         self.router.update_data(
@@ -37,7 +37,7 @@ class RouterPipes:
         )
 
     def update_model(self, model: MetaModel):
-        models_string = self.router.read_data(self.router.config.node_id, 'models') or '[]'
+        models_string = self.router.read_data(self.router.node_id, 'models') or '[]'
         current_models = [MetaModel.from_dict(m) for m in json.loads(models_string)]
         matching_models = [m for m in current_models if m.process_id == model.process_id]
         if len(matching_models) < 1:
