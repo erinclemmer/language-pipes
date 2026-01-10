@@ -8,6 +8,8 @@ from threading import Thread
 
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.network_job import NetworkJob
+from language_pipes.jobs.timing_stats import TimingStats
+from language_pipes.config import LpConfig
 
 CHECK_JOB_INTERVAL = 10
 EXPIRED_JOB_TIME = 60  # Unified timeout for both prefill and decode phases
@@ -24,8 +26,9 @@ class JobTracker:
     jobs_completed: List[str]
     jobs_pending: List[Job]
 
-    def __init__(self, logger):
+    def __init__(self, logger, config: LpConfig):
         self.logger = logger
+        self.config = config
         self.jobs_completed = []
         self.jobs_pending = []
         Thread(target=self.check_stale_jobs, args=( )).start()
@@ -73,6 +76,12 @@ class JobTracker:
         if job is None or job.resolve is None:
             return
         self.logger.info(f'Received job complete for {job_id}\n')
+        if self.config.print_times and job.times:
+            stats = job.timing_stats
+            if not stats.network_ms and not stats.embed_ms and not stats.head_ms and not stats.layer_ms and not stats.token_ms:
+                for token_times in job.times:
+                    stats.add_token(token_times)
+            stats.log_summary(self.logger, job_id)
         job.resolve(job)
         self.jobs_pending = [j for j in self.jobs_pending if j.job_id != job_id]
 
