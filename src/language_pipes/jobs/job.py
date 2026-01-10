@@ -39,6 +39,7 @@ class Job:
     result: Optional[str]
     last_update: float
     times: List[List[LayerTime]]
+    current_times: List[LayerTime]
     
     # API params
     top_k: int
@@ -90,6 +91,7 @@ class Job:
         self.result = None
         self.input_ids = []
         self.times = []
+        self.current_times = []
         self.prompt_tokens = 0
         self.current_token = 0
         self.messages = messages
@@ -177,7 +179,7 @@ class Job:
             self.current_layer = network_job.current_layer
             
         self.data = network_job.data
-        self.times.append(network_job.times)
+        self.current_times = list(network_job.times)
         
         return True
 
@@ -197,12 +199,20 @@ class Job:
             data=self.data, 
             data_hash=data_hash, 
             compute_step=self.compute_step, 
-            times=[]
+            times=list(self.current_times)
         )
 
     def set_last_update(self):
         from time import time
         self.last_update = time()
+
+    def add_timing(self, timing: LayerTime) -> None:
+        self.current_times.append(timing)
+
+    def finalize_token_timing(self) -> None:
+        if self.current_times:
+            self.times.append(self.current_times)
+        self.current_times = []
 
     def print_job(self, logger):
         logger.info(f"""

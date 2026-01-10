@@ -65,7 +65,7 @@ class LanguagePipes:
         self.router_pipes.print_pipes()
 
         # Holds pending jobs
-        self.job_tracker = JobTracker(logger)
+        self.job_tracker = JobTracker(logger, self.config)
 
         # Handles job creation
         self.job_factory = JobFactory(

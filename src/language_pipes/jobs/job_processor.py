@@ -168,9 +168,14 @@ class JobProcessor:
         
         job.compute_step = ComputeStep.NORM
         job.current_layer = 0
-        
+
+        head_time = create_head_time(self.ctx.config.router.node_id)
+        job.add_timing(head_time)
+
         end_model.compute_norm(job)
         end_model.compute_head(job)
+        head_time.set_send_time()
+        job.finalize_token_timing()
         
         if self.ctx.config.print_job_data:
             job.print_job(self.ctx.logger)
@@ -208,7 +213,10 @@ class JobProcessor:
             chunk_start, chunk_end = job.chunking.get_range()
         else:
             chunk_start, chunk_end = (0, -1)
+        embed_time = create_embed_time(self.ctx.config.router.node_id)
+        job.add_timing(embed_time)
         self.ctx.end_model.compute_embed(job, chunk_start, chunk_end)
+        embed_time.set_send_time()
         
         if should_prefill_chunk(job) or job.chunking.is_active():
             job.delta = ""

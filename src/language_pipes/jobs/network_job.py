@@ -139,7 +139,7 @@ class NetworkJob:
         for i in range(0, l):
             times.append(LayerTime.from_bytes(bts.read_bytes()))
 
-        times.sort(key=lambda x: x.start_layer)
+        times.sort(key=lambda x: x.receive_time)
 
         return NetworkJob(
             job_id=job_id, 
