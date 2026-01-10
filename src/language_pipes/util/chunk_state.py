@@ -47,6 +47,21 @@ class ChunkState:
         """Move to the next chunk."""
         self.current_chunk += 1
 
+    def print_start(self, logger):
+        if self.is_active():
+            logger.info(
+                f"prompt_tokens={self.prompt_length}, "
+                f"chunks={self.total_chunks}, "
+                f"chunk_size={self.chunk_size}"
+            )
+        else:
+            logger.info(f"prompt_tokens={self.prompt_length} (no chunking)")
+
+    def disable(self):
+        self.current_chunk = 0
+        self.total_chunks = 0
+        self.chunk_size = 0
+
     def __str__(self) -> str:
         """String representation for logging."""
         if not self.is_active():

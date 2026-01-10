@@ -76,7 +76,7 @@ class EndModel:
             chunk_start: Start index in input_ids for this chunk (0 for no chunking)
             chunk_end: End index (exclusive) in input_ids (-1 means use full sequence)
         """
-        if job.current_step != ComputeStep.EMBED:
+        if job.compute_step != ComputeStep.EMBED:
             raise ValueError('Invalid step for embedding')
         if self.input_embedding is None:
             raise RuntimeError("Input Embedding must be loaded before computation")

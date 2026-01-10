@@ -1,6 +1,8 @@
 from time import time
 from typing import List
+
 from distributed_state_network.util.byte_helper import ByteHelper
+from language_pipes.util.enums import ComputeStep
 from language_pipes.jobs.job_data import JobData
 
 class LayerTime:
@@ -59,8 +61,7 @@ class LayerJob:
     pipe_id: str
     origin_node_id: str
     current_layer: int
-    done: bool
-    restart: bool
+    compute_step: ComputeStep
     data: JobData
     data_hash: bytes
     times: List[LayerTime]
@@ -73,8 +74,7 @@ class LayerJob:
         current_layer: int,
         data: JobData,
         data_hash: bytes,
-        done: bool,
-        restart: bool,
+        compute_step: ComputeStep,
         times: List[LayerTime] = []
     ):
         self.job_id = job_id
@@ -83,8 +83,7 @@ class LayerJob:
         self.current_layer = current_layer
         self.data = data
         self.data_hash = data_hash
-        self.done = done
-        self.restart = restart
+        self.compute_step = compute_step
         self.times = times
 
     def to_bytes(self):
@@ -93,9 +92,8 @@ class LayerJob:
         bts.write_string(self.pipe_id)
         bts.write_string(self.origin_node_id)
         bts.write_int(self.current_layer)
-        bts.write_string("true" if self.done else "false")
-        bts.write_string("true" if self.restart else "false")
-        bts.write_bytes(self.data.to_bytes())
+        bts.write_int(self.compute_step.value)
+        bts.write_bytes(self.data.to_bytes() if self.data is not None else b'')
         bts.write_bytes(self.data_hash)
 
         bts.write_int(len(self.times))
@@ -135,9 +133,9 @@ class LayerJob:
         pipe_id = bts.read_string()
         origin_node_id = bts.read_string()
         current_layer = bts.read_int()
-        done = bts.read_string() == "true"
-        restart = bts.read_string() == "true"
-        job_data = JobData.from_bytes(bts.read_bytes())
+        step = ComputeStep(bts.read_int())
+        job_bytes = bts.read_bytes()
+        job_data = JobData.from_bytes(job_bytes) if job_bytes != b'' else None
         data_hash = bts.read_bytes()
 
         times = []
@@ -147,7 +145,13 @@ class LayerJob:
 
         times.sort(key=lambda x: x.start_layer)
 
-        if job_data is None:
-            raise Exception("Could not decode job data from layer job bytes")
-
-        return LayerJob(job_id, pipe_id, origin_node_id, current_layer, job_data, data_hash, done, restart, times)
+        return LayerJob(
+            job_id=job_id, 
+            pipe_id=pipe_id, 
+            origin_node_id=origin_node_id, 
+            current_layer=current_layer, 
+            data=job_data, 
+            data_hash=data_hash,
+            compute_step=step,
+            times=times
+        )

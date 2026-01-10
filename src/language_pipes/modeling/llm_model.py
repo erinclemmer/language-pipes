@@ -16,6 +16,7 @@ import torch
 from llm_layer_collector import LlmLayerCollector
 
 from language_pipes.util import clone_model
+from language_pipes.util.enums import ComputeStep
 
 from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.computed import ComputedData
@@ -115,17 +116,10 @@ Device: {self.device}
 =================================
 ''')
 
-    def process_job(self, job: LayerJob, cache: DynamicCache):
+    def process_job(self, job: Job, cache: DynamicCache):
         self.logger.info(f'Processing job layer {job.current_layer}')
-        lt = LayerTime(
-            node_id=self.node_id,
-            start_layer=self.start_layer,
-            end_layer=self.end_layer
-        )
         self.compute_layers(job, cache)
         job.data_hash = job.data.hash_state()
-        lt.send_time = time()
-        job.times.append(lt)
 
     def raise_exception(self, msg):
         self.logger.exception(msg)
@@ -133,7 +127,7 @@ Device: {self.device}
 
     def compute_layers(
         self, 
-        job: LayerJob,
+        job: Job,
         cache: DynamicCache
     ):
         if job.data is None:
@@ -147,7 +141,7 @@ Device: {self.device}
         ), self.end_layer + 1)
 
         if job.current_layer == self.num_hidden_layers:
-            job.done = True
+            job.compute_step = ComputeStep.HEAD
     
     def to_meta(self) -> MetaModel:
         return MetaModel(

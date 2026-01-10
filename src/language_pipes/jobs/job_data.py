@@ -16,7 +16,7 @@ class JobData:
     position_embeddings_global: Optional[torch.Tensor] = None
     state: Optional[torch.Tensor] = None
 
-    def validate_state(self, state_hash: bytes) -> bool | None:
+    def validate_state(self, state_hash: bytes) -> bool:
         current_hash = hashlib.sha256(self.to_bytes()).digest()
         return current_hash == state_hash
 

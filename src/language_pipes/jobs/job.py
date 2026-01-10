@@ -1,11 +1,16 @@
 import json
+from time import time
 from typing import List, Optional
 from uuid import uuid4
 
 import torch
 
 from language_pipes.jobs.job_data import JobData
-from language_pipes.jobs.layer_job import LayerJob
+from language_pipes.jobs.layer_job import LayerJob, LayerTime
+from transformers.cache_utils import DynamicCache
+from language_pipes.util.chunk_state import ChunkState
+from promise import Promise
+from typing import Callable
 
 from language_pipes.util.enums import ComputeStep, JobStatus
 from language_pipes.util.chat import ChatMessage
@@ -25,12 +30,15 @@ class Job:
 
     # State Info
     input_ids: List[int]
-    current_step: ComputeStep
+    compute_step: ComputeStep
     status: JobStatus
     current_token: int = 0
+    current_layer: int = 0
     data: Optional[JobData]
     messages: List[ChatMessage]
     result: Optional[str]
+    last_update: float
+    times: List[List[LayerTime]]
     
     # API params
     top_k: int
@@ -44,6 +52,14 @@ class Job:
     prefill_start_time: float
     chunk_start_time: float
 
+    # Classes
+    cache: DynamicCache
+    chunking: ChunkState
+
+    # Functions
+    resolve: Promise | None
+    update: Callable[["Job"], None] | None
+
     def __init__(
             self,
             origin_node_id: str,
@@ -56,7 +72,9 @@ class Job:
             top_p: float = 1.0,
             min_p: float = 0.0,
             presence_penalty: float = 0.0,
-            max_completion_tokens: int = 1000
+            max_completion_tokens: int = 1000,
+            resolve: Promise | None = None,
+            update: Callable[["Job"], None] | None = None
         ):
         self.pipe_id = pipe_id
         self.model_id = model_id
@@ -64,12 +82,13 @@ class Job:
         self.origin_node_id = origin_node_id
         
         self.status = JobStatus.IN_PROGRESS
-        self.current_step = ComputeStep.TOKENIZE
+        self.compute_step = ComputeStep.TOKENIZE
 
         self.delta = ''
         self.data = None
         self.result = None
         self.input_ids = []
+        self.times = []
         self.prompt_tokens = 0
         self.current_token = 0
         self.messages = messages
@@ -81,11 +100,23 @@ class Job:
         self.presence_penalty = presence_penalty
         self.max_completion_tokens = max_completion_tokens
         
-        self.prefill_start_time = 0.0
-        self.chunk_start_time = 0.0
+        self.prefill_start_time = 0
+        self.chunk_start_time = 0
+        self.current_layer = 0
+
+        self.cache = DynamicCache()
+        self.chunking = ChunkState()
+        self.resolve = resolve
+        self.update = update
+        self.last_update = time()
+
+    def init_chunking(self, chunk_size: int):
+        self.chunk_start_time = time()
+        self.prefill_start_time = time()
+        self.chunking.init(self.prompt_tokens, chunk_size)
 
     def set_layer(self, state: torch.Tensor, layer: int):
-        if self.current_step != ComputeStep.LAYER:
+        if self.compute_step != ComputeStep.LAYER:
             raise Exception('Invalid step for layer')
         self.current_layer = layer
         if self.data is None: 
@@ -93,7 +124,7 @@ class Job:
         self.data.state = state
 
     def set_norm(self, state: torch.Tensor):
-        if self.current_step != ComputeStep.NORM:
+        if self.compute_step != ComputeStep.NORM:
             raise Exception('Invalid step for norm')
         if self.data is None:
             return
@@ -101,7 +132,7 @@ class Job:
         self.next_step()
 
     def set_output(self, token: int, eos_token: int):
-        if self.current_step != ComputeStep.HEAD:
+        if self.compute_step != ComputeStep.HEAD:
             raise Exception('Invalid step for head')
         self.input_ids.append(token)
         self.next_step()
@@ -114,27 +145,56 @@ class Job:
         return torch.tensor(self.input_ids)
 
     def next_step(self):
-        if self.current_step == ComputeStep.TOKENIZE:
-            self.current_step = ComputeStep.EMBED
-        elif self.current_step == ComputeStep.EMBED:
-            self.current_step = ComputeStep.LAYER
-        elif self.current_step == ComputeStep.LAYER:
-            self.current_step = ComputeStep.NORM
-        elif self.current_step == ComputeStep.NORM:
-            self.current_step = ComputeStep.HEAD
+        if self.compute_step == ComputeStep.TOKENIZE:
+            self.compute_step = ComputeStep.EMBED
+        elif self.compute_step == ComputeStep.EMBED:
+            self.compute_step = ComputeStep.LAYER
+        elif self.compute_step == ComputeStep.LAYER:
+            self.compute_step = ComputeStep.NORM
+        elif self.compute_step == ComputeStep.NORM:
+            self.compute_step = ComputeStep.HEAD
         elif self.current_token < self.max_completion_tokens:
             self.current_token += 1
-            self.current_step = ComputeStep.EMBED
+            self.compute_step = ComputeStep.EMBED
             if self.current_token == self.max_completion_tokens:
                 self.status = JobStatus.COMPLETED
         else:
             self.status = JobStatus.COMPLETED
 
+    def receive_layer_job(self, layer_job: LayerJob) -> bool:
+        if layer_job.job_id != self.job_id or layer_job.pipe_id != self.pipe_id:
+            return False
+        if layer_job.origin_node_id != self.origin_node_id:
+            return False
+
+        if layer_job.compute_step == ComputeStep.HEAD and self.chunking.has_more():
+            self.compute_step = ComputeStep.EMBED
+            self.current_layer = 0
+        else:
+            self.compute_step = layer_job.compute_step
+            self.current_layer = layer_job.current_layer
+            
+        self.data = layer_job.data
+        self.times.append(layer_job.times)
+        
+        return True
+
     def to_layer_job(self) -> LayerJob:
         data_hash = self.data.hash_state() if self.data is not None else b''
-        if self.data is None:
-            raise Exception("Tried to create layer job without job data")
-        return LayerJob(self.job_id, self.pipe_id, self.origin_node_id, 0, self.data, data_hash, False, False, [])
+        return LayerJob(
+            job_id=self.job_id, 
+            pipe_id=self.pipe_id, 
+            origin_node_id=self.origin_node_id, 
+            current_layer=self.current_layer, 
+            data=self.data, 
+            data_hash=data_hash, 
+            compute_step=self.compute_step, 
+            times=[]
+        )
+
+    def set_last_update(self):
+        from time import time
+        self.last_update = time()
 
     def print_job(self, logger):
         logger.info(f"""

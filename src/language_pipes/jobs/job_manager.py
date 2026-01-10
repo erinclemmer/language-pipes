@@ -23,8 +23,7 @@ from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.pipes.pipe import Pipe
 
 from language_pipes.jobs.job import Job
-from language_pipes.jobs.layer_job import LayerTime, LayerJob
-from language_pipes.jobs.pending_job import PendingJob
+from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_tracker import JobTracker
 
 from language_pipes.config import LpConfig
@@ -102,9 +101,7 @@ class JobManager:
         presence_penalty: float = 0.0,
         start: Optional[Callable] = None,
         update: Optional[Callable] = None,
-        resolve: Optional[Promise] = None,
-        pipe_id: Optional[str] = None,
-        job_id: Optional[str] = None
+        resolve: Optional[Promise] = None
     ) -> Optional[Job]:
         end_model = self.get_end_model(model_id)
         if end_model is None:
@@ -114,15 +111,14 @@ class JobManager:
             raise_exception(self.logger, f"Could not find local end model for {model_id}")
             return
 
-        if pipe_id is None:
-            network_pipe = self.router_pipes.get_job_pipe(model_id)
-            if network_pipe is None:
-                if resolve is not None:
-                    resolve('NO_PIPE')
-                    return None
-                raise_exception(self.logger, f"Could not find pipe for {model_id}")
-                return
-            pipe_id = network_pipe.pipe_id
+        network_pipe = self.router_pipes.get_job_pipe(model_id)
+        if network_pipe is None:
+            if resolve is not None:
+                resolve('NO_PIPE')
+                return None
+            raise_exception(self.logger, f"Could not find pipe for {model_id}")
+            return
+        pipe_id = network_pipe.pipe_id
 
         pipe = self.get_pipe(pipe_id)
         if pipe is None:
@@ -139,70 +135,26 @@ class JobManager:
             top_p=top_p, 
             min_p=min_p, 
             presence_penalty=presence_penalty,
-            max_completion_tokens=max_completion_tokens
-        )
-        
-        if job_id is not None:
-            job.job_id = job_id
-        
-        lt = LayerTime(
-            node_id=self.router.config.node_id,
-            is_embed=True
+            max_completion_tokens=max_completion_tokens,
+            resolve=resolve,
+            update=update
         )
         
         # Tokenize first to get prompt length
         end_model.tokenize(job)
         
-        # Create pending job with chunking initialization
-        pending_job = PendingJob(
-            job, time(), resolve, update,
-            prompt_length=job.prompt_tokens,
-            chunk_size=self.config.prefill_chunk_size
-        )
+        # Init chunking
+        self.logger.info(f"[Prefill] job={job.job_id[:8]} started")
+        job.init_chunking(self.config.prefill_chunk_size)
+        job.chunking.print_start(self.logger)
         
-        # Set prefill start time
-        job.prefill_start_time = time()
-        job.chunk_start_time = job.prefill_start_time
-        
-        # Log prefill start
-        if pending_job.chunking.is_active():
-            self.logger.info(
-                f"[Prefill] job={job.job_id[:8]} started: "
-                f"prompt_tokens={job.prompt_tokens}, "
-                f"chunks={pending_job.chunking.total_chunks}, "
-                f"chunk_size={pending_job.chunking.chunk_size}"
-            )
-        else:
-            self.logger.info(
-                f"[Prefill] job={job.job_id[:8]} started: "
-                f"prompt_tokens={job.prompt_tokens} (no chunking)"
-            )
-        
-        # Get chunk range and compute embed for first chunk
-        chunk_start, chunk_end = pending_job.chunking.get_range()
-        
-        # Log first chunk being processed
-        if pending_job.chunking.is_active():
-            self.logger.info(
-                f"[Prefill] job={job.job_id[:8]} chunk 1/{pending_job.chunking.total_chunks} "
-                f"starting: tokens {chunk_start}-{chunk_end}"
-            )
-        
-        end_model.compute_embed(job, pending_job.cache, chunk_start, chunk_end)
-        first_layer_model = pipe.get_layer(0, False)
-        if first_layer_model is None:
-            raise_exception(self.logger, "Could not find appropriate model for processing")
-            return None
-        
-        lt.set_send_time()
         layer_job = job.to_layer_job()
 
         if self.config.print_job_data:
             job.print_job(self.router.logger)
         
-        layer_job.times.append(lt)
-        pipe.send_job(layer_job, first_layer_model.node_id)
-        self.job_tracker.jobs_pending.append(pending_job)
+        pipe.send_job(layer_job, self.router.config.node_id)
+        self.job_tracker.jobs_pending.append(job)
 
         if start is not None:
             start(job)
