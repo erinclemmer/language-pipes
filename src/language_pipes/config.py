@@ -50,6 +50,11 @@ class LpConfig:
         node_id = data.get('node_id') or router_config.get_node_id()
         if node_id is None:
             raise ValueError("router.node_id is required")
+        if router_config.get_node_id() is None:
+            router_config = NetworkConfig(
+                provider=router_config.provider,
+                settings={**router_config.settings, "node_id": node_id},
+            )
         return LpConfig(
             # Core settings
             logging_level=data['logging_level'],
