@@ -5,7 +5,7 @@ from distributed_state_network import DSNode, DSNodeConfig, DSNodeServer
 from language_pipes.network.types import StateNetworkNode, StateNetworkServer
 
 
-class DsnNetworkNode:
+class DsnNetworkAdapter:
     def __init__(self, node: DSNode):
         self._node = node
 
@@ -41,7 +41,7 @@ class DsnNetworkNode:
 class DsnNetworkServer:
     def __init__(self, server: DSNodeServer):
         self._server = server
-        self.node: StateNetworkNode = DsnNetworkNode(server.node)
+        self.node: StateNetworkNode = DsnNetworkAdapter(server.node)
         self.logger = server.logger
 
     def stop(self) -> None:
