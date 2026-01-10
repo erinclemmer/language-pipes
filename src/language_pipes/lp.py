@@ -115,10 +115,7 @@ class LanguagePipes:
         logging.basicConfig(level=level)
 
     def router_port(self) -> int:
-        port = self.config.router.settings.get("port")
-        if port is None:
-            return int(self.router.node.config.port)
-        return int(port)
+        return int(self.router.node.port)
 
     def stop(self):
         self.model_manager.stop()

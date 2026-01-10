@@ -7,8 +7,9 @@ class NetworkConnection(Protocol):
 
 class StateNetworkNode(Protocol):
     logger: Any
-    config: Any
     shutting_down: bool
+    node_id: str
+    port: int
 
     def read_data(self, node_id: str, key: str) -> Optional[str]:
         ...
