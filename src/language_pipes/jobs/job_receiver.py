@@ -4,6 +4,7 @@ from typing import Callable, Optional, List, Tuple
 from distributed_state_network import DSNode
 
 from language_pipes.pipes.pipe import Pipe
+from language_pipes.pipes.pipe_manager import PipeManager
 
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_server import JobServer
@@ -26,6 +27,7 @@ class JobReceiver:
     config: LpConfig
     job_manager: JobManager
     job_queue: List[NetworkJob]
+    pipe_manager: PipeManager
     model_manager: ModelManager
     is_shutdown: Callable[[], bool]
 
@@ -35,6 +37,7 @@ class JobReceiver:
             logger,
             job_manager: JobManager,
             job_tracker: JobTracker,
+            pipe_manager: PipeManager,
             model_manager: ModelManager,
             is_shutdown: Callable[[], bool]
     ):
@@ -42,6 +45,7 @@ class JobReceiver:
         self.job_tracker = job_tracker
         self.job_manager = job_manager
         self.model_manager = model_manager
+        self.pipe_manager = pipe_manager
         self.config = config
         self.is_shutdown = is_shutdown
         self.logger = logger
@@ -79,7 +83,7 @@ class JobReceiver:
         if not job.receive_network_job(network_job):
             return
 
-        pipe = self.model_manager.get_pipe_by_pipe_id(network_job.pipe_id)
+        pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
         if pipe is None:
             return
 

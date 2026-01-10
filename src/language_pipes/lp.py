@@ -3,10 +3,14 @@ from threading import Thread
 from distributed_state_network import DSNodeServer
 
 from language_pipes.oai_server import OAIHttpServer
+
 from language_pipes.jobs.job_manager import JobManager
 from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
+
 from language_pipes.pipes.router_pipes import RouterPipes
+from language_pipes.pipes.pipe_manager import PipeManager
+
 from language_pipes.modeling.model_manager import ModelManager
 
 from language_pipes.util import stop_thread
@@ -47,6 +51,12 @@ class LanguagePipes:
             router_pipes=self.router_pipes
         )
 
+        self.pipe_manager = PipeManager(
+            config=self.config,
+            model_manager=self.model_manager,
+            router_pipes=self.router_pipes
+        )
+
         self.router_pipes.print_pipes()
 
         self.job_tracker = JobTracker(logger)
@@ -55,7 +65,7 @@ class LanguagePipes:
             logger=logger,
             config=self.config, 
             job_tracker=self.job_tracker,
-            get_pipe_by_model_id=self.model_manager.get_pipe_by_model_id
+            get_pipe_by_model_id=self.pipe_manager.get_pipe_by_model_id
         )
 
         is_shutdown = lambda: self.router.node.shutting_down
@@ -65,6 +75,7 @@ class LanguagePipes:
             config=self.config, 
             job_tracker=self.job_tracker,
             job_manager=self.job_manager,
+            pipe_manager=self.pipe_manager,
             model_manager=self.model_manager,
             is_shutdown=is_shutdown
         )

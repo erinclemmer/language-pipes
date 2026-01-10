@@ -47,26 +47,6 @@ class ModelManager:
                 return m
         return None
 
-    def _get_pipe_from_meta(self, meta_pipe: MetaPipe) -> Pipe:
-        return Pipe.from_meta(
-            meta_pipe=meta_pipe,
-            hosted_models=self.models,
-            router=self.router_pipes.router,
-            app_dir=self.config.app_dir
-        )
-
-    def get_pipe_by_pipe_id(self, pipe_id: str) -> Optional[Pipe]:
-        meta_pipe = self.router_pipes.get_pipe_by_pipe_id(pipe_id)
-        if meta_pipe is None:
-            return None
-        return self._get_pipe_from_meta(meta_pipe)
-
-    def get_pipe_by_model_id(self, model_id: str) -> Optional[Pipe]:
-        meta_pipe = self.router_pipes.get_pipe_by_model_id(model_id)
-        if meta_pipe is None:
-            return None
-        return self._get_pipe_from_meta(meta_pipe)
-
     def _get_model_for_pipe(self, model_id: str, pipe: MetaPipe, device: str, available_memory: int | float) -> Tuple[int | float, Optional[LlmModel]]:
         start_memory = available_memory
 
