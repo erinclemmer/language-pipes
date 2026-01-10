@@ -50,7 +50,6 @@ class LanguagePipes:
         self.job_tracker = JobTracker(self.router.node.logger)
 
         self.job_manager = JobManager(
-            app_dir=config.app_dir, 
             router=self.router.node, 
             config=self.config, 
             router_pipes=self.router_pipes,

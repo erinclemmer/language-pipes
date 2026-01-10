@@ -10,6 +10,7 @@ import subprocess
 from uuid import UUID
 from hashlib import sha256
 from threading import Thread
+from typing import Optional
 
 import torch
 
@@ -25,7 +26,9 @@ def int_to_bytes(i: int) -> bytes:
 def bytes_to_int(b: bytes) -> int:
     return int.from_bytes(b, 'little', signed=False)
 
-def tensor_to_bytes(t: torch.Tensor) -> bytes:
+def tensor_to_bytes(t: torch.Tensor | None) -> bytes:
+    if t is None:
+        return b''
     bts = io.BytesIO()
     torch.save(t, bts)
     return bts.getvalue()
@@ -84,3 +87,10 @@ def sanitize_file_name(raw_name: str):
 def raise_exception(logger, msg: str):
     logger.exception(msg)
     raise Exception(msg)
+
+def maybeTo(t: Optional[torch.Tensor], device: str) -> Optional[torch.Tensor]:
+    if t is None:
+        return None
+    if str(t.device) == device:
+        return t.detach()
+    return t.detach().to(device)

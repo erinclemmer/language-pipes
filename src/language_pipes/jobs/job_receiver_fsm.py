@@ -212,7 +212,7 @@ class JobReceiverFSM:
         # Job completed
         if job.status == JobStatus.COMPLETED:
             end_model.set_result(job)
-            pipe.complete_job(job)
+            job.complete()
             return ReceiverState.DONE
         
         # More tokens to generate - update and continue

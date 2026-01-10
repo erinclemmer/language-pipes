@@ -32,7 +32,6 @@ from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.computed import validate_model
 
 class JobManager:
-    app_dir: str
     started: bool
 
     router: DSNode
@@ -44,7 +43,6 @@ class JobManager:
 
     def __init__(
         self, 
-        app_dir: str, 
         router: DSNode, 
         config: LpConfig,
         router_pipes: RouterPipes,
@@ -55,7 +53,6 @@ class JobManager:
         self.started = False
         self.router = router
         self.config = config
-        self.app_dir = app_dir
         self.logger = self.router.logger
         self.get_layer_models = get_layer_models
         self.get_end_model = get_end_model
@@ -76,8 +73,7 @@ class JobManager:
             meta_pipe=meta_pipe,
             hosted_models=self.get_layer_models(),
             router=self.router,
-            app_dir=self.app_dir,
-            complete_job=self.job_tracker.complete_job
+            app_dir=self.config.app_dir
         )
 
     def start_job(
@@ -128,7 +124,8 @@ class JobManager:
             presence_penalty=presence_penalty,
             max_completion_tokens=max_completion_tokens,
             resolve=resolve,
-            update=update
+            update=update,
+            complete=self.job_tracker.complete_job
         )
         
         # Tokenize first to get prompt length
