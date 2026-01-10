@@ -73,7 +73,6 @@ class LanguagePipes:
             config=self.config, 
             job_tracker=self.job_tracker,
             get_pipe_by_model_id=self.pipe_manager.get_pipe_by_model_id,
-            node_id=self.config.node_id,
         )
 
         is_shutdown = lambda: self.router.node.shutting_down
