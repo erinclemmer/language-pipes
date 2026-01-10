@@ -8,7 +8,7 @@ from language_pipes.pipes.pipe_manager import PipeManager
 
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_server import JobServer
-from language_pipes.jobs.job_manager import JobManager
+from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob, LayerTime
 from language_pipes.jobs.job_processor import JobProcessor, JobContext
@@ -25,7 +25,7 @@ class JobReceiver:
     print_times: bool
     print_job_data: bool
     config: LpConfig
-    job_manager: JobManager
+    job_factory: JobFactory
     job_queue: List[NetworkJob]
     pipe_manager: PipeManager
     model_manager: ModelManager
@@ -35,7 +35,7 @@ class JobReceiver:
             self, 
             config: LpConfig,
             logger,
-            job_manager: JobManager,
+            job_factory: JobFactory,
             job_tracker: JobTracker,
             pipe_manager: PipeManager,
             model_manager: ModelManager,
@@ -43,7 +43,7 @@ class JobReceiver:
     ):
         self.job_queue = []
         self.job_tracker = job_tracker
-        self.job_manager = job_manager
+        self.job_factory = job_factory
         self.model_manager = model_manager
         self.pipe_manager = pipe_manager
         self.config = config
@@ -111,7 +111,7 @@ class JobReceiver:
         network_job.data_hash = b''
         network_job.compute_step = ComputeStep.EMBED
         network_job.current_layer = 0
-        pipe = self.job_manager.get_pipe(network_job.pipe_id)
+        pipe = self.job_factory.get_pipe(network_job.pipe_id)
         if pipe is None:
             return
         pipe.send_job(network_job, network_job.origin_node_id)

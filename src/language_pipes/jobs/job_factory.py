@@ -31,7 +31,7 @@ from language_pipes.config import LpConfig
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.computed import validate_model
 
-class JobManager:
+class JobFactory:
     router: DSNode
     config: LpConfig
     job_tracker: JobTracker

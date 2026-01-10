@@ -4,7 +4,7 @@ from distributed_state_network import DSNodeServer
 
 from language_pipes.oai_server import OAIHttpServer
 
-from language_pipes.jobs.job_manager import JobManager
+from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
 
@@ -19,7 +19,7 @@ from language_pipes.config import LpConfig
 class LanguagePipes:
     router: DSNodeServer
     
-    job_manager: JobManager
+    job_factory: JobFactory
     job_receiver: JobReceiver
 
     oai_server: OAIHttpServer
@@ -61,11 +61,14 @@ class LanguagePipes:
             router_pipes=self.router_pipes
         )
 
+        # View currently loaded pipes
         self.router_pipes.print_pipes()
 
+        # Holds pending jobs
         self.job_tracker = JobTracker(logger)
 
-        self.job_manager = JobManager(
+        # Handles job creation
+        self.job_factory = JobFactory(
             logger=logger,
             config=self.config, 
             job_tracker=self.job_tracker,
@@ -74,16 +77,18 @@ class LanguagePipes:
 
         is_shutdown = lambda: self.router.node.shutting_down
 
+        # Receives jobs and creates JobProcessor object before processing
         self.job_receiver = JobReceiver(
             logger=logger, 
             config=self.config, 
             job_tracker=self.job_tracker,
-            job_manager=self.job_manager,
+            job_factory=self.job_factory,
             pipe_manager=self.pipe_manager,
             model_manager=self.model_manager,
             is_shutdown=is_shutdown
         )
 
+        # Broadcast our job port for other nodes to connect to
         self.router.node.update_data("job_port", str(self.config.job_port))
 
         if self.config.oai_port is not None:
@@ -98,10 +103,10 @@ class LanguagePipes:
         if self.config.oai_port is None:
             self.router.logger.error("Tried to start Open AI server but no port was specified")
             return
-        self.oai_server = OAIHttpServer(self.config.oai_port, self.job_manager.start_job)
+        self.oai_server = OAIHttpServer(self.config.oai_port, self.job_factory.start_job)
         self.oai_thread = Thread(target=self.oai_server.serve_forever, args=())
         self.oai_thread.start()
-        self.job_manager.logger.info(f"OpenAI Server started on port {self.config.oai_port}")
+        self.job_factory.logger.info(f"OpenAI Server started on port {self.config.oai_port}")
 
     def set_logging_level(self, logging_level: str):
         level = getattr(logging, logging_level.upper(), None)
