@@ -28,7 +28,7 @@ class PipeManager:
             meta_pipe=meta_pipe,
             hosted_models=self.model_manager.models,
             router=self.router_pipes.router,
-            app_dir=self.config.app_dir
+            model_dir=self.config.model_dir
         )
 
     def get_pipe_by_pipe_id(self, pipe_id: str) -> Optional[Pipe]:

@@ -1,7 +1,17 @@
 from typing import Dict, List, Optional
 from dataclasses import dataclass
+from pathlib import Path
 
 from language_pipes.network.config import NetworkConfig
+
+
+def default_config_dir() -> str:
+    return str(Path.home() / ".config" / "language_pipes")
+
+
+def default_model_dir() -> str:
+    return str(Path.home() / ".cache" / "language_pipes" / "models")
+
 
 @dataclass
 class HostedModel:
@@ -24,6 +34,7 @@ class LpConfig:
     # Core settings
     logging_level: str
     app_dir: str
+    model_dir: str
     
     # API server
     oai_port: Optional[int]
@@ -58,7 +69,8 @@ class LpConfig:
         return LpConfig(
             # Core settings
             logging_level=data['logging_level'],
-            app_dir=data['app_dir'],
+            app_dir=data.get('app_dir', default_config_dir()),
+            model_dir=data.get('model_dir', default_model_dir()),
             
             # API server
             oai_port=data.get('oai_port'),

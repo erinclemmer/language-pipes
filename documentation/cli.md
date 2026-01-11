@@ -125,7 +125,8 @@ See [Configuration](./configuration.md) for all available options and their desc
 | `--hosted-models MODEL...` | | Models to host |
 | `--logging-level LEVEL` | `-l` | Log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `--bootstrap-address HOST` | | Connect to existing network |
-| `--app-dir PATH` | | Application data directory (default: `~/.language-pipes`) |
+| `--app-dir PATH` | | Application config directory (default: `~/.config/language_pipes`) |
+| `--model-dir PATH` | | Model cache directory (default: `~/.cache/language_pipes/models`) |
 | `--print-times` | | Print timing info for layer computations and network transfers |
 
 Run `language-pipes serve --help` for all options.

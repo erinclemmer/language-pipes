@@ -45,7 +45,7 @@ class LlmModel:
     node_id: str
     device: str
     virtual: bool
-    app_dir: str
+    model_dir: str
 
     layers: List[AutoDecoderLayer]
     tokenizer: Callable
@@ -61,7 +61,7 @@ class LlmModel:
             node_id: str,
             pipe_id: str,
             device: str,
-            app_dir: str,
+            model_dir: str,
             process_id: Optional[str] = None
     ):
         self.model_id = model_id
@@ -73,13 +73,13 @@ class LlmModel:
         self.start_layer = -1
         self.end_layer = -1
         self.device = device
-        self.app_dir = app_dir
-        model_dir = str(Path(app_dir) / 'models' / self.model_id)
-        if not os.path.exists(model_dir):
-            clone_model(model_id, model_dir)
+        self.model_dir = model_dir
+        model_path = str(Path(model_dir) / self.model_id)
+        if not os.path.exists(model_path):
+            clone_model(model_id, model_path)
         self.collector = LlmLayerCollector(
-                model_dir=os.path.join(model_dir, 'data'),
-                cache_file=os.path.join(model_dir, 'cache.json'),
+                model_dir=os.path.join(model_path, 'data'),
+                cache_file=os.path.join(model_path, 'cache.json'),
                 device=device,
                 dtype=torch.float16 
         )
@@ -89,7 +89,7 @@ class LlmModel:
         else:
             self.process_id = process_id
 
-        self.computed = ComputedData(model_dir)
+        self.computed = ComputedData(model_path)
         self.logger = logging.getLogger("LM NET: " + self.node_id)
             
     def load(self):
@@ -168,13 +168,13 @@ Device: {self.device}
         torch.cuda.empty_cache()
 
     @staticmethod
-    def from_meta(meta: MetaModel, app_dir: str) -> 'LlmModel':
+    def from_meta(meta: MetaModel, model_dir: str) -> 'LlmModel':
         model = LlmModel(
             model_id=meta.model_id,
             node_id=meta.node_id,
             pipe_id=meta.pipe_id,
             device='cpu',
-            app_dir=app_dir,
+            model_dir=model_dir,
             process_id=meta.process_id
         )
         model.loaded = meta.loaded
@@ -186,15 +186,15 @@ Device: {self.device}
         return model
     
     @staticmethod
-    def from_id(app_dir: str, model_id: str, node_id: str, pipe_id: str, device: str) -> 'LlmModel':
+    def from_id(model_dir: str, model_id: str, node_id: str, pipe_id: str, device: str) -> 'LlmModel':
         model = LlmModel(
             model_id=model_id, 
             node_id=node_id, 
             pipe_id=pipe_id, 
             device=device, 
-            app_dir=app_dir
+            model_dir=model_dir
         )
 
-        model_dir = str(Path(app_dir) / 'models' / model_id)
-        model.computed = ComputedData(model_dir)
+        model_path = str(Path(model_dir) / model_id)
+        model.computed = ComputedData(model_path)
         return model
