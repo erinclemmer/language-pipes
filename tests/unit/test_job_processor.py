@@ -90,6 +90,7 @@ def make_config(node_id="node-a"):
     return LpConfig(
         logging_level="INFO",
         app_dir=".",
+        model_dir="./models",
         oai_port=None,
         router=NetworkConfig(provider="dsn", settings={"node_id": node_id}),
         node_id=node_id,
