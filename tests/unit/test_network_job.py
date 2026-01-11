@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from language_pipes.jobs.network_job import NetworkJob, LayerTime
 from language_pipes.util.enums import ComputeStep

@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from language_pipes.modeling.meta_computed import MetaComputed
 from language_pipes.modeling.meta_model import MetaModel
