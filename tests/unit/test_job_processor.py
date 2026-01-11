@@ -104,6 +104,9 @@ def make_config(node_id="node-a"):
     )
 
 
+def mock_complete(a):
+    pass
+
 class JobProcessorTests(unittest.TestCase):
     def test_stops_when_pipe_incomplete(self):
         job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
@@ -132,7 +135,7 @@ class JobProcessorTests(unittest.TestCase):
         self.assertEqual(end_model.calls, [])
 
     def test_processes_local_layers_and_completes(self):
-        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1", complete=mock_complete)
         logger = FakeLogger()
         end_model = FakeEndModel()
         model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
