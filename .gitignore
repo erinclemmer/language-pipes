@@ -7,3 +7,4 @@ credentials/
 config.toml
 *.key
 todo.txt
+.coverage
