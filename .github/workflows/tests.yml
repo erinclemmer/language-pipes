@@ -1,0 +1,49 @@
+name: tests
+
+on:
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+
+      - name: Run unit tests (excluding oai.py)
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import pathlib
+          import sys
+          import unittest
+
+          tests_dir = pathlib.Path("tests")
+          test_files = [
+              path for path in tests_dir.glob("*.py")
+              if path.name != "oai.py"
+          ]
+
+          suite = unittest.TestSuite()
+          loader = unittest.TestLoader()
+
+          for path in sorted(test_files):
+              module_name = f"tests_{path.stem}"
+              spec = importlib.util.spec_from_file_location(module_name, path)
+              module = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(module)
+              suite.addTests(loader.loadTestsFromModule(module))
+
+          result = unittest.TextTestRunner().run(suite)
+          sys.exit(0 if result.wasSuccessful() else 1)
+          PY
