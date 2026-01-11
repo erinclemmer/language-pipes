@@ -5,6 +5,7 @@ import unittest
 from time import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 from language_pipes.config import LpConfig
 from language_pipes.jobs.job import Job

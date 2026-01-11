@@ -139,16 +139,16 @@ Device: {self.device}
         if job.data is None:
             self.raise_exception("cannot compute layers without job data")
         
-        job.set_layer(compute_layers(
-            job.data,
-            self.device, 
-            self.layers, 
-            job.cache,
-        ), self.end_layer + 1)
-
-        if job.current_layer == self.num_hidden_layers:
-            job.compute_step = ComputeStep.EMBED if job.chunking.has_more() else ComputeStep.HEAD
-            job.current_layer = 0
+        job.set_layer(
+            state=compute_layers(
+                job.data,
+                self.device, 
+                self.layers, 
+                job.cache,
+            ), 
+            layer=self.end_layer + 1, 
+            num_hidden_layers=self.num_hidden_layers
+        )
     
     def to_meta(self) -> MetaModel:
         return MetaModel(

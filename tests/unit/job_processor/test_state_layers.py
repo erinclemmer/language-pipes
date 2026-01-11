@@ -4,6 +4,7 @@ import torch
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 from language_pipes.config import LpConfig
 from language_pipes.jobs.job import Job
@@ -12,7 +13,7 @@ from language_pipes.jobs.job_processor import JobContext, JobProcessor, JobState
 from language_pipes.network.config import NetworkConfig
 from language_pipes.util.enums import ComputeStep, JobStatus
 
-from tests.unit.job_processor.util import make_processor, make_job, FakeEndModel, FakePipeMulti, FakeModel, TrackingModel, EmptyPipe
+from tests.unit.job_processor.util import make_processor, make_job, FakeEndModel, FakePipe, FakePipeMulti, FakeModel, TrackingModel, EmptyPipe
 
 class TestProcessLayersState(unittest.TestCase):
     """Tests for the _state_process_layers method."""
@@ -71,5 +72,67 @@ class TestProcessLayersState(unittest.TestCase):
         next_state = processor._state_process_layers()
 
         self.assertEqual(next_state, JobState.PROCESS_LAYERS)
+        self.assertTrue(local_model.processed)
+        self.assertGreater(job.last_update, 0)
+
+    def test_transitions_to_head_after_all_layers(self):
+        job = make_job()
+        job.compute_step = ComputeStep.LAYER
+        job.current_layer = 0
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+        job.last_update = 0
+
+        local_model = TrackingModel("node-a", 0, 1, virtual=False, num_hidden_layers=2)
+        pipe = FakePipe(local_model)
+
+        processor = make_processor(job=job, pipe=pipe, end_model=None)
+
+        next_state = processor._state_process_layers()
+
+        self.assertEqual(next_state, JobState.HEAD)
+        self.assertTrue(local_model.processed)
+        self.assertGreater(job.last_update, 0)
+
+    def test_transitions_to_embed_for_prefill(self):
+        job = make_job()
+        job.prompt_tokens = 24
+        job.init_chunking(6)
+        job.compute_step = ComputeStep.LAYER
+        job.current_layer = 0
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+        job.last_update = 0
+
+        local_model = TrackingModel("node-a", 0, 1, virtual=False, num_hidden_layers=2)
+        pipe = FakePipe(local_model)
+
+        processor = make_processor(job=job, pipe=pipe, end_model=None)
+
+        next_state = processor._state_process_layers()
+
+        self.assertEqual(next_state, JobState.EMBED)
+        self.assertTrue(local_model.processed)
+        self.assertGreater(job.last_update, 0)
+
+    def test_transitions_to_head_after_prefill(self):
+        job = make_job()
+        job.prompt_tokens = 24
+        job.init_chunking(6)
+        job.current_chunk = 5
+        job.compute_step = ComputeStep.LAYER
+        job.current_layer = 0
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+        job.last_update = 0
+
+        local_model = TrackingModel("node-a", 0, 1, virtual=False, num_hidden_layers=2)
+        pipe = FakePipe(local_model)
+
+        processor = make_processor(job=job, pipe=pipe, end_model=None)
+
+        next_state = processor._state_process_layers()
+
+        self.assertEqual(next_state, JobState.EMBED)
         self.assertTrue(local_model.processed)
         self.assertGreater(job.last_update, 0)

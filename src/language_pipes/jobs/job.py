@@ -122,13 +122,16 @@ class Job:
         self.prefill_start_time = time()
         self.chunking.init(self.prompt_tokens, chunk_size)
 
-    def set_layer(self, state: torch.Tensor, layer: int):
+    def set_layer(self, state: torch.Tensor, layer: int, num_hidden_layers: int):
         if self.compute_step != ComputeStep.LAYER:
             raise Exception('Invalid step for layer')
         self.current_layer = layer
         if self.data is None: 
             return
         self.data.state = state
+        if self.current_layer == num_hidden_layers:
+            self.compute_step = ComputeStep.EMBED if self.chunking.has_more() else ComputeStep.HEAD
+            self.current_layer = 0
 
     def set_norm(self, state: torch.Tensor):
         if self.compute_step != ComputeStep.NORM:

@@ -66,10 +66,7 @@ class FakeModel:
     def process_job(self, job):
         if job.data is None:
             job.data = JobData()
-        job.set_layer(torch.zeros((1, 1)), self.end_layer + 1)
-        if job.current_layer == self.num_hidden_layers:
-            job.compute_step = ComputeStep.HEAD
-
+        job.set_layer(torch.zeros((1, 1)), self.end_layer + 1, self.num_hidden_layers)
 
 class TrackingModel(FakeModel):
     def __init__(self, node_id, start_layer, end_layer, virtual=False, num_hidden_layers=1):

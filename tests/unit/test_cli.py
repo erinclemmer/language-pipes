@@ -105,7 +105,6 @@ class VersionTests(unittest.TestCase):
 
 class ParserTests(unittest.TestCase):
     """Tests for CLI argument parsing"""
-    
     def test_invalid_command(self):
         """Invalid command should exit with error"""
         with self.assertRaises(SystemExit):
