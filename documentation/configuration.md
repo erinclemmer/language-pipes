@@ -348,4 +348,5 @@ All properties can be set via environment variables with the `LP_` prefix:
 
 - [CLI Reference](./cli.md) — Command-line usage and flags
 - [Architecture](./architecture.md) — How Language Pipes works
+- [JobProcessor State Machine](./job-processor.md) — Job processing FSM details
 - [OpenAI API](./oai.md) — API endpoint documentation

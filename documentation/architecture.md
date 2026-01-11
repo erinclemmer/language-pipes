@@ -61,7 +61,7 @@ The `Pipe` exposes helpers for:
 
 ### Job Processing FSM
 
-Each job is processed by `JobProcessor`, a finite-state machine driven by the job’s `ComputeStep`:
+Each job is processed by `JobProcessor`, a finite-state machine driven by the job's `ComputeStep`. See [JobProcessor State Machine](./job-processor.md) for detailed state transition documentation.
 
 ```
 TOKENIZE → EMBED → LAYER → NORM → HEAD → (repeat for next token)

@@ -232,4 +232,5 @@ language-pipes serve -c config.toml
 
 - [Configuration](./configuration.md) — TOML config file reference
 - [Architecture](./architecture.md) — How Language Pipes works
+- [JobProcessor State Machine](./job-processor.md) — Job processing FSM details
 - [OpenAI API](./oai.md) — API endpoint documentation
