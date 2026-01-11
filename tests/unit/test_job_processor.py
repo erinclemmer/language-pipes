@@ -179,6 +179,52 @@ class JobProcessorTests(unittest.TestCase):
         _, node_id = pipe.sent_jobs[0]
         self.assertEqual(node_id, "node-b")
 
+    def test_head_origin_mismatch_stops(self):
+        job = Job(origin_node_id="node-b", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.HEAD
+        job.current_layer = 1
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(node_id="node-a"),
+                logger=FakeLogger(),
+                job=job,
+                pipe=FakePipe(FakeModel("node-a", 0, 0)),
+                end_model=FakeEndModel(),
+            )
+        )
+
+        processor.run()
+
+        self.assertEqual(processor.state, JobState.DONE)
+
+    def test_missing_model_stops_processing(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.LAYER
+        job.current_layer = 1
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        class EmptyPipe(FakePipe):
+            def get_layer(self, layer, need_physical=False):
+                return None
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=EmptyPipe(FakeModel("node-a", 0, 0)),
+                end_model=None,
+            )
+        )
+
+        processor.run()
+
+        self.assertEqual(processor.state, JobState.DONE)
+
 
 if __name__ == "__main__":
     unittest.main()
