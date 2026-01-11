@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from time import time
 
 import torch
 
@@ -86,7 +87,7 @@ class FakePipe:
         self.sent_jobs.append((job, node_id))
 
 
-def make_config(node_id="node-a"):
+def make_config(node_id="node-a", prefill_chunk_size=2, print_times=False, print_job_data=False):
     return LpConfig(
         logging_level="INFO",
         app_dir=".",
@@ -99,9 +100,9 @@ def make_config(node_id="node-a"):
         max_pipes=1,
         model_validation=False,
         ecdsa_verification=False,
-        print_times=False,
-        print_job_data=False,
-        prefill_chunk_size=2,
+        print_times=print_times,
+        print_job_data=print_job_data,
+        prefill_chunk_size=prefill_chunk_size,
     )
 
 
@@ -157,6 +158,86 @@ class JobProcessorTests(unittest.TestCase):
         self.assertEqual(job.status, JobStatus.COMPLETED)
         self.assertEqual(job.result, "done")
         self.assertIn("compute_head", end_model.calls)
+
+    def test_embed_prefill_update_failure_stops(self):
+        updates = []
+
+        def fail_update(job):
+            updates.append(job.compute_step)
+            return False
+
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1", update=fail_update)
+        job.compute_step = ComputeStep.TOKENIZE
+        logger = FakeLogger()
+        end_model = FakeEndModel()
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(prefill_chunk_size=1),
+                logger=logger,
+                job=job,
+                pipe=FakePipe(FakeModel("node-a", 0, 0)),
+                end_model=end_model,
+            )
+        )
+
+        processor.run()
+
+        self.assertEqual(processor.state, JobState.DONE)
+        self.assertIn("tokenize", end_model.calls)
+        self.assertIn("compute_embed", end_model.calls)
+        self.assertEqual(len(updates), 1)
+
+    def test_head_logs_job_data_and_timing_when_enabled(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1", complete=mock_complete)
+        job.compute_step = ComputeStep.HEAD
+        job.current_layer = 1
+        job.prompt_tokens = 2
+        job.prefill_start_time = time()
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+        logger = FakeLogger()
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(print_times=True, print_job_data=True),
+                logger=logger,
+                job=job,
+                pipe=FakePipe(FakeModel("node-a", 0, 0)),
+                end_model=FakeEndModel(),
+            )
+        )
+
+        processor.run()
+
+        self.assertEqual(job.status, JobStatus.COMPLETED)
+        self.assertEqual(job.result, "done")
+        self.assertTrue(any("Timing" in message for _, message in logger.messages))
+        self.assertTrue(any("Job ID" in message for _, message in logger.messages))
+
+    def test_send_routes_tokenize_job_to_next_node_when_origin_mismatch(self):
+        job = Job(origin_node_id="node-b", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.TOKENIZE
+        job.current_layer = 0
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        pipe = FakePipe(FakeModel("node-c", 0, 0))
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(node_id="node-a"),
+                logger=FakeLogger(),
+                job=job,
+                pipe=pipe,
+                end_model=None,
+            )
+        )
+
+        processor.run()
+
+        self.assertEqual(len(pipe.sent_jobs), 1)
+        _, node_id = pipe.sent_jobs[0]
+        self.assertEqual(node_id, "node-c")
 
     def test_sends_job_to_virtual_segment(self):
         job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
