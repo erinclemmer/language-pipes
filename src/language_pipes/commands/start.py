@@ -10,6 +10,7 @@ from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.edit import edit_config
 from language_pipes.commands.view import view_config
 from language_pipes.lp import LanguagePipes
+from language_pipes.network import start_state_network
 from language_pipes.util.user_prompts import prompt_bool, prompt, prompt_choice, prompt_number_choice, select_config, get_config_files
 from language_pipes.util import sanitize_file_name
 
@@ -74,7 +75,19 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
     })
 
     try:
-        return LanguagePipes(version, config)
+        callback_holder = {"callback": lambda: None}
+
+        def on_network_change():
+            callback_holder["callback"]()
+
+        router = start_state_network(
+            config=config.router,
+            update_callback=on_network_change,
+            disconnect_callback=on_network_change,
+        )
+        app = LanguagePipes(version, config, router)
+        callback_holder["callback"] = app.print_pipes
+        return app
     except KeyboardInterrupt:
         return
     except Exception as e:

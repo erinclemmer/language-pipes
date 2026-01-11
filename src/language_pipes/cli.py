@@ -10,6 +10,7 @@ from language_pipes.commands.start import start_wizard
 from language_pipes.commands.upgrade import upgrade_lp
 
 from language_pipes.lp import LanguagePipes
+from language_pipes.network import start_state_network
 
 VERSION = "0.16.0"
 
@@ -231,7 +232,19 @@ def main(argv = None):
             "prefill_chunk_size": data["prefill_chunk_size"]
         })
 
-        return LanguagePipes(VERSION, config)
+        callback_holder = {"callback": lambda: None}
+
+        def on_network_change():
+            callback_holder["callback"]()
+
+        router = start_state_network(
+            config=config.router,
+            update_callback=on_network_change,
+            disconnect_callback=on_network_change,
+        )
+        app = LanguagePipes(VERSION, config, router)
+        callback_holder["callback"] = app.print_pipes
+        return app
     else:
         parser.print_usage()
         exit(1)
