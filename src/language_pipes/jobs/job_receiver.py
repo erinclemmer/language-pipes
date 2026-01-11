@@ -1,3 +1,4 @@
+import random
 from time import sleep, time
 from threading import Thread
 from typing import Callable, Optional, List, Tuple
@@ -66,7 +67,8 @@ class JobReceiver:
             if self.is_shutdown():
                 return None
             if len(self.job_queue) > 0:
-                network_job = self.job_queue.pop()
+                idx = random.randrange(len(self.job_queue))
+                network_job = self.job_queue.pop(idx)
                 return network_job
             sleep(0.01)
 
