@@ -9,30 +9,66 @@ The `JobProcessor` class implements a finite state machine (FSM) that orchestrat
 When a job arrives at a node (via `JobReceiver`), it is processed by a `JobProcessor` instance. The processor validates the job context, routes computation through local or remote model segments, and handles job completion or handoff.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           JobProcessor FSM                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌────────────┐                                                            │
-│   │ VALIDATING │──────────────────────────────────────────┐                 │
-│   └─────┬──────┘                                          │                 │
-│         │                                                 │                 │
-│         ▼                                                 │                 │
-│   ┌─────────┐      ┌───────┐      ┌────────────────┐      │                 │
-│   │  HEAD   │◄────►│ EMBED │◄────►│ PROCESS_LAYERS │      │                 │
-│   └────┬────┘      └───┬───┘      └───────┬────────┘      │                 │
-│        │               │                  │               │                 │
-│        │               ▼                  │               │                 │
-│        │          ┌────────┐              │               │                 │
-│        │          │  SEND  │◄─────────────┘               │                 │
-│        │          └───┬────┘                              │                 │
-│        │              │                                   │                 │
-│        ▼              ▼                                   ▼                 │
-│   ┌─────────────────────────────────────────────────────────┐               │
-│   │                         DONE                            │               │
-│   └─────────────────────────────────────────────────────────┘               │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+                              ┌──────────────┐
+                              │  VALIDATING  │
+                              │              │
+                              │ • Check job  │
+                              │ • Check pipe │
+                              │ • Check ends │
+                              └──────┬───────┘
+                                     │
+         ┌───────────────────────────┼───────────────────────────┐
+         │                           │                           │
+         │ missing job/pipe/ends     │ HEAD step &               │ needs layer
+         │ or pipe incomplete        │ origin match              │ processing
+         │ or origin mismatch        │                           │
+         ▼                           ▼                           ▼
+    ┌─────────┐              ┌───────────────┐          ┌────────────────┐
+    │  DONE   │◄─────────────│     HEAD      │          │ PROCESS_LAYERS │
+    │         │  job done    │               │          │                │
+    │ • Error │  or update   │ • Norm        │          │ • Run local    │
+    │ • Done  │  failed      │ • Sample next │          │   layers       │
+    │ • Sent  │              │ • Check EOS   │          │ • Update layer │
+    └─────────┘              └───────┬───────┘          └───────┬────────┘
+         ▲                           │                          │
+         │                           │ more tokens              │
+         │                           │ to generate              │
+         │                           ▼                          │
+         │                   ┌───────────────┐                  │
+         │  update failed    │     EMBED     │                  │
+         │  or missing model │               │                  │
+         │◄──────────────────│ • Tokenize    │                  │
+         │                   │ • Chunk mgmt  │                  │
+         │                   │ • Embed input │                  │
+         │                   └───────┬───────┘                  │
+         │                           │                          │
+         │           ┌───────────────┼───────────────┐          │
+         │           │               │               │          │
+         │           │ next layer    │ next layer    │          │
+         │           │ is remote     │ is local      │          │
+         │           ▼               └───────────────┼──────────┘
+         │   ┌───────────────┐                       │
+         │   │     SEND      │◄──────────────────────┘
+         │   │               │  next layer is remote
+         │   │ • Serialize   │
+         │   │ • Route job   │
+         │   │ • HTTP POST   │
+         │   └───────┬───────┘
+         │           │
+         │           │ handoff
+         │           │ complete
+         └───────────┘
+
+
+State Key:
+    ┌─────────────────────────────────────────────────────────────────┐
+    │ VALIDATING   Initial state - validates all resources available  │
+    │ HEAD         Origin node only - norm/head projection, sampling  │
+    │ EMBED        Origin node only - tokenization and embedding      │
+    │ PROCESS_LAYERS  Any node - run through local layer segments     │
+    │ SEND         Any node - serialize and forward to next node      │
+    │ DONE         Terminal state - iteration complete                │
+    └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
