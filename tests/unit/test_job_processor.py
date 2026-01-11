@@ -55,6 +55,12 @@ class FakeEndModel:
         job.result = "done"
 
 
+class FakeEndModelContinue(FakeEndModel):
+    def compute_head(self, job):
+        self.calls.append("compute_head")
+        job.set_output(token=1, eos_token=0)
+
+
 class FakeModel:
     def __init__(self, node_id, start_layer, end_layer, virtual=False, num_hidden_layers=1):
         self.node_id = node_id
@@ -72,6 +78,16 @@ class FakeModel:
             job.compute_step = ComputeStep.HEAD
 
 
+class TrackingModel(FakeModel):
+    def __init__(self, node_id, start_layer, end_layer, virtual=False, num_hidden_layers=1):
+        super().__init__(node_id, start_layer, end_layer, virtual=virtual, num_hidden_layers=num_hidden_layers)
+        self.processed = False
+
+    def process_job(self, job):
+        self.processed = True
+        super().process_job(job)
+
+
 class FakePipe:
     def __init__(self, model):
         self._model = model
@@ -85,6 +101,18 @@ class FakePipe:
 
     def send_job(self, job, node_id):
         self.sent_jobs.append((job, node_id))
+
+
+class FakePipeMulti(FakePipe):
+    def __init__(self, local_model, next_model):
+        super().__init__(local_model)
+        self._local_model = local_model
+        self._next_model = next_model
+
+    def get_layer(self, layer, need_physical=False):
+        if need_physical:
+            return self._local_model
+        return self._next_model
 
 
 def make_config(node_id="node-a", prefill_chunk_size=2, print_times=False, print_job_data=False):
@@ -110,6 +138,86 @@ def mock_complete(a):
     pass
 
 class JobProcessorTests(unittest.TestCase):
+    def test_validating_stops_when_job_missing(self):
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=None,
+                pipe=FakePipe(FakeModel("node-a", 0, 0)),
+                end_model=FakeEndModel(),
+            )
+        )
+
+        next_state = processor._state_validating()
+
+        self.assertEqual(next_state, JobState.DONE)
+
+    def test_validating_transitions_to_head_when_prefill_done(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.HEAD
+        job.prompt_tokens = 2
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=FakePipe(FakeModel("node-a", 0, 0)),
+                end_model=FakeEndModel(),
+            )
+        )
+
+        next_state = processor._state_validating()
+
+        self.assertEqual(next_state, JobState.HEAD)
+
+    def test_validating_transitions_to_embed_when_prefill_has_more_chunks(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.HEAD
+        job.current_token = 0
+        job.prompt_tokens = 4
+        job.init_chunking(chunk_size=2)
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=FakePipe(FakeModel("node-a", 0, 0)),
+                end_model=FakeEndModel(),
+            )
+        )
+
+        next_state = processor._state_validating()
+
+        self.assertEqual(next_state, JobState.EMBED)
+
+    def test_validating_transitions_to_process_layers_for_local_work(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.LAYER
+        job.current_layer = 0
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=FakePipe(FakeModel("node-a", 0, 0)),
+                end_model=None,
+            )
+        )
+
+        next_state = processor._state_validating()
+
+        self.assertEqual(next_state, JobState.PROCESS_LAYERS)
+
     def test_stops_when_pipe_incomplete(self):
         job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
         job.compute_step = ComputeStep.TOKENIZE
@@ -159,6 +267,172 @@ class JobProcessorTests(unittest.TestCase):
         self.assertEqual(job.result, "done")
         self.assertIn("compute_head", end_model.calls)
 
+    def test_head_transitions_to_done_on_completion(self):
+        completed = []
+
+        def mark_complete(job):
+            completed.append(job.job_id)
+
+        job = Job(
+            origin_node_id="node-a",
+            messages=[],
+            pipe_id="pipe-1",
+            model_id="model-1",
+            complete=mark_complete,
+        )
+        job.compute_step = ComputeStep.HEAD
+        job.current_layer = 0
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        end_model = FakeEndModel()
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=FakePipe(FakeModel("node-a", 0, 0)),
+                end_model=end_model,
+            )
+        )
+
+        next_state = processor._state_head()
+
+        self.assertEqual(next_state, JobState.DONE)
+        self.assertEqual(job.status, JobStatus.COMPLETED)
+        self.assertIn("set_result", end_model.calls)
+        self.assertEqual(completed, [job.job_id])
+
+    def test_head_transitions_to_done_on_update_failure(self):
+        updates = []
+
+        def fail_update(job):
+            updates.append(job.compute_step)
+            return False
+
+        job = Job(
+            origin_node_id="node-a",
+            messages=[],
+            pipe_id="pipe-1",
+            model_id="model-1",
+            update=fail_update,
+        )
+        job.compute_step = ComputeStep.HEAD
+        job.current_layer = 0
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        end_model = FakeEndModelContinue()
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=FakePipe(FakeModel("node-a", 0, 0)),
+                end_model=end_model,
+            )
+        )
+
+        next_state = processor._state_head()
+
+        self.assertEqual(next_state, JobState.DONE)
+        self.assertEqual(job.status, JobStatus.IN_PROGRESS)
+        self.assertEqual(len(updates), 1)
+        self.assertNotIn("set_result", end_model.calls)
+
+    def test_head_transitions_to_embed_on_successful_update(self):
+        updates = []
+
+        def record_update(job):
+            updates.append(job.compute_step)
+            return True
+
+        job = Job(
+            origin_node_id="node-a",
+            messages=[],
+            pipe_id="pipe-1",
+            model_id="model-1",
+            update=record_update,
+        )
+        job.compute_step = ComputeStep.HEAD
+        job.current_layer = 0
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        end_model = FakeEndModelContinue()
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=FakePipe(FakeModel("node-a", 0, 0)),
+                end_model=end_model,
+            )
+        )
+
+        next_state = processor._state_head()
+
+        self.assertEqual(next_state, JobState.EMBED)
+        self.assertEqual(len(updates), 1)
+        self.assertIn("compute_norm", end_model.calls)
+        self.assertIn("compute_head", end_model.calls)
+
+    def test_head_flow_sends_to_remote_layer(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.HEAD
+        job.prompt_tokens = 1
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        end_model = FakeEndModelContinue()
+        pipe = FakePipe(FakeModel("node-b", 0, 0, virtual=True))
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=pipe,
+                end_model=end_model,
+            )
+        )
+
+        head_state = processor._state_head()
+        self.assertEqual(head_state, JobState.EMBED)
+
+        next_state = processor._state_embed()
+        self.assertEqual(next_state, JobState.SEND)
+
+        final_state = processor._state_send()
+        self.assertEqual(final_state, JobState.DONE)
+        self.assertEqual(len(pipe.sent_jobs), 1)
+        _, node_id = pipe.sent_jobs[0]
+        self.assertEqual(node_id, "node-b")
+
+    def test_head_flow_processes_local_layer(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.HEAD
+        job.prompt_tokens = 1
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        end_model = FakeEndModelContinue()
+        pipe = FakePipe(FakeModel("node-a", 0, 0, virtual=False))
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=pipe,
+                end_model=end_model,
+            )
+        )
+
+        head_state = processor._state_head()
+        self.assertEqual(head_state, JobState.EMBED)
+
+        next_state = processor._state_embed()
+        self.assertEqual(next_state, JobState.PROCESS_LAYERS)
+
     def test_embed_prefill_update_failure_stops(self):
         updates = []
 
@@ -187,6 +461,208 @@ class JobProcessorTests(unittest.TestCase):
         self.assertIn("tokenize", end_model.calls)
         self.assertIn("compute_embed", end_model.calls)
         self.assertEqual(len(updates), 1)
+
+    def test_embed_transitions_to_done_when_update_fails(self):
+        updates = []
+
+        def fail_update(job):
+            updates.append(job.compute_step)
+            return False
+
+        job = Job(
+            origin_node_id="node-a",
+            messages=[],
+            pipe_id="pipe-1",
+            model_id="model-1",
+            update=fail_update,
+        )
+        job.compute_step = ComputeStep.EMBED
+        job.prompt_tokens = 2
+        job.current_token = 0
+        job.init_chunking(chunk_size=1)
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(prefill_chunk_size=1),
+                logger=FakeLogger(),
+                job=job,
+                pipe=FakePipe(FakeModel("node-a", 0, 0)),
+                end_model=FakeEndModel(),
+            )
+        )
+
+        next_state = processor._state_embed()
+
+        self.assertEqual(next_state, JobState.DONE)
+        self.assertEqual(len(updates), 1)
+
+    def test_embed_transitions_to_done_when_model_missing(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.EMBED
+        job.prompt_tokens = 1
+
+        class EmptyPipe(FakePipe):
+            def get_layer(self, layer, need_physical=False):
+                return None
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=EmptyPipe(FakeModel("node-a", 0, 0)),
+                end_model=FakeEndModel(),
+            )
+        )
+
+        next_state = processor._state_embed()
+
+        self.assertEqual(next_state, JobState.DONE)
+
+    def test_embed_transitions_to_send_for_remote_layer(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.EMBED
+        job.prompt_tokens = 1
+
+        pipe = FakePipe(FakeModel("node-b", 0, 0, virtual=True))
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=pipe,
+                end_model=FakeEndModel(),
+            )
+        )
+
+        next_state = processor._state_embed()
+
+        self.assertEqual(next_state, JobState.SEND)
+
+    def test_embed_transitions_to_process_layers_for_local_layer(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.EMBED
+        job.prompt_tokens = 1
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=FakePipe(FakeModel("node-a", 0, 0, virtual=False)),
+                end_model=FakeEndModel(),
+            )
+        )
+
+        next_state = processor._state_embed()
+
+        self.assertEqual(next_state, JobState.PROCESS_LAYERS)
+
+    def test_process_layers_transitions_to_done_when_local_model_missing(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.LAYER
+        job.current_layer = 0
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        class EmptyPipe(FakePipe):
+            def get_layer(self, layer, need_physical=False):
+                return None
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=EmptyPipe(FakeModel("node-a", 0, 0)),
+                end_model=None,
+            )
+        )
+
+        next_state = processor._state_process_layers()
+
+        self.assertEqual(next_state, JobState.DONE)
+
+    def test_process_layers_transitions_to_send_for_remote_layer(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.LAYER
+        job.current_layer = 0
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+        job.last_update = 0
+
+        local_model = TrackingModel("node-a", 0, 0, virtual=False, num_hidden_layers=2)
+        remote_model = FakeModel("node-b", 1, 1, virtual=True)
+        pipe = FakePipeMulti(local_model, remote_model)
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=pipe,
+                end_model=None,
+            )
+        )
+
+        next_state = processor._state_process_layers()
+
+        self.assertEqual(next_state, JobState.SEND)
+        self.assertTrue(local_model.processed)
+        self.assertGreater(job.last_update, 0)
+
+    def test_process_layers_transitions_to_process_layers_for_local_segment(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.LAYER
+        job.current_layer = 0
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+        job.last_update = 0
+
+        local_model = TrackingModel("node-a", 0, 0, virtual=False, num_hidden_layers=2)
+        next_model = FakeModel("node-a", 1, 1, virtual=False)
+        pipe = FakePipeMulti(local_model, next_model)
+
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=pipe,
+                end_model=None,
+            )
+        )
+
+        next_state = processor._state_process_layers()
+
+        self.assertEqual(next_state, JobState.PROCESS_LAYERS)
+        self.assertTrue(local_model.processed)
+        self.assertGreater(job.last_update, 0)
+
+    def test_send_transitions_to_done_after_handoff(self):
+        job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1")
+        job.compute_step = ComputeStep.LAYER
+        job.current_layer = 0
+        job.data = JobData()
+        job.data.state = torch.zeros((1, 1))
+
+        pipe = FakePipe(FakeModel("node-b", 0, 0, virtual=True))
+        processor = JobProcessor(
+            JobContext(
+                config=make_config(),
+                logger=FakeLogger(),
+                job=job,
+                pipe=pipe,
+                end_model=None,
+            )
+        )
+
+        next_state = processor._state_send()
+
+        self.assertEqual(next_state, JobState.DONE)
+        self.assertEqual(len(pipe.sent_jobs), 1)
+        _, node_id = pipe.sent_jobs[0]
+        self.assertEqual(node_id, "node-b")
 
     def test_head_logs_job_data_and_timing_when_enabled(self):
         job = Job(origin_node_id="node-a", messages=[], pipe_id="pipe-1", model_id="model-1", complete=mock_complete)
