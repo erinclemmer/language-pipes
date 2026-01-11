@@ -147,7 +147,8 @@ Device: {self.device}
         ), self.end_layer + 1)
 
         if job.current_layer == self.num_hidden_layers:
-            job.compute_step = ComputeStep.HEAD
+            job.compute_step = ComputeStep.EMBED if job.chunking.has_more() else ComputeStep.HEAD
+            job.current_layer = 0
     
     def to_meta(self) -> MetaModel:
         return MetaModel(
