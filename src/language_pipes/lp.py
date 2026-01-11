@@ -14,7 +14,7 @@ from language_pipes.modeling.model_manager import ModelManager
 
 from language_pipes.util import stop_thread
 from language_pipes.config import LpConfig
-from language_pipes.network import StateNetworkServer, start_state_network
+from language_pipes.network import StateNetworkServer
 
 class LanguagePipes:
     router: StateNetworkServer
@@ -30,17 +30,14 @@ class LanguagePipes:
     def __init__(
         self, 
         version: str,
-        config: LpConfig
+        config: LpConfig,
+        router: StateNetworkServer
     ):
         self.config = config
         self.set_logging_level(self.config.logging_level)
         
         self.router_pipes = None
-        self.router = start_state_network(
-            config=self.config.router,
-            update_callback=self.print_pipes,
-            disconnect_callback=self.print_pipes,
-        )
+        self.router = router
         logger = self.router.node.logger
 
         # Network pipe data for MetaPipe objects
