@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+from language_pipes.config import default_model_dir
+
 def prompt(message: str, default=None, required=False) -> str | None:
     """Prompt user for input with optional default value."""
     if default is not None:
@@ -98,12 +100,12 @@ def prompt_continue():
     prompt("Press Enter to continue...")
 
 def get_available_models(models_dir: str | None = None) -> list:
-    """Get list of available models from ~/.config/language-pipes/models.
+    """Get list of available models from ~/.cache/language_pipes/models.
     
     Returns a list of model IDs in the format 'org/model' (e.g., 'Qwen/Qwen3-1.7B').
     """
     if models_dir is None:
-        models_dir = str(Path.home() / ".config" / "language-pipes" / "models")
+        models_dir = default_model_dir()
     
     models = []
     if not os.path.exists(models_dir):
@@ -123,7 +125,7 @@ def get_available_models(models_dir: str | None = None) -> list:
 def prompt_model_id(message: str, required=False) -> str | None:
     """Prompt user to select a model ID from available models or enter a custom one.
     
-    Scans ~/.config/language-pipes/models for locally available models and presents
+    Scans ~/.cache/language_pipes/models for locally available models and presents
     them as numbered choices. Also allows entering a custom HuggingFace model ID.
     """
     available_models = get_available_models()

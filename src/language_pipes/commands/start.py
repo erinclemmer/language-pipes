@@ -4,7 +4,7 @@ import toml
 from pathlib import Path
 from unique_names_generator import get_random_name
 
-from language_pipes.config import LpConfig
+from language_pipes.config import LpConfig, default_config_dir, default_model_dir
 from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.edit import edit_config
@@ -29,6 +29,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         peer_port = None
         network_ip = None
         app_dir = None
+        model_dir = None
         bootstrap_address = None
         bootstrap_port = None
         network_key = None
@@ -48,6 +49,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         "logging_level": data["logging_level"],
         "oai_port": data["oai_port"],
         "app_dir": app_dir,
+        "model_dir": data["model_dir"],
         "router": {
             "node_id": data["node_id"],
             "port": data["peer_port"],
@@ -119,7 +121,8 @@ Version: {version}
 - Made with <3 by Erin
 """)
 
-    app_dir = str(Path(os.path.expanduser("~") ) / ".config" / "language-pipes")
+    app_dir = default_config_dir()
+    model_dir = default_model_dir()
     
     if not os.path.exists(app_dir):
         Path(app_dir).mkdir(parents=True)
@@ -129,9 +132,8 @@ Version: {version}
     if not os.path.exists(config_dir):
         Path(config_dir).mkdir(parents=True)
 
-    models_dir = str(Path(app_dir) / "models")
-    if not os.path.exists(models_dir):
-        Path(models_dir).mkdir(parents=True)
+    if not os.path.exists(model_dir):
+        Path(model_dir).mkdir(parents=True)
 
     while True: # TODO Add model list        
         main_menu_cmd = prompt_number_choice("Main Menu", [

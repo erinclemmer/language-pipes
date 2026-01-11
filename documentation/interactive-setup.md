@@ -52,16 +52,18 @@ Select number of choice:
 
 ### Application Data Directory
 
-On first run, the wizard prompts for the application data directory:
+On first run, the wizard prompts for the application configuration directory:
 
 ```
-Where should we store application data? [~/.language-pipes]: 
+Where should we store application data? [~/.config/language_pipes]: 
 ```
 
 This directory stores:
 - `configs/` — Configuration files created by the wizard
 - `credentials/` — Node credentials
-- `models/` — Downloaded model weights
+
+Models are stored separately in:
+- `~/.cache/language_pipes/models/` — Downloaded model weights
 
 ---
 
@@ -397,7 +399,7 @@ Enter the number corresponding to your choice.
 
 | Location | Description |
 |----------|-------------|
-| `~/.language-pipes/configs/` | Configurations created via start wizard |
+| `~/.config/language_pipes/configs/` | Configurations created via start wizard |
 | `./config.toml` | Default output for `language-pipes init` |
 | Custom path | Specify with `language-pipes init -o path/to/config.toml` |
 
@@ -410,7 +412,7 @@ Enter the number corresponding to your choice.
 ```bash
 $ language-pipes start
 
-Where should we store application data? [~/.language-pipes]: 
+Where should we store application data? [~/.config/language_pipes]: 
 
 Main Menu
 [0] View Config

@@ -2,9 +2,8 @@ import os
 import socket
 import toml
 import argparse
-from pathlib import Path
 
-from language_pipes.config import LpConfig
+from language_pipes.config import LpConfig, default_config_dir, default_model_dir
 from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.start import start_wizard
@@ -48,7 +47,8 @@ def build_parser():
         choices=["DEBUG", "INFO", "WARNING", "ERROR"]
     )
     run_parser.add_argument("--openai-port", type=int, help="Open AI server port (Default: none)")
-    run_parser.add_argument("--app-data-dir", type=str, help="Application data directory for language pipes (default: ~/.config/language-pipes)")
+    run_parser.add_argument("--app-data-dir", type=str, help="Application data directory for language pipes (default: ~/.config/language_pipes)")
+    run_parser.add_argument("--model-dir", type=str, help="Directory to store model data (default: ~/.cache/language_pipes/models)")
     run_parser.add_argument("--node-id", help="Node ID for the network (Required)")
     run_parser.add_argument("--app-dir", type=str, help="Directory to store data for this application")
     run_parser.add_argument("--peer-port", type=int, help="Port for peer-to-peer network (Default: 5000)")
@@ -86,7 +86,8 @@ def apply_overrides(data, args):
         "hosted_models": os.getenv("LP_HOSTED_MODELS"),
         "print_times": os.getenv("LP_PRINT_TIMES"),
         "print_job_data": os.getenv("LP_PRINT_JOB_DATA"),
-        "prefill_chunk_size": os.getenv("LP_PREFILL_CHUNK_SIZE")
+        "prefill_chunk_size": os.getenv("LP_PREFILL_CHUNK_SIZE"),
+        "model_dir": os.getenv("LP_MODEL_DIR"),
     }
 
     def precedence(key, arg, d):
@@ -98,12 +99,17 @@ def apply_overrides(data, args):
             return data[key]
         return d
     
-    default_app_dir = str(Path(os.path.expanduser("~")) / ".config" / ".language-pipes")
+    default_app_dir = default_config_dir()
+    default_models_dir = default_model_dir()
+
+    app_dir_arg = args.app_dir
+    if app_dir_arg is None and hasattr(args, "app_data_dir"):
+        app_dir_arg = args.app_data_dir
 
     config = {
         "logging_level": precedence("logging_level", args.logging_level, "INFO"),
         "oai_port": precedence("oai_port", args.openai_port, None),
-        "app_dir": precedence("app_dir", args.app_dir, default_app_dir),
+        "app_dir": precedence("app_dir", app_dir_arg, default_app_dir),
         "node_id": precedence("node_id", args.node_id, None),
         "peer_port": int(precedence("peer_port", args.peer_port, 5000)),
         "network_ip": precedence("network_ip", None, "127.0.0.1"),
@@ -117,7 +123,8 @@ def apply_overrides(data, args):
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
         "print_times": precedence("print_times", args.print_times, False),
         "print_job_data": precedence("print_job_data", args.print_job_data, False),
-        "prefill_chunk_size": precedence("prefill_chunk_size", args.prefill_chunk_size, 6)
+        "prefill_chunk_size": precedence("prefill_chunk_size", args.prefill_chunk_size, 6),
+        "model_dir": precedence("model_dir", args.model_dir, default_models_dir),
     }
 
     if config["hosted_models"] is None:
@@ -201,6 +208,7 @@ def main(argv = None):
             "logging_level": data["logging_level"],
             "oai_port": data["oai_port"],
             "app_dir": data["app_dir"],
+            "model_dir": data["model_dir"],
             "router": {
                 "node_id": data["node_id"],
                 "port": data["peer_port"],

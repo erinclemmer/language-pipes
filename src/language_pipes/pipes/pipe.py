@@ -30,12 +30,12 @@ class Pipe:
             router: StateNetworkNode,
             pipe_id: Optional[str],
             model_id: str,
-            app_dir: str
+            model_dir: str
         ):
         self.router = router
         self.model_id = model_id
-        model_dir = str(Path(app_dir) / 'models' / model_id / 'data')
-        self.model_num_hidden_layers = AutoConfig.from_pretrained(model_dir).num_hidden_layers
+        model_path = str(Path(model_dir) / model_id / 'data')
+        self.model_num_hidden_layers = AutoConfig.from_pretrained(model_path).num_hidden_layers
         
         if pipe_id is None:
             self.pipe_id = str(uuid4())
@@ -43,7 +43,7 @@ class Pipe:
             self.pipe_id = pipe_id
 
         self.segments = []
-        self.tokenizer = lambda: AutoTokenizer.from_pretrained(os.path.join('models', model_id, 'data'))
+        self.tokenizer = lambda: AutoTokenizer.from_pretrained(model_path)
 
     def raise_exception(self, msg: str):
         self.router.logger.exception(msg)
@@ -106,12 +106,12 @@ class Pipe:
         meta_pipe: MetaPipe, 
         hosted_models: List[LlmModel], 
         router: StateNetworkNode,
-        app_dir: str
+        model_dir: str
     ) -> 'Pipe':
         p = Pipe(
             model_id=meta_pipe.model_id, 
             pipe_id=meta_pipe.pipe_id,
-            app_dir=app_dir,
+            model_dir=model_dir,
             router=router
         )
         local_segments = []
@@ -119,6 +119,6 @@ class Pipe:
             if model.pipe_id == meta_pipe.pipe_id:
                 p.segments.append(model)
                 local_segments.append(model.process_id)
-        p.segments.extend([LlmModel.from_meta(s, app_dir) for s in meta_pipe.segments if s.process_id not in local_segments])
+        p.segments.extend([LlmModel.from_meta(s, model_dir) for s in meta_pipe.segments if s.process_id not in local_segments])
         p.sort_segments()
         return p

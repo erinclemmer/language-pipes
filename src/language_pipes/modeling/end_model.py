@@ -27,22 +27,22 @@ class EndModel:
     head: torch.nn.Linear
     collector: LlmLayerCollector
 
-    def __init__(self, app_dir: str, model_id: str, device: str):
+    def __init__(self, model_dir: str, model_id: str, device: str):
         self.model_id = model_id
         self.device = device
 
         self.process_id = str(uuid4())
-        model_dir = str(Path(app_dir) / 'models' / self.model_id)
-        if not os.path.exists(model_dir):
-            clone_model(model_id, model_dir)
-        self.computed = ComputedData(model_dir)
+        model_path = str(Path(model_dir) / self.model_id)
+        if not os.path.exists(model_path):
+            clone_model(model_id, model_path)
+        self.computed = ComputedData(model_path)
         self.collector = LlmLayerCollector(
-            model_dir=os.path.join(model_dir, 'data'),
-            cache_file=os.path.join(model_dir, 'cache.json'),
+            model_dir=os.path.join(model_path, 'data'),
+            cache_file=os.path.join(model_path, 'cache.json'),
             device=device,
             dtype=torch.float16
         )
-        self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_dir, 'data'))
+        self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, 'data'))
     
     def size(self):
         return self.computed.embed_size + self.computed.head_size

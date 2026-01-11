@@ -51,7 +51,7 @@ class ModelManager:
         start_memory = available_memory
 
         new_model: Optional[LlmModel] = LlmModel.from_id(
-            self.config.app_dir,
+            self.config.model_dir,
             model_id,
             self.config.node_id,
             pipe.pipe_id,
@@ -84,7 +84,7 @@ class ModelManager:
         return available_memory, new_model
 
     def _load_end_model(self, model_id: str, device: str):
-        model = EndModel(self.config.app_dir, model_id, device)
+        model = EndModel(self.config.model_dir, model_id, device)
         self.end_models.append(model)
         return model
 
