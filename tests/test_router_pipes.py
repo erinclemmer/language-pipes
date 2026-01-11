@@ -100,6 +100,23 @@ class RouterPipesTests(unittest.TestCase):
         stored = json.loads(node.read_data("node-a", "models"))
         self.assertEqual(stored[0]["loaded"], False)
 
+    def test_get_pipe_by_model_id_returns_complete_pipe(self):
+        node = FakeStateNetworkNode("node-a")
+        router = RouterPipes(node)
+        computed = make_computed()
+        node.add_peer(
+            "node-a",
+            [
+                MetaModel("p1", 0, 1, True, "node-a", "pipe-1", "model-1", 4, computed),
+                MetaModel("p2", 2, 3, True, "node-b", "pipe-1", "model-1", 4, computed),
+            ],
+        )
+
+        pipe = router.get_pipe_by_model_id("model-1")
+
+        self.assertIsNotNone(pipe)
+        self.assertEqual(pipe.pipe_id, "pipe-1")
+
 
 if __name__ == "__main__":
     unittest.main()
