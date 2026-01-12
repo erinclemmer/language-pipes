@@ -25,7 +25,7 @@ class FakeEndModel:
 
     def tokenize(self, job):
         self.calls.append("tokenize")
-        job.input_ids = [1, 2]
+        job.input_ids = list(range(24))
         job.prompt_tokens = len(job.input_ids)
         job.next_step()
 

@@ -84,6 +84,31 @@ class TestEmbedState(unittest.TestCase):
 
         self.assertEqual(next_state, JobState.PROCESS_LAYERS)
 
+    def test_transitions_to_process_layers_for_prefill(self):
+        job = make_job()
+        job._test_input_ids = 24
+        job.compute_step = ComputeStep.EMBED
+
+        processor = make_processor(
+            job=job,
+            pipe=FakePipe(FakeModel("node-a", 0, 0, virtual=False)),
+            end_model=FakeEndModel(),
+        )
+
+        next_state = processor._state_embed()
+
+        self.assertEqual(next_state, JobState.PROCESS_LAYERS)
+        chunk_start, chunk_end = job.chunking.get_range()
+        self.assertEqual(chunk_start, 0)
+        self.assertEqual(chunk_end, 2)
+
+        job.compute_step = ComputeStep.EMBED
+        next_state = processor._state_embed()
+
+        self.assertEqual(next_state, JobState.PROCESS_LAYERS)
+        chunk_start, chunk_end = job.chunking.get_range()
+        self.assertEqual(chunk_start, 2)
+        self.assertEqual(chunk_end, 4)
 
 class TestEmbedPrefillIntegration(unittest.TestCase):
     """Integration tests for embed state during prefill operations."""
