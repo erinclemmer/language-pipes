@@ -121,7 +121,6 @@ def make_config(node_id="node-a", prefill_chunk_size=2, print_times=False, print
         app_dir=".",
         model_dir="./models",
         oai_port=None,
-        router=NetworkConfig(provider="dsn", settings={"node_id": node_id}),
         node_id=node_id,
         hosted_models=[],
         max_pipes=1,
@@ -130,7 +129,6 @@ def make_config(node_id="node-a", prefill_chunk_size=2, print_times=False, print
         print_job_data=print_job_data,
         prefill_chunk_size=prefill_chunk_size,
     )
-
 
 def mock_complete(a):
     pass

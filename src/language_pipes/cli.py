@@ -1,9 +1,8 @@
 import os
-import socket
 import toml
 import argparse
 
-from distributed_state_network import DSNode, DSNodeConfig, DSNodeServer
+from distributed_state_network import DSNodeConfig, DSNodeServer
 
 from language_pipes.config import LpConfig, default_config_dir, default_model_dir
 from language_pipes.util.aes import save_new_aes_key
@@ -12,7 +11,6 @@ from language_pipes.commands.start import start_wizard
 from language_pipes.commands.upgrade import upgrade_lp
 
 from language_pipes.lp import LanguagePipes
-from language_pipes.network import start_state_network
 
 VERSION = "0.16.0"
 
@@ -219,7 +217,7 @@ def main(argv = None):
         def on_network_change():
             callback_holder["callback"]()
 
-        router_config = {
+        config = DSNodeConfig.from_dict({
             "node_id": data["node_id"],
                 "port": data["peer_port"],
                 "network_ip": data["network_ip"],
@@ -230,9 +228,8 @@ def main(argv = None):
                         "port": data["bootstrap_port"]
                     }
                 ] if data["bootstrap_address"] is not None else []
-        }
-
-        config = DSNodeConfig.from_dict(settings)
+        })
+        # TODO Add set_update_cb, set_disconnect_cb, and set_receive_cb to dsn
         router = DSNodeServer.start(
             config=config,
             update_callback=update_callback,
