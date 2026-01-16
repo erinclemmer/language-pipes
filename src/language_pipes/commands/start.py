@@ -35,7 +35,6 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         bootstrap_port = None
         network_key = None
         model_validation = None
-        ecdsa_verification = None
         print_times = None
         print_job_data = None
         prefill_chunk_size = None
@@ -50,27 +49,27 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         "oai_port": data["oai_port"],
         "app_dir": app_dir,
         "model_dir": data["model_dir"],
-        "router": {
-            "node_id": data["node_id"],
-            "port": data["peer_port"],
-            "network_ip": data["network_ip"],
-            "credential_dir": str(Path(app_dir) / "credentials"),
-            "aes_key_file": data["network_key"],
-            "bootstrap_nodes": [
-                {
-                    "address": data["bootstrap_address"],
-                    "port": data["bootstrap_port"]
-                }
-            ] if data["bootstrap_address"] is not None else []
-        },
         "hosted_models": data["hosted_models"],
         "max_pipes": data["max_pipes"],
         "model_validation": data["model_validation"],
-        "ecdsa_verification": data["ecdsa_verification"],
         "print_times": data["print_times"],
         "print_job_data": data["print_job_data"],
         "prefill_chunk_size": data["prefill_chunk_size"]
     })
+
+    router_config = {
+        "node_id": data["node_id"],
+        "port": data["peer_port"],
+        "network_ip": data["network_ip"],
+        "credential_dir": str(Path(app_dir) / "credentials"),
+        "aes_key_file": data["network_key"],
+        "bootstrap_nodes": [
+            {
+                "address": data["bootstrap_address"],
+                "port": data["bootstrap_port"]
+            }
+        ] if data["bootstrap_address"] is not None else []
+    }
 
     try:
         callback_holder = {"callback": lambda: None}
@@ -79,7 +78,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
             callback_holder["callback"]()
 
         router = start_state_network(
-            config=config.router,
+            config=router_config,
             update_callback=on_network_change,
             disconnect_callback=on_network_change,
         )

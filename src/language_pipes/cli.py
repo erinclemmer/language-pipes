@@ -60,7 +60,6 @@ def build_parser():
     run_parser.add_argument("--max-pipes", type=int, help="Maximum amount of pipes to host")
     run_parser.add_argument("--network-key", type=str, help="AES key to access network (Default: network.key)")
     run_parser.add_argument("--model-validation", help="Whether to validate the model weight hashes when connecting to a pipe.", action="store_true")
-    run_parser.add_argument("--ecdsa-verification", help="verify legitimacy of sender via ecdsa signed packets" , action="store_true")
     run_parser.add_argument("--hosted-models", nargs="*", metavar="MODEL", 
         help="Hosted models as key=value pairs: id=MODEL,device=DEVICE,memory=GB,load_ends=BOOL (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=false)")
     run_parser.add_argument("--print-times", help="Print timing information for layer computations and network transfers", action="store_true")
@@ -81,7 +80,6 @@ def apply_overrides(data, args):
         "bootstrap_address": os.getenv("LP_BOOTSTRAP_ADDRESS"),
         "bootstrap_port": os.getenv("LP_BOOTSTRAP_PORT"),
         "network_key": os.getenv("LP_NETWORK_KEY"),
-        "ecdsa_verification": os.getenv("LP_ECDSA_VERIFICATION"),
         "model_validation": os.getenv("LP_MODEL_VALIDATION"),
         "max_pipes": os.getenv("LP_MAX_PIPES"),
         "hosted_models": os.getenv("LP_HOSTED_MODELS"),
@@ -117,7 +115,6 @@ def apply_overrides(data, args):
         "bootstrap_address": precedence("bootstrap_address", args.bootstrap_address, None),
         "bootstrap_port": precedence("bootstrap_port", args.bootstrap_port, 5000),
         "network_key": precedence("network_key", args.network_key, None),
-        "ecdsa_verification": precedence("ecdsa_verification", args.ecdsa_verification, False),
         "model_validation": precedence("model_validation", args.model_validation, False),
         "max_pipes": precedence("max_pipes", args.max_pipes, 1),
         "hosted_models": precedence("hosted_models", args.hosted_models, None),
@@ -212,7 +209,6 @@ def main(argv = None):
             "hosted_models": data["hosted_models"],
             "max_pipes": data["max_pipes"],
             "model_validation": data["model_validation"],
-            "ecdsa_verification": data["ecdsa_verification"],
             "print_times": data["print_times"],
             "print_job_data": data["print_job_data"],
             "prefill_chunk_size": data["prefill_chunk_size"]

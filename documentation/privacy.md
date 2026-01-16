@@ -192,7 +192,7 @@ load_ends = false  # ← You only process tensors, never see prompts
 
 ## Security Considerations
 
-**End Model node:** Since it has access to all prompts, use disk encryption, secure physical access, and enable `ecdsa_verification`.
+**End Model node:** Since it has access to all prompts, use disk encryption, and secure physical access.
 
 **Network encryption:** Enable `network_key` to encrypt hidden states in transit.
 

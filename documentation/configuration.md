@@ -50,7 +50,6 @@ network_key = "network.key"
 logging_level = "INFO"
 max_pipes = 1
 model_validation = true
-ecdsa_verification = false
 print_times = false
 ```
 
@@ -229,20 +228,6 @@ model_validation = true
 |------|---------|
 | bool | `false` |
 
-#### `ecdsa_verification`
-
-Sign job packets with ECDSA. Receivers only accept packets from authorized pipes.
-
-```toml
-ecdsa_verification = true
-```
-
-| Type | Default |
-|------|---------|
-| bool | `false` |
-
----
-
 ### Directories
 
 #### `app_dir`
@@ -323,7 +308,6 @@ All properties can be set via environment variables with the `LP_` prefix:
 | `network_key` | `LP_NETWORK_KEY` |
 | `max_pipes` | `LP_MAX_PIPES` |
 | `model_validation` | `LP_MODEL_VALIDATION` |
-| `ecdsa_verification` | `LP_ECDSA_VERIFICATION` |
 | `app_dir` | `LP_APP_DIR` |
 | `model_dir` | `LP_MODEL_DIR` |
 | `print_times` | `LP_PRINT_TIMES` |

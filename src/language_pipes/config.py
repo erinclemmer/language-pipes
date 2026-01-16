@@ -46,7 +46,6 @@ class LpConfig:
     # Processing options
     max_pipes: int
     model_validation: bool
-    ecdsa_verification: bool
     print_times: bool
     print_job_data: bool
     prefill_chunk_size: int
@@ -69,7 +68,6 @@ class LpConfig:
             # Processing options
             max_pipes=data.get('max_pipes', 1),
             model_validation=data.get('model_validation', False),
-            ecdsa_verification=data.get('ecdsa_verification', False),
             print_times=data.get('print_times', False),
             print_job_data=data.get('print_job_data', False),
             prefill_chunk_size=data.get('prefill_chunk_size', 6)

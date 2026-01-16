@@ -126,7 +126,6 @@ def make_config(node_id="node-a", prefill_chunk_size=2, print_times=False, print
         hosted_models=[],
         max_pipes=1,
         model_validation=False,
-        ecdsa_verification=False,
         print_times=print_times,
         print_job_data=print_job_data,
         prefill_chunk_size=prefill_chunk_size,

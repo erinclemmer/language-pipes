@@ -184,13 +184,6 @@ def interactive_init(output_path: str):
             required=True
         )
         
-        print("\n  ECDSA verification signs each job packet cryptographically,")
-        print("  ensuring jobs only come from authorized nodes in the pipe.")
-        config["ecdsa_verification"] = prompt_bool(
-            "  Enable ECDSA signing?",
-            required=True
-        )
-        
         print("\n  Print timing information for layer computations and network")
         print("  transfers when a job completes. Useful for debugging and")
         print("  performance analysis.")
