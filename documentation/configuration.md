@@ -41,7 +41,6 @@ oai_port = 8000
 
 # === Network ===
 peer_port = 5000
-job_port = 5050
 network_ip = "192.168.0.1"
 bootstrap_address = "192.168.0.1"
 bootstrap_port = 5000
@@ -135,18 +134,6 @@ oai_port = 8000
 | Type | Default |
 |------|---------|
 | int | None (disabled) |
-
-#### `job_port`
-
-Port for inter-node job communication.
-
-```toml
-job_port = 5050
-```
-
-| Type | Default |
-|------|---------|
-| int | `5050` |
 
 #### `logging_level`
 
@@ -330,7 +317,6 @@ All properties can be set via environment variables with the `LP_` prefix:
 | `logging_level` | `LP_LOGGING_LEVEL` |
 | `oai_port` | `LP_OAI_PORT` |
 | `peer_port` | `LP_PEER_PORT` |
-| `job_port` | `LP_JOB_PORT` |
 | `network_ip` | `LP_NETWORK_IP` |
 | `bootstrap_address` | `LP_BOOTSTRAP_ADDRESS` |
 | `bootstrap_port` | `LP_BOOTSTRAP_PORT` |

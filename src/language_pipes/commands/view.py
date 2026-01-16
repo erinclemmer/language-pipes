@@ -14,7 +14,6 @@ def view_config(config_path: str):
         "node_id": "Unique identifier for this node on the network",
         "oai_port": "Port for OpenAI-compatible API server",
         "peer_port": "Port for peer-to-peer network coordination",
-        "job_port": "Port for transferring computation data between nodes",
         "network_ip": "IP address other nodes use to connect to this node",
         "bootstrap_address": "IP of existing node to join the network",
         "bootstrap_port": "Port of the bootstrap node",
@@ -34,7 +33,6 @@ def view_config(config_path: str):
     print("\n--- Network Settings ---")
     _print_property("Network IP", config.get("network_ip"), descriptions["network_ip"])
     _print_property("Peer Port", config.get("peer_port"), descriptions["peer_port"])
-    _print_property("Job Port", config.get("job_port"), descriptions["job_port"])
     
     bootstrap = config.get("bootstrap_address")
     if bootstrap:

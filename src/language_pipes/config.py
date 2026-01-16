@@ -44,7 +44,6 @@ class LpConfig:
     hosted_models: List[HostedModel]
     
     # Processing options
-    job_port: int
     max_pipes: int
     model_validation: bool
     ecdsa_verification: bool
@@ -68,7 +67,6 @@ class LpConfig:
             hosted_models=[HostedModel.from_dict(m) for m in data['hosted_models']],
             
             # Processing options
-            job_port=data.get('job_port', 5050),
             max_pipes=data.get('max_pipes', 1),
             model_validation=data.get('model_validation', False),
             ecdsa_verification=data.get('ecdsa_verification', False),

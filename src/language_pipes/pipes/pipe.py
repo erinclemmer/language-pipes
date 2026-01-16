@@ -44,13 +44,6 @@ class Pipe:
         self.router.logger.exception(msg)
         raise Exception(msg)
 
-    def get_job_port(self, node_id: str) -> Optional[int]:
-        try:
-            return int(self.router.read_data(node_id, 'job_port'))
-        except Exception as e:
-            self.logger.exception("Error getting job port: %s", e)
-            return None
-
     def send_job(self, job: NetworkJob, node_id: str):
         self.router.logger.info(f'Sending job {job.job_id} to {node_id}')
         self.router.send_to_node(node_id, job.to_bytes())

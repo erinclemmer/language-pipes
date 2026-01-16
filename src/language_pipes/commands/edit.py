@@ -34,7 +34,6 @@ def edit_config(config_path: str):
             ("node_id", "Node ID"),
             ("oai_port", "OpenAI API Port"),
             ("peer_port", "Peer Port"),
-            ("job_port", "Job Port"),
             ("network_ip", "Network IP"),
             ("bootstrap_address", "Bootstrap Address"),
             ("bootstrap_port", "Bootstrap Port"),
@@ -101,13 +100,6 @@ def edit_config(config_path: str):
             config["peer_port"] = prompt_int(
                 "Peer Port",
                 default=config.get("peer_port", 5000),
-                required=True
-            )
-        
-        elif selected_key == "job_port":
-            config["job_port"] = prompt_int(
-                "Job Port",
-                default=config.get("job_port", 5050),
                 required=True
             )
         

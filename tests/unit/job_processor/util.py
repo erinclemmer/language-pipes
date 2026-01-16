@@ -124,7 +124,6 @@ def make_config(node_id="node-a", prefill_chunk_size=2, print_times=False, print
         router=NetworkConfig(provider="dsn", settings={"node_id": node_id}),
         node_id=node_id,
         hosted_models=[],
-        job_port=0,
         max_pipes=1,
         model_validation=False,
         ecdsa_verification=False,
