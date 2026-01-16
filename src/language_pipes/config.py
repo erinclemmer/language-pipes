@@ -32,16 +32,13 @@ class HostedModel:
 @dataclass
 class LpConfig:
     # Core settings
-    logging_level: str
+    node_id: str
     app_dir: str
     model_dir: str
+    logging_level: str
     
     # API server
     oai_port: Optional[int]
-    
-    # Network configuration (provider-specific)
-    router: NetworkConfig
-    node_id: str
     
     # Model hosting
     hosted_models: List[HostedModel]
@@ -57,27 +54,15 @@ class LpConfig:
 
     @staticmethod
     def from_dict(data: Dict) -> 'LpConfig':
-        router_config = NetworkConfig.from_dict(data['router'])
-        node_id = data.get('node_id') or router_config.get_node_id()
-        if node_id is None:
-            raise ValueError("router.node_id is required")
-        if router_config.get_node_id() != node_id:
-            router_config = NetworkConfig(
-                provider=router_config.provider,
-                settings={**router_config.settings, "node_id": node_id},
-            )
         return LpConfig(
             # Core settings
+            node_id=data.get('node_id'),
             logging_level=data['logging_level'],
             app_dir=data.get('app_dir', default_config_dir()),
             model_dir=data.get('model_dir', default_model_dir()),
             
             # API server
             oai_port=data.get('oai_port'),
-            
-            # Network configuration
-            router=router_config,
-            node_id=node_id,
             
             # Model hosting
             hosted_models=[HostedModel.from_dict(m) for m in data['hosted_models']],

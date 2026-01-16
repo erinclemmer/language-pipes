@@ -29,19 +29,19 @@ class LanguagePipes:
 
     def __init__(
         self, 
-        version: str,
         config: LpConfig,
         router: StateNetworkServer
     ):
+        self.router.receive_cb = self.receive_data
         self.config = config
         self.set_logging_level(self.config.logging_level)
         
         self.router_pipes = None
         self.router = router
-        logger = self.router.node.logger
+        logger = self.router.logger
 
         # Network pipe data for MetaPipe objects
-        self.router_pipes = RouterPipes(self.router.node)
+        self.router_pipes = RouterPipes(self.router)
 
         # Local pipe data for LlmModel objects
         self.model_manager = ModelManager(
@@ -72,8 +72,6 @@ class LanguagePipes:
             get_pipe_by_model_id=self.pipe_manager.get_pipe_by_model_id,
         )
 
-        is_shutdown = lambda: self.router.node.shutting_down
-
         # Receives jobs and creates JobProcessor object before processing
         self.job_receiver = JobReceiver(
             logger=logger, 
@@ -82,7 +80,7 @@ class LanguagePipes:
             job_factory=self.job_factory,
             pipe_manager=self.pipe_manager,
             model_manager=self.model_manager,
-            is_shutdown=is_shutdown
+            is_shutdown=self.router.is_shut_down
         )
 
         # Broadcast our job port for other nodes to connect to
@@ -90,6 +88,9 @@ class LanguagePipes:
 
         if self.config.oai_port is not None:
             self.start_oai()
+
+    def receive_data(self, data: bytes):
+        self.job_receiver.receive_data(data)
 
     def print_pipes(self):
         if self.router_pipes is None:

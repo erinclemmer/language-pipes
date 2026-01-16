@@ -1,16 +1,10 @@
-from typing import Any, List, Optional, Protocol
+from typing import Any, List, Optional, Protocol, Callable
 
-
-class NetworkConnection(Protocol):
-    address: str
-
-
-class StateNetworkNode(Protocol):
+class StateNetworkServer(Protocol):
     logger: Any
-    shutting_down: bool
     node_id: str
-    port: int
-
+    receive_cb: Callable[[bytes], None]
+    
     def read_data(self, node_id: str, key: str) -> Optional[str]:
         ...
 
@@ -20,13 +14,11 @@ class StateNetworkNode(Protocol):
     def peers(self) -> List[str]:
         ...
 
-    def connection_from_node(self, node_id: str) -> NetworkConnection:
+    def stop(self) -> None:
         ...
 
+    def is_shut_down(self) -> bool:
+        ...
 
-class StateNetworkServer(Protocol):
-    node: StateNetworkNode
-    logger: Any
-
-    def stop(self) -> None:
+    def send_to_node(self, node_id: str):
         ...

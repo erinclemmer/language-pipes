@@ -3,6 +3,8 @@ import socket
 import toml
 import argparse
 
+from distributed_state_network import DSNode, DSNodeConfig, DSNodeServer
+
 from language_pipes.config import LpConfig, default_config_dir, default_model_dir
 from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init
@@ -210,18 +212,6 @@ def main(argv = None):
             "oai_port": data["oai_port"],
             "app_dir": data["app_dir"],
             "model_dir": data["model_dir"],
-            "router": {
-                "node_id": data["node_id"],
-                "port": data["peer_port"],
-                "network_ip": data["network_ip"],
-                "aes_key": data["network_key"],
-                "bootstrap_nodes": [
-                    {
-                        "address": data["bootstrap_address"],
-                        "port": data["bootstrap_port"]
-                    }
-                ] if data["bootstrap_address"] is not None else []
-            },
             "hosted_models": data["hosted_models"],
             "max_pipes": data["max_pipes"],
             "model_validation": data["model_validation"],
@@ -237,12 +227,27 @@ def main(argv = None):
         def on_network_change():
             callback_holder["callback"]()
 
-        router = start_state_network(
-            config=config.router,
-            update_callback=on_network_change,
-            disconnect_callback=on_network_change,
+        router_config = {
+            "node_id": data["node_id"],
+                "port": data["peer_port"],
+                "network_ip": data["network_ip"],
+                "aes_key": data["network_key"],
+                "bootstrap_nodes": [
+                    {
+                        "address": data["bootstrap_address"],
+                        "port": data["bootstrap_port"]
+                    }
+                ] if data["bootstrap_address"] is not None else []
+        }
+
+        config = DSNodeConfig.from_dict(settings)
+        router = DSNodeServer.start(
+            config=config,
+            update_callback=update_callback,
+            disconnect_callback=disconnect_callback
         )
-        app = LanguagePipes(VERSION, config, router)
+
+        app = LanguagePipes(config, router)
         callback_holder["callback"] = app.print_pipes
         return app
     else:
