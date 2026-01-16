@@ -2,8 +2,7 @@ import os
 from io import BytesIO
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import hashes, padding as sym_padding
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import hashes
 
 def generate_aes_key() -> bytes:
     key = PBKDF2HMAC(

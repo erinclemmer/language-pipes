@@ -4,13 +4,13 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from language_pipes.jobs.network_job import NetworkJob, LayerTime
+from language_pipes.jobs.network_job import NetworkJob, JobTime
 from language_pipes.util.enums import ComputeStep
 
 
 class NetworkJobTests(unittest.TestCase):
     def test_layer_time_round_trip(self):
-        layer_time = LayerTime(
+        layer_time = JobTime(
             node_id="node-a",
             is_embed=True,
             is_head=False,
@@ -19,7 +19,7 @@ class NetworkJobTests(unittest.TestCase):
         )
         layer_time.set_send_time()
 
-        restored = LayerTime.from_bytes(layer_time.to_bytes())
+        restored = JobTime.from_bytes(layer_time.to_bytes())
 
         self.assertEqual(restored.node_id, "node-a")
         self.assertTrue(restored.is_embed)
@@ -28,7 +28,7 @@ class NetworkJobTests(unittest.TestCase):
         self.assertEqual(restored.end_layer, 3)
 
     def test_network_job_round_trip(self):
-        layer_time = LayerTime(node_id="node-a", start_layer=0, end_layer=1)
+        layer_time = JobTime(node_id="node-a", start_layer=0, end_layer=1)
         layer_time.set_send_time()
         job = NetworkJob(
             job_id="job-1",

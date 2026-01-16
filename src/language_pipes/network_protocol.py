@@ -1,7 +1,6 @@
-from typing import Any, List, Optional, Protocol, Callable
+from typing import List, Optional, Protocol, Callable
 
 class StateNetworkServer(Protocol):
-    logger: Any
     node_id: str
     receive_cb: Callable[[bytes], None]
     
@@ -20,5 +19,5 @@ class StateNetworkServer(Protocol):
     def is_shut_down(self) -> bool:
         ...
 
-    def send_to_node(self, node_id: str):
+    def send_to_node(self, node_id: str, data: bytes):
         ...

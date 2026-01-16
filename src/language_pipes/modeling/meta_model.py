@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from language_pipes.modeling.meta_computed import MetaComputed
+from language_pipes.modeling.computed import LlmMetadata
 
 @dataclass
 class MetaModel:
@@ -12,7 +12,7 @@ class MetaModel:
     pipe_id: str
     model_id: str
     num_layers: int
-    computed: MetaComputed
+    computed: LlmMetadata
 
     def to_json(self):
         return {
@@ -38,5 +38,5 @@ class MetaModel:
             pipe_id=data["pipe_id"],
             model_id=data["model_id"],
             num_layers=data["num_layers"],
-            computed=MetaComputed.from_dict(data["computed"])
+            computed=LlmMetadata.from_dict(data["computed"])
         )

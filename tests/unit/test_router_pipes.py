@@ -5,7 +5,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from language_pipes.modeling.meta_computed import MetaComputed
+from language_pipes.modeling.computed import LlmMetadata
 from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.pipes.router_pipes import RouterPipes
 
@@ -42,7 +42,7 @@ class FakeStateNetworkNode:
 
 
 def make_computed():
-    return MetaComputed(
+    return LlmMetadata(
         embed_size=128,
         head_size=256,
         avg_layer_size=64,

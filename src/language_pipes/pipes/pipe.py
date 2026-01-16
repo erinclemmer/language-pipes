@@ -1,6 +1,3 @@
-import os
-import requests
-from threading import Thread
 from typing import Callable, List, Optional
 from pathlib import Path
 from uuid import uuid4
@@ -12,8 +9,6 @@ from language_pipes.network.types import StateNetworkNode
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.jobs.network_job import NetworkJob
-from language_pipes.jobs.job import Job
-from language_pipes.util.enums import JobStatus
 from language_pipes.util.chat import ChatMessage
 
 class Pipe:
@@ -57,20 +52,8 @@ class Pipe:
             return None
 
     def send_job(self, job: NetworkJob, node_id: str):
-        ip = self.router.connection_from_node(node_id).address
-        port = self.get_job_port(node_id)
-        if port is None:
-            self.raise_exception(f"SEND JOB => Could not find pipe {self.pipe_id} for {node_id}")
-
         self.router.logger.info(f'Sending job {job.job_id} to {node_id}')
-        def send(url: str, data: bytes):
-            try:
-                res = requests.post(url, data=data, headers={'Content-Type': 'application/octet-stream'})
-                if res.status_code != 200 or res.content == b'DOWN':
-                    self.raise_exception(f"SEND JOB => bad response from {node_id}")
-            except:
-                self.raise_exception(f"SEND JOB => Could not connect to {node_id}")
-        Thread(target=send, args=(f'http://{ip}:{port}', job.to_bytes(), )).start()
+        self.router.send_to_node(node_id, job.to_bytes())
 
     def tokenize(self, prompt: Optional[str], messages: List[ChatMessage]) -> List[int]:
         tokenizer: AutoTokenizer = self.tokenizer()

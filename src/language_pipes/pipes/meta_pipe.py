@@ -1,7 +1,7 @@
 from typing import List
 from dataclasses import dataclass
 from language_pipes.modeling.meta_model import MetaModel
-from language_pipes.modeling.meta_computed import MetaComputed
+from language_pipes.modeling.computed import LlmMetadata
 
 @dataclass
 class MetaPipe:
@@ -19,7 +19,7 @@ class MetaPipe:
     def is_loading(self) -> bool:
         return len([s for s in self.segments if not s.loaded]) > 0
 
-    def get_computed(self) -> MetaComputed:
+    def get_computed(self) -> LlmMetadata:
         return self.segments[0].computed
 
     def sort_segments(self):

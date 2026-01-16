@@ -1,7 +1,7 @@
 import json
 import random
 from typing import List, Dict, Optional
-from language_pipes.network.types import StateNetworkNode
+from language_pipes.network_protocol import StateNetworkNode
 
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.meta_model import MetaModel

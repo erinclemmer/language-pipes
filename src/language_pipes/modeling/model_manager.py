@@ -1,17 +1,20 @@
+from uuid import uuid4
+from logging import Logger
 from typing import List, Optional, Tuple
 
-from uuid import uuid4
 from language_pipes.pipes.meta_pipe import MetaPipe
+from language_pipes.pipes.router_pipes import RouterPipes
+
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.end_model import EndModel
-from language_pipes.pipes.router_pipes import RouterPipes
-from language_pipes.pipes.pipe import Pipe
-from language_pipes.config import LpConfig
 from language_pipes.modeling.computed import validate_model
+
+from language_pipes.config import LpConfig
 
 class ModelManager:
     node_id: str
     app_dir: str
+    logger: Logger
     config: LpConfig
     router_pipes: RouterPipes
     models: List[LlmModel]
@@ -20,7 +23,7 @@ class ModelManager:
 
     def __init__(
         self, 
-        logger,
+        logger: Logger,
         config: LpConfig,
         router_pipes: RouterPipes
     ):

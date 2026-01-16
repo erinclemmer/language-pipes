@@ -3,14 +3,13 @@ import json
 import torch
 from typing import List, Tuple, Optional
 
-from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import AutoConfig
 from llm_layer_collector.auto.auto_rms import AutoRMSNorm
+from transformers.configuration_utils import PretrainedConfig
 from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 from language_pipes.util import size_of_tensor, tensor_hash
 from language_pipes.util.enums import ModelPartType
-from language_pipes.modeling.meta_computed import MetaComputed
 
 def get_size_of_layer(config: PretrainedConfig, layer_idx: int) -> Tuple[float, str]:
     print(f"Calculating layer size for layer {layer_idx}...")
@@ -142,7 +141,7 @@ def get_computed_data(model_path: str):
 
     return computed
 
-class ComputedData:
+class LlmMetadata:
     embed_size: int
     head_size: int
     avg_layer_size: int
@@ -172,30 +171,9 @@ class ComputedData:
             'layer_hashes': self.layer_hashes
         }
 
-    def to_meta(self):
-        return MetaComputed(
-            embed_size=self.embed_size,
-            head_size=self.head_size,
-            avg_layer_size=self.avg_layer_size,
-            embed_hash=self.embed_hash,
-            head_hash=self.head_hash,
-            layer_hashes=self.layer_hashes
-        )
-
     @staticmethod
-    def from_meta(data: MetaComputed) -> 'ComputedData':
-        c = ComputedData(None)
-        c.embed_size = data.embed_size
-        c.embed_hash = data.embed_hash
-        c.head_size = data.head_size
-        c.head_hash = data.head_hash
-        c.avg_layer_size = data.avg_layer_size
-        c.layer_hashes = data.layer_hashes
-        return c
-
-    @staticmethod
-    def from_dict(data: dict) -> 'ComputedData':
-        c = ComputedData(None)
+    def from_dict(data: dict) -> 'LlmMetadata':
+        c = LlmMetadata(None)
         c.embed_size = data['embed_size']
         c.head_size = data['head_size']
         c.avg_layer_size = data['avg_layer_size']
@@ -204,5 +182,5 @@ class ComputedData:
         c.layer_hashes = data['layer_hashes']
         return c
     
-def validate_model(c1: MetaComputed, c2: MetaComputed):
+def validate_model(c1: LlmMetadata, c2: LlmMetadata):
     return c1.embed_hash == c2.embed_hash and c1.head_hash == c2.head_hash and c1.layer_hashes == c2.layer_hashes
