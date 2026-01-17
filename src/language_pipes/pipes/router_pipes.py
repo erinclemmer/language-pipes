@@ -1,5 +1,6 @@
 import json
 import random
+import logging
 from typing import List, Dict, Optional
 from language_pipes.network_protocol import StateNetworkNode
 
@@ -28,7 +29,7 @@ class RouterPipes:
         self.router = router
 
     def add_model_to_network(self, model: MetaModel):
-        models_string = self.router.read_data(self.router.node_id, 'models') or '[]'
+        models_string = self.router.read_data(self.router.node_id(), 'models') or '[]'
         current_models = [MetaModel.from_dict(m) for m in json.loads(models_string)]
         current_models.append(model)
         self.router.update_data(
@@ -37,7 +38,7 @@ class RouterPipes:
         )
 
     def update_model(self, model: MetaModel):
-        models_string = self.router.read_data(self.router.node_id, 'models') or '[]'
+        models_string = self.router.read_data(self.router.node_id(), 'models') or '[]'
         current_models = [MetaModel.from_dict(m) for m in json.loads(models_string)]
         matching_models = [m for m in current_models if m.process_id == model.process_id]
         if len(matching_models) < 1:
@@ -69,9 +70,9 @@ class RouterPipes:
 
         return random.choice(available_pipes)
 
-    def print_pipes(self):
+    def print_pipes(self, logger: logging.Logger):
         for p in self._network_pipes():
-            p.print(self.router.logger)
+            p.print(logger)
 
     def _all_models(self) -> List[MetaModel]:
         network_models: Dict[str, List[MetaModel]] = { }

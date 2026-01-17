@@ -81,7 +81,7 @@ class ModelManager:
             self.logger.info(f'Using {(start_memory - available_memory) / 10**9:.2f} GB of memory to load model {model_id}')
             new_model.start_layer = start_layer
             new_model.end_layer = end_layer
-            new_model.print()
+            new_model.print(self.logger)
         else:
             new_model = None
         return available_memory, new_model

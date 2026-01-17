@@ -1,9 +1,9 @@
 from typing import List, Optional, Protocol, Callable
 
-class StateNetworkServer(Protocol):
-    node_id: str
-    receive_cb: Callable[[bytes], None]
-    
+class StateNetworkNode(Protocol):
+    def node_id(self) -> str:
+        ...
+
     def read_data(self, node_id: str, key: str) -> Optional[str]:
         ...
 
@@ -20,4 +20,13 @@ class StateNetworkServer(Protocol):
         ...
 
     def send_to_node(self, node_id: str, data: bytes):
+        ...
+
+    def set_receive_cb(self, cb: Callable):
+        ...
+    
+    def set_update_cb(self, cb: Callable):
+        ...
+    
+    def set_disconnect_cb(self, cb: Callable):
         ...

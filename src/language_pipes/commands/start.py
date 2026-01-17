@@ -4,13 +4,14 @@ import toml
 from pathlib import Path
 from unique_names_generator import get_random_name
 
+from distributed_state_network import DSNodeServer, DSNodeConfig
+
 from language_pipes.config import LpConfig, default_config_dir, default_model_dir
 from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.edit import edit_config
 from language_pipes.commands.view import view_config
 from language_pipes.lp import LanguagePipes
-from language_pipes.network import start_state_network
 from language_pipes.util.user_prompts import prompt_bool, prompt, prompt_choice, prompt_number_choice, select_config, get_config_files
 from language_pipes.util import sanitize_file_name
 
@@ -57,33 +58,22 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         "prefill_chunk_size": data["prefill_chunk_size"]
     })
 
-    router_config = {
-        "node_id": data["node_id"],
-        "port": data["peer_port"],
-        "network_ip": data["network_ip"],
-        "credential_dir": str(Path(app_dir) / "credentials"),
-        "aes_key_file": data["network_key"],
-        "bootstrap_nodes": [
-            {
-                "address": data["bootstrap_address"],
-                "port": data["bootstrap_port"]
-            }
-        ] if data["bootstrap_address"] is not None else []
-    }
-
     try:
-        callback_holder = {"callback": lambda: None}
-
-        def on_network_change():
-            callback_holder["callback"]()
-
-        router = start_state_network(
-            config=router_config,
-            update_callback=on_network_change,
-            disconnect_callback=on_network_change,
-        )
+        router = DSNodeServer.start(DSNodeConfig.from_dict({
+            "node_id": data["node_id"],
+            "port": data["peer_port"],
+            "network_ip": data["network_ip"],
+            "credential_dir": str(Path(app_dir) / "credentials"),
+            "aes_key_file": data["network_key"],
+            "bootstrap_nodes": [
+                {
+                    "address": data["bootstrap_address"],
+                    "port": data["bootstrap_port"]
+                }
+            ] if data["bootstrap_address"] is not None else []
+        }))
+        
         app = LanguagePipes(version, config, router)
-        callback_holder["callback"] = app.print_pipes
         return app
     except KeyboardInterrupt:
         return

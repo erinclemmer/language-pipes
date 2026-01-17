@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from transformers import AutoTokenizer
 from transformers.models.auto import AutoConfig
-from language_pipes.network.types import StateNetworkNode
+from language_pipes.network_protocol import StateNetworkNode
 
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.llm_model import LlmModel

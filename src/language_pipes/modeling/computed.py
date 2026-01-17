@@ -150,7 +150,7 @@ class LlmMetadata:
     head_hash: str
     layer_hashes: List[str]
 
-    def __init__(self, model_dir: Optional[str]):
+    def __init__(self, model_dir: Optional[str] = None):
         if model_dir is None:
             return
         data = get_computed_data(model_dir)

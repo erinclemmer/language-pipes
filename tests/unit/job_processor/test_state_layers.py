@@ -10,7 +10,6 @@ from language_pipes.config import LpConfig
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_processor import JobContext, JobProcessor, JobState
-from language_pipes.network.config import NetworkConfig
 from language_pipes.util.enums import ComputeStep, JobStatus
 
 from tests.unit.job_processor.util import make_processor, make_job, FakeEndModel, FakePipe, FakePipeMulti, FakeModel, TrackingModel, EmptyPipe

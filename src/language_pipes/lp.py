@@ -14,7 +14,7 @@ from language_pipes.modeling.model_manager import ModelManager
 
 from language_pipes.util import stop_thread
 from language_pipes.config import LpConfig
-from language_pipes.network_protocol import StateNetworkServer
+from language_pipes.network_protocol import StateNetworkNode
 
 class LanguagePipes:
     logger: logging.Logger
@@ -30,10 +30,12 @@ class LanguagePipes:
     def __init__(
         self, 
         config: LpConfig,
-        router: StateNetworkServer
+        router: StateNetworkNode
     ):
         self.config = config
-        router.receive_cb = self.receive_data
+        router.set_receive_cb(self.receive_data)
+        router.set_update_cb(self.print_pipes)
+        router.set_disconnect_cb(self.print_pipes)
 
         self.logger = logging.getLogger(f"LP-{self.config.node_id}")
         self.set_logging_level(self.config.logging_level)
@@ -59,7 +61,7 @@ class LanguagePipes:
         )
 
         # View currently loaded pipes
-        self.router_pipes.print_pipes()
+        self.router_pipes.print_pipes(self.logger)
 
         # Holds pending jobs
         self.job_tracker = JobTracker(self.logger, self.config)
@@ -92,7 +94,7 @@ class LanguagePipes:
     def print_pipes(self):
         if self.router_pipes is None:
             return
-        self.router_pipes.print_pipes()
+        self.router_pipes.print_pipes(self.logger)
 
     def start_oai(self):
         if self.config.oai_port is None:

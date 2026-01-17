@@ -2,9 +2,6 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 from pathlib import Path
 
-from language_pipes.network.config import NetworkConfig
-
-
 def default_config_dir() -> str:
     return str(Path.home() / ".config" / "language_pipes")
 

@@ -83,7 +83,6 @@ class LlmModel:
             self.process_id = process_id
 
         self.computed = LlmMetadata(model_path)
-        self.logger = logging.getLogger("LM NET: " + self.node_id)
             
     def load(self):
         if self.end_layer > self.num_hidden_layers:
@@ -96,8 +95,8 @@ class LlmModel:
         self.loaded = True
         self.virtual = False
 
-    def print(self):
-        self.logger.info(f'''
+    def print(self, logger: logging.Logger):
+        logger.info(f'''
 =================================
 Loaded Model: {self.model_id}
 Pipe ID: {self.pipe_id}
@@ -110,7 +109,6 @@ Device: {self.device}
 ''')
 
     def process_job(self, job: Job):
-        self.logger.info(f'Processing job layer {job.current_layer}')
         layer_time = JobTime(
             node_id=self.node_id,
             start_layer=job.current_layer,
@@ -121,16 +119,12 @@ Device: {self.device}
         layer_time.set_send_time()
         job.data_hash = job.data.hash_state()
 
-    def raise_exception(self, msg):
-        self.logger.exception(msg)
-        raise Exception(msg)
-
     def compute_layers(
         self, 
         job: Job
     ):
         if job.data is None:
-            self.raise_exception("cannot compute layers without job data")
+            raise Exception("cannot compute layers without job data")
         
         job.set_layer(
             state=compute_layers(
@@ -153,7 +147,7 @@ Device: {self.device}
             model_id=self.model_id,
             loaded=self.loaded,
             num_layers=self.num_hidden_layers,
-            computed=LlmMetadata.to_meta(self.computed)
+            computed=self.computed
         )
 
     def cleanup_tensors(self):

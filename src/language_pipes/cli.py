@@ -217,7 +217,7 @@ def main(argv = None):
         def on_network_change():
             callback_holder["callback"]()
 
-        config = DSNodeConfig.from_dict({
+        router = DSNodeServer.start(DSNodeConfig.from_dict({
             "node_id": data["node_id"],
                 "port": data["peer_port"],
                 "network_ip": data["network_ip"],
@@ -228,16 +228,9 @@ def main(argv = None):
                         "port": data["bootstrap_port"]
                     }
                 ] if data["bootstrap_address"] is not None else []
-        })
-        # TODO Add set_update_cb, set_disconnect_cb, and set_receive_cb to dsn
-        router = DSNodeServer.start(
-            config=config,
-            update_callback=update_callback,
-            disconnect_callback=disconnect_callback
-        )
+        }))
 
         app = LanguagePipes(config, router)
-        callback_holder["callback"] = app.print_pipes
         return app
     else:
         parser.print_usage()

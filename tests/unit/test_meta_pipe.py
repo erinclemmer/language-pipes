@@ -10,14 +10,14 @@ from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.pipes.router_pipes import aggregate_models
 
 def make_computed():
-    return LlmMetadata(
-        embed_size=128,
-        head_size=256,
-        avg_layer_size=64,
-        embed_hash="embed",
-        head_hash="head",
-        layer_hashes=["l0", "l1", "l2", "l3"],
-    )
+    metadata = LlmMetadata()
+    metadata.embed_size = 128
+    metadata.head_size = 256
+    metadata.avg_layer_size = 64
+    metadata.embed_hash = "embed"
+    metadata.head_hash = "head"
+    metadata.layer_hashes=["l0", "l1", "l2", "l3"]
+    return metadata
 
 
 class MetaPipeTests(unittest.TestCase):
