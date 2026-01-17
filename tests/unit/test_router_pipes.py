@@ -17,16 +17,19 @@ class FakeConnection:
 
 class FakeStateNetworkNode:
     def __init__(self, node_id: str):
-        self.node_id = node_id
+        self._node_id = node_id
         self._data = {}
         self._peers = []
         self.logger = None
+
+    def node_id(self):
+        return self._node_id
 
     def read_data(self, node_id: str, key: str):
         return self._data.get((node_id, key))
 
     def update_data(self, key: str, value: str):
-        self._data[(self.node_id, key)] = value
+        self._data[(self._node_id, key)] = value
 
     def peers(self):
         return self._peers
