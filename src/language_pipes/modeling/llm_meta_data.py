@@ -117,29 +117,29 @@ def data_of_type(typ: ModelPartType, model_path: str) -> Tuple[float, str]:
 def get_computed_data(model_path: str):
     if not os.path.exists(model_path):
         raise FileNotFoundError(f'Model {model_path} not found')
-    computed_path = os.path.join(model_path, 'computed.json')
+    computed_path = os.path.join(model_path, 'meta_data.json')
     if os.path.exists(computed_path):
         with open(computed_path) as f:
             return json.load(f)
 
     print('Computing Data for ' + model_path)
-    computed = { }
+    meta_data = { }
     model_path = os.path.join(model_path, 'data')
     size, hash = data_of_type(ModelPartType.EMBED, model_path)
-    computed['embed_size'] = size
-    computed['embed_hash'] = hash
+    meta_data['embed_size'] = size
+    meta_data['embed_hash'] = hash
     size, hash = data_of_type(ModelPartType.NORM, model_path)
     size, hash = data_of_type(ModelPartType.HEAD, model_path)
-    computed['head_size'] = size
-    computed['head_hash'] = hash
+    meta_data['head_size'] = size
+    meta_data['head_hash'] = hash
     size, hash = get_avg_layer_size(model_path)
-    computed['avg_layer_size'] = size
-    computed['layer_hashes'] = hash
+    meta_data['avg_layer_size'] = size
+    meta_data['layer_hashes'] = hash
 
     with open(computed_path, 'w') as f:
-        json.dump(computed, f)
+        json.dump(meta_data, f)
 
-    return computed
+    return meta_data
 
 class LlmMetadata:
     embed_size: int

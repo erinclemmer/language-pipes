@@ -64,7 +64,7 @@ class Pipe:
         return None
     
     def get_computed(self):
-        return self.segments[0].computed
+        return self.segments[0].meta_data
 
     def sort_segments(self):
         self.segments = sorted(self.segments, key=lambda x: x.start_layer)

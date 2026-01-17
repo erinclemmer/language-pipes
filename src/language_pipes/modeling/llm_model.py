@@ -12,7 +12,7 @@ from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 from language_pipes.util import clone_model
 
 from language_pipes.modeling.meta_model import MetaModel
-from language_pipes.modeling.computed import LlmMetadata
+from language_pipes.modeling.llm_meta_data import LlmMetadata
 
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.network_job import JobTime
@@ -30,7 +30,7 @@ def compute_layers(job_data, device, layers, cache):
 
 class LlmModel:
     model_id: str
-    computed: LlmMetadata
+    meta_data: LlmMetadata
     process_id: str
     pipe_id: str
     collector: LlmLayerCollector
@@ -82,7 +82,7 @@ class LlmModel:
         else:
             self.process_id = process_id
 
-        self.computed = LlmMetadata(model_path)
+        self.meta_data = LlmMetadata(model_path)
             
     def load(self):
         if self.end_layer > self.num_hidden_layers:
@@ -147,7 +147,7 @@ Device: {self.device}
             model_id=self.model_id,
             loaded=self.loaded,
             num_layers=self.num_hidden_layers,
-            computed=self.computed
+            meta_data=self.meta_data
         )
 
     def cleanup_tensors(self):
@@ -168,7 +168,7 @@ Device: {self.device}
         model.loaded = meta.loaded
         model.start_layer = meta.start_layer
         model.end_layer = meta.end_layer
-        model.computed = meta.computed
+        model.meta_data = meta.meta_data
         model.virtual = True
 
         return model
@@ -184,5 +184,5 @@ Device: {self.device}
         )
 
         model_path = str(Path(model_dir) / model_id)
-        model.computed = LlmMetadata(model_path)
+        model.meta_data = LlmMetadata(model_path)
         return model
