@@ -46,6 +46,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
     data = apply_overrides(data, args)
     
     config = LpConfig.from_dict({
+        "node_id": data["node_id"],
         "logging_level": data["logging_level"],
         "oai_port": data["oai_port"],
         "app_dir": app_dir,

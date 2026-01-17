@@ -30,3 +30,6 @@ class StateNetworkNode(Protocol):
     
     def set_disconnect_cb(self, cb: Callable):
         ...
+
+    def receive_data(self, data: Callable):
+        ...

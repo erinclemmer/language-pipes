@@ -82,7 +82,7 @@ class LanguagePipes:
             job_factory=self.job_factory,
             pipe_manager=self.pipe_manager,
             model_manager=self.model_manager,
-            is_shutdown=self.router.is_shut_down
+            is_shutdown=router.is_shut_down
         )
 
         if self.config.oai_port is not None:

@@ -45,8 +45,11 @@ class Pipe:
         raise Exception(msg)
 
     def send_job(self, job: NetworkJob, node_id: str):
-        self.router.logger.info(f'Sending job {job.job_id} to {node_id}')
-        self.router.send_to_node(node_id, job.to_bytes())
+        data = job.to_bytes()
+        if node_id == self.router.config.node_id:
+            self.router.receive_data(data)
+        else:
+            self.router.send_to_node(node_id, data)
 
     def tokenize(self, prompt: Optional[str], messages: List[ChatMessage]) -> List[int]:
         tokenizer: AutoTokenizer = self.tokenizer()

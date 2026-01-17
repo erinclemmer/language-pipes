@@ -168,7 +168,7 @@ Device: {self.device}
         model.loaded = meta.loaded
         model.start_layer = meta.start_layer
         model.end_layer = meta.end_layer
-        model.computed = LlmMetadata.from_meta(meta.computed)
+        model.computed = meta.computed
         model.virtual = True
 
         return model

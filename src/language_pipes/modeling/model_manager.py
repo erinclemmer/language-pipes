@@ -12,8 +12,6 @@ from language_pipes.modeling.computed import validate_model
 from language_pipes.config import LpConfig
 
 class ModelManager:
-    node_id: str
-    app_dir: str
     logger: Logger
     config: LpConfig
     router_pipes: RouterPipes
@@ -54,16 +52,16 @@ class ModelManager:
         start_memory = available_memory
 
         new_model: Optional[LlmModel] = LlmModel.from_id(
-            self.config.model_dir,
-            model_id,
-            self.config.node_id,
-            pipe.pipe_id,
-            device,
+            model_dir=self.config.model_dir,
+            model_id=model_id,
+            node_id=self.config.node_id,
+            pipe_id=pipe.pipe_id,
+            device=device
         )
         if new_model is None:
             return None
         computed = new_model.computed
-        if self.config.model_validation and len(pipe.segments) > 0 and not validate_model(new_model.computed.to_meta(), pipe.get_computed()):
+        if self.config.model_validation and len(pipe.segments) > 0 and not validate_model(new_model.computed, pipe.get_computed()):
             self.logger.warning(f'Computed data for model {model_id} does not match')
             return available_memory, None
         

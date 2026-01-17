@@ -124,7 +124,7 @@ class OpenAITests(unittest.TestCase):
     def test_double_node(self):
         start_node("node-1", 1.5, 5000, 8000)
         time.sleep(5)
-        start_node("node-2", 3, 5001, 5051, None, 5000)
+        start_node("node-2", 3, 5001, None, 5000)
         time.sleep(5)
         res = oai_complete(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
@@ -136,7 +136,7 @@ class OpenAITests(unittest.TestCase):
     def test_double_long(self):
         start_node("node-1", 1.5, 5000, 8000)
         time.sleep(5)
-        start_node("node-2", 3, 5001, 5051, None, 5000)
+        start_node("node-2", 3, 5001, None, 5000)
         time.sleep(5)
         with open('mcbeth.txt', 'r', encoding='utf-8') as f:
             mcbeth = f.read()
@@ -150,7 +150,7 @@ class OpenAITests(unittest.TestCase):
     def test_stream(self):
         start_node("node-1", 2, 5000, 8000)
         time.sleep(5)
-        start_node("node-2", 3, 5001, 5051, None, 5000)
+        start_node("node-2", 3, 5001, None, 5000)
         time.sleep(5)
         oai_stream(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
@@ -175,7 +175,7 @@ class OpenAITests(unittest.TestCase):
     def test_reconnect(self):
         start_node("node-1", 1, 5000, 8000)
         time.sleep(10)
-        node2 = start_node("node-2", 1, 5001, 5051, None, 5000)
+        node2 = start_node("node-2", 1, 5001, None, 5000)
         time.sleep(10)
         start_node("node-3", 3, 5002, None, 5000)
         time.sleep(10)

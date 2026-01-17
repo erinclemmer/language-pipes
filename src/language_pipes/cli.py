@@ -200,6 +200,7 @@ def main(argv = None):
                 data = toml.load(f)
         data = apply_overrides(data, args)
         config = LpConfig.from_dict({
+            "node_id": data["node_id"],
             "logging_level": data["logging_level"],
             "oai_port": data["oai_port"],
             "app_dir": data["app_dir"],
