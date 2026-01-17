@@ -74,7 +74,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
             ] if data["bootstrap_address"] is not None else []
         }))
         
-        app = LanguagePipes(version, config, router)
+        app = LanguagePipes(config, router)
         return app
     except KeyboardInterrupt:
         return
