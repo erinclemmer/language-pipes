@@ -1,22 +1,19 @@
-import json
 from time import time
-from typing import List, Optional
 from uuid import uuid4
+from typing import List, Optional
 
 import torch
-
-from language_pipes.jobs.job_data import JobData
-from language_pipes.jobs.network_job import NetworkJob, LayerTime
-from language_pipes.jobs.timing_stats import TimingStats
-from transformers.cache_utils import DynamicCache
-from language_pipes.util.chunk_state import ChunkState
 from promise import Promise
 from typing import Callable
+from transformers.cache_utils import DynamicCache
+
+from language_pipes.jobs.job_data import JobData
+from language_pipes.jobs.network_job import NetworkJob, JobTime
+from language_pipes.jobs.timing_stats import TimingStats
+from language_pipes.util.chunk_state import ChunkState
 
 from language_pipes.util.enums import ComputeStep, JobStatus
 from language_pipes.util.chat import ChatMessage
-
-from language_pipes.util import tensor_to_bytes, bytes_to_tensor, bytes_to_int
 
 class Job:
     # IDs
@@ -39,8 +36,8 @@ class Job:
     messages: List[ChatMessage]
     result: Optional[str]
     last_update: float
-    times: List[List[LayerTime]]
-    current_times: List[LayerTime]
+    times: List[List[JobTime]]
+    current_times: List[JobTime]
     timing_stats: TimingStats
     
     # API params
@@ -89,7 +86,7 @@ class Job:
         self.compute_step = ComputeStep.TOKENIZE
 
         self.delta = ''
-        self.data = None
+        self.data = data
         self.result = None
         self.input_ids = []
         self.times = []
@@ -212,7 +209,7 @@ class Job:
         from time import time
         self.last_update = time()
 
-    def add_timing(self, timing: LayerTime) -> None:
+    def add_timing(self, timing: JobTime) -> None:
         self.current_times.append(timing)
 
     def finalize_token_timing(self) -> None:

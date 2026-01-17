@@ -8,7 +8,6 @@ from threading import Thread
 
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.network_job import NetworkJob
-from language_pipes.jobs.timing_stats import TimingStats
 from language_pipes.config import LpConfig
 
 CHECK_JOB_INTERVAL = 10
@@ -92,10 +91,11 @@ class JobTracker:
             return
         job.last_update = time()
 
-    def add_job(self, network_job: NetworkJob) -> Job:
+    def add_job(self, network_job: NetworkJob) -> Job | None:
         existing = self.get_job(network_job.job_id)
         if existing is not None:
-            return existing  # Return existing job instead of None
+            return None
+        
         job = Job(
             origin_node_id=network_job.origin_node_id,
             messages=[],
@@ -104,8 +104,10 @@ class JobTracker:
             data=network_job.data
         )
         job.job_id = network_job.job_id
+        
         if network_job.data.state is None:
             raise Exception("job should be embedded before adding a pending job")
+        
         job.prompt_tokens = network_job.data.state.size()[1]
         job.last_update = time()
         self.jobs_pending.append(job)

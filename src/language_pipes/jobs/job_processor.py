@@ -3,7 +3,7 @@ from enum import Enum, auto
 from dataclasses import dataclass
 from typing import Optional
 
-from language_pipes.jobs.network_job import NetworkJob, LayerTime
+from language_pipes.jobs.job_time import JobTime
 
 from language_pipes.pipes.pipe import Pipe
 from language_pipes.modeling.end_model import EndModel
@@ -27,12 +27,6 @@ class JobContext:
     job: Optional["Job"] = None
     pipe: Optional[Pipe] = None
     end_model: Optional[EndModel] = None
-
-def create_embed_time(node_id: str) -> LayerTime:
-    return LayerTime(node_id=node_id, is_embed=True)
-
-def create_head_time(node_id: str) -> LayerTime:
-    return LayerTime(node_id=node_id, is_head=True)
 
 def should_prefill_chunk(job) -> bool:
     return job.current_token == 0 and job.chunking.has_more()
@@ -93,7 +87,6 @@ class JobProcessor:
     
     state: JobState
     ctx: JobContext
-    receiver: 'JobReceiver'
     
     def __init__(self, ctx: JobContext):
         self.state = JobState.VALIDATING
@@ -169,7 +162,7 @@ class JobProcessor:
         job.compute_step = ComputeStep.NORM
         job.current_layer = 0
 
-        head_time = create_head_time(self.ctx.config.node_id)
+        head_time = JobTime(node_id=self.ctx.config.node_id, is_head=True)
         job.add_timing(head_time)
 
         end_model.compute_norm(job)
@@ -216,7 +209,7 @@ class JobProcessor:
             chunk_start, chunk_end = job.chunking.get_range()
             log_prefill_chunk_start(self.ctx.logger, job, chunk_start, chunk_end)
 
-        embed_time = create_embed_time(self.ctx.config.node_id)
+        embed_time = JobTime(node_id=self.ctx.config.node_id, is_embed=True)
         job.add_timing(embed_time)
         self.ctx.end_model.compute_embed(job, chunk_start, chunk_end)
         embed_time.set_send_time()

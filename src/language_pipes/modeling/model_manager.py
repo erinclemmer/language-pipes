@@ -1,17 +1,18 @@
+from uuid import uuid4
+from logging import Logger
 from typing import List, Optional, Tuple
 
-from uuid import uuid4
 from language_pipes.pipes.meta_pipe import MetaPipe
+from language_pipes.pipes.router_pipes import RouterPipes
+
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.end_model import EndModel
-from language_pipes.pipes.router_pipes import RouterPipes
-from language_pipes.pipes.pipe import Pipe
+from language_pipes.modeling.llm_meta_data import validate_model
+
 from language_pipes.config import LpConfig
-from language_pipes.modeling.computed import validate_model
 
 class ModelManager:
-    node_id: str
-    app_dir: str
+    logger: Logger
     config: LpConfig
     router_pipes: RouterPipes
     models: List[LlmModel]
@@ -20,7 +21,7 @@ class ModelManager:
 
     def __init__(
         self, 
-        logger,
+        logger: Logger,
         config: LpConfig,
         router_pipes: RouterPipes
     ):
@@ -51,20 +52,20 @@ class ModelManager:
         start_memory = available_memory
 
         new_model: Optional[LlmModel] = LlmModel.from_id(
-            self.config.model_dir,
-            model_id,
-            self.config.node_id,
-            pipe.pipe_id,
-            device,
+            model_dir=self.config.model_dir,
+            model_id=model_id,
+            node_id=self.config.node_id,
+            pipe_id=pipe.pipe_id,
+            device=device
         )
         if new_model is None:
             return None
-        computed = new_model.computed
-        if self.config.model_validation and len(pipe.segments) > 0 and not validate_model(new_model.computed.to_meta(), pipe.get_computed()):
+        meta_data = new_model.meta_data
+        if self.config.model_validation and len(pipe.segments) > 0 and not validate_model(new_model.meta_data, pipe.get_computed()):
             self.logger.warning(f'Computed data for model {model_id} does not match')
             return available_memory, None
         
-        num_layers_to_load = int(available_memory // computed.avg_layer_size) - 1
+        num_layers_to_load = int(available_memory // meta_data.avg_layer_size) - 1
         total_layers = new_model.collector.config.num_hidden_layers
         start_layer = pipe.next_start_layer()
         if num_layers_to_load == -1:
@@ -72,13 +73,13 @@ class ModelManager:
             end_layer = -1
         else:
             end_layer = min([start_layer + num_layers_to_load, pipe.next_end_layer(total_layers), new_model.num_hidden_layers]) if start_layer != -1 else -1
-            available_memory = available_memory - (end_layer - start_layer + 1) * computed.avg_layer_size
+            available_memory = available_memory - (end_layer - start_layer + 1) * meta_data.avg_layer_size
 
         if num_layers_to_load > -1 and end_layer != -1 and start_layer != -1:
             self.logger.info(f'Using {(start_memory - available_memory) / 10**9:.2f} GB of memory to load model {model_id}')
             new_model.start_layer = start_layer
             new_model.end_layer = end_layer
-            new_model.print()
+            new_model.print(self.logger)
         else:
             new_model = None
         return available_memory, new_model

@@ -1,53 +1,35 @@
-import gc
-import ctypes
-import random
-import requests
-from time import time, sleep
-from typing import List, Optional, Tuple, Callable
+from typing import List, Optional, Callable
 
-import torch
 from promise import Promise
 
-from uuid import uuid4
-from threading import Thread
-
 from language_pipes.util import raise_exception
-from language_pipes.util.enums import JobStatus
 from language_pipes.util.chat import ChatMessage
 
-from language_pipes.modeling.end_model import EndModel
-
-from language_pipes.pipes.meta_pipe import MetaPipe
-from language_pipes.pipes.router_pipes import RouterPipes
-from language_pipes.pipes.pipe import Pipe
+from language_pipes.pipes.pipe_manager import PipeManager
 
 from language_pipes.jobs.job import Job
-from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_tracker import JobTracker
 
 from language_pipes.config import LpConfig
 
-from language_pipes.modeling.llm_model import LlmModel
-from language_pipes.modeling.computed import validate_model
+from language_pipes.modeling.llm_meta_data import validate_model
 
 class JobFactory:
     config: LpConfig
     job_tracker: JobTracker
-    router_pipes: RouterPipes
-
-    get_layer_models: Callable[[], List[LlmModel]]
+    pipe_manager: PipeManager
 
     def __init__(
         self, 
         logger,
         config: LpConfig,
         job_tracker: JobTracker,
-        get_pipe_by_model_id: Callable[[str], Optional[Pipe]],
+        pipe_manager: PipeManager
     ):
         self.config = config
         self.logger = logger
         self.job_tracker = job_tracker
-        self.get_pipe_by_model_id = get_pipe_by_model_id
+        self.pipe_manager = pipe_manager
 
     def start_job(
         self, 
@@ -63,7 +45,7 @@ class JobFactory:
         update: Optional[Callable] = None,
         resolve: Optional[Promise] = None
     ) -> Optional[Job]:
-        pipe = self.get_pipe_by_model_id(model_id)
+        pipe = self.pipe_manager.get_pipe_by_model_id(model_id)
         if pipe is None:
             resolve('No pipe available')
             raise_exception(self.logger, f"Could not find pipe for model {model_id}")

@@ -1,12 +1,9 @@
-import ctypes
-import gc
 import os
 import torch
 from uuid import uuid4
 from torch import tensor
 from pathlib import Path
 
-from transformers.cache_utils import DynamicCache
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 from llm_layer_collector import LlmLayerCollector
@@ -15,8 +12,8 @@ from llm_layer_collector.compute import compute_embedding
 
 from language_pipes.util import clone_model
 from language_pipes.jobs.job import ComputeStep, Job
-from language_pipes.modeling.computed import ComputedData
-from language_pipes.jobs.job_data import computationStateToJobData, jobDataToComputationState
+from language_pipes.modeling.llm_meta_data import LlmMetadata
+from language_pipes.jobs.job_data import computationStateToJobData
 
 class EndModel:
     model_id: str
@@ -35,7 +32,7 @@ class EndModel:
         model_path = str(Path(model_dir) / self.model_id)
         if not os.path.exists(model_path):
             clone_model(model_id, model_path)
-        self.computed = ComputedData(model_path)
+        self.meta_data = LlmMetadata(model_path)
         self.collector = LlmLayerCollector(
             model_dir=os.path.join(model_path, 'data'),
             cache_file=os.path.join(model_path, 'cache.json'),
@@ -45,7 +42,7 @@ class EndModel:
         self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, 'data'))
     
     def size(self):
-        return self.computed.embed_size + self.computed.head_size
+        return self.meta_data.embed_size + self.meta_data.head_size
 
     def load(self):
         self.input_embedding = self.collector.load_input_embedding(self.device)
@@ -58,13 +55,6 @@ class EndModel:
         job.input_ids = input_tokens
         job.prompt_tokens = len(input_tokens)
         job.next_step()
-
-    def chop_position_embeddings(self, t: torch.Tensor):
-        if t is not None:
-            return (
-                t[0][:, -1:, :],
-                t[1][:, -1:, :]
-            )
 
     def compute_embed(self, job: Job, chunk_start: int = 0, chunk_end: int = -1):
         """

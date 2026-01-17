@@ -14,7 +14,6 @@ def view_config(config_path: str):
         "node_id": "Unique identifier for this node on the network",
         "oai_port": "Port for OpenAI-compatible API server",
         "peer_port": "Port for peer-to-peer network coordination",
-        "job_port": "Port for transferring computation data between nodes",
         "network_ip": "IP address other nodes use to connect to this node",
         "bootstrap_address": "IP of existing node to join the network",
         "bootstrap_port": "Port of the bootstrap node",
@@ -22,7 +21,6 @@ def view_config(config_path: str):
         "logging_level": "Verbosity level (DEBUG/INFO/WARNING/ERROR)",
         "max_pipes": "Max concurrent distributed model instances",
         "model_validation": "Verify model weight hashes match across nodes",
-        "ecdsa_verification": "Cryptographically sign job packets",
         "print_times": "Show timing info for computations and transfers",
         "print_job_data": "Show job data (input/output) when jobs complete",
     }
@@ -34,7 +32,6 @@ def view_config(config_path: str):
     print("\n--- Network Settings ---")
     _print_property("Network IP", config.get("network_ip"), descriptions["network_ip"])
     _print_property("Peer Port", config.get("peer_port"), descriptions["peer_port"])
-    _print_property("Job Port", config.get("job_port"), descriptions["job_port"])
     
     bootstrap = config.get("bootstrap_address")
     if bootstrap:
@@ -62,7 +59,6 @@ def view_config(config_path: str):
     _print_property("Logging Level", config.get("logging_level", "INFO"), descriptions["logging_level"])
     _print_property("Max Pipes", config.get("max_pipes", 1), descriptions["max_pipes"])
     _print_property("Model Validation", "Enabled" if config.get("model_validation") else "Disabled", descriptions["model_validation"])
-    _print_property("ECDSA Verification", "Enabled" if config.get("ecdsa_verification") else "Disabled", descriptions["ecdsa_verification"])
     _print_property("Print Times", "Enabled" if config.get("print_times") else "Disabled", descriptions["print_times"])
     _print_property("Print Job Data", "Enabled" if config.get("print_job_data") else "Disabled", descriptions["print_job_data"])
     

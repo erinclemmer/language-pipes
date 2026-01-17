@@ -41,7 +41,6 @@ oai_port = 8000
 
 # === Network ===
 peer_port = 5000
-job_port = 5050
 network_ip = "192.168.0.1"
 bootstrap_address = "192.168.0.1"
 bootstrap_port = 5000
@@ -51,7 +50,6 @@ network_key = "network.key"
 logging_level = "INFO"
 max_pipes = 1
 model_validation = true
-ecdsa_verification = false
 print_times = false
 ```
 
@@ -135,18 +133,6 @@ oai_port = 8000
 | Type | Default |
 |------|---------|
 | int | None (disabled) |
-
-#### `job_port`
-
-Port for inter-node job communication.
-
-```toml
-job_port = 5050
-```
-
-| Type | Default |
-|------|---------|
-| int | `5050` |
 
 #### `logging_level`
 
@@ -242,20 +228,6 @@ model_validation = true
 |------|---------|
 | bool | `false` |
 
-#### `ecdsa_verification`
-
-Sign job packets with ECDSA. Receivers only accept packets from authorized pipes.
-
-```toml
-ecdsa_verification = true
-```
-
-| Type | Default |
-|------|---------|
-| bool | `false` |
-
----
-
 ### Directories
 
 #### `app_dir`
@@ -330,14 +302,12 @@ All properties can be set via environment variables with the `LP_` prefix:
 | `logging_level` | `LP_LOGGING_LEVEL` |
 | `oai_port` | `LP_OAI_PORT` |
 | `peer_port` | `LP_PEER_PORT` |
-| `job_port` | `LP_JOB_PORT` |
 | `network_ip` | `LP_NETWORK_IP` |
 | `bootstrap_address` | `LP_BOOTSTRAP_ADDRESS` |
 | `bootstrap_port` | `LP_BOOTSTRAP_PORT` |
 | `network_key` | `LP_NETWORK_KEY` |
 | `max_pipes` | `LP_MAX_PIPES` |
 | `model_validation` | `LP_MODEL_VALIDATION` |
-| `ecdsa_verification` | `LP_ECDSA_VERIFICATION` |
 | `app_dir` | `LP_APP_DIR` |
 | `model_dir` | `LP_MODEL_DIR` |
 | `print_times` | `LP_PRINT_TIMES` |

@@ -327,7 +327,6 @@ After completing all sections, the wizard displays a summary:
 node_id = "my-node"
 oai_port = 8000
 peer_port = 5000
-job_port = 5050
 
 [[hosted_models]]
 id = "Qwen/Qwen3-1.7B"

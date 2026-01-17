@@ -46,7 +46,7 @@ The `Pipe` exposes helpers for:
 `ModelManager` hosts model segments based on configuration:
 
 - **Hosted models** are declared with `id`, `device`, `max_memory`, and `load_ends`.
-- For each hosted model, the manager estimates how many layers fit in memory using `ComputedData.avg_layer_size`.
+- For each hosted model, the manager estimates how many layers fit in memory using `LlmMetadata.avg_layer_size`.
 - It tries to **fill gaps** in existing pipes first, then creates a new pipe if `max_pipes` allows it.
 - When `load_ends` is enabled, the node also loads the **EndModel** (embedding, RMS norm, output head, tokenizer).
 - If `model_validation` is enabled, computed hashes must match the network pipe’s hashes before loading.
@@ -101,7 +101,6 @@ Key behaviors:
 Language Pipes uses the **distributed_state_network** control plane for peer discovery and shared metadata:
 
 - Nodes advertise **model segments** in a `models` key.
-- Nodes advertise their **job receiver port** in `job_port`.
 - `RouterPipes` aggregates these entries across all peers to build the available pipes.
 
 Job payloads themselves are sent over **HTTP** to the advertised job port. The control plane can be configured with network keys and optional ECDSA verification via `DSNodeConfig`, while job payloads use hash validation at the application layer.

@@ -138,13 +138,6 @@ def interactive_init(output_path: str):
     else:
         config["network_ip"] = "127.0.0.1"
 
-    print("\nThe job port is used for transferring computation data between nodes")
-    print("during model inference (hidden states, embeddings, etc.).")
-    config["job_port"] = prompt_int(
-        "Job port",
-        default=5050
-    )
-    
     print("\nThe network key is an AES encryption key shared by all nodes.")
     print("It encrypts communication and prevents unauthorized access.")
     print("There will be no encryption between nodes if the default value is selected.")
@@ -188,13 +181,6 @@ def interactive_init(output_path: str):
         print("  to ensure all nodes are running the exact same model.")
         config["model_validation"] = prompt_bool(
             "  Validate model hashes?", 
-            required=True
-        )
-        
-        print("\n  ECDSA verification signs each job packet cryptographically,")
-        print("  ensuring jobs only come from authorized nodes in the pipe.")
-        config["ecdsa_verification"] = prompt_bool(
-            "  Enable ECDSA signing?",
             required=True
         )
         

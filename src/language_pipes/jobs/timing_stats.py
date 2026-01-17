@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from language_pipes.jobs.network_job import LayerTime
-
+from language_pipes.jobs.job_time import JobTime
 
 def _summary(values: Iterable[float]) -> Optional[dict]:
     values = list(values)
@@ -27,7 +26,7 @@ class TimingStats:
     layer_ms: List[float] = field(default_factory=list)
     token_ms: List[float] = field(default_factory=list)
 
-    def add_token(self, layer_times: List[LayerTime]) -> None:
+    def add_token(self, layer_times: List[JobTime]) -> None:
         if not layer_times:
             return
         ordered = sorted(layer_times, key=lambda lt: lt.receive_time)

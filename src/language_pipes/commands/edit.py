@@ -34,7 +34,6 @@ def edit_config(config_path: str):
             ("node_id", "Node ID"),
             ("oai_port", "OpenAI API Port"),
             ("peer_port", "Peer Port"),
-            ("job_port", "Job Port"),
             ("network_ip", "Network IP"),
             ("bootstrap_address", "Bootstrap Address"),
             ("bootstrap_port", "Bootstrap Port"),
@@ -42,7 +41,6 @@ def edit_config(config_path: str):
             ("logging_level", "Logging Level"),
             ("max_pipes", "Max Pipes"),
             ("model_validation", "Model Validation"),
-            ("ecdsa_verification", "ECDSA Verification"),
             ("print_times", "Print Times"),
             ("print_job_data", "Print Job Data"),
             ("prefill_chunk_size", "Prefill Chunk Size"),
@@ -101,13 +99,6 @@ def edit_config(config_path: str):
             config["peer_port"] = prompt_int(
                 "Peer Port",
                 default=config.get("peer_port", 5000),
-                required=True
-            )
-        
-        elif selected_key == "job_port":
-            config["job_port"] = prompt_int(
-                "Job Port",
-                default=config.get("job_port", 5050),
                 required=True
             )
         
@@ -171,13 +162,7 @@ def edit_config(config_path: str):
                 "Enable model hash validation?",
                 default=config.get("model_validation", False)
             )
-        
-        elif selected_key == "ecdsa_verification":
-            config["ecdsa_verification"] = prompt_bool(
-                "Enable ECDSA signing?",
-                default=config.get("ecdsa_verification", False)
-            )
-        
+
         elif selected_key == "print_times":
             config["print_times"] = prompt_bool(
                 "Print timing info?",

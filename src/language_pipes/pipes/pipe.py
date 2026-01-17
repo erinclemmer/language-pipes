@@ -1,19 +1,14 @@
-import os
-import requests
-from threading import Thread
 from typing import Callable, List, Optional
 from pathlib import Path
 from uuid import uuid4
 
 from transformers import AutoTokenizer
 from transformers.models.auto import AutoConfig
-from language_pipes.network.types import StateNetworkNode
+from language_pipes.network_protocol import StateNetworkNode
 
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.jobs.network_job import NetworkJob
-from language_pipes.jobs.job import Job
-from language_pipes.util.enums import JobStatus
 from language_pipes.util.chat import ChatMessage
 
 class Pipe:
@@ -49,28 +44,12 @@ class Pipe:
         self.router.logger.exception(msg)
         raise Exception(msg)
 
-    def get_job_port(self, node_id: str) -> Optional[int]:
-        try:
-            return int(self.router.read_data(node_id, 'job_port'))
-        except Exception as e:
-            self.logger.exception("Error getting job port: %s", e)
-            return None
-
     def send_job(self, job: NetworkJob, node_id: str):
-        ip = self.router.connection_from_node(node_id).address
-        port = self.get_job_port(node_id)
-        if port is None:
-            self.raise_exception(f"SEND JOB => Could not find pipe {self.pipe_id} for {node_id}")
-
-        self.router.logger.info(f'Sending job {job.job_id} to {node_id}')
-        def send(url: str, data: bytes):
-            try:
-                res = requests.post(url, data=data, headers={'Content-Type': 'application/octet-stream'})
-                if res.status_code != 200 or res.content == b'DOWN':
-                    self.raise_exception(f"SEND JOB => bad response from {node_id}")
-            except:
-                self.raise_exception(f"SEND JOB => Could not connect to {node_id}")
-        Thread(target=send, args=(f'http://{ip}:{port}', job.to_bytes(), )).start()
+        data = job.to_bytes()
+        if node_id == self.router.config.node_id:
+            self.router.receive_data(data)
+        else:
+            self.router.send_to_node(node_id, data)
 
     def tokenize(self, prompt: Optional[str], messages: List[ChatMessage]) -> List[int]:
         tokenizer: AutoTokenizer = self.tokenizer()
@@ -85,7 +64,7 @@ class Pipe:
         return None
     
     def get_computed(self):
-        return self.segments[0].computed
+        return self.segments[0].meta_data
 
     def sort_segments(self):
         self.segments = sorted(self.segments, key=lambda x: x.start_layer)

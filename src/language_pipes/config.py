@@ -2,9 +2,6 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 from pathlib import Path
 
-from language_pipes.network.config import NetworkConfig
-
-
 def default_config_dir() -> str:
     return str(Path.home() / ".config" / "language_pipes")
 
@@ -32,42 +29,29 @@ class HostedModel:
 @dataclass
 class LpConfig:
     # Core settings
-    logging_level: str
+    node_id: str
     app_dir: str
     model_dir: str
+    logging_level: str
     
     # API server
     oai_port: Optional[int]
-    
-    # Network configuration (provider-specific)
-    router: NetworkConfig
-    node_id: str
     
     # Model hosting
     hosted_models: List[HostedModel]
     
     # Processing options
-    job_port: int
     max_pipes: int
     model_validation: bool
-    ecdsa_verification: bool
     print_times: bool
     print_job_data: bool
     prefill_chunk_size: int
 
     @staticmethod
     def from_dict(data: Dict) -> 'LpConfig':
-        router_config = NetworkConfig.from_dict(data['router'])
-        node_id = data.get('node_id') or router_config.get_node_id()
-        if node_id is None:
-            raise ValueError("router.node_id is required")
-        if router_config.get_node_id() != node_id:
-            router_config = NetworkConfig(
-                provider=router_config.provider,
-                settings={**router_config.settings, "node_id": node_id},
-            )
         return LpConfig(
             # Core settings
+            node_id=data.get('node_id'),
             logging_level=data['logging_level'],
             app_dir=data.get('app_dir', default_config_dir()),
             model_dir=data.get('model_dir', default_model_dir()),
@@ -75,18 +59,12 @@ class LpConfig:
             # API server
             oai_port=data.get('oai_port'),
             
-            # Network configuration
-            router=router_config,
-            node_id=node_id,
-            
             # Model hosting
             hosted_models=[HostedModel.from_dict(m) for m in data['hosted_models']],
             
             # Processing options
-            job_port=data.get('job_port', 5050),
             max_pipes=data.get('max_pipes', 1),
             model_validation=data.get('model_validation', False),
-            ecdsa_verification=data.get('ecdsa_verification', False),
             print_times=data.get('print_times', False),
             print_job_data=data.get('print_job_data', False),
             prefill_chunk_size=data.get('prefill_chunk_size', 6)

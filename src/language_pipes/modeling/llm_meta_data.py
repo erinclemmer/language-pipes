@@ -3,14 +3,13 @@ import json
 import torch
 from typing import List, Tuple, Optional
 
-from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import AutoConfig
 from llm_layer_collector.auto.auto_rms import AutoRMSNorm
+from transformers.configuration_utils import PretrainedConfig
 from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 from language_pipes.util import size_of_tensor, tensor_hash
 from language_pipes.util.enums import ModelPartType
-from language_pipes.modeling.meta_computed import MetaComputed
 
 def get_size_of_layer(config: PretrainedConfig, layer_idx: int) -> Tuple[float, str]:
     print(f"Calculating layer size for layer {layer_idx}...")
@@ -118,31 +117,31 @@ def data_of_type(typ: ModelPartType, model_path: str) -> Tuple[float, str]:
 def get_computed_data(model_path: str):
     if not os.path.exists(model_path):
         raise FileNotFoundError(f'Model {model_path} not found')
-    computed_path = os.path.join(model_path, 'computed.json')
+    computed_path = os.path.join(model_path, 'meta_data.json')
     if os.path.exists(computed_path):
         with open(computed_path) as f:
             return json.load(f)
 
     print('Computing Data for ' + model_path)
-    computed = { }
+    meta_data = { }
     model_path = os.path.join(model_path, 'data')
     size, hash = data_of_type(ModelPartType.EMBED, model_path)
-    computed['embed_size'] = size
-    computed['embed_hash'] = hash
+    meta_data['embed_size'] = size
+    meta_data['embed_hash'] = hash
     size, hash = data_of_type(ModelPartType.NORM, model_path)
     size, hash = data_of_type(ModelPartType.HEAD, model_path)
-    computed['head_size'] = size
-    computed['head_hash'] = hash
+    meta_data['head_size'] = size
+    meta_data['head_hash'] = hash
     size, hash = get_avg_layer_size(model_path)
-    computed['avg_layer_size'] = size
-    computed['layer_hashes'] = hash
+    meta_data['avg_layer_size'] = size
+    meta_data['layer_hashes'] = hash
 
     with open(computed_path, 'w') as f:
-        json.dump(computed, f)
+        json.dump(meta_data, f)
 
-    return computed
+    return meta_data
 
-class ComputedData:
+class LlmMetadata:
     embed_size: int
     head_size: int
     avg_layer_size: int
@@ -151,7 +150,7 @@ class ComputedData:
     head_hash: str
     layer_hashes: List[str]
 
-    def __init__(self, model_dir: Optional[str]):
+    def __init__(self, model_dir: Optional[str] = None):
         if model_dir is None:
             return
         data = get_computed_data(model_dir)
@@ -172,30 +171,9 @@ class ComputedData:
             'layer_hashes': self.layer_hashes
         }
 
-    def to_meta(self):
-        return MetaComputed(
-            embed_size=self.embed_size,
-            head_size=self.head_size,
-            avg_layer_size=self.avg_layer_size,
-            embed_hash=self.embed_hash,
-            head_hash=self.head_hash,
-            layer_hashes=self.layer_hashes
-        )
-
     @staticmethod
-    def from_meta(data: MetaComputed) -> 'ComputedData':
-        c = ComputedData(None)
-        c.embed_size = data.embed_size
-        c.embed_hash = data.embed_hash
-        c.head_size = data.head_size
-        c.head_hash = data.head_hash
-        c.avg_layer_size = data.avg_layer_size
-        c.layer_hashes = data.layer_hashes
-        return c
-
-    @staticmethod
-    def from_dict(data: dict) -> 'ComputedData':
-        c = ComputedData(None)
+    def from_dict(data: dict) -> 'LlmMetadata':
+        c = LlmMetadata(None)
         c.embed_size = data['embed_size']
         c.head_size = data['head_size']
         c.avg_layer_size = data['avg_layer_size']
@@ -204,5 +182,5 @@ class ComputedData:
         c.layer_hashes = data['layer_hashes']
         return c
     
-def validate_model(c1: MetaComputed, c2: MetaComputed):
+def validate_model(c1: LlmMetadata, c2: LlmMetadata):
     return c1.embed_hash == c2.embed_hash and c1.head_hash == c2.head_hash and c1.layer_hashes == c2.layer_hashes

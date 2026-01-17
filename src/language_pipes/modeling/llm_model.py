@@ -1,28 +1,21 @@
 import os
-import gc
-import ctypes
 import logging
 from pathlib import Path
-from time import time, sleep
 from uuid import uuid4
-from threading import Thread
-from typing import List, Optional, Callable, Dict
-from transformers.cache_utils import DynamicCache
-
-from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from typing import List, Optional, Callable
 
 import torch
 
 from llm_layer_collector import LlmLayerCollector
+from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 from language_pipes.util import clone_model
-from language_pipes.util.enums import ComputeStep
 
 from language_pipes.modeling.meta_model import MetaModel
-from language_pipes.modeling.computed import ComputedData
+from language_pipes.modeling.llm_meta_data import LlmMetadata
 
 from language_pipes.jobs.job import Job
-from language_pipes.jobs.network_job import NetworkJob, LayerTime
+from language_pipes.jobs.network_job import JobTime
 from language_pipes.jobs.job_data import jobDataToComputationState, detachCompState
 
 def compute_layers(job_data, device, layers, cache):
@@ -37,7 +30,7 @@ def compute_layers(job_data, device, layers, cache):
 
 class LlmModel:
     model_id: str
-    computed: ComputedData
+    meta_data: LlmMetadata
     process_id: str
     pipe_id: str
     collector: LlmLayerCollector
@@ -89,8 +82,7 @@ class LlmModel:
         else:
             self.process_id = process_id
 
-        self.computed = ComputedData(model_path)
-        self.logger = logging.getLogger("LM NET: " + self.node_id)
+        self.meta_data = LlmMetadata(model_path)
             
     def load(self):
         if self.end_layer > self.num_hidden_layers:
@@ -103,8 +95,8 @@ class LlmModel:
         self.loaded = True
         self.virtual = False
 
-    def print(self):
-        self.logger.info(f'''
+    def print(self, logger: logging.Logger):
+        logger.info(f'''
 =================================
 Loaded Model: {self.model_id}
 Pipe ID: {self.pipe_id}
@@ -117,8 +109,7 @@ Device: {self.device}
 ''')
 
     def process_job(self, job: Job):
-        self.logger.info(f'Processing job layer {job.current_layer}')
-        layer_time = LayerTime(
+        layer_time = JobTime(
             node_id=self.node_id,
             start_layer=job.current_layer,
             end_layer=self.end_layer
@@ -128,16 +119,12 @@ Device: {self.device}
         layer_time.set_send_time()
         job.data_hash = job.data.hash_state()
 
-    def raise_exception(self, msg):
-        self.logger.exception(msg)
-        raise Exception(msg)
-
     def compute_layers(
         self, 
         job: Job
     ):
         if job.data is None:
-            self.raise_exception("cannot compute layers without job data")
+            raise Exception("cannot compute layers without job data")
         
         job.set_layer(
             state=compute_layers(
@@ -160,7 +147,7 @@ Device: {self.device}
             model_id=self.model_id,
             loaded=self.loaded,
             num_layers=self.num_hidden_layers,
-            computed=ComputedData.to_meta(self.computed)
+            meta_data=self.meta_data
         )
 
     def cleanup_tensors(self):
@@ -181,7 +168,7 @@ Device: {self.device}
         model.loaded = meta.loaded
         model.start_layer = meta.start_layer
         model.end_layer = meta.end_layer
-        model.computed = ComputedData.from_meta(meta.computed)
+        model.meta_data = meta.meta_data
         model.virtual = True
 
         return model
@@ -197,5 +184,5 @@ Device: {self.device}
         )
 
         model_path = str(Path(model_dir) / model_id)
-        model.computed = ComputedData(model_path)
+        model.meta_data = LlmMetadata(model_path)
         return model

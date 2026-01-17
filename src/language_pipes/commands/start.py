@@ -4,13 +4,14 @@ import toml
 from pathlib import Path
 from unique_names_generator import get_random_name
 
+from distributed_state_network import DSNodeServer, DSNodeConfig
+
 from language_pipes.config import LpConfig, default_config_dir, default_model_dir
 from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.edit import edit_config
 from language_pipes.commands.view import view_config
 from language_pipes.lp import LanguagePipes
-from language_pipes.network import start_state_network
 from language_pipes.util.user_prompts import prompt_bool, prompt, prompt_choice, prompt_number_choice, select_config, get_config_files
 from language_pipes.util import sanitize_file_name
 
@@ -35,11 +36,9 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
         bootstrap_port = None
         network_key = None
         model_validation = None
-        ecdsa_verification = None
         print_times = None
         print_job_data = None
         prefill_chunk_size = None
-        job_port = None
         max_pipes = None
         hosted_models = None
     
@@ -47,11 +46,21 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
     data = apply_overrides(data, args)
     
     config = LpConfig.from_dict({
+        "node_id": data["node_id"],
         "logging_level": data["logging_level"],
         "oai_port": data["oai_port"],
         "app_dir": app_dir,
         "model_dir": data["model_dir"],
-        "router": {
+        "hosted_models": data["hosted_models"],
+        "max_pipes": data["max_pipes"],
+        "model_validation": data["model_validation"],
+        "print_times": data["print_times"],
+        "print_job_data": data["print_job_data"],
+        "prefill_chunk_size": data["prefill_chunk_size"]
+    })
+
+    try:
+        router = DSNodeServer.start(DSNodeConfig.from_dict({
             "node_id": data["node_id"],
             "port": data["peer_port"],
             "network_ip": data["network_ip"],
@@ -63,30 +72,9 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
                     "port": data["bootstrap_port"]
                 }
             ] if data["bootstrap_address"] is not None else []
-        },
-        "hosted_models": data["hosted_models"],
-        "max_pipes": data["max_pipes"],
-        "model_validation": data["model_validation"],
-        "ecdsa_verification": data["ecdsa_verification"],
-        "job_port": data["job_port"],
-        "print_times": data["print_times"],
-        "print_job_data": data["print_job_data"],
-        "prefill_chunk_size": data["prefill_chunk_size"]
-    })
-
-    try:
-        callback_holder = {"callback": lambda: None}
-
-        def on_network_change():
-            callback_holder["callback"]()
-
-        router = start_state_network(
-            config=config.router,
-            update_callback=on_network_change,
-            disconnect_callback=on_network_change,
-        )
+        }))
+        
         app = LanguagePipes(version, config, router)
-        callback_holder["callback"] = app.print_pipes
         return app
     except KeyboardInterrupt:
         return

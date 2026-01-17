@@ -19,12 +19,11 @@ MODEL = "Qwen/Qwen3-1.7B"
 # MODEL = "Qwen/Qwen3-30B-A3B-Thinking-2507"
 # MODEL = "meta-llama/Llama-3.2-1B-Instruct"
 
-def start_node(node_id: str, max_memory: float, peer_port: int, job_port: int, oai_port: int = None, bootstrap_port: int = None):
+def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: int = None, bootstrap_port: int = None):
     args = ["serve", 
         "--node-id", node_id, 
         "--hosted-models", f"id={MODEL},device=cpu,memory={max_memory},load_ends=true", 
         "--peer-port", str(peer_port),
-        "--job-port", str(job_port),
         "--app-dir", "./",
         "--model-validation",
         "--print-times",
@@ -89,7 +88,7 @@ class OpenAITests(unittest.TestCase):
         main([])
 
     def test_single_node(self):
-        start_node("node-1", 5, 5000, 5050, 8000)
+        start_node("node-1", 5, 5000, 8000)
         res = oai_complete(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
@@ -98,7 +97,7 @@ class OpenAITests(unittest.TestCase):
         self.assertTrue(len(res.choices) > 0)
 
     def test_400_codes(self):
-        start_node("node-1", 5, 5000, 5050, 8000)
+        start_node("node-1", 5, 5000, 8000)
         messages = [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
@@ -123,9 +122,9 @@ class OpenAITests(unittest.TestCase):
         self.assertEqual(400, res.status_code)
 
     def test_double_node(self):
-        start_node("node-1", 1.5, 5000, 5050, 8000)
+        start_node("node-1", 1.5, 5000, 8000)
         time.sleep(5)
-        start_node("node-2", 3, 5001, 5051, None, 5000)
+        start_node("node-2", 3, 5001, None, 5000)
         time.sleep(5)
         res = oai_complete(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
@@ -135,9 +134,9 @@ class OpenAITests(unittest.TestCase):
         self.assertTrue(len(res.choices) > 0)
 
     def test_double_long(self):
-        start_node("node-1", 1.5, 5000, 5050, 8000)
+        start_node("node-1", 1.5, 5000, 8000)
         time.sleep(5)
-        start_node("node-2", 3, 5001, 5051, None, 5000)
+        start_node("node-2", 3, 5001, None, 5000)
         time.sleep(5)
         with open('mcbeth.txt', 'r', encoding='utf-8') as f:
             mcbeth = f.read()
@@ -149,9 +148,9 @@ class OpenAITests(unittest.TestCase):
         self.assertTrue(len(res.choices) > 0)
 
     def test_stream(self):
-        start_node("node-1", 2, 5000, 5050, 8000)
+        start_node("node-1", 2, 5000, 8000)
         time.sleep(5)
-        start_node("node-2", 3, 5001, 5051, None, 5000)
+        start_node("node-2", 3, 5001, None, 5000)
         time.sleep(5)
         oai_stream(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
@@ -159,11 +158,11 @@ class OpenAITests(unittest.TestCase):
         ])
 
     def test_triple_node(self):
-        start_node("node-1", 1, 5000, 5050, 8000)
+        start_node("node-1", 1, 5000, 8000)
         time.sleep(10)
-        start_node("node-2", 1, 5001, 5051, None, 5000)
+        start_node("node-2", 1, 5001, None, 5000)
         time.sleep(10)
-        start_node("node-3", 3, 5002, 5052, None, 5000)
+        start_node("node-3", 3, 5002, None, 5000)
         time.sleep(10)
         res = oai_complete(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
@@ -174,15 +173,15 @@ class OpenAITests(unittest.TestCase):
 
 
     def test_reconnect(self):
-        start_node("node-1", 1, 5000, 5050, 8000)
+        start_node("node-1", 1, 5000, 8000)
         time.sleep(10)
-        node2 = start_node("node-2", 1, 5001, 5051, None, 5000)
+        node2 = start_node("node-2", 1, 5001, None, 5000)
         time.sleep(10)
-        start_node("node-3", 3, 5002, 5052, None, 5000)
+        start_node("node-3", 3, 5002, None, 5000)
         time.sleep(10)
         node2.stop()
         time.sleep(10)
-        start_node("node-4", 1, 5004, 5054, None, 5000)
+        start_node("node-4", 1, 5004, None, 5000)
         time.sleep(5)
 
         res = oai_complete(8000, [

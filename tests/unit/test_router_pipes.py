@@ -5,7 +5,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from language_pipes.modeling.meta_computed import MetaComputed
+from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.pipes.router_pipes import RouterPipes
 
@@ -17,16 +17,19 @@ class FakeConnection:
 
 class FakeStateNetworkNode:
     def __init__(self, node_id: str):
-        self.node_id = node_id
+        self._node_id = node_id
         self._data = {}
         self._peers = []
         self.logger = None
+
+    def node_id(self):
+        return self._node_id
 
     def read_data(self, node_id: str, key: str):
         return self._data.get((node_id, key))
 
     def update_data(self, key: str, value: str):
-        self._data[(self.node_id, key)] = value
+        self._data[(self._node_id, key)] = value
 
     def peers(self):
         return self._peers
@@ -42,22 +45,21 @@ class FakeStateNetworkNode:
 
 
 def make_computed():
-    return MetaComputed(
-        embed_size=128,
-        head_size=256,
-        avg_layer_size=64,
-        embed_hash="embed",
-        head_hash="head",
-        layer_hashes=["l0", "l1", "l2", "l3"],
-    )
-
+    metadata = LlmMetadata()
+    metadata.embed_size = 128
+    metadata.head_size = 256
+    metadata.avg_layer_size = 64
+    metadata.embed_hash = "embed"
+    metadata.head_hash = "head"
+    metadata.layer_hashes=["l0", "l1", "l2", "l3"]
+    return metadata
 
 class RouterPipesTests(unittest.TestCase):
     def test_add_and_get_pipe_by_pipe_id(self):
         node = FakeStateNetworkNode("node-a")
         router = RouterPipes(node)
-        computed = make_computed()
-        model = MetaModel("p1", 0, 1, True, "node-a", "pipe-1", "model-1", 4, computed)
+        meta_data = make_computed()
+        model = MetaModel("p1", 0, 1, True, "node-a", "pipe-1", "model-1", 4, meta_data)
 
         router.add_model_to_network(model)
         node.add_peer("node-a", [model])
@@ -71,13 +73,13 @@ class RouterPipesTests(unittest.TestCase):
     def test_pipes_for_model_filters_complete(self):
         node = FakeStateNetworkNode("node-a")
         router = RouterPipes(node)
-        computed = make_computed()
+        meta_data = make_computed()
         node.add_peer(
             "node-a",
             [
-                MetaModel("p1", 0, 1, True, "node-a", "pipe-1", "model-1", 4, computed),
-                MetaModel("p2", 2, 3, True, "node-b", "pipe-1", "model-1", 4, computed),
-                MetaModel("p3", 0, 1, False, "node-c", "pipe-2", "model-1", 4, computed),
+                MetaModel("p1", 0, 1, True, "node-a", "pipe-1", "model-1", 4, meta_data),
+                MetaModel("p2", 2, 3, True, "node-b", "pipe-1", "model-1", 4, meta_data),
+                MetaModel("p3", 0, 1, False, "node-c", "pipe-2", "model-1", 4, meta_data),
             ],
         )
 
@@ -90,11 +92,11 @@ class RouterPipesTests(unittest.TestCase):
     def test_update_model_replaces_existing(self):
         node = FakeStateNetworkNode("node-a")
         router = RouterPipes(node)
-        computed = make_computed()
-        model = MetaModel("p1", 0, 1, True, "node-a", "pipe-1", "model-1", 4, computed)
+        meta_data = make_computed()
+        model = MetaModel("p1", 0, 1, True, "node-a", "pipe-1", "model-1", 4, meta_data)
         router.add_model_to_network(model)
 
-        updated = MetaModel("p1", 0, 1, False, "node-a", "pipe-1", "model-1", 4, computed)
+        updated = MetaModel("p1", 0, 1, False, "node-a", "pipe-1", "model-1", 4, meta_data)
         router.update_model(updated)
 
         stored = json.loads(node.read_data("node-a", "models"))
@@ -103,12 +105,12 @@ class RouterPipesTests(unittest.TestCase):
     def test_get_pipe_by_model_id_returns_complete_pipe(self):
         node = FakeStateNetworkNode("node-a")
         router = RouterPipes(node)
-        computed = make_computed()
+        meta_data = make_computed()
         node.add_peer(
             "node-a",
             [
-                MetaModel("p1", 0, 1, True, "node-a", "pipe-1", "model-1", 4, computed),
-                MetaModel("p2", 2, 3, True, "node-b", "pipe-1", "model-1", 4, computed),
+                MetaModel("p1", 0, 1, True, "node-a", "pipe-1", "model-1", 4, meta_data),
+                MetaModel("p2", 2, 3, True, "node-b", "pipe-1", "model-1", 4, meta_data),
             ],
         )
 

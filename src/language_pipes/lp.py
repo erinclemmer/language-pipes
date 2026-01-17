@@ -14,10 +14,10 @@ from language_pipes.modeling.model_manager import ModelManager
 
 from language_pipes.util import stop_thread
 from language_pipes.config import LpConfig
-from language_pipes.network import StateNetworkServer
+from language_pipes.network_protocol import StateNetworkNode
 
 class LanguagePipes:
-    router: StateNetworkServer
+    logger: logging.Logger
     
     job_factory: JobFactory
     job_receiver: JobReceiver
@@ -29,23 +29,25 @@ class LanguagePipes:
 
     def __init__(
         self, 
-        version: str,
         config: LpConfig,
-        router: StateNetworkServer
+        router: StateNetworkNode
     ):
         self.config = config
+        router.set_receive_cb(self.receive_data)
+        router.set_update_cb(self.print_pipes)
+        router.set_disconnect_cb(self.print_pipes)
+
+        self.logger = logging.getLogger(f"LP-{self.config.node_id}")
         self.set_logging_level(self.config.logging_level)
         
         self.router_pipes = None
-        self.router = router
-        logger = self.router.node.logger
 
         # Network pipe data for MetaPipe objects
-        self.router_pipes = RouterPipes(self.router.node)
+        self.router_pipes = RouterPipes(router)
 
         # Local pipe data for LlmModel objects
         self.model_manager = ModelManager(
-            logger=logger,
+            logger=self.logger,
             config=self.config,
             # Used for placing model data on the network
             router_pipes=self.router_pipes
@@ -59,42 +61,40 @@ class LanguagePipes:
         )
 
         # View currently loaded pipes
-        self.router_pipes.print_pipes()
+        self.router_pipes.print_pipes(self.logger)
 
         # Holds pending jobs
-        self.job_tracker = JobTracker(logger, self.config)
+        self.job_tracker = JobTracker(self.logger, self.config)
 
         # Handles job creation
         self.job_factory = JobFactory(
-            logger=logger,
+            logger=self.logger,
             config=self.config, 
             job_tracker=self.job_tracker,
-            get_pipe_by_model_id=self.pipe_manager.get_pipe_by_model_id,
+            pipe_manager=self.pipe_manager
         )
-
-        is_shutdown = lambda: self.router.node.shutting_down
 
         # Receives jobs and creates JobProcessor object before processing
         self.job_receiver = JobReceiver(
-            logger=logger, 
+            logger=self.logger, 
             config=self.config, 
             job_tracker=self.job_tracker,
             job_factory=self.job_factory,
             pipe_manager=self.pipe_manager,
             model_manager=self.model_manager,
-            is_shutdown=is_shutdown
+            is_shutdown=router.is_shut_down
         )
-
-        # Broadcast our job port for other nodes to connect to
-        self.router.node.update_data("job_port", str(self.config.job_port))
 
         if self.config.oai_port is not None:
             self.start_oai()
 
+    def receive_data(self, data: bytes):
+        self.job_receiver.receive_data(data)
+
     def print_pipes(self):
         if self.router_pipes is None:
             return
-        self.router_pipes.print_pipes()
+        self.router_pipes.print_pipes(self.logger)
 
     def start_oai(self):
         if self.config.oai_port is None:
@@ -110,9 +110,6 @@ class LanguagePipes:
         if level is None:
             raise ValueError(f"Invalid logging level: {logging_level}")
         logging.basicConfig(level=level)
-
-    def router_port(self) -> int:
-        return int(self.router.node.port)
 
     def stop(self):
         self.model_manager.stop()

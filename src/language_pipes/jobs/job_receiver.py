@@ -1,22 +1,19 @@
 import random
-from time import sleep, time
+from time import sleep
 from threading import Thread
-from typing import Callable, Optional, List, Tuple
+from typing import Callable, Optional, List
 
-from language_pipes.pipes.pipe import Pipe
 from language_pipes.pipes.pipe_manager import PipeManager
 
-from language_pipes.jobs.job import Job
-from language_pipes.jobs.job_server import JobServer
+from language_pipes.jobs.job import ComputeStep
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_tracker import JobTracker
-from language_pipes.jobs.network_job import NetworkJob, LayerTime
+from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.jobs.job_processor import JobProcessor, JobContext
 
 from language_pipes.modeling.model_manager import ModelManager
 
 from language_pipes.util import stop_thread
-from language_pipes.util.enums import JobStatus
 
 from language_pipes.config import LpConfig
 
@@ -49,17 +46,7 @@ class JobReceiver:
         self.is_shutdown = is_shutdown
         self.logger = logger
 
-        thread, httpd = JobServer.start(
-            port=config.job_port, 
-            is_shutdown=is_shutdown, 
-            data_cb=self.receive_data
-        )
-
-        self.thread = thread
-        self.httpd = httpd
-
         Thread(target=self._job_runner_loop, args=()).start()
-        logger.info(f"Started Job Receiver on port {config.job_port}")
 
     def _wait_for_job(self) -> Optional[NetworkJob]:
         """Wait for a job from the queue. Returns None if shutting down."""
