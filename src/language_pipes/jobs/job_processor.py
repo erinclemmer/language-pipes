@@ -192,26 +192,9 @@ class JobProcessor:
     def _state_embed(self) -> JobState:
         """Embed the next token, handling prefill chunks when needed."""
         job = self.ctx.job
-        chunking_initialized = False
-        if job.prompt_tokens == 0:
-            self.ctx.logger.info(f"[Prefill] job={job.job_id[:8]} started")
-            self.ctx.end_model.tokenize(job)
-            job.init_chunking(self.ctx.config.prefill_chunk_size)
-            job.chunking.print_start(self.ctx.logger)
-            chunking_initialized = True
-
-        chunk_start, chunk_end = (0, -1)
-        if should_prefill_chunk(job):
-            job.set_last_update()
-            if not chunking_initialized:
-                log_prefill_chunk_complete(self.ctx.logger, job)
-                job.chunking.advance()
-            chunk_start, chunk_end = job.chunking.get_range()
-            log_prefill_chunk_start(self.ctx.logger, job, chunk_start, chunk_end)
-
         embed_time = JobTime(node_id=self.ctx.config.node_id, is_embed=True)
         job.add_timing(embed_time)
-        self.ctx.end_model.compute_embed(job, chunk_start, chunk_end)
+        self.ctx.end_model.compute_embed(job, self.ctx.logger, self.ctx.config.prefill_chunk_size)
         embed_time.set_send_time()
         
         if should_prefill_chunk(job) or job.chunking.is_active():
