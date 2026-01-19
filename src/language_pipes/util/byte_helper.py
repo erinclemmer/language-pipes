@@ -20,7 +20,7 @@ def bytes_to_float(b: bytes) -> float:
 
 class ByteHelper:
     def __init__(self, data: bytes | None = None):
-        self.bts = BytesIO(data)
+        self.bts = BytesIO(data) if data is not None else BytesIO()
 
     def write_string(self, s: str):
         encoded = s.encode("utf-8")

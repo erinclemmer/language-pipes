@@ -18,8 +18,7 @@ class Pipe:
 
     router: StateNetworkNode
     tokenizer: Callable
-    model_num_hidden_layers: int
-
+    
     def __init__(
             self, 
             router: StateNetworkNode,
@@ -30,7 +29,6 @@ class Pipe:
         self.router = router
         self.model_id = model_id
         model_path = str(Path(model_dir) / model_id / 'data')
-        self.model_num_hidden_layers = AutoConfig.from_pretrained(model_path).num_hidden_layers
         
         if pipe_id is None:
             self.pipe_id = str(uuid4())
@@ -40,13 +38,9 @@ class Pipe:
         self.segments = []
         self.tokenizer = lambda: AutoTokenizer.from_pretrained(model_path)
 
-    def raise_exception(self, msg: str):
-        self.router.logger.exception(msg)
-        raise Exception(msg)
-
     def send_job(self, job: NetworkJob, node_id: str):
         data = job.to_bytes()
-        if node_id == self.router.config.node_id:
+        if node_id == self.router.node_id():
             self.router.receive_data(data)
         else:
             self.router.send_to_node(node_id, data)
@@ -63,6 +57,12 @@ class Pipe:
                 return segment
         return None
     
+    def num_hidden_layers(self) -> Optional[int]:
+        for segment in self.segments:
+            if not segment.virtual:
+                return segment.num_hidden_layers
+        return None
+
     def get_computed(self):
         return self.segments[0].meta_data
 
@@ -70,6 +70,9 @@ class Pipe:
         self.segments = sorted(self.segments, key=lambda x: x.start_layer)
 
     def is_complete(self):
+        if len(self.segments) == 0:
+            return False
+        
         self.sort_segments()
         current_layer = 0
         for s in self.segments:
@@ -78,7 +81,7 @@ class Pipe:
             if s.start_layer == current_layer:
                 current_layer = s.end_layer + 1
 
-        return current_layer == self.model_num_hidden_layers
+        return current_layer == self.num_hidden_layers()
 
     @staticmethod
     def from_meta(

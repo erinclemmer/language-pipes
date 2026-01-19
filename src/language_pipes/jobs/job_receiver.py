@@ -62,6 +62,9 @@ class JobReceiver:
     def _job_runner_loop(self):
         """Main job processing loop using FSM."""
         network_job = self._wait_for_job()
+        if network_job is None:
+            return
+        
         job = self.job_tracker.get_job(network_job.job_id)
         if job is None:
             job = self.job_tracker.add_job(network_job)
@@ -93,35 +96,25 @@ class JobReceiver:
 
     def restart_token(self, network_job: NetworkJob):
         """Mark job for restart and send back to origin."""
-        network_job.restart = True
         network_job.data = None
         network_job.data_hash = b''
         network_job.compute_step = ComputeStep.EMBED
         network_job.current_layer = 0
-        pipe = self.job_factory.get_pipe(network_job.pipe_id)
+        pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
         if pipe is None:
             return
         pipe.send_job(network_job, network_job.origin_node_id)
 
     def receive_data(self, data: bytes):
         """Receive and validate incoming job data."""
-        job = NetworkJob.from_bytes(data)
+        job, valid = NetworkJob.from_bytes(data)
+        if not valid:
+            self.restart_job(job)
+            return
         
         # Ignore duplicate jobs
         for j in self.job_queue:
             if j.job_id == job.job_id:
                 return
 
-        # Validate state integrity
-        if job.data is not None:
-            valid = job.data.validate_state(job.data_hash)
-            if not valid:
-                self.restart_token(job)
-                return
-
         self.job_queue.insert(0, job)
-
-    def stop(self):
-        """Stop the job receiver."""
-        self.httpd.stop()
-        stop_thread(self.thread)

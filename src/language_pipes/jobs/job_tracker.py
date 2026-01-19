@@ -71,8 +71,7 @@ class JobTracker:
         if job_id in self.jobs_completed:
             return
         self.jobs_completed.append(job_id)
-        job = self.get_job(job_id)
-        if job is None or job.resolve is None:
+        if job.resolve is None:
             return
         self.logger.info(f'Received job complete for {job_id}\n')
         if self.config.print_times and job.times:

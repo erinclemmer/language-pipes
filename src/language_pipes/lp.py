@@ -18,6 +18,7 @@ from language_pipes.network_protocol import StateNetworkNode
 
 class LanguagePipes:
     logger: logging.Logger
+    router: StateNetworkNode
     
     job_factory: JobFactory
     job_receiver: JobReceiver
@@ -41,6 +42,7 @@ class LanguagePipes:
         self.set_logging_level(self.config.logging_level)
         
         self.router_pipes = None
+        self.router = router
 
         # Network pipe data for MetaPipe objects
         self.router_pipes = RouterPipes(router)
@@ -98,7 +100,7 @@ class LanguagePipes:
 
     def start_oai(self):
         if self.config.oai_port is None:
-            self.router.logger.error("Tried to start Open AI server but no port was specified")
+            self.logger.error("Tried to start Open AI server but no port was specified")
             return
         self.oai_server = OAIHttpServer(self.config.oai_port, self.job_factory.start_job)
         self.oai_thread = Thread(target=self.oai_server.serve_forever, args=())
@@ -113,7 +115,6 @@ class LanguagePipes:
 
     def stop(self):
         self.model_manager.stop()
-        self.job_receiver.stop()
         self.router.stop()
         if self.config.oai_port is not None:
             self.oai_server.shutdown()

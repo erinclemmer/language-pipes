@@ -70,7 +70,7 @@ class JobFactory:
         if self.config.print_job_data:
             job.print_job(self.logger)
         
-        network_job = job.to_layer_job()
+        network_job = job.to_network_job()
         pipe.send_job(network_job, self.config.node_id)
         self.job_tracker.jobs_pending.append(job)
 

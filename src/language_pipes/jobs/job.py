@@ -192,7 +192,7 @@ class Job:
             return self.update(self)
         return True
 
-    def to_layer_job(self) -> NetworkJob:
+    def to_network_job(self) -> NetworkJob:
         data_hash = self.data.hash_state() if self.data is not None else b''
         return NetworkJob(
             job_id=self.job_id, 

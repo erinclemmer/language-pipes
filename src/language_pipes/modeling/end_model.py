@@ -3,6 +3,7 @@ import torch
 from uuid import uuid4
 from torch import tensor
 from pathlib import Path
+from logging import Logger
 
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
@@ -10,10 +11,13 @@ from llm_layer_collector import LlmLayerCollector
 from llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from llm_layer_collector.compute import compute_embedding
 
-from language_pipes.util import clone_model
 from language_pipes.jobs.job import ComputeStep, Job
-from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.jobs.job_data import computationStateToJobData
+
+from language_pipes.modeling.llm_meta_data import LlmMetadata
+
+from language_pipes.util import clone_model
+from language_pipes.util.chunk_state import log_prefill_chunk_complete, log_prefill_chunk_start, log_prefill_summary
 
 class EndModel:
     model_id: str
@@ -56,21 +60,28 @@ class EndModel:
         job.prompt_tokens = len(input_tokens)
         job.next_step()
 
-    def compute_embed(self, job: Job, chunk_start: int = 0, chunk_end: int = -1):
-        """
-        Compute embeddings for a job, optionally for a specific chunk.
-        
-        Args:
-            job: The job to process
-            cache: The KV cache (DynamicCache)
-            chunk_start: Start index in input_ids for this chunk (0 for no chunking)
-            chunk_end: End index (exclusive) in input_ids (-1 means use full sequence)
-        """
-        if job.compute_step != ComputeStep.EMBED:
+    def compute_embed(self, job: Job, logger: Logger, prefill_chunk_size: int):
+        if job.compute_step != ComputeStep.EMBED and job.compute_step != ComputeStep.TOKENIZE:
             raise ValueError('Invalid step for embedding')
         if self.input_embedding is None:
             raise RuntimeError("Input Embedding must be loaded before computation")
         
+        chunking_initialized = False
+        if job.prompt_tokens == 0:
+            logger.info(f"[Prefill] job={job.job_id[:8]} started")
+            self.tokenize(job)
+            job.init_chunking(prefill_chunk_size)
+            job.chunking.print_start(logger)
+            chunking_initialized = True
+
+        chunk_start, chunk_end = (0, -1)
+        if job.current_token == 0 and job.chunking.has_more():
+            if not chunking_initialized:
+                log_prefill_chunk_complete(logger, job)
+                job.chunking.advance()
+            chunk_start, chunk_end = job.chunking.get_range()
+            log_prefill_chunk_start(logger, job, chunk_start, chunk_end)
+
         # Determine which tokens to embed and whether this is chunked prefill
         is_chunked_prefill = False
         if job.current_token == 0:

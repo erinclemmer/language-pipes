@@ -55,34 +55,37 @@ class LlmModel:
             pipe_id: str,
             device: str,
             model_dir: str,
-            process_id: Optional[str] = None
+            process_id: Optional[str] = None,
+            virtual: bool = False
     ):
         self.model_id = model_id
         self.node_id = node_id
         self.pipe_id = pipe_id
         self.loaded = False
-        self.virtual = False
+        self.virtual = virtual
         self.layers = []
         self.start_layer = -1
         self.end_layer = -1
         self.device = device
         self.model_dir = model_dir
-        model_path = str(Path(model_dir) / self.model_id)
-        if not os.path.exists(model_path):
-            clone_model(model_id, model_path)
-        self.collector = LlmLayerCollector(
-                model_dir=os.path.join(model_path, 'data'),
-                cache_file=os.path.join(model_path, 'cache.json'),
-                device=device,
-                dtype=torch.float16 
-        )
-        self.num_hidden_layers = self.collector.config.num_hidden_layers
+
+        if not virtual:
+            model_path = str(Path(model_dir) / self.model_id)
+            if not os.path.exists(model_path):
+                clone_model(model_id, model_path)
+            self.collector = LlmLayerCollector(
+                    model_dir=os.path.join(model_path, 'data'),
+                    cache_file=os.path.join(model_path, 'cache.json'),
+                    device=device,
+                    dtype=torch.float16 
+            )
+            self.num_hidden_layers = self.collector.config.num_hidden_layers
+            self.meta_data = LlmMetadata(model_path)
+
         if process_id is None:
             self.process_id = str(uuid4())
         else:
             self.process_id = process_id
-
-        self.meta_data = LlmMetadata(model_path)
             
     def load(self):
         if self.end_layer > self.num_hidden_layers:
@@ -117,7 +120,6 @@ Device: {self.device}
         job.add_timing(layer_time)
         self.compute_layers(job)
         layer_time.set_send_time()
-        job.data_hash = job.data.hash_state()
 
     def compute_layers(
         self, 
@@ -163,7 +165,8 @@ Device: {self.device}
             pipe_id=meta.pipe_id,
             device='cpu',
             model_dir=model_dir,
-            process_id=meta.process_id
+            process_id=meta.process_id,
+            virtual=True
         )
         model.loaded = meta.loaded
         model.start_layer = meta.start_layer

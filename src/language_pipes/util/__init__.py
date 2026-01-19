@@ -2,6 +2,7 @@ import io
 import re
 import os
 import shutil
+import struct
 from pathlib import Path
 import json
 import base64
@@ -12,6 +13,7 @@ from hashlib import sha256
 from threading import Thread
 from typing import Optional
 
+import numpy as np
 import torch
 
 def uuid_to_bytes(uid: str) -> bytes:
@@ -26,17 +28,58 @@ def int_to_bytes(i: int) -> bytes:
 def bytes_to_int(b: bytes) -> int:
     return int.from_bytes(b, 'little', signed=False)
 
+# Fast tensor serialization: dtype code (1 byte) + ndim (1 byte) + shape (4 bytes each) + raw data
+_DTYPE_TO_CODE = {
+    torch.float32: 0, torch.float64: 1, torch.float16: 2,
+    torch.int32: 3, torch.int64: 4, torch.int16: 5, torch.int8: 6,
+    torch.uint8: 7, torch.bool: 8, torch.bfloat16: 9,
+}
+_CODE_TO_DTYPE = {v: k for k, v in _DTYPE_TO_CODE.items()}
+
 def tensor_to_bytes(t: torch.Tensor | None) -> bytes:
     if t is None:
         return b''
-    bts = io.BytesIO()
-    torch.save(t, bts)
-    return bts.getvalue()
+    t_cpu = t.detach().cpu().contiguous()
+    dtype_code = _DTYPE_TO_CODE.get(t_cpu.dtype)
+    if dtype_code is None:
+        # Fallback for unsupported dtypes
+        bts = io.BytesIO()
+        torch.save(t_cpu, bts)
+        return b'\xff' + bts.getvalue()
+    
+    shape = t_cpu.shape
+    ndim = len(shape)
+    header = struct.pack('<BB' + 'I' * ndim, dtype_code, ndim, *shape)
+    
+    # bfloat16 doesn't have numpy support, so view as int16
+    if t_cpu.dtype == torch.bfloat16:
+        data = t_cpu.view(torch.int16).numpy().tobytes()
+    else:
+        data = t_cpu.numpy().tobytes()
+    
+    return header + data
 
-def bytes_to_tensor(b: bytes) -> torch.Tensor:
+def bytes_to_tensor(b: bytes) -> torch.Tensor | None:
     if b == b'':
         return None
-    return torch.load(io.BytesIO(b))
+    
+    if b[0] == 0xff:
+        # Fallback format
+        return torch.load(io.BytesIO(b[1:]), weights_only=True)
+    
+    dtype_code = b[0]
+    ndim = b[1]
+    shape = struct.unpack('<' + 'I' * ndim, b[2:2 + 4*ndim])
+    dtype = _CODE_TO_DTYPE[dtype_code]
+    data = b[2 + 4*ndim:]
+    
+    if dtype == torch.bfloat16:
+        arr = np.frombuffer(data, dtype=np.int16).reshape(shape).copy()
+        return torch.from_numpy(arr).view(torch.bfloat16)
+    else:
+        np_dtype = torch.zeros(1, dtype=dtype).numpy().dtype
+        arr = np.frombuffer(data, dtype=np_dtype).reshape(shape).copy()
+        return torch.from_numpy(arr)
 
 def get_tensor_byte_string(t: torch.Tensor) -> str:
     bts = tensor_to_bytes(t)

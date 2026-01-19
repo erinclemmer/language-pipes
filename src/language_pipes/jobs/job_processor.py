@@ -2,7 +2,9 @@ from time import time
 from enum import Enum, auto
 from dataclasses import dataclass
 from typing import Optional
+from logging import Logger
 
+from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_time import JobTime
 
 from language_pipes.pipes.pipe import Pipe
@@ -22,11 +24,11 @@ class JobState(Enum):
 
 @dataclass
 class JobContext:
+    job: Job
+    pipe: Pipe
+    logger: Logger
     config: LpConfig
-    logger: Optional[any] = None
-    job: Optional["Job"] = None
-    pipe: Optional[Pipe] = None
-    end_model: Optional[EndModel] = None
+    end_model: EndModel
 
 def should_prefill_chunk(job) -> bool:
     return job.current_token == 0 and job.chunking.has_more()
@@ -192,26 +194,9 @@ class JobProcessor:
     def _state_embed(self) -> JobState:
         """Embed the next token, handling prefill chunks when needed."""
         job = self.ctx.job
-        chunking_initialized = False
-        if job.prompt_tokens == 0:
-            self.ctx.logger.info(f"[Prefill] job={job.job_id[:8]} started")
-            self.ctx.end_model.tokenize(job)
-            job.init_chunking(self.ctx.config.prefill_chunk_size)
-            job.chunking.print_start(self.ctx.logger)
-            chunking_initialized = True
-
-        chunk_start, chunk_end = (0, -1)
-        if should_prefill_chunk(job):
-            job.set_last_update()
-            if not chunking_initialized:
-                log_prefill_chunk_complete(self.ctx.logger, job)
-                job.chunking.advance()
-            chunk_start, chunk_end = job.chunking.get_range()
-            log_prefill_chunk_start(self.ctx.logger, job, chunk_start, chunk_end)
-
         embed_time = JobTime(node_id=self.ctx.config.node_id, is_embed=True)
         job.add_timing(embed_time)
-        self.ctx.end_model.compute_embed(job, chunk_start, chunk_end)
+        self.ctx.end_model.compute_embed(job, self.ctx.logger, self.ctx.config.prefill_chunk_size)
         embed_time.set_send_time()
         
         if should_prefill_chunk(job) or job.chunking.is_active():
@@ -243,12 +228,14 @@ class JobProcessor:
         """Send job to next destination."""
         job = self.ctx.job
         pipe = self.ctx.pipe
-        network_job = job.to_layer_job()
+        network_job = job.to_network_job()
 
         if job.compute_step == ComputeStep.HEAD:
             pipe.send_job(network_job, network_job.origin_node_id)
         else:
             next_model = pipe.get_layer(network_job.current_layer, False)
+            if next_model is None:
+                return JobState.DONE
             pipe.send_job(network_job, next_model.node_id)
         
         return JobState.DONE

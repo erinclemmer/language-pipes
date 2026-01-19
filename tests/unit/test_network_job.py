@@ -41,7 +41,7 @@ class NetworkJobTests(unittest.TestCase):
             times=[layer_time],
         )
 
-        restored = NetworkJob.from_bytes(job.to_bytes())
+        restored, _ = NetworkJob.from_bytes(job.to_bytes())
 
         self.assertEqual(restored.job_id, "job-1")
         self.assertEqual(restored.pipe_id, "pipe-1")

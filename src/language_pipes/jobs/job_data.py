@@ -11,14 +11,10 @@ class JobData:
     causal_mask: Optional[torch.Tensor] = None
     sliding_causal_mask: Optional[torch.Tensor] = None
     position_ids: Optional[torch.Tensor] = None
-    position_embeddings: Optional[torch.Tensor] = None
-    position_embeddings_local: Optional[torch.Tensor] = None
-    position_embeddings_global: Optional[torch.Tensor] = None
+    position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
+    position_embeddings_local: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
+    position_embeddings_global: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
     state: Optional[torch.Tensor] = None
-
-    def validate_state(self, state_hash: bytes) -> bool:
-        current_hash = hashlib.sha256(self.to_bytes()).digest()
-        return current_hash == state_hash
 
     def hash_state(self):
         return hashlib.sha256(self.to_bytes()).digest()
@@ -29,9 +25,18 @@ class JobData:
         causal_mask_bytes = tensor_to_bytes(self.causal_mask)
         sliding_causal_mask_bytes = tensor_to_bytes(self.sliding_causal_mask)
         position_ids_bytes = tensor_to_bytes(self.position_ids)
-        position_embeddings_bytes = tensor_to_bytes(self.position_embeddings)
-        position_embeddings_local_bytes = tensor_to_bytes(self.position_embeddings_local)
-        position_embeddings_global_bytes = tensor_to_bytes(self.position_embeddings_global) 
+        position_embeddings_bytes = (
+            (tensor_to_bytes(self.position_embeddings[0]), tensor_to_bytes(self.position_embeddings[1]))
+            if self.position_embeddings is not None else (b'', b'')
+        )
+        position_embeddings_local_bytes = (
+            (tensor_to_bytes(self.position_embeddings_local[0]), tensor_to_bytes(self.position_embeddings_local[1]))
+            if self.position_embeddings_local is not None else (b'', b'')
+        )
+        position_embeddings_global_bytes = (
+            (tensor_to_bytes(self.position_embeddings_global[0]), tensor_to_bytes(self.position_embeddings_global[1]))
+            if self.position_embeddings_global is not None else (b'', b'')
+        )
 
         bts = ByteHelper()
 
@@ -40,9 +45,12 @@ class JobData:
         bts.write_bytes(causal_mask_bytes)
         bts.write_bytes(sliding_causal_mask_bytes)
         bts.write_bytes(position_ids_bytes)
-        bts.write_bytes(position_embeddings_bytes)
-        bts.write_bytes(position_embeddings_local_bytes)
-        bts.write_bytes(position_embeddings_global_bytes)
+        bts.write_bytes(position_embeddings_bytes[0])
+        bts.write_bytes(position_embeddings_bytes[1])
+        bts.write_bytes(position_embeddings_local_bytes[0])
+        bts.write_bytes(position_embeddings_local_bytes[1])
+        bts.write_bytes(position_embeddings_global_bytes[0])
+        bts.write_bytes(position_embeddings_global_bytes[1])
 
         return bts.get_bytes()
 
@@ -55,11 +63,24 @@ class JobData:
         job_data.causal_mask = bytes_to_tensor(bts.read_bytes())
         job_data.sliding_causal_mask = bytes_to_tensor(bts.read_bytes())
         job_data.position_ids = bytes_to_tensor(bts.read_bytes())
-        job_data.position_embeddings = bytes_to_tensor(bts.read_bytes())
-        job_data.position_embeddings_local = bytes_to_tensor(bts.read_bytes())
-        job_data.position_embeddings_global = bytes_to_tensor(bts.read_bytes())
+        pe0 = bytes_to_tensor(bts.read_bytes())
+        pe1 = bytes_to_tensor(bts.read_bytes())
+        job_data.position_embeddings = (pe0, pe1) if pe0 is not None else None
+        
+        pel0 = bytes_to_tensor(bts.read_bytes())
+        pel1 = bytes_to_tensor(bts.read_bytes())
+        job_data.position_embeddings_local = (pel0, pel1) if pel0 is not None else None
+        
+        peg0 = bytes_to_tensor(bts.read_bytes())
+        peg1 = bytes_to_tensor(bts.read_bytes())
+        job_data.position_embeddings_global = (peg0, peg1) if peg0 is not None else None
     
         return job_data
+
+    @staticmethod
+    def validate_state(data: bytes, state_hash: bytes) -> bool:
+        current_hash = hashlib.sha256(data).digest()
+        return current_hash == state_hash
 
 def move_position_embeddings(t: Optional[Tuple[torch.Tensor, torch.Tensor]], device: str) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
     if t is None:
