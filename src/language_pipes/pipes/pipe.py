@@ -40,13 +40,9 @@ class Pipe:
         self.segments = []
         self.tokenizer = lambda: AutoTokenizer.from_pretrained(model_path)
 
-    def raise_exception(self, msg: str):
-        self.router.logger.exception(msg)
-        raise Exception(msg)
-
     def send_job(self, job: NetworkJob, node_id: str):
         data = job.to_bytes()
-        if node_id == self.router.config.node_id:
+        if node_id == self.router.node_id():
             self.router.receive_data(data)
         else:
             self.router.send_to_node(node_id, data)

@@ -2,7 +2,9 @@ from time import time
 from enum import Enum, auto
 from dataclasses import dataclass
 from typing import Optional
+from logging import Logger
 
+from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_time import JobTime
 
 from language_pipes.pipes.pipe import Pipe
@@ -22,11 +24,11 @@ class JobState(Enum):
 
 @dataclass
 class JobContext:
+    job: Job
+    pipe: Pipe
+    logger: Logger
     config: LpConfig
-    logger: Optional[any] = None
-    job: Optional["Job"] = None
-    pipe: Optional[Pipe] = None
-    end_model: Optional[EndModel] = None
+    end_model: EndModel
 
 def should_prefill_chunk(job) -> bool:
     return job.current_token == 0 and job.chunking.has_more()
@@ -232,6 +234,8 @@ class JobProcessor:
             pipe.send_job(network_job, network_job.origin_node_id)
         else:
             next_model = pipe.get_layer(network_job.current_layer, False)
+            if next_model is None:
+                return JobState.DONE
             pipe.send_job(network_job, next_model.node_id)
         
         return JobState.DONE
