@@ -120,7 +120,6 @@ Device: {self.device}
         job.add_timing(layer_time)
         self.compute_layers(job)
         layer_time.set_send_time()
-        job.data_hash = job.data.hash_state()
 
     def compute_layers(
         self, 

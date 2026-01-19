@@ -16,10 +16,6 @@ class JobData:
     position_embeddings_global: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
     state: Optional[torch.Tensor] = None
 
-    def validate_state(self, state_hash: bytes) -> bool:
-        current_hash = hashlib.sha256(self.to_bytes()).digest()
-        return current_hash == state_hash
-
     def hash_state(self):
         return hashlib.sha256(self.to_bytes()).digest()
 
@@ -80,6 +76,11 @@ class JobData:
         job_data.position_embeddings_global = (peg0, peg1) if peg0 is not None else None
     
         return job_data
+
+    @staticmethod
+    def validate_state(data: bytes, state_hash: bytes) -> bool:
+        current_hash = hashlib.sha256(data).digest()
+        return current_hash == state_hash
 
 def move_position_embeddings(t: Optional[Tuple[torch.Tensor, torch.Tensor]], device: str) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
     if t is None:

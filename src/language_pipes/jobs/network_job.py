@@ -65,6 +65,10 @@ class NetworkJob:
         job_data = JobData.from_bytes(job_bytes) if job_bytes != b'' else None
         data_hash = bts.read_bytes()
 
+        valid = True
+        if data_hash != b'':
+            valid = JobData.validate_state(job_bytes, data_hash)
+
         times = []
         l = bts.read_int()
         for i in range(0, l):
@@ -79,4 +83,4 @@ class NetworkJob:
             data_hash=data_hash,
             compute_step=step,
             times=times
-        )
+        ), valid

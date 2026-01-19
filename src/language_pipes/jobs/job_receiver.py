@@ -107,18 +107,14 @@ class JobReceiver:
 
     def receive_data(self, data: bytes):
         """Receive and validate incoming job data."""
-        job = NetworkJob.from_bytes(data)
+        job, valid = NetworkJob.from_bytes(data)
+        if not valid:
+            self.restart_job(job)
+            return
         
         # Ignore duplicate jobs
         for j in self.job_queue:
             if j.job_id == job.job_id:
-                return
-
-        # Validate state integrity
-        if job.data is not None:
-            valid = job.data.validate_state(job.data_hash)
-            if not valid:
-                self.restart_token(job)
                 return
 
         self.job_queue.insert(0, job)
