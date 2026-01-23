@@ -169,7 +169,10 @@ def edit_config(config_path: str):
             )
         
         elif selected_key == "hosted_models":
-            config["hosted_models"] = edit_hosted_models(config.get("hosted_models", []))
+            try:
+                config["hosted_models"] = edit_hosted_models(config.get("hosted_models", []))
+            except KeyboardInterrupt:
+                continue
 
 def select_hosted_model(models: List[dict]) -> int | None:
     options = []
@@ -210,9 +213,12 @@ def edit_hosted_models(models: List) -> List[dict]:
             model_idx = select_hosted_model(models)
             if model_idx is None:
                 continue
-            edited = edit_single_model(models[model_idx])
-            if edited:
-                models[model_idx] = edited
+            try:
+                edited = edit_single_model(models[model_idx])
+                if edited:
+                    models[model_idx] = edited
+            except KeyboardInterrupt:
+                continue
 
         if selection == "Delete model":
             model_idx = select_hosted_model(models)
@@ -222,7 +228,6 @@ def edit_hosted_models(models: List) -> List[dict]:
 
         if selection == "Done editing models":
             return models
-
 
 def edit_single_model(model: dict) -> dict | None:
     print("\n--- Edit Model ---\n")
