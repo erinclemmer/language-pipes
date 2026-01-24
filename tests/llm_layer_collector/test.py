@@ -11,7 +11,7 @@ from torch import tensor
 from transformers import AutoTokenizer
 from transformers.cache_utils import DynamicCache
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '../src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../src'))
 
 from llm_layer_collector.layer_collector import LlmLayerCollector
 from llm_layer_collector.compute import compute_embedding, compute_head
@@ -21,7 +21,7 @@ from llm_layer_collector.load_layer import files_to_load_for_layer
 
 PROMPT = "The quick brown fox jumps over the "
 
-with open('mcbeth_3000.txt', 'r', encoding='utf-8') as f:
+with open('mcbeth.txt', 'r', encoding='utf-8') as f:
     mcbeth = f.read()
 
 def clone_model(model_id: str, model_dir: str):
@@ -35,10 +35,10 @@ def clone_model(model_id: str, model_dir: str):
 
 def get_cache_file(model_id: str):
     model_str = model_id.replace('/', '_')
-    return f"data/{model_str}.json"
+    return f"models/{model_id}/cache.json"
 
 def get_model_dir(model_id: str):
-    return f"models/{model_id}"
+    return f"models/{model_id}/data"
 
 def ensure_model(model_id: str):
     model_dir = get_model_dir(model_id)
@@ -213,23 +213,6 @@ class LlmLayerCollectorTests(unittest.TestCase):
         test_layers(self, model_dir, cache_file, 10)
         test_stack(self, model_dir, cache_file)
         test_chunked_prefill(self, model_dir, cache_file, chunk_size=32)
-
-    # def test_gemma3_1B(self):
-    #     model_id = "google/gemma-3-1b-it"
-    #     model_dir = get_model_dir(model_id)
-    #     cache_file = get_cache_file(model_id)
-    #     ensure_model(model_id)
-
-    # def test_gpt_oss_20B(self):
-    #     model_id = "openai/gpt-oss-20b"
-    #     model_dir = get_model_dir(model_id)
-    #     cache_file = get_cache_file(model_id)
-    #     ensure_model(model_id
-    #     test_cache(self, model_dir, cache_file, 459)
-    #     test_embedding(self, model_dir, cache_file, (1, 8, 2048), (1, 8), (1, 8, 128))
-    #     test_norm(self, model_dir, cache_file, 2048)
-    #     test_head(self, model_dir, cache_file, (151936, 2048))
-    #     test_layers(self, model_dir, cache_file, 10)
 
     def test_exceptions(self):
         model_id = "Qwen/Qwen3-1.7B"
