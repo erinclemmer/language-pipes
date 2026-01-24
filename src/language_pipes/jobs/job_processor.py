@@ -1,7 +1,5 @@
-from time import time
 from enum import Enum, auto
 from dataclasses import dataclass
-from typing import Optional
 from logging import Logger
 
 from language_pipes.jobs.job import Job
@@ -12,7 +10,7 @@ from language_pipes.modeling.end_model import EndModel
 
 from language_pipes.util.enums import ComputeStep, JobStatus
 from language_pipes.config import LpConfig
-from language_pipes.util.chunk_state import log_prefill_chunk_complete, log_prefill_chunk_start, log_prefill_summary
+from language_pipes.util.chunk_state import log_prefill_chunk_complete, log_prefill_summary
 
 class JobState(Enum):
     VALIDATING = auto()    # Validating pipe and getting resources

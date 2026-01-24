@@ -1,18 +1,14 @@
 import os
 import sys
-import torch
 import unittest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tests', 'language_pipes'))
 
-from language_pipes.config import LpConfig
-from language_pipes.jobs.job import Job
-from language_pipes.jobs.job_data import JobData
-from language_pipes.jobs.job_processor import JobContext, JobProcessor, JobState
-from language_pipes.util.enums import ComputeStep, JobStatus
+from language_pipes.jobs.job_processor import JobState
+from language_pipes.util.enums import ComputeStep
 
-from tests.unit.job_processor.util import make_processor, make_job, make_config, FakeEndModel, FakeModel, FakePipe, EmptyPipe
+from job_processor.util import make_processor, make_job, make_config, FakeEndModel, FakeModel, FakePipe, EmptyPipe
 
 class TestEmbedState(unittest.TestCase):
     """Tests for the _state_embed method."""
