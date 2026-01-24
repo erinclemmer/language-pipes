@@ -7,27 +7,26 @@ import unittest
 import requests
 from typing import List, Dict
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '../src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../src'))
 
-from distributed_state_network import DSNodeServer, Endpoint, DSNodeConfig
+from distributed_state_network import DSNodeServer, DSNodeConfig
 
 from distributed_state_network.objects.state_packet import StatePacket
 from distributed_state_network.objects.hello_packet import HelloPacket
 from distributed_state_network.objects.data_packet import DataPacket
-
-from distributed_state_network.util.aes import generate_aes_key
 
 current_port = 8000
 nodes = []
 
 aes_key = DSNodeServer.generate_key()
 
-def spawn_node(node_id: str, bootstrap_nodes: List[Dict] = []):
+def spawn_node(node_id: str, network_ip: str, bootstrap_nodes: List[Dict] = []):
     global current_port
     current_port += 1
     n = DSNodeServer.start(DSNodeConfig.from_dict({
         "node_id": node_id,
         "port": current_port,
+        "network_ip": network_ip,
         "aes_key": aes_key,
         "bootstrap_nodes": bootstrap_nodes
     }))
@@ -49,11 +48,11 @@ class TestNode(unittest.TestCase):
             shutil.rmtree('credentials')
 
     def test_single(self):
-        spawn_node("one")
+        spawn_node("one", "127.0.0.1")
 
     def test_double(self):
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         self.assertIn("connector", list(bootstrap.node.peers()))
         self.assertIn("bootstrap", list(bootstrap.node.peers()))
 
@@ -61,8 +60,8 @@ class TestNode(unittest.TestCase):
         self.assertIn("bootstrap", list(connector.node.peers()))
 
     def test_many(self):
-        bootstrap = spawn_node("bootstrap")
-        connectors = [spawn_node(f"node-{i}", [bootstrap.node.my_con().to_json()]) for i in range(0, 10)]
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connectors = [spawn_node(f"node-{i}", None, [bootstrap.node.my_con().to_json()]) for i in range(0, 10)]
 
         boot_peers = list(bootstrap.node.peers())
 
@@ -74,13 +73,13 @@ class TestNode(unittest.TestCase):
                 self.assertIn(f"node-{i}", list(peers))
 
     def test_multi_bootstrap(self):
-        bootstraps = [spawn_node(f"bootstrap-{i}") for i in range(0, 3)]
+        bootstraps = [spawn_node(f"bootstrap-{i}", "127.0.0.1") for i in range(0, 3)]
         for i in range(1, len(bootstraps)):
             bootstraps[i].node.bootstrap(bootstraps[i-1].node.my_con())
         
         connectors = []
         for bs in bootstraps:
-            new_connectors = [spawn_node(f"node-{i}", [bs.node.my_con().to_json()]) for i in range(len(connectors), len(connectors) + 3)]
+            new_connectors = [spawn_node(f"node-{i}", None, [bs.node.my_con().to_json()]) for i in range(len(connectors), len(connectors) + 3)]
         
             connectors.extend(new_connectors)
         
@@ -100,8 +99,8 @@ class TestNode(unittest.TestCase):
                 self.assertIn(c.config.node_id, peers)
 
     def test_reconnect(self):
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         self.assertIn(connector.config.node_id, bootstrap.node.peers())
         connector.stop()
         time.sleep(10)
@@ -109,13 +108,13 @@ class TestNode(unittest.TestCase):
 
     @unittest.skip("")
     def test_churn(self):
-        bootstrap = spawn_node("bootstrap")
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
         
         stopped = []
         connectors = []
         network_labels = ["bootstrap"]
         for i in range(5):
-            new_connectors = [spawn_node(f"node-{i}", [bootstrap.node.my_con().to_json()]) for i in range(len(connectors), len(connectors) + 5)]
+            new_connectors = [spawn_node(f"node-{i}", None, [bootstrap.node.my_con().to_json()]) for i in range(len(connectors), len(connectors) + 5)]
             connectors.extend(new_connectors)
             for c in new_connectors:
                 network_labels.append(c.config.node_id)
@@ -130,8 +129,8 @@ class TestNode(unittest.TestCase):
                 self.assertEqual(sorted(network_labels), sorted(list(c.node.peers())))
 
     def test_state(self):
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
 
         self.assertEqual(None, bootstrap.node.read_data("connector", "foo"))
 
@@ -151,7 +150,7 @@ class TestNode(unittest.TestCase):
 
     def test_authorization(self):
         """Test that unauthorized HTTP requests are rejected"""
-        n = spawn_node("node")
+        n = spawn_node("node", "127.0.0.1")
         
         # Give Flask server time to start
         time.sleep(0.5)
@@ -185,12 +184,12 @@ class TestNode(unittest.TestCase):
         self.assertEqual(decrypted[0], 4)  # Should be MSG_PING response
 
     def test_version_matching(self):
-        bootstrap = spawn_node("bootstrap")
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
         # Modify version after creation
         old_version = bootstrap.node.version
         bootstrap.node.version = "bad_version"
         try:
-            connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+            connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
             self.fail("Should throw error when connecting with version mismatch")
         except Exception as e:
             print(e)
@@ -198,8 +197,8 @@ class TestNode(unittest.TestCase):
             bootstrap.node.version = old_version
 
     def test_bad_req_data(self):
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         try: 
             # Try to send malformed data
             connector.node.send_http_request(bootstrap.node.my_con(), 1, b'MALFORMED_DATA')
@@ -208,8 +207,8 @@ class TestNode(unittest.TestCase):
             print(e)
 
     def test_bad_update(self):
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         bt_prv_key = bootstrap.node.cred_manager.my_private()
         cn_prv_key = connector.node.cred_manager.my_private()
         state = StatePacket.create("bootstrap", time.time(), bt_prv_key, { })
@@ -235,15 +234,15 @@ class TestNode(unittest.TestCase):
         self.assertFalse(bootstrap.node.handle_update(state.to_bytes()))
     
     def test_bad_hello(self):
-        bootstrap = spawn_node("bootstrap")
-        connector_0 = spawn_node("connector-0", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector_0 = spawn_node("connector-0", None, [bootstrap.node.my_con().to_json()])
         connector_0.stop()
-        connector_1 = spawn_node("connector-1", [bootstrap.node.my_con().to_json()])
+        connector_1 = spawn_node("connector-1", "127.0.0.1", [bootstrap.node.my_con().to_json()])
         self.assertEqual(sorted(connector_1.node.peers()), ["bootstrap", "connector-1"])
 
     def test_connection_from_node(self):
-        n0 = spawn_node("node-0")
-        n1 = spawn_node("node-1", [n0.node.my_con().to_json()])
+        n0 = spawn_node("node-0", "127.0.0.1")
+        n1 = spawn_node("node-1", None, [n0.node.my_con().to_json()])
         con = n0.node.connection_from_node("node-1")
         self.assertEqual(con.port, n1.config.port)
         try:
@@ -304,14 +303,14 @@ class TestNode(unittest.TestCase):
 
     def test_peers_wrapper(self):
         """Test DSNodeServer.peers() wrapper method"""
-        bootstrap = spawn_node("bootstrap")
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
         # Single node should have itself in peers
         peers = bootstrap.peers()
         self.assertIsInstance(peers, list)
         self.assertIn("bootstrap", peers)
         
         # After connection, both nodes should see each other
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         
         bootstrap_peers = bootstrap.peers()
         connector_peers = connector.peers()
@@ -323,8 +322,8 @@ class TestNode(unittest.TestCase):
 
     def test_read_data_wrapper(self):
         """Test DSNodeServer.read_data() wrapper method"""
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         
         # Reading non-existent key should return None
         result = bootstrap.read_data("connector", "nonexistent_key")
@@ -344,8 +343,8 @@ class TestNode(unittest.TestCase):
 
     def test_update_data_wrapper(self):
         """Test DSNodeServer.update_data() wrapper method"""
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         
         # Update data via wrapper
         bootstrap.update_data("wrapper_key", "wrapper_value")
@@ -368,7 +367,7 @@ class TestNode(unittest.TestCase):
 
     def test_is_shut_down_wrapper(self):
         """Test DSNodeServer.is_shut_down() wrapper method"""
-        node = spawn_node("shutdown_test")
+        node = spawn_node("shutdown_test", "127.0.0.1")
         
         # Node should not be shut down initially
         self.assertFalse(node.is_shut_down())
@@ -383,22 +382,22 @@ class TestNode(unittest.TestCase):
 
     def test_node_id_wrapper(self):
         """Test DSNodeServer.node_id() wrapper method"""
-        node = spawn_node("test_node_id")
+        node = spawn_node("test_node_id", "127.0.0.1")
         
         # node_id() should return the configured node_id
         self.assertEqual("test_node_id", node.node_id())
         
         # Test with different node names
-        node2 = spawn_node("another_node")
+        node2 = spawn_node("another_node", "127.0.0.1")
         self.assertEqual("another_node", node2.node_id())
         
-        node3 = spawn_node("node-with-dashes")
+        node3 = spawn_node("node-with-dashes", "127.0.0.1")
         self.assertEqual("node-with-dashes", node3.node_id())
 
     def test_multiple_data_updates(self):
         """Test multiple data updates via wrapper methods"""
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         
         # Update multiple keys
         bootstrap.update_data("key1", "value1")
@@ -413,8 +412,8 @@ class TestNode(unittest.TestCase):
 
     def test_peers_after_disconnect(self):
         """Test peers() wrapper after a node disconnects"""
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         
         # Both should see each other
         self.assertIn("connector", bootstrap.peers())
@@ -434,8 +433,8 @@ class TestNode(unittest.TestCase):
 
     def test_wrapper_methods_consistency(self):
         """Test that wrapper methods are consistent with direct node access"""
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         
         # peers() should match node.peers()
         self.assertEqual(bootstrap.peers(), bootstrap.node.peers())
@@ -458,12 +457,12 @@ class TestNode(unittest.TestCase):
         )
 
     def test_authentication_reset(self):
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         connector.stop()
         shutil.rmtree("credentials/connector")
         try:
-            connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+            connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
             self.fail("Should not be able to authenticate with bootstrap and throw error because credentials are reset")
         except Exception as e:
             print(e)
@@ -471,15 +470,15 @@ class TestNode(unittest.TestCase):
     def test_reauthentication(self):
         if os.path.exists("credentials"):
             shutil.rmtree("credentials")
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         connector.stop()
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         self.assertIn('connector', bootstrap.node.peers())
 
     def test_http_endpoints(self):
         """Test that HTTP endpoints are accessible"""
-        n = spawn_node("http-test-node")
+        n = spawn_node("http-test-node", "127.0.0.1")
         
         # Test that all endpoints exist
         endpoints = ['/hello', '/peers', '/update', '/ping', '/data']
@@ -502,17 +501,17 @@ class TestNode(unittest.TestCase):
         payload = b"Hello, world!"
         def recv_fn(data: bytes):
             self.assertEqual(data, payload)
-        bootstrap = spawn_node("bootstrap")
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
         bootstrap.set_receive_cb(recv_fn)
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
 
         # Direct DSNode API
         resp = connector.node.send_to_node("bootstrap", payload)
         self.assertEqual(resp, "OK")
 
     def test_send_to_node_wrapper(self):
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
 
         # DSNodeServer wrapper
         resp = connector.send_to_node("bootstrap", b"Hello via wrapper")
@@ -520,7 +519,7 @@ class TestNode(unittest.TestCase):
 
     def test_data_route_unknown_sender(self):
         # Start a single node; it should reject data packets from unknown senders
-        n = spawn_node("node")
+        n = spawn_node("node", "127.0.0.1")
         time.sleep(0.5)  # Allow server to start
 
         # Craft a DataPacket with a node_id that's not in address book
@@ -537,8 +536,8 @@ class TestNode(unittest.TestCase):
 
     def test_data_route_bad_signature(self):
         # Connect two nodes so bootstrap knows connector's public key
-        bootstrap = spawn_node("bootstrap")
-        connector = spawn_node("connector", [bootstrap.node.my_con().to_json()])
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
 
         # Create a packet claiming to be from connector but without a valid signature
         pkt = DataPacket("connector", b"", b"payload")

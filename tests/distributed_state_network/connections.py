@@ -4,7 +4,7 @@ import time
 import unittest
 from typing import Optional, Callable
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '../src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../src'))
 
 from distributed_state_network import DSNodeServer, DSNodeConfig, Endpoint
 

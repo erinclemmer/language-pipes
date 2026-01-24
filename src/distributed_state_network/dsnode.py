@@ -76,8 +76,6 @@ class DSNode:
         return bytes.fromhex(self.config.aes_key)
 
     def write_address_book(self, node_id: str, conn: Endpoint):
-        if conn.address == "127.0.0.1" and conn.port == self.config.port:
-            raise Exception("Trying to write address book for self")
         self.logger.info(f"Address set: {node_id} -> {conn.address}:{conn.port}")
         self.address_book[node_id] = conn
 
@@ -255,7 +253,7 @@ class DSNode:
         if pkt.detected_address:
             self.logger.info(f"Server detected our IP as: {pkt.detected_address}")
             # Update our own connection in the address book with the detected IP
-            self.write_address_book(self.config.node_id, pkt.detected_address, self.config.port)
+            self.write_address_book(self.config.node_id, Endpoint(pkt.detected_address, self.config.port))
         
         self.write_address_book(pkt.node_id, con)
 

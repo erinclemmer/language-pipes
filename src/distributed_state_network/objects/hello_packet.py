@@ -10,7 +10,6 @@ class HelloPacket(SignedPacket):
     node_id: str
     connection: Endpoint
     ecdsa_public_key: bytes
-    https_certificate: bytes
     detected_address: Optional[str]  # IP address detected by bootstrap node
 
     def __init__(
@@ -20,7 +19,6 @@ class HelloPacket(SignedPacket):
         connection: Endpoint,
         ecdsa_public_key: bytes,
         ecdsa_signature: bytes,
-        https_certificate: bytes,
         detected_address: Optional[str] = None
     ):
         super().__init__(ecdsa_signature)
@@ -28,19 +26,20 @@ class HelloPacket(SignedPacket):
         self.node_id = node_id
         self.connection = connection
         self.ecdsa_public_key = ecdsa_public_key
-        self.https_certificate = https_certificate
         self.detected_address = detected_address
 
     def to_bytes(self, include_signature: bool = True):
         bts = ByteHelper()
         bts.write_string(self.version)
         bts.write_string(self.node_id)
-        bts.write_bytes(self.connection.to_bytes())
+        if self.connection.address is not None:
+            bts.write_bytes(self.connection.address.encode())
+        else:
+            bts.write_bytes(b'')
+        bts.write_int(self.connection.port)
         bts.write_bytes(self.ecdsa_public_key)
         if include_signature:
             bts.write_bytes(self.ecdsa_signature)
-        if self.https_certificate is not None:
-            bts.write_bytes(self.https_certificate)
         # Add detected address (empty string if None)
         bts.write_string(self.detected_address or "")
         
@@ -51,14 +50,22 @@ class HelloPacket(SignedPacket):
         bts = ByteHelper(data)
         version = bts.read_string()
         node_id = bts.read_string()
-        connection = Endpoint.from_bytes(bts.read_bytes())
+        addr_bytes = bts.read_bytes()
+        address = None
+        if addr_bytes != b'':
+            address = addr_bytes.decode()
+        port = bts.read_int()
+
+        connection = Endpoint(
+            address=address,
+            port=port
+        )
         ecdsa_public_key = bts.read_bytes()
         ecdsa_signature = bts.read_bytes()
-        https_certificate = bts.read_bytes() or None
         # Read detected address (may be empty string for older packets)
         detected_address = bts.read_string() or None
 
         if version == '' or node_id == '' or ecdsa_public_key == b'':
             raise Exception(406, "Malformed packet") # Not acceptable
 
-        return HelloPacket(version, node_id, connection, ecdsa_public_key, ecdsa_signature, https_certificate, detected_address)
+        return HelloPacket(version, node_id, connection, ecdsa_public_key, ecdsa_signature, detected_address)
