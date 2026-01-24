@@ -1,11 +1,10 @@
 import os
 import socket
 import toml
-from unique_names_generator import get_random_name
 
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.commands.view import view_config
-from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_model_id, prompt_number_choice, prompt_continue, show_banner
+from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_model_id, show_banner
 
 def interactive_init(output_path: str):
     show_banner("Configuration Setup")
@@ -208,4 +207,4 @@ def interactive_init(output_path: str):
 
     view_config(output_path)
     
-    print(f"\n✓ Configuration saved")
+    print("\n✓ Configuration saved")

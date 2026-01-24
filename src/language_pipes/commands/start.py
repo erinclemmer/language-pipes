@@ -1,18 +1,15 @@
 import os
-import re
 import toml
 from pathlib import Path
-from unique_names_generator import get_random_name
 
 from distributed_state_network import DSNodeServer, DSNodeConfig
 
 from language_pipes.config import LpConfig, default_config_dir, default_model_dir
-from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.edit import edit_config
 from language_pipes.commands.view import view_config
 from language_pipes.lp import LanguagePipes
-from language_pipes.util.user_prompts import prompt_bool, prompt, prompt_choice, prompt_number_choice, select_config, get_config_files, show_banner
+from language_pipes.util.user_prompts import prompt, prompt_number_choice, select_config, get_config_files, show_banner
 from language_pipes.util import sanitize_file_name
 
 def start_server(apply_overrides, app_dir: str, config_path: str, version: str):

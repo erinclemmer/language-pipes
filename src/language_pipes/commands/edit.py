@@ -1,12 +1,10 @@
-import os
 import socket
 import toml
 from typing import List
-from unique_names_generator import get_random_name
 
 from language_pipes.commands.view import view_config
 from language_pipes.util.aes import generate_aes_key
-from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_number_choice, prompt_continue, show_banner, prompt_model_id
+from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_number_choice, show_banner, prompt_model_id
 
 def edit_config(config_path: str):
     with open(config_path, 'r', encoding='utf-8') as f:
@@ -183,7 +181,7 @@ def select_hosted_model(models: List[dict]) -> int | None:
     model_selection = prompt_choice("Select Model", options)
     if model_selection == "Cancel":
         return None
-    return options.index(selection)
+    return options.index(model_selection)
 
 def edit_hosted_models(models: List) -> List[dict]:
     while True:
