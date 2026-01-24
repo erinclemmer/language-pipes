@@ -34,7 +34,6 @@ def clone_model(model_id: str, model_dir: str):
     subprocess.run(["git", "lfs", "pull"], cwd=model_dir, check=True)
 
 def get_cache_file(model_id: str):
-    model_str = model_id.replace('/', '_')
     return f"models/{model_id}/cache.json"
 
 def get_model_dir(model_id: str):
@@ -46,7 +45,7 @@ def ensure_model(model_id: str):
         return
     clone_model(model_id, model_dir)
 
-def test_cache(tst: unittest.TestCase, model_dir: str, cache_file: str, num_keys: int):
+def check_cache(tst: unittest.TestCase, model_dir: str, cache_file: str, num_keys: int):
     collector = LlmLayerCollector(model_dir, cache_file)
     tst.assertEqual(len(collector.layer_files.keys()), num_keys)
     tst.assertTrue(os.path.exists(cache_file))
@@ -55,7 +54,7 @@ def test_cache(tst: unittest.TestCase, model_dir: str, cache_file: str, num_keys
         cache = json.load(f)
         tst.assertEqual(len(cache.keys()), num_keys)
 
-def test_embedding(tst: unittest.TestCase, model_dir: str, cache_file: str, state_shape, position_ids_shape, position_embeddings_shape):
+def check_embedding(tst: unittest.TestCase, model_dir: str, cache_file: str, state_shape, position_ids_shape, position_embeddings_shape):
     collector = LlmLayerCollector(model_dir, cache_file)
     input_embedder = collector.load_input_embedding()
     tokenizer = AutoTokenizer.from_pretrained(model_dir)
@@ -66,30 +65,30 @@ def test_embedding(tst: unittest.TestCase, model_dir: str, cache_file: str, stat
     tst.assertEqual(state.position_embeddings[0].shape, position_embeddings_shape)
     tst.assertEqual(state.position_embeddings[1].shape, position_embeddings_shape)
 
-def test_norm(tst: unittest.TestCase, model_dir: str, cache_file: str, norm_dim: int):
+def check_norm(tst: unittest.TestCase, model_dir: str, cache_file: str, norm_dim: int):
     collector = LlmLayerCollector(model_dir, cache_file)
     norm = collector.load_norm()
     norm = norm.to('cpu')
     norm = norm.to(dtype=torch.float16)
     tst.assertEqual(norm.weight.shape, (norm_dim,))
 
-def test_head(tst: unittest.TestCase, model_dir: str, cache_file: str, head_shape):
+def check_head(tst: unittest.TestCase, model_dir: str, cache_file: str, head_shape):
     collector = LlmLayerCollector(model_dir, cache_file)
     head = collector.load_head()
     tst.assertEqual(head.weight.shape, head_shape)
 
-def test_layers(tst: unittest.TestCase, model_dir: str, cache_file: str, end_layer: int):
+def check_layers(tst: unittest.TestCase, model_dir: str, cache_file: str, end_layer: int):
     start_time = time()
     collector = LlmLayerCollector(model_dir, cache_file)
     layers = collector.load_layer_set(0, end_layer)
     print(f"Time: {time() - start_time:.2f}s")
     tst.assertEqual(len(layers), end_layer+1)
 
-def test_stack(tst: unittest.TestCase, model_dir: str, cache_file: str):
+def check_stack(tst: unittest.TestCase, model_dir: str, cache_file: str):
     tokenizer = AutoTokenizer.from_pretrained(model_dir)
     chat = [
         {"role": "system", "content": "You are a helpful assistant",},
-        {"role": "user", "content": f"What are molecules?"},
+        {"role": "user", "content": "What are molecules?"},
     ]
     input_ids = tokenizer.apply_chat_template(chat, tokenize=True, add_generation_prompt=True, return_tensors='pt')
     original_num_tokens = input_ids.shape[1]
@@ -117,7 +116,7 @@ def test_stack(tst: unittest.TestCase, model_dir: str, cache_file: str):
         print(tokenizer.decode(input_ids[0]))
     tst.assertGreater(input_ids.shape[1], original_num_tokens)
 
-def test_chunked_prefill(tst: unittest.TestCase, model_dir: str, cache_file: str, chunk_size: int = 8):
+def check_chunked_prefill(tst: unittest.TestCase, model_dir: str, cache_file: str, chunk_size: int = 8):
     """
     Test chunked prefill processing where a long prompt is split into chunks.
     Each chunk is processed through all layers before moving to the next chunk.
@@ -200,19 +199,19 @@ def test_chunked_prefill(tst: unittest.TestCase, model_dir: str, cache_file: str
     
     tst.assertEqual(current_ids.shape[1], total_tokens + num_decode_tokens)
 
-class LlmLayerCollectorTests(unittest.TestCase):
+class TestLlmLayerCollector(unittest.TestCase):
     def test_qwen3_2B(self):
         model_id = "Qwen/Qwen3-1.7B"
         model_dir = get_model_dir(model_id)
         cache_file = get_cache_file(model_id)
         ensure_model(model_id)
-        test_cache(self, model_dir, cache_file, 311)
-        test_embedding(self, model_dir, cache_file, (1, 8, 2048), (1, 8), (1, 8, 128))
-        test_norm(self, model_dir, cache_file, 2048)
-        test_head(self, model_dir, cache_file, (151936, 2048))
-        test_layers(self, model_dir, cache_file, 10)
-        test_stack(self, model_dir, cache_file)
-        test_chunked_prefill(self, model_dir, cache_file, chunk_size=32)
+        check_cache(self, model_dir, cache_file, 311)
+        check_embedding(self, model_dir, cache_file, (1, 8, 2048), (1, 8), (1, 8, 128))
+        check_norm(self, model_dir, cache_file, 2048)
+        check_head(self, model_dir, cache_file, (151936, 2048))
+        check_layers(self, model_dir, cache_file, 10)
+        check_stack(self, model_dir, cache_file)
+        check_chunked_prefill(self, model_dir, cache_file, chunk_size=32)
 
     def test_exceptions(self):
         model_id = "Qwen/Qwen3-1.7B"
