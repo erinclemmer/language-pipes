@@ -1,10 +1,10 @@
-from typing import Dict
+from typing import Dict, Optional
 from dataclasses import dataclass
 from distributed_state_network.util.byte_helper import ByteHelper
 
 @dataclass(frozen=True)
 class Endpoint:
-    address: str
+    address: Optional[str]
     port: int
 
     def to_string(self):
@@ -12,7 +12,10 @@ class Endpoint:
 
     def to_bytes(self):
         bts = ByteHelper()
-        bts.write_string(self.address)
+        if self.address is not None:
+            bts.write_string(self.address)
+        else:
+            bts.write_string("")
         bts.write_int(self.port)
 
         return bts.get_bytes()
@@ -27,6 +30,8 @@ class Endpoint:
     def from_bytes(data: bytes):
         bts = ByteHelper(data)
         address = bts.read_string()
+        if address == "":
+            address = None
         port = bts.read_int()
 
         return Endpoint(address, port)

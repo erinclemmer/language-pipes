@@ -1,4 +1,3 @@
-import os
 import time
 import random
 import logging
@@ -41,7 +40,7 @@ class DSNode:
     config: DSNodeConfig
     address_book: Dict[str, Endpoint]
     node_states: Dict[str, StatePacket]
-    shutting_down: bool = False
+    shutting_down: bool
 
     def __init__(
             self, 
@@ -53,6 +52,7 @@ class DSNode:
         ):
         self.config = config
         self.version = version
+        self.shutting_down = False
         
         self.cred_manager = CredentialManager(config.credential_dir, config.node_id)
         self.cred_manager.generate_keys()
@@ -72,7 +72,9 @@ class DSNode:
         
         threading.Thread(target=self.network_tick, daemon=True).start()
 
-    def get_aes_key(self) -> bytes:
+    def get_aes_key(self) -> Optional[bytes]:
+        if self.config.aes_key is None:
+            return None
         return bytes.fromhex(self.config.aes_key)
 
     def write_address_book(self, node_id: str, conn: Endpoint):
@@ -186,10 +188,16 @@ class DSNode:
         return self.send_http_request(con, msg_type, payload)
 
     def encrypt_data(self, data: bytes) -> bytes:
-        return aes_encrypt(self.get_aes_key(), data)
+        key = self.get_aes_key()
+        if key is None:
+            return data
+        return aes_encrypt(key, data)
 
     def decrypt_data(self, data: bytes) -> bytes:
-        return aes_decrypt(self.get_aes_key(), data)
+        key = self.get_aes_key()
+        if key is None:
+            return data
+        return aes_decrypt(key, data)
 
     def request_peers(self, node_id: str):
         pkt = PeersPacket(self.config.node_id, None, { })

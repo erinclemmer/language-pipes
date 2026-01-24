@@ -38,7 +38,7 @@ def view_config(config_path: str):
         _print_property("Bootstrap Address", bootstrap, descriptions["bootstrap_address"])
         _print_property("Bootstrap Port", config.get("bootstrap_port"), descriptions["bootstrap_port"])
     else:
-        print(f"  Bootstrap Node:     Not configured (this is a standalone/first node)")
+        print("  Bootstrap Node:     Not configured (this is a standalone/first node)")
     
     network_key = config.get("network_key")
     if network_key:
@@ -46,14 +46,14 @@ def view_config(config_path: str):
         display_key = network_key[:8] + "..." + network_key[-8:] if len(network_key) > 20 else network_key
         _print_property("Network Key", display_key, descriptions["network_key"])
     else:
-        print(f"  Network Encryption: Disabled")
+        print("  Network Encryption: Disabled")
     
     print("\n--- API Settings ---")
     oai_port = config.get("oai_port")
     if oai_port:
         _print_property("OpenAI API Port", oai_port, descriptions["oai_port"])
     else:
-        print(f"  OpenAI API:         Disabled")
+        print("  OpenAI API:         Disabled")
     
     print("\n--- Performance & Security ---")
     _print_property("Logging Level", config.get("logging_level", "INFO"), descriptions["logging_level"])

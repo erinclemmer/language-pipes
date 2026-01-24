@@ -22,6 +22,12 @@ MSG_PING = 4
 MSG_DATA = 5
 
 class DSNodeServer:
+    config: DSNodeConfig
+    running: bool
+    app: Flask
+    node: DSNode
+    thread: Optional[threading.Thread]
+
     def __init__(
         self, 
         config: DSNodeConfig,
@@ -31,6 +37,7 @@ class DSNodeServer:
     ):
         self.config = config
         self.running = False
+        self.thread = None
         
         # Create Flask app
         self.app = Flask(__name__)
@@ -66,7 +73,7 @@ class DSNodeServer:
             return self._handle_request(MSG_DATA, request.data, request.remote_addr)
 
 
-    def _handle_request(self, msg_type: int, data: bytes, remote_addr: str) -> Response:
+    def _handle_request(self, msg_type: int, data: bytes, remote_addr: Optional[str]) -> Response:
         if not self.running:
             return Response(status=500)
         try:
@@ -89,6 +96,8 @@ class DSNodeServer:
             
             if msg_type == MSG_HELLO:
                 # Pass the detected IP address to handle_hello
+                if remote_addr is None:
+                    raise ValueError("Must supply remote address with hello")
                 response_data = self.node.handle_hello(body, remote_addr)
                 
             elif msg_type == MSG_PEERS:
@@ -125,7 +134,7 @@ class DSNodeServer:
     def stop(self):
         self.node.shutting_down = True
         self.running = False
-        if hasattr(self, 'thread'):
+        if self.thread is not None:
             stop_thread(self.thread)
 
     def serve_forever(self, port: int):
@@ -191,4 +200,5 @@ class DSNodeServer:
         self.node.disconnect_cb = cb
 
     def receive_data(self, data: bytes):
-        self.node.receive_cb(data)
+        if self.node.receive_cb is not None:
+            self.node.receive_cb(data)

@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 from distributed_state_network.objects.endpoint import Endpoint
@@ -8,8 +8,8 @@ class DSNodeConfig:
     node_id: str
     credential_dir: str
     port: int
-    network_ip: str
-    aes_key: str | None
+    network_ip: Optional[str]
+    aes_key: Optional[str]
     bootstrap_nodes: List[Endpoint]
 
     @staticmethod

@@ -1,9 +1,10 @@
 from io import BytesIO
+from typing import Optional
 from distributed_state_network.util import bytes_to_int, int_to_bytes, float_to_bytes, bytes_to_float
 
 class ByteHelper:
-    def __init__(self, data: bytes = None):
-        self.bts = BytesIO(data)
+    def __init__(self, data: Optional[bytes] = None):
+        self.bts = BytesIO(data) if data is not None else BytesIO()
 
     def write_string(self, s: str):
         encoded = s.encode('utf-8')

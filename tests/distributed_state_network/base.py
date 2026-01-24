@@ -17,7 +17,7 @@ aes_key = DSNodeServer.generate_key()
 
 def spawn_node(
     node_id: str,
-    network_ip: str,
+    network_ip: Optional[str],
     bootstrap_nodes: List[Dict] = [],
     disconnect_cb: Optional[Callable] = None,
     update_cb: Optional[Callable] = None

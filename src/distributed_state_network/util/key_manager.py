@@ -62,11 +62,11 @@ class KeyManager:
         with open(f'{self.folder}/{self.node_id}/{self.node_id}.{self.private_extension}', 'rb') as f:
             return f.read()
 
-    def generate_keys(self, network_ip: str = None):
+    def generate_keys(self):
         if os.path.exists(f'{self.folder}/{self.node_id}/{self.node_id}.{self.private_extension}'):
             return
         logging.getLogger("DSN: " + self.node_id).info(f"Generating {self.key_type} Keys ...")
-        cert_bytes, key_bytes = self.gen_keys(network_ip)
+        cert_bytes, key_bytes = self.gen_keys()
         if not os.path.exists(self.folder):
             os.mkdir(self.folder)
         if not os.path.exists(f'{self.folder}/{self.node_id}'):

@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 from distributed_state_network.objects.endpoint import Endpoint
 from distributed_state_network.util.byte_helper import ByteHelper
@@ -8,7 +8,7 @@ class PeersPacket(SignedPacket):
     node_id: str
     connections: Dict[str, Endpoint]
 
-    def __init__(self, node_id: str, ecdsa_signature: bytes, connections: Dict[str, Endpoint]):
+    def __init__(self, node_id: str, ecdsa_signature: Optional[bytes], connections: Dict[str, Endpoint]):
         super().__init__(ecdsa_signature)
         self.node_id = node_id
         self.connections = connections
@@ -16,7 +16,9 @@ class PeersPacket(SignedPacket):
     def to_bytes(self, include_signature: bool = True) -> bytes:
         bts = ByteHelper()
         bts.write_string(self.node_id)
-        if include_signature:
+        if include_signature :
+            if self.ecdsa_signature is None:
+                raise ValueError("Cannot convert unsigned packet to bytes")
             bts.write_bytes(self.ecdsa_signature)
         
         bts.write_int(len(self.connections.keys()))
