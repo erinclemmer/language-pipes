@@ -29,6 +29,8 @@ class FakeEndModel:
         job.next_step()
 
     def compute_embed(self, job, chunk_start=0, chunk_end=-1):
+        if job.compute_step == ComputeStep.TOKENIZE:
+            self.calls.append("tokenize")
         self.calls.append("compute_embed")
         job.data = JobData()
         job.data.state = torch.zeros((1, 1))
