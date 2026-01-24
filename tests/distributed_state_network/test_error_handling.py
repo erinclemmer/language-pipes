@@ -1,4 +1,3 @@
-"""Tests for error handling"""
 import os
 import sys
 import time
@@ -12,10 +11,7 @@ from distributed_state_network.objects.hello_packet import HelloPacket
 
 from base import DSNTestBase, spawn_node, remove_node
 
-
 class TestErrorHandling(DSNTestBase):
-    """Tests for error handling"""
-
     def test_bad_req_data(self):
         """Malformed request data should raise an error"""
         bootstrap = spawn_node("bootstrap", "127.0.0.1")
@@ -29,7 +25,7 @@ class TestErrorHandling(DSNTestBase):
     def test_bad_update_self(self):
         """Node should not handle updates for itself"""
         bootstrap = spawn_node("bootstrap", "127.0.0.1")
-        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
+        spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         bt_prv_key = bootstrap.node.cred_manager.my_private()
         
         state = StatePacket.create("bootstrap", time.time(), bt_prv_key, {})
@@ -43,7 +39,7 @@ class TestErrorHandling(DSNTestBase):
     def test_bad_update_unsigned(self):
         """Unsigned state packets should be rejected"""
         bootstrap = spawn_node("bootstrap", "127.0.0.1")
-        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
+        spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
         
         state = StatePacket("connector", time.time(), b'', {})
         try:

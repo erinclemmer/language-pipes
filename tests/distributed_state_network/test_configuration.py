@@ -1,4 +1,3 @@
-"""Tests for configuration handling"""
 import os
 import sys
 import unittest
@@ -12,8 +11,6 @@ from base import DSNTestBase
 
 
 class TestConfiguration(DSNTestBase):
-    """Tests for configuration handling"""
-
     def test_config_dict(self):
         """DSNodeConfig.from_dict should parse config correctly"""
         config_dict = {

@@ -1,15 +1,13 @@
-"""Tests for DSNodeServer wrapper methods"""
 import os
 import sys
 import time
 import unittest
+
 sys.path.insert(0, os.path.dirname(__file__))
+
 from base import DSNTestBase, spawn_node, remove_node
 
-
 class TestWrapperMethods(DSNTestBase):
-    """Tests for DSNodeServer wrapper methods"""
-
     def test_peers_wrapper(self):
         """DSNodeServer.peers() should return peer list"""
         bootstrap = spawn_node("bootstrap", "127.0.0.1")

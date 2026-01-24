@@ -1,16 +1,15 @@
-"""Tests for HTTP endpoint accessibility"""
 import os
 import sys
 import time
 import unittest
 import requests
+
 sys.path.insert(0, os.path.dirname(__file__))
+
 from base import DSNTestBase, spawn_node
 
 
 class TestHTTPEndpoints(DSNTestBase):
-    """Tests for HTTP endpoint accessibility"""
-
     def test_http_endpoints_exist(self):
         """All HTTP endpoints should exist (not return 404)"""
         n = spawn_node("http-test-node", "127.0.0.1")

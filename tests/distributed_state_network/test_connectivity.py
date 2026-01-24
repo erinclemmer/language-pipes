@@ -1,13 +1,9 @@
-"""Tests for basic node connectivity and peer discovery"""
 import os
 import sys
 sys.path.insert(0, os.path.dirname(__file__))
 from base import DSNTestBase, spawn_node
 
-
 class TestConnectivity(DSNTestBase):
-    """Tests for basic node connectivity and peer discovery"""
-
     def test_single_node(self):
         """Single node should see itself in peers"""
         node = spawn_node("one", "127.0.0.1")

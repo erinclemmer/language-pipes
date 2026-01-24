@@ -1,4 +1,3 @@
-"""Tests for callback functionality"""
 import os
 import sys
 import time
@@ -6,9 +5,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(__file__))
 from base import DSNTestBase, spawn_node, remove_node
 
-
 class TestCallbacks(DSNTestBase):
-    """Tests for callback functionality"""
 
     def test_disconnect_callback(self):
         """Disconnect callback should be called when a peer disconnects"""

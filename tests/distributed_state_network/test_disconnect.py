@@ -1,4 +1,3 @@
-"""Tests for node disconnect handling"""
 import os
 import sys
 import time
@@ -7,10 +6,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(__file__))
 from base import DSNTestBase, spawn_node, remove_node
 
-
 class TestDisconnect(DSNTestBase):
-    """Tests for node disconnect handling"""
-
     def test_reconnect(self):
         """Node should be removed from peers after disconnect"""
         bootstrap = spawn_node("bootstrap", "127.0.0.1")
@@ -53,7 +49,6 @@ class TestDisconnect(DSNTestBase):
         self.assertNotIn("connector", bootstrap.peers())
         self.assertIn("bootstrap", bootstrap.peers())
 
-    #@unittest.skip("Flaky due to timing")
     def test_churn(self):
         """Network should handle continuous join/leave churn"""
         bootstrap = spawn_node("bootstrap", "127.0.0.1")
@@ -61,7 +56,7 @@ class TestDisconnect(DSNTestBase):
         stopped = []
         connectors = []
         network_labels = ["bootstrap"]
-        for i in range(5):
+        for _ in range(5):
             new_connectors = [spawn_node(f"node-{i}", None, [bootstrap.node.my_con().to_json()]) for i in range(len(connectors), len(connectors) + 5)]
             connectors.extend(new_connectors)
             for c in new_connectors:
@@ -75,7 +70,6 @@ class TestDisconnect(DSNTestBase):
                 if c.config.node_id not in network_labels:
                     continue
                 self.assertEqual(sorted(network_labels), sorted(list(c.node.peers())))
-
 
 if __name__ == "__main__":
     unittest.main()

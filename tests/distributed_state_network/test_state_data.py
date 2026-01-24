@@ -1,15 +1,13 @@
-"""Tests for state/data operations"""
 import os
 import sys
 import time
 import unittest
+
 sys.path.insert(0, os.path.dirname(__file__))
+
 from base import DSNTestBase, spawn_node
 
-
 class TestStateData(DSNTestBase):
-    """Tests for state/data operations"""
-
     def test_state_propagation(self):
         """State updates should propagate between nodes"""
         bootstrap = spawn_node("bootstrap", "127.0.0.1")

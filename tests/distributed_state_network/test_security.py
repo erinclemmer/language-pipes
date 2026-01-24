@@ -1,4 +1,3 @@
-"""Tests for security and authorization"""
 import os
 import sys
 import time
@@ -14,14 +13,11 @@ from distributed_state_network.objects.data_packet import DataPacket
 
 from base import DSNTestBase, spawn_node, remove_node
 
-
 class TestSecurity(DSNTestBase):
-    """Tests for security and authorization"""
-
     def test_bad_aes_key(self):
         """Invalid AES key should raise an error"""
         try:
-            DSNodeServer.start(DSNodeConfig("bad key test", 8080, "bad.key", []))
+            DSNodeServer.start(DSNodeConfig("bad key test", "", 8080, None, "bad.key", []))
             self.fail("Should throw error before this")
         except Exception as e:
             print(e)
@@ -65,7 +61,7 @@ class TestSecurity(DSNTestBase):
         old_version = bootstrap.node.version
         bootstrap.node.version = "bad_version"
         try:
-            connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
+            spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
             self.fail("Should throw error when connecting with version mismatch")
         except Exception as e:
             print(e)
@@ -114,7 +110,7 @@ class TestSecurity(DSNTestBase):
     def test_data_route_bad_signature(self):
         """Data packets with invalid signatures should be rejected"""
         bootstrap = spawn_node("bootstrap", "127.0.0.1")
-        connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
+        spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
 
         pkt = DataPacket("connector", b"", b"payload")
         encrypted = bootstrap.node.encrypt_data(bytes([5]) + pkt.to_bytes())

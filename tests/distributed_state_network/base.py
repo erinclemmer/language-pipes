@@ -1,4 +1,3 @@
-"""Common test utilities for distributed_state_network tests"""
 import os
 import sys
 import shutil
@@ -22,7 +21,6 @@ def spawn_node(
     disconnect_cb: Optional[Callable] = None,
     update_cb: Optional[Callable] = None
 ):
-    """Spawn a new DSNode for testing"""
     global current_port
     current_port += 1
     n = DSNodeServer.start(DSNodeConfig.from_dict({
@@ -38,20 +36,16 @@ def spawn_node(
 
 
 def get_nodes():
-    """Get the current list of active nodes"""
     global nodes
     return nodes
 
 
 def remove_node(node):
-    """Remove a node from the tracking list"""
     global nodes
     nodes.remove(node)
 
 
 class DSNTestBase(unittest.TestCase):
-    """Base class for DSN tests with common setup/teardown"""
-    
     def tearDown(self):
         global nodes
         for n in nodes:
