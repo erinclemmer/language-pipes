@@ -69,7 +69,6 @@ class DSNodeServer:
     def _handle_request(self, msg_type: int, data: bytes, remote_addr: str) -> Response:
         if not self.running:
             return Response(status=500)
-        """Handle incoming HTTP request"""
         try:
             # Decrypt the data
             if self.config.aes_key is not None:

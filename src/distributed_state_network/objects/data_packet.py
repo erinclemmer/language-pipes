@@ -1,7 +1,6 @@
 from distributed_state_network.objects.signed_packet import SignedPacket
 from distributed_state_network.util.byte_helper import ByteHelper
 
-
 class DataPacket(SignedPacket):
     node_id: str
     data: bytes
@@ -24,7 +23,7 @@ class DataPacket(SignedPacket):
         bts = ByteHelper(data)
         node_id = bts.read_string()
         if node_id == "":
-            raise Exception(406, "Malformed packet")  # Not acceptable
+            raise Exception(406, "Malformed packet")
         ecdsa_signature = bts.read_bytes()
         payload = bts.read_bytes()
         return DataPacket(node_id, ecdsa_signature, payload)

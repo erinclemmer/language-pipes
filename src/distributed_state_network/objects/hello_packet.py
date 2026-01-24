@@ -11,7 +11,7 @@ class HelloPacket(SignedPacket):
     connection: Endpoint
     ecdsa_public_key: bytes
     https_certificate: bytes
-    detected_address: Optional[str]  # IP address detected by the server
+    detected_address: Optional[str]  # IP address detected by bootstrap node
 
     def __init__(
         self, 

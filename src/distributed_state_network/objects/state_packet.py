@@ -1,6 +1,6 @@
 import time
 import json
-from typing import Dict, Tuple
+from typing import Dict
 
 from distributed_state_network.objects.signed_packet import SignedPacket
 from distributed_state_network.util.byte_helper import ByteHelper
@@ -55,7 +55,7 @@ class StatePacket(SignedPacket):
         node_id = bts.read_string()
         
         if node_id == '':
-            raise Exception(406, "Malformed packet") # Not acceptable
+            raise Exception(406, "Malformed packet")
         
         last_update = bts.read_float()
         ecdsa_signature = bts.read_bytes()

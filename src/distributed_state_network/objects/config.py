@@ -18,7 +18,7 @@ class DSNodeConfig:
             data["node_id"], 
             data["credential_dir"] if "credential_dir" in data else "credentials",
             data["port"],
-            data["network_ip"] if "network_ip" in data else "127.0.0.1", 
+            data["network_ip"] if "network_ip" in data else None, 
             data["aes_key"] if "aes_key" in data else None, 
             [Endpoint.from_json(e) for e in data["bootstrap_nodes"]]
         )

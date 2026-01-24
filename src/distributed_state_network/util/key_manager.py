@@ -3,7 +3,6 @@ import logging
 from typing import Callable, Tuple
 
 from distributed_state_network.util.ecdsa import generate_key_pair
-from distributed_state_network.util.https import generate_cert
 
 class KeyManager:
     def __init__(
