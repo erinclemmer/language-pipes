@@ -2,13 +2,11 @@
 
 The `JobProcessor` class implements a finite state machine (FSM) that orchestrates job execution across the distributed inference pipeline. This document describes each state, the conditions for transitions, and how the FSM integrates with the broader Language Pipes architecture.
 
----
 
 ## Overview
 
 When a job arrives at a node (via `JobReceiver`), it is processed by a `JobProcessor` instance. The processor validates the job context, routes computation through local or remote model segments, and handles job completion or handoff.
 
----
 
 ## States
 
@@ -33,33 +31,6 @@ The FSM starts in this state for every job. It checks that all required resource
 | Job is at `HEAD` step and prefill is complete | `HEAD` |
 | Job is at `HEAD` step with more prefill chunks | `EMBED` |
 | Job needs layer processing | `PROCESS_LAYERS` |
-
----
-
-### `HEAD`
-
-**Purpose:** Compute the output head to generate the next token.
-
-This state handles the final projection and sampling step. It only runs on the **origin node** (the node that initiated the job and has the end model loaded).
-
-**Operations:**
-
-1. Log prefill completion (if transitioning from prefill to decode)
-2. Compute RMS normalization via `EndModel.compute_norm()`
-3. Compute output head projection via `EndModel.compute_head()`
-4. Record timing statistics
-5. If job is complete: set result and mark done
-6. If more tokens needed: send update to client and continue
-
-**Transitions:**
-
-| Condition | Next State |
-|-----------|------------|
-| Job completed (EOS token generated) | `DONE` |
-| Failed to send job update | `DONE` |
-| More tokens to generate, next layer is local | `EMBED` |
-| More tokens to generate, next layer is remote | `SEND` |
-| More tokens to generate, next layer needs processing | `PROCESS_LAYERS` |
 
 ---
 
@@ -111,6 +82,33 @@ This state runs the hidden state through one or more consecutive local layer seg
 
 ---
 
+### `HEAD`
+
+**Purpose:** Compute the output head to generate the next token.
+
+This state handles the final projection and sampling step. It only runs on the **origin node** (the node that initiated the job and has the end model loaded).
+
+**Operations:**
+
+1. Log prefill completion (if transitioning from prefill to decode)
+2. Compute RMS normalization via `EndModel.compute_norm()`
+3. Compute output head projection via `EndModel.compute_head()`
+4. Record timing statistics
+5. If job is complete: set result and mark done
+6. If more tokens needed: send update to client and continue
+
+**Transitions:**
+
+| Condition | Next State |
+|-----------|------------|
+| Job completed (EOS token generated) | `DONE` |
+| Failed to send job update | `DONE` |
+| More tokens to generate, next layer is local | `EMBED` |
+| More tokens to generate, next layer is remote | `SEND` |
+| More tokens to generate, next layer needs processing | `PROCESS_LAYERS` |
+
+---
+
 ### `SEND`
 
 **Purpose:** Hand off the job to another node.
@@ -141,8 +139,6 @@ The job has either:
 - Completed successfully (all tokens generated)
 - Been handed off to another node
 - Encountered an error condition
-
----
 
 ## State Transition Diagram
 
@@ -192,7 +188,6 @@ SEND
     └──(handoff complete)────────────────────────────────────► DONE
 ```
 
----
 
 ## Job Context
 
@@ -208,8 +203,6 @@ class JobContext:
     end_model: Optional[EndModel] # End model (embed/norm/head)
 ```
 
----
-
 ## Compute Steps
 
 The job's `compute_step` field determines what operation is needed next:
@@ -222,33 +215,6 @@ The job's `compute_step` field determines what operation is needed next:
 | `NORM` | Apply final RMS normalization | End model (origin node) |
 | `HEAD` | Project to vocabulary and sample | End model (origin node) |
 
----
-
-## Prefill Chunking
-
-For long prompts, prefill is processed in chunks to reduce latency and provide progress updates:
-
-1. `EMBED` state initializes chunking based on `prefill_chunk_size` config
-2. Each chunk is embedded and sent through layers
-3. After each chunk, the job returns to origin with `HEAD` step
-4. `HEAD` detects more chunks remain and transitions to `EMBED`
-5. Repeat until all chunks processed, then begin decode loop
-
----
-
-## Error Handling
-
-The FSM handles errors by transitioning to `DONE` with appropriate logging:
-
-- **Missing resources:** Job, pipe, or end model not available
-- **Pipe incomplete:** Layer segments not fully loaded across network
-- **Origin mismatch:** HEAD computation attempted on wrong node
-- **Update failure:** Client disconnected or network error
-- **Missing model:** Layer segment not available locally
-
-All error conditions are logged via `JobContext.logger.error()`.
-
----
 
 ## Integration Points
 
@@ -267,9 +233,8 @@ Jobs exit in three ways:
 2. **Handoff:** Job sent to another node via `Pipe.send_job()`
 3. **Error:** Processing stops, job marked as failed
 
----
 
-## See Also
+## Learn more
 
 - [Architecture](./architecture.md) — System overview and component interactions
 - [Configuration](./configuration.md) — `prefill_chunk_size` and `print_times` options

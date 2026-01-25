@@ -92,7 +92,7 @@ class JobProcessor:
         self.state = JobState.VALIDATING
         self.ctx = ctx
     
-    def run(self) -> bool:
+    def run(self):
         while self.state != JobState.DONE:
             self.state = self._transition()
     
@@ -109,6 +109,8 @@ class JobProcessor:
                 return self._state_process_layers()
             case JobState.SEND:
                 return self._state_send()
+
+        return JobState.DONE
     
     def _state_validating(self) -> JobState:
         """Validate context for processing"""
