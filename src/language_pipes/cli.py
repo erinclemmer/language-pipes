@@ -35,11 +35,6 @@ def build_parser():
     init = subparsers.add_parser("init", help="Create a new configuration file")
     init.add_argument("output", nargs='?', default="config.toml", help="Output file name to write to (default: config.toml)")
 
-    # Quick start
-    start = subparsers.add_parser("start", help="First-time setup wizard and server start")
-    start.add_argument("-c", "--config", default="config.toml", help="Config file path")
-    start.add_argument("-k", "--key", default="network.key", help="Network key file path")
-
     # run command
     run_parser = subparsers.add_parser("serve", help="Start Language Pipes server")
     run_parser.add_argument("-c", "--config", help="Path to TOML config file")

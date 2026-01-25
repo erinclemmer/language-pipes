@@ -5,23 +5,12 @@ This document explains the interactive configuration wizard in Language Pipes, w
 For configuration file reference, see [Configuration](./configuration.md).  
 For command-line options, see [CLI Reference](./cli.md).
 
----
-
-## Overview
-
-Language Pipes provides two levels of interactive setup:
-
-1. **Start Wizard** — A main menu for managing multiple configurations
-2. **Configuration Wizard** — A step-by-step guide for creating individual configs
-
----
-
 ## Start Wizard
 
 The start wizard is the primary entry point for new users. Launch it with:
 
 ```bash
-language-pipes start
+language-pipes
 ```
 
 Or simply:
