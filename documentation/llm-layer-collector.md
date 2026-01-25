@@ -1,7 +1,5 @@
 # LLM Layer Collector
 
-![PyPI - Version](https://img.shields.io/pypi/v/llm-layer-collector)
-
 A practical Python package for working with [Huggingface](huggingface.co) models at the layer level. Designed to help developers and researchers load specific model components when working with large, sharded checkpoints.
 
 ## What It Does
@@ -11,15 +9,7 @@ A practical Python package for working with [Huggingface](huggingface.co) models
 - Uses the [transformers](https://github.com/huggingface/transformers) and [pytorch](pytorch.org) libraries to load data and run computations.
 - Useful for research, development, and memory-constrained environments
 
-## Getting Started
-
-### Installation
-
-```bash
-pip install llm-layer-collector
-```
-
-### Essential Components
+## Essential Components
 
 The LlmLayerCollector class serves as your central interface to the package's functionality.
 
