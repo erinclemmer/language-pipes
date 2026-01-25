@@ -8,13 +8,20 @@ For command-line usage, see the [CLI Reference](./cli.md).
 
 ## Minimal Configuration
 
+These configuration options will:
+- Load "Qwen/Qwen3-1.7B" into memory with all layers and the end model
+- Start an Open AI compatable server on port 8000
+
 ```toml
 node_id = "my-node"
+network_ip = "[Your local IP address]"
+openai_port = 8000
 
 [[hosted_models]]
 id = "Qwen/Qwen3-1.7B"
 device = "cpu"
 max_memory = 4
+load_ends = true
 ```
 
 ---
@@ -42,7 +49,7 @@ oai_port = 8000
 # === Network ===
 peer_port = 5000
 network_ip = "192.168.0.1"
-bootstrap_address = "192.168.0.1"
+bootstrap_address = "192.168.0.2"
 bootstrap_port = 5000
 network_key = "network.key"
 
