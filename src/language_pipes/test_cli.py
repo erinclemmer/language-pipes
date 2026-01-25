@@ -8,4 +8,4 @@ sys.path.append(os.path.join(cd, 'src'))
 
 from language_pipes.cli import main
 
-main()
+main(sys.argv[1:])
