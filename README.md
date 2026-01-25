@@ -14,21 +14,21 @@
 [PyPiVersion-Url]: https://img.shields.io/pypi/v/language-pipes
 [PythonVersion-Url]: https://img.shields.io/pypi/pyversions/language-pipes
 
-Language Pipes is an open-source distributed network application designed to increase access to local language models.  
+Language Pipes is an open-source distributed network application designed to increase access to local language models by allowing for privacy protected computation between peer to peer nodes. 
 
----  
 
 **Disclaimer:** This software is currently in Beta. Please be patient and if you encounter an error, please [fill out a github issue](https://github.com/erinclemmer/language-pipes/issues/new)!   
---
+
+---
 
 ### Overview
 Over the past few years open source language models have become much more powerful yet the most powerful models are still out of reach of the general population because of the extreme amounts of RAM that is needed to host these models. Language Pipes allows multiple computer systems to host the same model and move computation data between them so that no one computer has to hold all of the data for the model. Our privacy preserving architecture 
 
-### Features
+#### Features
 - Quick Setup
-- Peer to peer network
+- Decentralized peer to peer network
 - OpenAI compatible API
-- Privacy-preserving architecture
+- Privacy-focused architecture
 - Download and use models by HuggingFace ID
 
 ---
@@ -46,7 +46,7 @@ To download the models from Huggingface, ensure that you have [git](https://git-
 
 To start using the application, install the latest version of the package from PyPi.
 
-Using Pip:
+**Using Pip:**
 ```bash
 pip install language-pipes
 ```
