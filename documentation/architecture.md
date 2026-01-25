@@ -123,4 +123,4 @@ Only the node hosting the **EndModel** can see raw text:
 
 For privacy-sensitive deployments, keep `load_ends = true` on your own machine and let other nodes host only layer segments.
 
-For more information how the architecture ensures privacy see [the privacy documentation](./documentation/privacy.md).
+For more information how the architecture ensures privacy see [the privacy documentation](./privacy.md).

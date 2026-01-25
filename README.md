@@ -77,8 +77,6 @@ Select **Create Config** to walk through the setup wizard, which guides you thro
 
 After creating a config, select **Load Config** to start the server.
 
-For detailed wizard documentation, see [Interactive Setup Guide](./documentation/interactive-setup.md).
-
 ---
 
 # Two Node Example
