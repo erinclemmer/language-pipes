@@ -1,6 +1,6 @@
 # Language Pipes (Beta)
 
-**A privacy focused distributed algorithm for llm inference **  
+**A privacy focused distributed algorithm for llm inference**
 
 [![GitHub license][License-Image]](License-Url)
 [![Release][Release-Image]][Release-Url] 
@@ -19,8 +19,10 @@ Language Pipes is an open-source distributed network application designed to inc
 ---  
 
 **Disclaimer:** This software is currently in Beta. Please be patient and if you encounter an error, please [fill out a github issue](https://github.com/erinclemmer/language-pipes/issues/new)!   
+--
 
-Over the past few years open source language models have become much more powerful yet the most powerful models are still out of reach of the general population because of the extreme amounts of RAM that is needed to host these models. Language Pipes allows multiple computer systems to host the same model and move computation data between them so that no one computer has to hold all of the data for the model.
+### Overview
+Over the past few years open source language models have become much more powerful yet the most powerful models are still out of reach of the general population because of the extreme amounts of RAM that is needed to host these models. Language Pipes allows multiple computer systems to host the same model and move computation data between them so that no one computer has to hold all of the data for the model. Our privacy preserving architecture 
 
 ### Features
 - Quick Setup
