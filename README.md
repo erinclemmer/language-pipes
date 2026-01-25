@@ -95,14 +95,14 @@ language-pipes
 2. Enter a name (e.g., `node1`)
 3. Follow the prompts:
    - **Node ID**: `node-1`
-   - **Model ID**: `Qwen/Qwen3-1.7B` (press Enter for default)
+   - **Model ID**: `Qwen/Qwen3-1.7B`
    - **Device**: `cpu`
    - **Max memory**: `1` (loads part of the model)
    - **Load embedding/output layers**: `Y`
    - **Enable OpenAI API**: `Y`
    - **API port**: `8000`
    - **First node in network**: `Y`
-   - **Encrypt network traffic**: `Y` (save the generated key!)
+   - **Encrypt network traffic**: `N`
 
 4. Select **Load Config** → choose `node1` to start the server
 
@@ -126,8 +126,7 @@ language-pipes
    - **First node in network**: `N`
    - **Bootstrap node IP**: `192.168.0.10` (node-1's local IP)
    - **Bootstrap port**: `5000`
-   - **Encrypt network traffic**: `Y`
-   - **Network key**: paste the key from node-1
+   - **Encrypt network traffic**: `N`
 
 4. Select **Load Config** → choose `node2` to start the server
 
@@ -159,19 +158,13 @@ print(response.choices[0].message.content)
 
 Install the OpenAI library with: `pip install openai`
 
-### Models Supported
-* Llama 2 & Llama 3.X  
-* Qwen3
-* More to come!
-
 ### Dependencies
 - [pytorch](pytorch.org)
 - [transformers](https://huggingface.co/docs/transformers) 
 
 ### Documentation
-* [Interactive Setup Guide](./documentation/interactive-setup.md)
-* [Privacy Architecture](./documentation/privacy.md)
+* [Architecture](./documentation/architecture.md)
+* [Privacy](./documentation/privacy.md)
 * [CLI Reference](./documentation/cli.md)
 * [Configuration](./documentation/configuration.md)
-* [Architecture](./documentation/architecture.md)
 * [OpenAI API](./documentation/oai.md)
