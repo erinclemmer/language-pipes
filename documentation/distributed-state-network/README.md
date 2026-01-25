@@ -2,23 +2,6 @@
 
 A Python framework for building distributed applications where nodes automatically share state without explicit data requests.
 
-## Why DSN?
-
-Traditional distributed systems require constant polling or complex pub/sub mechanisms to share state between nodes. DSN solves this by providing:
-
-- **Automatic state synchronization** - Changes propagate instantly across the network
-- **No single point of failure** - Every node maintains its own state
-- **Simple key-value interface** - Read any node's data as easily as local variables
-- **Complete Security** - Triple-layer encryption protects your network
-
-Perfect for building distributed monitoring systems, IoT networks, or any application where multiple machines need to share state efficiently.
-
-## Installation
-
-```bash
-pip install distributed-state-network
-```
-
 ## Quick Start
 
 ### 1. Create Your First Node

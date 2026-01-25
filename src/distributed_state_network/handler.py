@@ -137,7 +137,7 @@ class DSNodeServer:
         if self.thread is not None:
             stop_thread(self.thread)
 
-    def serve_forever(self, port: int):
+    def _serve_forever(self, port: int):
         if self.running:
             return
         # Suppress Flask startup messages
@@ -156,10 +156,11 @@ class DSNodeServer:
     def start(
         config: DSNodeConfig, 
         disconnect_callback: Optional[Callable] = None, 
-        update_callback: Optional[Callable] = None
+        update_callback: Optional[Callable] = None,
+        receive_callback: Optional[Callable] = None
     ) -> 'DSNodeServer':
-        n = DSNodeServer(config, disconnect_callback, update_callback)
-        n.thread = threading.Thread(target=n.serve_forever, daemon=True, args=(config.port, ))
+        n = DSNodeServer(config, disconnect_callback, update_callback, receive_callback)
+        n.thread = threading.Thread(target=n._serve_forever, daemon=True, args=(config.port, ))
         n.thread.start()
 
         if n.config.bootstrap_nodes is not None and len(n.config.bootstrap_nodes) > 0:
@@ -199,6 +200,6 @@ class DSNodeServer:
     def set_disconnect_cb(self, cb: Callable):
         self.node.disconnect_cb = cb
 
-    def receive_data(self, data: bytes):
+    def _receive_data(self, data: bytes):
         if self.node.receive_cb is not None:
             self.node.receive_cb(data)
