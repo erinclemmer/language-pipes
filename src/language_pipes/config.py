@@ -69,3 +69,52 @@ class LpConfig:
             print_job_data=data.get('print_job_data', False),
             prefill_chunk_size=data.get('prefill_chunk_size', 6)
         )
+
+    def to_string(self) -> str:
+        lines = []
+        
+        lines.append("")
+        lines.append("=" * 60)
+        lines.append("  Configuration Details")
+        lines.append("=" * 60)
+        
+        # Core settings
+        lines.append("")
+        lines.append("--- Core Settings ---")
+        lines.append(f"  {'Node ID:':<18} {self.node_id}")
+        lines.append(f"  {'App Directory:':<18} {self.app_dir}")
+        lines.append(f"  {'Model Directory:':<18} {self.model_dir}")
+        lines.append(f"  {'Logging Level:':<18} {self.logging_level}")
+        
+        # API settings
+        lines.append("")
+        lines.append("--- API Settings ---")
+        if self.oai_port:
+            lines.append(f"  {'OpenAI API Port:':<18} {self.oai_port}")
+        else:
+            lines.append("  OpenAI API:         Disabled")
+        
+        # Processing options
+        lines.append("")
+        lines.append("--- Processing Options ---")
+        lines.append(f"  {'Max Pipes:':<18} {self.max_pipes}")
+        lines.append(f"  {'Model Validation:':<18} {'Enabled' if self.model_validation else 'Disabled'}")
+        lines.append(f"  {'Print Times:':<18} {'Enabled' if self.print_times else 'Disabled'}")
+        lines.append(f"  {'Print Job Data:':<18} {'Enabled' if self.print_job_data else 'Disabled'}")
+        lines.append(f"  {'Prefill Chunk Size:':<18} {self.prefill_chunk_size}")
+        
+        # Hosted models
+        lines.append("")
+        lines.append(f"--- Hosted Models ({len(self.hosted_models)}) ---")
+        for i, model in enumerate(self.hosted_models):
+            lines.append("")
+            lines.append(f"  Model #{i+1}:")
+            lines.append(f"    ID:          {model.id}")
+            lines.append(f"    Device:      {model.device}")
+            lines.append(f"    Max Memory:  {model.max_memory} GB")
+            lines.append(f"    Load Ends:   {'Yes' if model.load_ends else 'No'}")
+        
+        lines.append("")
+        lines.append("=" * 60)
+        
+        return "\n".join(lines)

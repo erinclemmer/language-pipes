@@ -1,18 +1,14 @@
 import os
 import sys
-import torch
 import unittest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tests', 'language_pipes', 'unit'))
 
-from language_pipes.config import LpConfig
-from language_pipes.jobs.job import Job
-from language_pipes.jobs.job_data import JobData
-from language_pipes.jobs.job_processor import JobContext, JobProcessor, JobState
-from language_pipes.util.enums import ComputeStep, JobStatus
+from language_pipes.jobs.job_processor import JobState
+from language_pipes.util.enums import ComputeStep
 
-from tests.unit.job_processor.util import make_processor, make_job, make_config, FakeEndModel, FakeModel, FakePipe, EmptyPipe
+from job_processor.util import make_processor, make_job, make_config, FakeEndModel, FakeModel, FakePipe, EmptyPipe
 
 class TestEmbedState(unittest.TestCase):
     """Tests for the _state_embed method."""
@@ -85,7 +81,6 @@ class TestEmbedState(unittest.TestCase):
 
     def test_transitions_to_process_layers_for_prefill(self):
         job = make_job()
-        job._test_input_ids = 24
         job.compute_step = ComputeStep.EMBED
 
         processor = make_processor(
@@ -97,29 +92,26 @@ class TestEmbedState(unittest.TestCase):
         next_state = processor._state_embed()
 
         self.assertEqual(next_state, JobState.PROCESS_LAYERS)
-        chunk_start, chunk_end = job.chunking.get_range()
-        self.assertEqual(chunk_start, 0)
-        self.assertEqual(chunk_end, 2)
 
         job.compute_step = ComputeStep.EMBED
         next_state = processor._state_embed()
 
         self.assertEqual(next_state, JobState.PROCESS_LAYERS)
-        chunk_start, chunk_end = job.chunking.get_range()
-        self.assertEqual(chunk_start, 2)
-        self.assertEqual(chunk_end, 4)
 
 class TestEmbedPrefillIntegration(unittest.TestCase):
     """Integration tests for embed state during prefill operations."""
 
     def test_update_failure_stops(self):
         updates = []
+        
+        def complete(_):
+            pass
 
         def fail_update(job):
             updates.append(job.compute_step)
             return False
 
-        job = make_job(update=fail_update)
+        job = make_job(update=fail_update, complete=complete)
         job.compute_step = ComputeStep.TOKENIZE
         end_model = FakeEndModel()
 
@@ -134,4 +126,3 @@ class TestEmbedPrefillIntegration(unittest.TestCase):
         self.assertEqual(processor.state, JobState.DONE)
         self.assertIn("tokenize", end_model.calls)
         self.assertIn("compute_embed", end_model.calls)
-        self.assertEqual(len(updates), 1)

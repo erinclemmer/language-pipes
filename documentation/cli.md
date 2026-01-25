@@ -1,9 +1,11 @@
 # Command Line Interface
 
-## Usage
+### CLI Wizard
+
+This provides an easy to use CLI interface for managing configurations.
 
 ```bash
-language-pipes [OPTIONS] COMMAND [ARGS]
+language-pipes
 ```
 
 ## Global Options
@@ -19,16 +21,17 @@ language-pipes [OPTIONS] COMMAND [ARGS]
 
 ### `keygen`
 
-Generate an AES encryption key for network communication.
-
+Generate an AES encryption key for network communication.  
+**Format:**
 ```bash
 language-pipes keygen [output]
 ```
-
+**Arguments:**
 | Argument | Description | Default |
 |----------|-------------|---------|
 | `output` | Output file path | `network.key` |
 
+**Example:**
 ```bash
 language-pipes keygen network.key
 ```
@@ -39,63 +42,20 @@ language-pipes keygen network.key
 
 Interactively create a configuration file with guided prompts.
 
+**Format:**
 ```bash
-language-pipes init [-o FILE]
+language-pipes init [FILE]
 ```
 
+**Arguments:**
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-o`, `--output` | Output file path | `config.toml` |
+| `output` | Output file path | `config.toml` |
 
-The wizard guides you through:
-- Node ID configuration
-- Model selection (HuggingFace ID, device, memory)
-- API server settings
-- Network configuration
-- Advanced options
-
+**Example:**
 ```bash
-language-pipes init -o my-config.toml
+language-pipes init my-config.toml
 ```
-
----
-
-### `start`
-
-First-time setup wizard that handles everything in one command.
-
-```bash
-language-pipes start [-c FILE] [-k FILE]
-```
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `-c`, `--config` | Config file path | `config.toml` |
-| `-k`, `--key` | Network key file path | `network.key` |
-
-The `start` command walks you through:
-
-1. **Network Key Setup**
-   - If first node: generates a new encryption key
-   - If joining: prompts you to copy the key from the first node
-
-2. **Configuration**
-   - Runs the interactive `init` wizard if no config exists
-   - Offers to reconfigure if config already exists
-
-3. **Server Startup**
-   - Prompts to start the server immediately
-   - Shows the manual command if you decline
-
-```bash
-# First-time setup with defaults
-language-pipes start
-
-# Custom paths
-language-pipes start -c my-config.toml -k my-network.key
-```
-
-**Recommended for new users** — this is the easiest way to get started.
 
 ---
 
@@ -103,6 +63,7 @@ language-pipes start -c my-config.toml -k my-network.key
 
 Start a Language Pipes server node.
 
+**Format:**
 ```bash
 language-pipes serve [OPTIONS]
 ```
@@ -200,33 +161,6 @@ language-pipes serve \
     "id=Qwen/Qwen3-1.7B,device=cpu,memory=4" \
     "id=Qwen/Qwen3-0.6B,device=cuda:0,memory=2"
 ```
-
----
-
-## Quick Start
-
-### Easiest Method (Recommended)
-
-```bash
-language-pipes start
-```
-
-This single command handles network key generation, configuration, and server startup.
-
-### Manual Method
-
-```bash
-# 1. Generate network key
-language-pipes keygen network.key
-
-# 2. Create configuration interactively
-language-pipes init
-
-# 3. Start server
-language-pipes serve -c config.toml
-```
-
----
 
 ## See Also
 

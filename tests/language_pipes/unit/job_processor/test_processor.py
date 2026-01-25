@@ -3,16 +3,14 @@ import sys
 import torch
 import unittest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tests', 'language_pipes', 'unit'))
 
-from language_pipes.config import LpConfig
-from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_data import JobData
-from language_pipes.jobs.job_processor import JobContext, JobProcessor, JobState
+from language_pipes.jobs.job_processor import JobState
 from language_pipes.util.enums import ComputeStep, JobStatus
 
-from tests.unit.job_processor.util import make_processor, make_job, mock_complete, FakeEndModel, FakeModel, FakePipe, IncompletePipe, EmptyPipe
+from job_processor.util import make_processor, make_job, mock_complete, FakeEndModel, FakeModel, FakePipe, IncompletePipe, EmptyPipe
 
 class TestFullProcessorRun(unittest.TestCase):
     """End-to-end tests for the full processor run cycle."""

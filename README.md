@@ -1,6 +1,6 @@
 # Language Pipes (Beta)
 
-**Distribute language models across multiple systems**  
+**A privacy focused distributed algorithm for llm inference **  
 
 [![GitHub license][License-Image]](License-Url)
 [![Release][Release-Image]][Release-Url] 

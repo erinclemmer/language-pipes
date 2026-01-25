@@ -1,88 +1,77 @@
 import os
 import socket
 import toml
-from unique_names_generator import get_random_name
 
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.commands.view import view_config
-from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_model_id, prompt_number_choice, prompt_continue
-
-def get_default_node_id() -> str:
-    return socket.gethostname()
+from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_model_id, show_banner
 
 def interactive_init(output_path: str):
-    """Interactively create a configuration file."""
-    print("\n" + "=" * 50)
-    print("  Configuration Setup")
-    print("=" * 50)
-    print("\nThis wizard will help you create a new configuration.")
+    show_banner("Configuration Setup")
 
-    config = {}
+    config = { }
 
-    # === Required Settings ===
     print("--- Required Settings ---\n")
 
     print("The node ID is a unique name that identifies this computer on the")
-    print("Language Pipes network. Other nodes will use this to route jobs.\n")
+    print("Language Pipes network. Other nodes will use this to route jobs to this machine.\n")
     config["node_id"] = prompt(
-        "Node ID",
-        default=get_default_node_id(),
+        "    Node ID",
+        default=socket.gethostname(),
         required=True
     )
 
-    # === Model Configuration ===
     print("\n--- Model Configuration ---\n")
-    print("Language Pipes hosts parts of large language models distributed across")
-    print("multiple machines. You need to specify at least one model to host.")
-    print("Models are automatically downloaded from HuggingFace by their ID.\n")
+    print("You need to specify at least one model to host.")
+    print("Models are automatically downloaded from HuggingFace by their ID")
+    print("if they do not exist in the model folder already.\n")
 
     hosted_models = []
-    while True:
-        print(f"  Model #{len(hosted_models) + 1}:")
-        
-        print("    Select a locally available model or enter a HuggingFace model ID")
-        print("    (e.g., 'Qwen/Qwen3-1.7B', 'meta-llama/Llama-3.2-1B-Instruct').")
-        model_id = prompt_model_id(
-            "    Model ID",
-            required=len(hosted_models) == 0
-        )
-        
-        if model_id is None:
-            break
-        
-        print("\n    Select the compute device for this model. Use 'cpu' for CPU-only,")
-        print("    or 'cuda:0', 'cuda:1', etc. for specific GPUs.")
-        device = prompt(
-            "    Device",
-            default="cpu",
-            required=True
-        )
-        
-        print("\n    Specify the maximum RAM/VRAM (in GB) this node should use for the model.")
-        print("    The model layers will be loaded until this limit is reached.")
-        max_memory = prompt_float(
-            "    Max memory (GB)",
-            required=True
-        )
-        
-        print("\n    The 'ends' of a model are the embedding layer (input) and the output head.")
-        print("    At least one node in the network needs these loaded to process requests.")
-        print("    If this is the only node or the first/last in a chain, enable this.")
-        load_ends = prompt_bool(
-            "    Load embedding/output layers",
-            required=True
-        )
-        
-        hosted_models.append({
-            "id": model_id,
-            "device": device,
-            "max_memory": max_memory,
-            "load_ends": load_ends
-        })
-        
-        print()
-        if not prompt_bool("Add another model?", default=False):
-            break
+    try:
+        while True:
+            print(f"    Model #{len(hosted_models) + 1}:")
+            
+            print("    Select a locally available model or enter a HuggingFace model ID")
+            model_id = prompt_model_id(
+                "    Model ID",
+                required=True
+            )
+            
+            print("\n    Select the compute device for this model. Use 'cpu' for CPU-only,")
+            print("    or 'cuda:0', 'cuda:1', etc. for specific GPUs.")
+            device = prompt(
+                "    Device",
+                default="cpu",
+                required=True
+            )
+            
+            print("\n    Specify the maximum RAM/VRAM (in GB) this node should use for the model.")
+            print("    The model layers will be loaded until this limit is reached.")
+            max_memory = prompt_float(
+                "    Max memory (GB)",
+                required=True
+            )
+            
+            print("\n    The 'ends' of a model are the embedding layer (input) and the output head.")
+            print("    For the privacy protection to work correctly the requesting user must control an end node")
+            print("    It is possible for many nodes on the network to be an end node so long as all the layers are loaded on the network")
+            load_ends = prompt_bool(
+                "    Load embedding/output layers",
+                required=True
+            )
+            
+            hosted_models.append({
+                "id": model_id,
+                "device": device,
+                "max_memory": max_memory,
+                "load_ends": load_ends
+            })
+            
+            print()
+            if not prompt_bool("Add another model?", required=True):
+                break
+    except KeyboardInterrupt:
+        pass
 
     config["hosted_models"] = hosted_models
 
@@ -94,7 +83,7 @@ def interactive_init(output_path: str):
     print("to interact with your distributed model.\n")
     if prompt_bool("Enable OpenAI-compatible API server?", default=True):
         print("\n  Choose a port for the API server. Clients will connect to")
-        print("  http://<this-machine>:<port>/v1/chat/completions")
+        print("  http://<ip-address>:<port>/v1/chat/completions")
         config["oai_port"] = prompt_int(
             "  API port",
             default=8000,
@@ -136,7 +125,7 @@ def interactive_init(output_path: str):
             required=True
         )
     else:
-        config["network_ip"] = "127.0.0.1"
+        del config["network_ip"]
 
     print("\nThe network key is an AES encryption key shared by all nodes.")
     print("It encrypts communication and prevents unauthorized access.")
@@ -155,7 +144,8 @@ def interactive_init(output_path: str):
             print(f"Generated new key: {key}")
             print("Note: Save this key somewhere and supply it to other nodes on the network")
     else:
-        config["network_key"] = None
+        if "network_key" in config:
+            del config["network_key"]
 
     # === Advanced Options ===
     print("\n--- Advanced Options ---\n")
@@ -185,15 +175,14 @@ def interactive_init(output_path: str):
         )
         
         print("\n  Print timing information for layer computations and network")
-        print("  transfers when a job completes. Useful for debugging and")
+        print("  transfers when a token completes. Useful for debugging and")
         print("  performance analysis.")
         config["print_times"] = prompt_bool(
             "  Print timing info?",
             required=True
         )
         
-        print("\n  Print job data (input/output) when jobs complete. Useful for")
-        print("  debugging and monitoring model responses.")
+        print("\n  Print request parameters and job information on token completion")
         config["print_job_data"] = prompt_bool(
             "  Print job data?",
             required=True
@@ -219,4 +208,4 @@ def interactive_init(output_path: str):
 
     view_config(output_path)
     
-    print(f"\n✓ Configuration saved")
+    print("\n✓ Configuration saved")

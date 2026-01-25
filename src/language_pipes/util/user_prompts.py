@@ -177,3 +177,8 @@ def select_config(app_dir: str) -> str | None:
         return None
 
     return str(Path(config_dir) / load_config)
+
+def show_banner(text: str):
+    print("\n" + "=" * 50)
+    print("\t" + text)
+    print("=" * 50)

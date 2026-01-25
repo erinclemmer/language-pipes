@@ -17,8 +17,8 @@ class JobDataTests(unittest.TestCase):
 
         state_hash = job_data.hash_state()
 
-        self.assertTrue(job_data.validate_state(state_hash))
-        self.assertFalse(job_data.validate_state(b"bad-hash"))
+        self.assertTrue(JobData.validate_state(job_data.to_bytes(), state_hash))
+        self.assertFalse(job_data.validate_state(job_data.to_bytes(), b"bad-hash"))
 
     def test_round_trip_bytes(self):
         job_data = JobData()

@@ -4,16 +4,14 @@ import torch
 import unittest
 from time import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tests', 'language_pipes', 'unit'))
 
-from language_pipes.config import LpConfig
-from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_data import JobData
-from language_pipes.jobs.job_processor import JobContext, JobProcessor, JobState
+from language_pipes.jobs.job_processor import JobState
 from language_pipes.util.enums import ComputeStep, JobStatus
 
-from tests.unit.job_processor.util import mock_complete, make_processor, make_job, make_config, FakeEndModel, FakeModel, FakePipe, FakeEndModelContinue, FakeLogger
+from job_processor.util import mock_complete, make_processor, make_job, make_config, FakeEndModel, FakeModel, FakePipe, FakeEndModelContinue, FakeLogger
 
 class TestHeadState(unittest.TestCase):
     """Tests for the _state_head method."""

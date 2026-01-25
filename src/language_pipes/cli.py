@@ -20,20 +20,20 @@ def build_parser():
         description="Distribute LLMs across multiple systems"
     )
 
-    parser.add_argument("-V", "--version", action="version", version=VERSION)
+    parser.add_argument("-v", "--version", action="version", version=VERSION)
 
     subparsers = parser.add_subparsers(dest="command")
 
     #Upgrade
-    subparsers.add_parser("upgrade", help="Upgrade Language Pipes and related packages")
+    subparsers.add_parser("upgrade", help="Upgrade Language Pipes package")
 
     # Key Generation
     create_key_parser = subparsers.add_parser("keygen", help="Generate AES key")
-    create_key_parser.add_argument("output", help="Output file for AES key (default: network.key)", default="network.key")
+    create_key_parser.add_argument("output", nargs='?', help="Output file for AES key (default: network.key)", default="network.key")
 
     # Initialize
     init = subparsers.add_parser("init", help="Create a new configuration file")
-    init.add_argument("-o", "--output", default="config.toml")
+    init.add_argument("output", nargs='?', default="config.toml", help="Output file name to write to (default: config.toml)")
 
     # Quick start
     start = subparsers.add_parser("start", help="First-time setup wizard and server start")
@@ -199,6 +199,7 @@ def main(argv = None):
             with open(args.config, "r", encoding="utf-8") as f:
                 data = toml.load(f)
         data = apply_overrides(data, args)
+        
         config = LpConfig.from_dict({
             "node_id": data["node_id"],
             "logging_level": data["logging_level"],
@@ -213,12 +214,9 @@ def main(argv = None):
             "prefill_chunk_size": data["prefill_chunk_size"]
         })
 
-        callback_holder = {"callback": lambda: None}
+        print(config.to_string())
 
-        def on_network_change():
-            callback_holder["callback"]()
-
-        router = DSNodeServer.start(DSNodeConfig.from_dict({
+        router_config = DSNodeConfig.from_dict({
             "node_id": data["node_id"],
                 "port": data["peer_port"],
                 "network_ip": data["network_ip"],
@@ -229,7 +227,11 @@ def main(argv = None):
                         "port": data["bootstrap_port"]
                     }
                 ] if data["bootstrap_address"] is not None else []
-        }))
+        })
+
+        print(router_config.to_string())
+
+        router = DSNodeServer.start(router_config)
 
         app = LanguagePipes(config, router)
         return app

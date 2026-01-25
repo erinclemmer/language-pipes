@@ -1,49 +1,22 @@
 import os
-import re
 import toml
 from pathlib import Path
-from unique_names_generator import get_random_name
 
 from distributed_state_network import DSNodeServer, DSNodeConfig
 
 from language_pipes.config import LpConfig, default_config_dir, default_model_dir
-from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.edit import edit_config
 from language_pipes.commands.view import view_config
 from language_pipes.lp import LanguagePipes
-from language_pipes.util.user_prompts import prompt_bool, prompt, prompt_choice, prompt_number_choice, select_config, get_config_files
+from language_pipes.util.user_prompts import prompt, prompt_number_choice, select_config, get_config_files, show_banner
 from language_pipes.util import sanitize_file_name
 
 def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
-    print("\nStarting server...\n")
-    print("=" * 50)
+    show_banner("Starting server")
     
-    # Load config and start
     with open(config_path, "r", encoding="utf-8") as f:
         data = toml.load(f)
-    
-    # Create a minimal args-like object for apply_overrides
-    class Args:
-        logging_level = None
-        openai_port = None
-        node_id = None
-        peer_port = None
-        network_ip = None
-        app_dir = None
-        model_dir = None
-        bootstrap_address = None
-        bootstrap_port = None
-        network_key = None
-        model_validation = None
-        print_times = None
-        print_job_data = None
-        prefill_chunk_size = None
-        max_pipes = None
-        hosted_models = None
-    
-    args = Args()
-    data = apply_overrides(data, args)
     
     config = LpConfig.from_dict({
         "node_id": data["node_id"],
@@ -74,8 +47,7 @@ def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
             ] if data["bootstrap_address"] is not None else []
         }))
         
-        app = LanguagePipes(config, router)
-        return app
+        LanguagePipes(config, router)
     except KeyboardInterrupt:
         return
     except Exception as e:
@@ -145,7 +117,7 @@ Version: {version}
             "Delete Config"
         ])
 
-        print('\n==============================================================================\n')
+        print("\n" + ("=" * 50) + "\n")
 
         match main_menu_cmd:
             case "Load Config":
@@ -155,7 +127,7 @@ Version: {version}
                 config_path = select_config(app_dir)
                 if config_path is not None:
                     view_config(config_path)
-                    return start_server(apply_overrides, app_dir, config_path, version)
+                    start_server(apply_overrides, app_dir, config_path, version)
             case "View Config":
                 if len(get_config_files(config_dir)) == 0:
                     print("No configs found...\n\n")
@@ -176,4 +148,4 @@ Version: {version}
                     continue
                 delete_config(app_dir)
 
-        print('\n==============================================================================\n')
+        print("\n" + ("=" * 50) + "\n")

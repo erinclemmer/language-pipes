@@ -33,15 +33,12 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "unique-names-generator",
     "torch",
     "transformers",
     "uuid",
     "promise",
     "requests",
     "logging",
-    "distributed-state-network",
-    "llm-layer-collector",
     "toml"
 ]
 
