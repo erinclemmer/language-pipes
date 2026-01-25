@@ -68,7 +68,7 @@ def interactive_init(output_path: str):
             })
             
             print()
-            if not prompt_bool("Add another model?", default=False):
+            if not prompt_bool("Add another model?", required=True):
                 break
     except KeyboardInterrupt:
         pass
@@ -144,7 +144,8 @@ def interactive_init(output_path: str):
             print(f"Generated new key: {key}")
             print("Note: Save this key somewhere and supply it to other nodes on the network")
     else:
-        del config["network_key"]
+        if "network_key" in config:
+            del config["network_key"]
 
     # === Advanced Options ===
     print("\n--- Advanced Options ---\n")
