@@ -1,13 +1,11 @@
 import yappi
-import pstats
-import io
 import os
 import sys
 import time
 import pathlib
 import requests
 import unittest
-from typing import List
+from typing import List, Optional
 
 import openai
 
@@ -19,10 +17,8 @@ from language_pipes.cli import main
 from language_pipes.util.chat import ChatMessage, ChatRole
 
 MODEL = "Qwen/Qwen3-1.7B"
-# MODEL = "Qwen/Qwen3-30B-A3B-Thinking-2507"
-# MODEL = "meta-llama/Llama-3.2-1B-Instruct"
 
-def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: int = None, bootstrap_port: int = None):
+def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: Optional[int] = None, bootstrap_port: Optional[int] = None):
     args = ["serve", 
         "--node-id", node_id, 
         "--hosted-models", f"id={MODEL},device=cpu,memory={max_memory},load_ends=true", 
