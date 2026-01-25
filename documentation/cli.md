@@ -1,6 +1,11 @@
 # Command Line Interface
 
-## Usage
+### CLI Wizard
+```bash
+language-pipes
+```
+
+## Advanced Usage
 
 ```bash
 language-pipes [OPTIONS] COMMAND [ARGS]
@@ -208,25 +213,20 @@ language-pipes serve \
 ### Easiest Method (Recommended)
 
 ```bash
-language-pipes start
+language-pipes
 ```
 
-This single command handles network key generation, configuration, and server startup.
+This will start the interactive wizard of Language Pipes to help users that are not familiar with setting up config files manually.
 
 ### Manual Method
 
 ```bash
-# 1. Generate network key
-language-pipes keygen network.key
-
-# 2. Create configuration interactively
+# Create configuration interactively
 language-pipes init
 
-# 3. Start server
+# Start server
 language-pipes serve -c config.toml
 ```
-
----
 
 ## See Also
 
