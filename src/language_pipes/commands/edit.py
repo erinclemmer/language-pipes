@@ -178,7 +178,7 @@ def select_hosted_model(models: List[dict]) -> int | None:
         model_str = f"Model #{i+1}: {model.get('id', 'Unknown')} ({model.get('device', 'cpu')}, {model.get('max_memory', 4)}GB)"
         options.append(model_str)
     options.append("Cancel")
-    model_selection = prompt_choice("Select Model", options)
+    model_selection = prompt_number_choice("Select Model", options)
     if model_selection == "Cancel":
         return None
     return options.index(model_selection)
