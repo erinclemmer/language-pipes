@@ -49,15 +49,20 @@ class LpConfig:
 
     @staticmethod
     def from_dict(data: Dict) -> 'LpConfig':
+        if data.get("node_id") is None:
+            raise Exception("Node ID must be supplied to config")
+        if data.get("hosted_models") is None:
+            raise Exception("Hosted models must be supplied to the configuration")
+        
         return LpConfig(
             # Core settings
             node_id=data.get('node_id'),
-            logging_level=data['logging_level'],
+            logging_level=data.get('logging_level', "INFO"),
             app_dir=data.get('app_dir', default_config_dir()),
             model_dir=data.get('model_dir', default_model_dir()),
             
             # API server
-            oai_port=data.get('oai_port'),
+            oai_port=data.get('oai_port', None),
             
             # Model hosting
             hosted_models=[HostedModel.from_dict(m) for m in data['hosted_models']],

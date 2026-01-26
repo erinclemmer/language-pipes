@@ -77,9 +77,9 @@ class VersionTests(unittest.TestCase):
     """Tests for the --version flag"""
 
     def test_version_flag_short(self):
-        """"-V" flag should trigger version output"""
+        """"-v" flag should trigger version output"""
         with self.assertRaises(SystemExit) as cm:
-            main(["-V"])
+            main(["-v"])
         # argparse exits with 0 for --version
         self.assertEqual(cm.exception.code, 0)
 

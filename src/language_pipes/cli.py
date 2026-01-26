@@ -4,7 +4,7 @@ import argparse
 
 from distributed_state_network import DSNodeConfig, DSNodeServer
 
-from language_pipes.config import LpConfig, default_config_dir, default_model_dir
+from language_pipes.config import LpConfig
 from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.start import start_wizard
@@ -82,40 +82,40 @@ def apply_overrides(data, args):
         "model_dir": os.getenv("LP_MODEL_DIR"),
     }
 
-    def precedence(key, arg, d):
+    def precedence(key, arg):
         if arg is not None:
             return arg
         if key in env_map and env_map[key] is not None:
             return env_map[key]
         if key in data:
             return data[key]
-        return d
-    
-    default_app_dir = default_config_dir()
-    default_models_dir = default_model_dir()
+        return None
 
     app_dir_arg = args.app_dir
     if app_dir_arg is None and hasattr(args, "app_data_dir"):
         app_dir_arg = args.app_data_dir
 
     config = {
-        "logging_level": precedence("logging_level", args.logging_level, "INFO"),
-        "oai_port": precedence("oai_port", args.openai_port, None),
-        "app_dir": precedence("app_dir", app_dir_arg, default_app_dir),
-        "node_id": precedence("node_id", args.node_id, None),
-        "peer_port": int(precedence("peer_port", args.peer_port, 5000)),
-        "network_ip": precedence("network_ip", None, "127.0.0.1"),
-        "bootstrap_address": precedence("bootstrap_address", args.bootstrap_address, None),
-        "bootstrap_port": precedence("bootstrap_port", args.bootstrap_port, 5000),
-        "network_key": precedence("network_key", args.network_key, None),
-        "model_validation": precedence("model_validation", args.model_validation, False),
-        "max_pipes": precedence("max_pipes", args.max_pipes, 1),
-        "hosted_models": precedence("hosted_models", args.hosted_models, None),
-        "print_times": precedence("print_times", args.print_times, False),
-        "print_job_data": precedence("print_job_data", args.print_job_data, False),
-        "prefill_chunk_size": precedence("prefill_chunk_size", args.prefill_chunk_size, 6),
-        "model_dir": precedence("model_dir", args.model_dir, default_models_dir),
+        "logging_level": precedence("logging_level", args.logging_level),
+        "oai_port": precedence("oai_port", args.openai_port),
+        "app_dir": precedence("app_dir", app_dir_arg),
+        "node_id": precedence("node_id", args.node_id),
+        "peer_port": precedence("peer_port", args.peer_port),
+        "network_ip": precedence("network_ip", None),
+        "bootstrap_address": precedence("bootstrap_address", args.bootstrap_address),
+        "bootstrap_port": precedence("bootstrap_port", args.bootstrap_port),
+        "network_key": precedence("network_key", args.network_key),
+        "model_validation": precedence("model_validation", args.model_validation),
+        "max_pipes": precedence("max_pipes", args.max_pipes),
+        "hosted_models": precedence("hosted_models", args.hosted_models),
+        "print_times": precedence("print_times", args.print_times),
+        "print_job_data": precedence("print_job_data", args.print_job_data),
+        "prefill_chunk_size": precedence("prefill_chunk_size", args.prefill_chunk_size),
+        "model_dir": precedence("model_dir", args.model_dir),
     }
+
+    if config["peer_port"] is not None:
+        config["peer_port"] = int(config["peer_port"])
 
     if config["hosted_models"] is None:
         print("Error: hosted_models param must be supplied in config")
@@ -195,27 +195,15 @@ def main(argv = None):
                 data = toml.load(f)
         data = apply_overrides(data, args)
         
-        config = LpConfig.from_dict({
-            "node_id": data["node_id"],
-            "logging_level": data["logging_level"],
-            "oai_port": data["oai_port"],
-            "app_dir": data["app_dir"],
-            "model_dir": data["model_dir"],
-            "hosted_models": data["hosted_models"],
-            "max_pipes": data["max_pipes"],
-            "model_validation": data["model_validation"],
-            "print_times": data["print_times"],
-            "print_job_data": data["print_job_data"],
-            "prefill_chunk_size": data["prefill_chunk_size"]
-        })
+        config = LpConfig.from_dict(data)
 
         print(config.to_string())
 
         router_config = DSNodeConfig.from_dict({
             "node_id": data["node_id"],
-                "port": data["peer_port"],
-                "network_ip": data["network_ip"],
-                "aes_key": data["network_key"],
+                "port": data.get("peer_port", 5000),
+                "network_ip": data("network_ip", None),
+                "aes_key": data("network_key", None),
                 "bootstrap_nodes": [
                     {
                         "address": data["bootstrap_address"],

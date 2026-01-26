@@ -12,39 +12,29 @@ from language_pipes.lp import LanguagePipes
 from language_pipes.util.user_prompts import prompt, prompt_number_choice, select_config, get_config_files, show_banner
 from language_pipes.util import sanitize_file_name
 
-def start_server(apply_overrides, app_dir: str, config_path: str, version: str):
+def start_server(app_dir: str, config_path: str):
     show_banner("Starting server")
     
     with open(config_path, "r", encoding="utf-8") as f:
         data = toml.load(f)
+
+    data["app_dir"] = app_dir
     
-    config = LpConfig.from_dict({
-        "node_id": data["node_id"],
-        "logging_level": data["logging_level"],
-        "oai_port": data["oai_port"],
-        "app_dir": app_dir,
-        "model_dir": data["model_dir"],
-        "hosted_models": data["hosted_models"],
-        "max_pipes": data["max_pipes"],
-        "model_validation": data["model_validation"],
-        "print_times": data["print_times"],
-        "print_job_data": data["print_job_data"],
-        "prefill_chunk_size": data["prefill_chunk_size"]
-    })
+    config = LpConfig.from_dict(data)
 
     try:
         router = DSNodeServer.start(DSNodeConfig.from_dict({
-            "node_id": data["node_id"],
-            "port": data["peer_port"],
-            "network_ip": data["network_ip"],
+            "node_id": data.get("node_id"),
+            "port": data.get("peer_port", 5000),
+            "network_ip": data.get("network_ip", None),
             "credential_dir": str(Path(app_dir) / "credentials"),
-            "aes_key_file": data["network_key"],
+            "aes_key_file": data.get("network_key", None),
             "bootstrap_nodes": [
                 {
                     "address": data["bootstrap_address"],
                     "port": data["bootstrap_port"]
                 }
-            ] if data["bootstrap_address"] is not None else []
+            ] if data.get("bootstrap_address") is not None else []
         }))
         
         LanguagePipes(config, router)
@@ -127,7 +117,7 @@ Version: {version}
                 config_path = select_config(app_dir)
                 if config_path is not None:
                     view_config(config_path)
-                    start_server(apply_overrides, app_dir, config_path, version)
+                    start_server(app_dir, config_path)
             case "View Config":
                 if len(get_config_files(config_dir)) == 0:
                     print("No configs found...\n\n")
