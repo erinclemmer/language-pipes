@@ -34,7 +34,13 @@ Over the past few years open source language models have become much more powerf
 ---
 
 ### What Does Language Pipes do?
-In a basic sense, language models work by passing information through many layers. At each layer, several matrix multiplicatitons between the layer weights and the system state are performed and the data is moved to the next layer. Language pipes works by hosting different layers on different machines to split up the RAM cost across the system.
+In a basic sense, language models work by passing information through many layers. At each layer, several matrix multiplicatitons between the layer weights and the system state are performed and the data is moved to the next layer. Language pipes works by hosting different layers on different machines to split up the RAM cost across the system. The difference between Language Pipes and existing options is the decentralized nature and privacy protections.  
+  
+Here are some helpful links to get started:
+- To learn more about the [privacy protecting mechanism click here](./documentation/privacy.md).  
+- To learn more about [how language pipes works click here](./documentation/architecture.md).  
+- To learn about how Language Pipes [processes jobs click here](./documentation/job-processor.md).
+
 
 ### Installation
 Ensure that you have Python 3.10.18 (or any 3.10 version) installed. For an easy to use Python version manager use [pyenv](https://github.com/pyenv/pyenv). This specific version is necessary for the [transformers](https://github.com/huggingface/transformers) library to work properly.  
@@ -79,6 +85,9 @@ Select **Create Config** to walk through the setup wizard, which guides you thro
 
 After creating a config, select **Load Config** to start the server.
 
+More information about how to [configure Language Pipes can be found here](./documentation/configuration.md).  
+If you prefer a more CLI based approach then [read the CLI documentation here](./documentation/cli.md).
+
 ---
 
 # Two Node Example
@@ -86,7 +95,7 @@ After creating a config, select **Load Config** to start the server.
 This example shows how to distribute a model across two computers using the interactive wizard.
 
 ### Node 1 (First Computer)
-
+Start language pipes with this command:
 ```bash
 language-pipes
 ```
@@ -108,8 +117,7 @@ language-pipes
 
 ### Node 2 (Second Computer)
 
-Install Language Pipes, then:
-
+Start language pipes with this command:
 ```bash
 language-pipes
 ```
@@ -158,13 +166,18 @@ print(response.choices[0].message.content)
 
 Install the OpenAI library with: `pip install openai`
 
+To learn about how to work with the [Open AI compatable server click here](./documentation/oai.md).
+
 ### Dependencies
 - [pytorch](pytorch.org)
 - [transformers](https://huggingface.co/docs/transformers) 
 
 ### Documentation
-* [Architecture](./documentation/architecture.md)
-* [Privacy](./documentation/privacy.md)
+* [Architecture Overview](./documentation/architecture.md)
+* [Privacy Protection](./documentation/privacy.md)
 * [CLI Reference](./documentation/cli.md)
-* [Configuration](./documentation/configuration.md)
-* [OpenAI API](./documentation/oai.md)
+* [Configuration Manual](./documentation/configuration.md)
+* [Open AI Compatable API](./documentation/oai.md)
+* [Job Processor State Machine](./documentation/job-processor.md)
+* [The default peer to peer implementation](./documentation/distributed-state-network/README.md)
+* [The way Language Pipes abstracts from model architecture](./documentation/llm-layer-collector.md)
