@@ -58,7 +58,7 @@ class DSNodeConfig:
         lines.append(f"--- Bootstrap Nodes ({len(self.bootstrap_nodes)}) ---")
         if self.bootstrap_nodes:
             for i, endpoint in enumerate(self.bootstrap_nodes):
-                lines.append(f"  Node #{i+1}:          {endpoint.ip}:{endpoint.port}")
+                lines.append(f"  Node #{i+1}:          {endpoint.address}:{endpoint.port}")
         else:
             lines.append("  No bootstrap nodes configured (standalone/first node)")
         

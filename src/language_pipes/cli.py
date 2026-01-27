@@ -201,15 +201,15 @@ def main(argv = None):
 
         router_config = DSNodeConfig.from_dict({
             "node_id": data["node_id"],
-                "port": data.get("peer_port", 5000),
-                "network_ip": data("network_ip", None),
-                "aes_key": data("network_key", None),
-                "bootstrap_nodes": [
-                    {
-                        "address": data["bootstrap_address"],
-                        "port": data["bootstrap_port"]
-                    }
-                ] if data["bootstrap_address"] is not None else []
+            "port": data.get("peer_port", 5000),
+            "network_ip": data.get("network_ip", None),
+            "aes_key": data.get("network_key", None),
+            "bootstrap_nodes": [
+                {
+                    "address": data["bootstrap_address"],
+                    "port": data["bootstrap_port"]
+                }
+            ] if data.get("bootstrap_address") is not None else []
         })
 
         print(router_config.to_string())

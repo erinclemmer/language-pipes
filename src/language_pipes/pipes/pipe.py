@@ -41,7 +41,7 @@ class Pipe:
     def send_job(self, job: NetworkJob, node_id: str):
         data = job.to_bytes()
         if node_id == self.router.node_id():
-            self.router.receive_data(data)
+            self.router._receive_data(data)
         else:
             self.router.send_to_node(node_id, data)
 

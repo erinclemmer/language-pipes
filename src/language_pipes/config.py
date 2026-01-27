@@ -54,12 +54,44 @@ class LpConfig:
         if data.get("hosted_models") is None:
             raise Exception("Hosted models must be supplied to the configuration")
         
+        logging_level = data.get('logging_level', None)
+        if logging_level is None:
+            logging_level = "INFO"
+        
+        app_dir = data.get('app_dir', None)
+        if app_dir is None:
+            app_dir = default_config_dir()
+        
+        model_dir = data.get('model_dir', None)
+        if model_dir is None:
+            model_dir = default_model_dir()
+        
+        print_times = data.get('print_times', None)
+        if print_times is None:
+            print_times = False
+        
+        print_job_data = data.get('print_job_data', None)
+        if print_job_data is None:
+            print_job_data = False
+
+        model_validation = data.get('model_validation', None)
+        if model_validation is None:
+            model_validation = False
+        
+        prefill_chunk_size = data.get('prefill_chunk_size', None)
+        if prefill_chunk_size is None:
+            prefill_chunk_size = 6
+        
+        max_pipes = data.get('max_pipes', None)
+        if max_pipes is None:
+            max_pipes = 1
+
         return LpConfig(
             # Core settings
             node_id=data.get('node_id'),
-            logging_level=data.get('logging_level', "INFO"),
-            app_dir=data.get('app_dir', default_config_dir()),
-            model_dir=data.get('model_dir', default_model_dir()),
+            logging_level=logging_level,
+            app_dir=app_dir,
+            model_dir=model_dir,
             
             # API server
             oai_port=data.get('oai_port', None),
@@ -68,11 +100,11 @@ class LpConfig:
             hosted_models=[HostedModel.from_dict(m) for m in data['hosted_models']],
             
             # Processing options
-            max_pipes=data.get('max_pipes', 1),
-            model_validation=data.get('model_validation', False),
-            print_times=data.get('print_times', False),
-            print_job_data=data.get('print_job_data', False),
-            prefill_chunk_size=data.get('prefill_chunk_size', 6)
+            max_pipes=max_pipes,
+            model_validation=model_validation,
+            print_times=print_times,
+            print_job_data=print_job_data,
+            prefill_chunk_size=prefill_chunk_size
         )
 
     def to_string(self) -> str:
