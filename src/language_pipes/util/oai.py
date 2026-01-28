@@ -168,3 +168,17 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
         complete_cb(req.model, req.messages, req.max_completion_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
     job = Promise(promise_fn).get()
     complete(job)
+
+def get_models(handler: BaseHTTPRequestHandler, get_models: Callable):
+    models = get_models()
+    _respond_json(handler, {
+        "object": "list",
+        "data": [
+            {
+                "id": m,
+                "object": "model",
+                "created": int(time.time()),
+                "owned_by": ""
+            } for m in models
+        ]
+    })

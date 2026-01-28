@@ -97,3 +97,11 @@ class RouterPipes:
 
     def _network_pipes(self) -> List[MetaPipe]:
         return aggregate_models(self._all_models())
+
+    def get_models(self) -> List[str]:
+        model_ids = []
+        for pipe in self._network_pipes():
+            if pipe.is_complete() and pipe.model_id not in model_ids:
+                model_ids.append(pipe.model_id)
+        return model_ids
+                

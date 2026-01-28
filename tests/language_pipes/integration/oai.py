@@ -95,6 +95,29 @@ class OpenAITests(unittest.TestCase):
         print("\"" + res.choices[0].message.content + "\"")
         self.assertTrue(len(res.choices) > 0)
 
+    def test_models_endpoint(self):
+        start_node("node-1", 5, 5000, 8000)
+        client = openai.OpenAI(
+            api_key="",
+            base_url="http://127.0.0.1:8000/v1",
+        )
+        models = client.models.list()
+        self.assertEqual(models.object, "list")
+        self.assertTrue(len(models.data) > 0)
+        
+        # Verify model object structure matches OpenAI format
+        model = models.data[0]
+        self.assertEqual(model.object, "model")
+        self.assertIsNotNone(model.id)
+        self.assertIsNotNone(model.created)
+        
+        # Also test raw HTTP request
+        res = requests.get("http://localhost:8000/v1/models")
+        self.assertEqual(200, res.status_code)
+        data = res.json()
+        self.assertEqual(data["object"], "list")
+        self.assertIn("data", data)
+
     def test_400_codes(self):
         start_node("node-1", 5, 5000, 8000)
         messages = [

@@ -3,7 +3,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable
 
-from language_pipes.util.oai import oai_chat_complete
+from language_pipes.util.oai import oai_chat_complete, get_models
 from language_pipes.util.http import _send_code
 
 class T:
@@ -36,9 +36,14 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
         if self.path == '/v1/chat/completions':
             oai_chat_complete(self, self.server.complete, data)
 
+    def do_GET(self):
+        if self.path == '/v1/models':
+            get_models(self, self.server.get_models)
+
 class OAIHttpServer(ThreadingHTTPServer):
     complete: Callable
     
-    def __init__(self, port: int, complete: Callable):
+    def __init__(self, port: int, complete: Callable, get_models: Callable):
         super().__init__(("0.0.0.0", port), OAIHttpHandler)
         self.complete = complete
+        self.get_models = get_models
