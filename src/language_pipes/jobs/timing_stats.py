@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from language_pipes.jobs.job_time import JobTime
@@ -16,20 +15,62 @@ def _summary(values: Iterable[float]) -> Optional[dict]:
         "max_ms": max(values),
     }
 
-
-@dataclass
 class TimingStats:
-    network_ms: List[float] = field(default_factory=list)
-    network_pairs_ms: Dict[Tuple[str, str], List[float]] = field(default_factory=dict)
-    embed_ms: List[float] = field(default_factory=list)
-    head_ms: List[float] = field(default_factory=list)
-    layer_ms: List[float] = field(default_factory=list)
-    token_ms: List[float] = field(default_factory=list)
+    network_ms: List[float]
+    network_pairs_ms: Dict[Tuple[str, str], List[float]]
+    embed_ms: List[float]
+    head_ms: List[float]
+    layer_ms: List[float]
+    token_ms: List[float]
 
-    def add_token(self, layer_times: List[JobTime]) -> None:
-        if not layer_times:
+    output_times: List[List[JobTime]]
+    prefill_times: List[List[JobTime]]
+    
+    current_times: List[JobTime]
+
+    def __init__(self):
+        self.network_ms = []
+        self.network_pairs_ms = []
+        self.embed_ms = []
+        self.head_ms = []
+        self.layer_ms = []
+        self.token_ms = []
+
+        self.output_times = []
+        self.prefill_times = []
+        self.current_times = []
+
+    def add_timing(self, time: JobTime) -> None:
+        self.current_times.append(time)
+
+    def add_embed_time(self, node_id: str) -> None:
+        self.current_times.append(JobTime(node_id=node_id, is_embed=True))
+
+    def add_layer_time(self, node_id: str, start_layer: int, end_layer: int) -> None:
+        self.current_times.append(JobTime(node_id=node_id, start_layer=start_layer, end_layer=end_layer))
+
+    def add_head_time(self, node_id: str) -> None:
+        self.current_times.append(JobTime(node_id=node_id, is_head=True))
+    
+    def set_send_time(self) -> None:
+        if len(self.current_times) == 0:
             return
-        ordered = sorted(layer_times, key=lambda lt: lt.receive_time)
+        self.current_times[-1].set_send_time()
+        
+    def receive_network_job(self, times: List[JobTime]) -> None:
+        self.current_times = times
+
+    def finalize_token(self) -> None:
+        self.add_times()
+        self.output_times.append(self.current_times)
+        self.current_times = []
+
+    def finalize_prefill_chunk(self) -> None:
+        self.prefill_times.append(self.current_times)
+        self.current_times = []
+
+    def add_times(self) -> None:
+        ordered = sorted(self.current_times, key=lambda lt: lt.receive_time)
         for entry in ordered:
             duration_ms = (entry.send_time - entry.receive_time) * 1000.0
             if entry.is_embed:
@@ -54,7 +95,7 @@ class TimingStats:
         if token_duration_ms >= 0:
             self.token_ms.append(token_duration_ms)
 
-    def log_summary(self, logger, job_id: str) -> None:
+    def log_token_summary(self, logger, job_id: str) -> None:
         def log_line(label: str, stats: Optional[dict]) -> None:
             if stats is None:
                 logger.info(f"[Timing] {label}: no samples")

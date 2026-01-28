@@ -112,14 +112,9 @@ Device: {self.device}
 ''')
 
     def process_job(self, job: Job):
-        layer_time = JobTime(
-            node_id=self.node_id,
-            start_layer=job.current_layer,
-            end_layer=self.end_layer
-        )
-        job.add_timing(layer_time)
+        job.timing_stats.add_layer_time(self.node_id, job.current_layer, self.end_layer)
         self.compute_layers(job)
-        layer_time.set_send_time()
+        job.timing_stats.set_send_time()
 
     def compute_layers(
         self, 

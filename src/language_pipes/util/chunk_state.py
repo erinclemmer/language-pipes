@@ -1,13 +1,14 @@
 from time import time
 
 class ChunkState:
-    """Tracks prefill chunking state for a job (local only, not sent over network)."""
+    job_id: str
     current_chunk: int  # Current chunk index being processed (0-based)
     total_chunks: int  # Total chunks for prefill (0 = no chunking needed)
     chunk_size: int  # Size of each chunk
     prompt_length: int  # Total prompt length
 
-    def __init__(self):
+    def __init__(self, job_id: str):
+        self.job_id = job_id
         self.current_chunk = 0
         self.total_chunks = 0
         self.chunk_size = 0
@@ -73,26 +74,9 @@ class ChunkState:
             f"chunk_size={self.chunk_size}, prompt_length={self.prompt_length})"
         )
 
-def log_prefill_chunk_complete(logger, job: "Job") -> None:
-    chunk_time_ms = (time() - job.chunk_start_time) * 1000
-    logger.info(
-        f"[Prefill] job={job.job_id[:8]} chunk {job.chunking.current_chunk + 1}/"
-        f"{job.chunking.total_chunks} completed in {chunk_time_ms:.1f}ms"
-    )
-
-def log_prefill_chunk_start(logger, job: "Job", chunk_start: int, chunk_end: int) -> None:
-    job.chunk_start_time = time()
-    logger.info(
-        f"[Prefill] job={job.job_id[:8]} chunk {job.chunking.current_chunk + 1}/"
-        f"{job.chunking.total_chunks} starting: tokens {chunk_start}-{chunk_end}"
-    )
-
-def log_prefill_summary(logger, job: "Job") -> None:
-    total_prefill_ms = (time() - job.prefill_start_time) * 1000
-    tokens_per_sec = (job.prompt_tokens / total_prefill_ms) * 1000 if total_prefill_ms > 0 else 0
-    logger.info(
-        f"[Prefill] job={job.job_id[:8]} finished: "
-        f"prompt_tokens={job.prompt_tokens}, "
-        f"total_time={total_prefill_ms:.1f}ms, "
-        f"throughput={tokens_per_sec:.1f} tok/s"
-    )
+    def log_prefill_chunk_start(self, logger) -> None:
+        chunk_start, chunk_end = self.get_range()
+        logger.info(
+            f"[Prefill] job={self.job_id[:8]} chunk {self.current_chunk + 1}/"
+            f"{self.total_chunks} starting: tokens {chunk_start}-{chunk_end}"
+        )

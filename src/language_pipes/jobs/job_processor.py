@@ -3,15 +3,12 @@ from dataclasses import dataclass
 from logging import Logger
 
 from language_pipes.jobs.job import Job
-from language_pipes.jobs.job_time import JobTime
 
 from language_pipes.pipes.pipe import Pipe
 from language_pipes.modeling.end_model import EndModel
 
 from language_pipes.util.enums import ComputeStep, JobStatus
 from language_pipes.config import LpConfig
-from language_pipes.util.chunk_state import log_prefill_chunk_complete, log_prefill_summary
-
 class JobState(Enum):
     VALIDATING = auto()    # Validating pipe and getting resources
     HEAD = auto()          # Computing norm/head, handling completion
@@ -146,7 +143,6 @@ class JobProcessor:
     def _state_head(self) -> JobState:
         """Handle norm/head computation and prepare to embed the next token."""
         job = self.ctx.job
-        pipe = self.ctx.pipe
         end_model = self.ctx.end_model
 
         # Log prefill completion when transitioning from prefill to decode
@@ -155,25 +151,18 @@ class JobProcessor:
                 log_done_error(self.ctx, "Received head state for job that was not done chunking")
                 return JobState.DONE
 
-            if job.chunking.is_active():
-                log_prefill_chunk_complete(self.ctx.logger, job)
-
-            log_prefill_summary(self.ctx.logger, job)
             job.chunking.disable()
         
         job.compute_step = ComputeStep.NORM
         job.current_layer = 0
 
-        head_time = JobTime(node_id=self.ctx.config.node_id, is_head=True)
-        job.add_timing(head_time)
-
+        job.timing_stats.add_head_time(self.ctx.config.node_id)
         end_model.compute_norm(job)
         end_model.compute_head(job)
-        head_time.set_send_time()
-        if self.ctx.config.print_times and job.current_times:
-            job.timing_stats.add_token(job.current_times)
+        job.timing_stats.set_send_time()
+        if self.ctx.config.print_times:
+            job.timing_stats.finalize_token()
             job.timing_stats.log_summary(self.ctx.logger, job.job_id)
-        job.finalize_token_timing()
         
         if self.ctx.config.print_job_data:
             job.print_job(self.ctx.logger)
@@ -194,10 +183,9 @@ class JobProcessor:
     def _state_embed(self) -> JobState:
         """Embed the next token, handling prefill chunks when needed."""
         job = self.ctx.job
-        embed_time = JobTime(node_id=self.ctx.config.node_id, is_embed=True)
-        job.add_timing(embed_time)
+        job.timing_stats.add_embed_time(self.ctx.config.node_id)
         self.ctx.end_model.compute_embed(job, self.ctx.logger, self.ctx.config.prefill_chunk_size)
-        embed_time.set_send_time()
+        job.timing_stats.set_send_time()
         
         if should_prefill_chunk(job) or job.chunking.is_active():
             job.delta = ""
