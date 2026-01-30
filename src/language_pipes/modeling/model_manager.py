@@ -1,6 +1,6 @@
 from uuid import uuid4
 from logging import Logger
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.pipes.router_pipes import RouterPipes
@@ -17,7 +17,7 @@ class ModelManager:
     router_pipes: RouterPipes
     models: List[LlmModel]
     end_models: List[EndModel]
-    pipes_hosted: List[str]
+    pipes_hosted: Dict[str, List[str]]
 
     def __init__(
         self, 
@@ -30,7 +30,7 @@ class ModelManager:
         self.router_pipes = router_pipes
         self.models = []
         self.end_models = []
-        self.pipes_hosted = []
+        self.pipes_hosted = { }
         for m in self.config.hosted_models:
             self._host_model(m.id, m.max_memory, m.device, m.load_ends)
 
@@ -96,8 +96,11 @@ class ModelManager:
         if load_ends:
             end_model = self._load_end_model(model_id, device)
         
+        if model_id not in self.pipes_hosted:
+            self.pipes_hosted[model_id] = []
+        
         for pipe_id in [p.pipe_id for p in self.router_pipes.pipes_for_model(model_id, False)]:
-            if pipe_id not in self.pipes_hosted and len(self.pipes_hosted) >= self.config.max_pipes:
+            if pipe_id not in self.pipes_hosted[model_id] and len(self.pipes_hosted[model_id]) >= self.config.max_pipes:
                 break
             loaded = True
             while loaded:
@@ -107,13 +110,13 @@ class ModelManager:
                 available_memory, model = self._get_model_for_pipe(model_id, pipe, device, available_memory)
                 loaded = model is not None
                 if model is not None:
-                    self.pipes_hosted.append(model.pipe_id)
+                    self.pipes_hosted[model_id].append(model.pipe_id)
                     self.router_pipes.add_model_to_network(model.to_meta())
                     models_to_load.append(model)
 
-        if len(self.pipes_hosted) < self.config.max_pipes:
+        if len(self.pipes_hosted[model_id]) < self.config.max_pipes:
             new_pipe = MetaPipe(str(uuid4()), model_id, [])
-            self.pipes_hosted.append(new_pipe.pipe_id)
+            self.pipes_hosted[model_id].append(new_pipe.pipe_id)
             _, model = self._get_model_for_pipe(model_id, new_pipe, device, available_memory)
             if model is not None:
                 self.router_pipes.add_model_to_network(model.to_meta())

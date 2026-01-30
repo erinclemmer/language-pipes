@@ -356,8 +356,44 @@ class ModelManagerTests(unittest.TestCase):
 
         manager = ModelManager(logger, config, router)
 
-        # Should not exceed max_pipes
-        self.assertLessEqual(len(manager.pipes_hosted), 1)
+        self.assertEqual(len(manager.pipes_hosted), 1)
+
+    @patch('language_pipes.modeling.model_manager.EndModel', FakeEndModel)
+    @patch('language_pipes.modeling.model_manager.LlmModel')
+    def test_max_pipes_works_per_model_id(self, mock_llm_model_class):
+        """Test _host_model respects max_pipes on a per model basis"""
+        call_count = [0]
+        
+        def create_model(*args, **kwargs):
+            call_count[0] += 1
+            fake_model = FakeLlmModel("model-1", "node-a", f"pipe-{call_count[0]}", "cpu")
+            fake_model.start_layer = 0
+            fake_model.end_layer = 3
+            return fake_model
+        
+        mock_llm_model_class.from_id.side_effect = create_model
+
+        logger = FakeLogger()
+        hosted_model_1 = HostedModel(
+            id="model-1",
+            device="cpu",
+            max_memory=10.0,
+            load_ends=False
+        )
+        hosted_model_2 = HostedModel(
+            id="model-2",
+            device="cpu",
+            max_memory=10.0,
+            load_ends=False
+        )
+        config = make_config(hosted_models=[hosted_model_1, hosted_model_2], max_pipes=1)
+        node = FakeStateNetworkNode("node-a")
+        node.add_peer("node-a", [])
+        router = RouterPipes(node)
+
+        manager = ModelManager(logger, config, router)
+
+        self.assertEqual(len(manager.pipes_hosted), 2)
 
     @patch('language_pipes.modeling.model_manager.EndModel', FakeEndModel)
     @patch('language_pipes.modeling.model_manager.LlmModel')
@@ -398,8 +434,7 @@ class ModelManagerTests(unittest.TestCase):
 
         manager = ModelManager(logger, config, router)
 
-        # Should have added to the existing pipe
-        self.assertIn("existing-pipe", manager.pipes_hosted)
+        self.assertIn("existing-pipe", manager.pipes_hosted["model-1"])
 
     @patch('language_pipes.modeling.model_manager.EndModel', FakeEndModel)
     @patch('language_pipes.modeling.model_manager.LlmModel')
