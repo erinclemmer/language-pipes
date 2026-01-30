@@ -180,19 +180,27 @@ class JobProcessor:
     def _state_embed(self) -> JobState:
         """Embed the next token, handling prefill chunks when needed."""
         job = self.ctx.job
-        if job.chunking.is_active() and job.chunking.current_chunk > 0:
-            self.ctx.logger.info(f"[PREFILL] Chunk {job.chunking.current_chunk} / {job.chunking.total_chunks} ({(job.chunking.current_chunk / job.chunking.total_chunks) * 100.0:.2f}%)")
-            job.timing_stats.finalize_prefill_chunk(self.ctx.logger)
-        
-        job.timing_stats.add_embed_time(self.ctx.config.node_id)
-        self.ctx.end_model.compute_embed(job, self.ctx.logger, self.ctx.config.prefill_chunk_size)
-        job.timing_stats.set_send_time(self.ctx.logger)
-        
-        if should_prefill_chunk(job) or job.chunking.is_active():
+        end_model = self.ctx.end_model
+        logger = self.ctx.logger
+
+        if job.prompt_tokens == 0:
+            end_model.tokenize(job)
+            logger.info(f"[Prefill] job={job.job_id[:8]} started")
+            job.init_chunking(self.ctx.config.prefill_chunk_size)
+            job.chunking.print_start(logger)
+        elif job.chunking.is_active():
+            job.chunking.advance()
+            job.timing_stats.finalize_prefill_chunk(logger)
+            logger.info(f"[PREFILL] Chunk {job.chunking.current_chunk} / {job.chunking.total_chunks} ({(job.chunking.current_chunk / job.chunking.total_chunks) * 100.0:.2f}%)")
             job.delta = ""
             if not job.send_update():
                 log_done_error(self.ctx, "[FSM] Failed to send prefill job update; completing with error.")
                 return JobState.DONE
+        
+        job.timing_stats.add_embed_time(self.ctx.config.node_id)
+        end_model.compute_embed(job, logger, self.ctx.config.prefill_chunk_size)
+        job.timing_stats.set_send_time(logger)
+        
         return get_next_state(self.ctx)
 
     def _state_process_layers(self) -> JobState:

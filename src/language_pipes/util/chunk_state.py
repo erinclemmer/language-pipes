@@ -27,19 +27,15 @@ class ChunkState:
             self.chunk_size = 0
 
     def is_active(self) -> bool:
-        """Returns True if prefill chunking is active."""
         return self.total_chunks > 1
 
     def has_more(self) -> bool:
-        """Returns True if there are more chunks to process."""
-        return self.is_active() and self.current_chunk < self.total_chunks - 1
+        return self.is_active() and self.current_chunk < self.total_chunks
 
     def is_final(self) -> bool:
-        """Returns True if currently processing the final chunk."""
         return not self.is_active() or self.current_chunk == self.total_chunks - 1
 
     def get_range(self) -> tuple[int, int]:
-        """Get the (start, end) token indices for the current chunk."""
         if not self.is_active():
             return (0, self.prompt_length)
         start = self.current_chunk * self.chunk_size
@@ -47,7 +43,6 @@ class ChunkState:
         return (start, end)
 
     def advance(self):
-        """Move to the next chunk."""
         self.current_chunk += 1
 
     def print_start(self, logger):
@@ -64,19 +59,3 @@ class ChunkState:
         self.current_chunk = 0
         self.total_chunks = 0
         self.chunk_size = 0
-
-    def __str__(self) -> str:
-        """String representation for logging."""
-        if not self.is_active():
-            return f"ChunkState(inactive, prompt_length={self.prompt_length})"
-        return (
-            f"ChunkState(chunk={self.current_chunk + 1}/{self.total_chunks}, "
-            f"chunk_size={self.chunk_size}, prompt_length={self.prompt_length})"
-        )
-
-    def log_prefill_chunk_start(self, logger) -> None:
-        chunk_start, chunk_end = self.get_range()
-        logger.info(
-            f"[Prefill] job={self.job_id[:8]} chunk {self.current_chunk + 1}/"
-            f"{self.total_chunks} starting: tokens {chunk_start}-{chunk_end}"
-        )

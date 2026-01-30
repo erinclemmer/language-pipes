@@ -38,6 +38,8 @@ class TimingData:
         self.token_ms = []
 
     def add_times(self, new_times: List[JobTime]) -> None:
+        if len(new_times) == 0:
+            return
         self.all_times.append(new_times)
         ordered = sorted(new_times, key=lambda lt: lt.receive_time)
         for entry in ordered:

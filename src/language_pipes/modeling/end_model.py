@@ -65,42 +65,17 @@ class EndModel:
         if self.input_embedding is None:
             raise RuntimeError("Input Embedding must be loaded before computation")
         
-        chunking_initialized = False
-        if job.prompt_tokens == 0:
-            logger.info(f"[Prefill] job={job.job_id[:8]} started")
-            self.tokenize(job)
-            job.init_chunking(prefill_chunk_size)
-            job.chunking.print_start(logger)
-            chunking_initialized = True
-
-        chunk_start, chunk_end = (0, -1)
-        if job.current_token == 0 and job.chunking.has_more():
-            if not chunking_initialized:
-                job.chunking.advance()
+        chunk_start, chunk_end = (0, len(job.input_ids))
+        if job.chunking.has_more():
             chunk_start, chunk_end = job.chunking.get_range()
 
-        # Determine which tokens to embed and whether this is chunked prefill
-        is_chunked_prefill = False
-        if job.current_token == 0:
-            # Prefill phase - may be chunked
-            if chunk_end == -1:
-                chunk_end = len(job.input_ids)
-            chunk_tokens = job.input_ids[chunk_start:chunk_end]
-            # Chunked prefill: processing a non-first chunk during prefill
-            is_chunked_prefill = chunk_start > 0
-        else:
-            # Decode phase - always single token, no chunking
-            chunk_tokens = [job.input_ids[-1]]
-        
-        # Compute embeddings for the chunk
-        # chunked_prefill=True tells compute_embedding to process all tokens
-        # even when cache is non-empty (for subsequent prefill chunks)
+        chunk_tokens = job.input_ids[chunk_start:chunk_end]
         comp_state = compute_embedding(
             self.input_embedding, 
             tensor([chunk_tokens]).to(self.device), 
             self.collector.config, 
             job.cache,
-            chunked_prefill=is_chunked_prefill
+            chunked_prefill=chunk_start > 0
         )
         
         job.data = computationStateToJobData(comp_state)

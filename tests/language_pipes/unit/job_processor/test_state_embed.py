@@ -126,3 +126,6 @@ class TestEmbedPrefillIntegration(unittest.TestCase):
         self.assertEqual(processor.state, JobState.DONE)
         self.assertIn("tokenize", end_model.calls)
         self.assertIn("compute_embed", end_model.calls)
+
+if __name__ == "__main__":
+    unittest.main()
