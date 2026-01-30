@@ -1,5 +1,6 @@
 import os
 import toml
+from time import sleep
 from pathlib import Path
 
 from distributed_state_network import DSNodeServer, DSNodeConfig
@@ -38,8 +39,10 @@ def start_server(app_dir: str, config_path: str):
         }))
         
         LanguagePipes(config, router)
+        while True:
+            sleep(60)
     except KeyboardInterrupt:
-        return
+        exit()
     except Exception as e:
         print(e)
 
