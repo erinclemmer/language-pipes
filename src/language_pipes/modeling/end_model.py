@@ -17,7 +17,6 @@ from language_pipes.jobs.job_data import computationStateToJobData
 from language_pipes.modeling.llm_meta_data import LlmMetadata
 
 from language_pipes.util import clone_model
-from language_pipes.util.chunk_state import log_prefill_chunk_complete, log_prefill_chunk_start, log_prefill_summary
 
 class EndModel:
     model_id: str
@@ -77,10 +76,8 @@ class EndModel:
         chunk_start, chunk_end = (0, -1)
         if job.current_token == 0 and job.chunking.has_more():
             if not chunking_initialized:
-                log_prefill_chunk_complete(logger, job)
                 job.chunking.advance()
             chunk_start, chunk_end = job.chunking.get_range()
-            log_prefill_chunk_start(logger, job, chunk_start, chunk_end)
 
         # Determine which tokens to embed and whether this is chunked prefill
         is_chunked_prefill = False

@@ -1,5 +1,4 @@
-from time import time
-from typing import List
+from typing import List, Optional
 
 from language_pipes.util.byte_helper import ByteHelper
 from language_pipes.util.enums import ComputeStep
@@ -12,7 +11,7 @@ class NetworkJob:
     origin_node_id: str
     current_layer: int
     compute_step: ComputeStep
-    data: JobData
+    data: Optional[JobData]
     data_hash: bytes
     times: List[JobTime]
 
@@ -22,7 +21,7 @@ class NetworkJob:
         pipe_id: str,
         origin_node_id: str,
         current_layer: int,
-        data: JobData,
+        data: Optional[JobData],
         data_hash: bytes,
         compute_step: ComputeStep,
         times: List[JobTime] = []
@@ -70,8 +69,7 @@ class NetworkJob:
             valid = JobData.validate_state(job_bytes, data_hash)
 
         times = []
-        l = bts.read_int()
-        for i in range(0, l):
+        for _ in range(0, bts.read_int()):
             times.append(JobTime.from_bytes(bts.read_bytes()))
 
         return NetworkJob(

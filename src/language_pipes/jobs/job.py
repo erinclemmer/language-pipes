@@ -8,7 +8,7 @@ from typing import Callable
 from transformers.cache_utils import DynamicCache
 
 from language_pipes.jobs.job_data import JobData
-from language_pipes.jobs.network_job import NetworkJob, JobTime
+from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.jobs.timing_stats import TimingStats
 from language_pipes.util.chunk_state import ChunkState
 
@@ -36,8 +36,6 @@ class Job:
     messages: List[ChatMessage]
     result: Optional[str]
     last_update: float
-    times: List[List[JobTime]]
-    current_times: List[JobTime]
     timing_stats: TimingStats
     
     # API params
@@ -47,10 +45,6 @@ class Job:
     temperature: float
     presence_penalty: float
     max_completion_tokens: int
-    
-    # Prefill timing fields
-    prefill_start_time: float
-    chunk_start_time: float
 
     # Classes
     cache: DynamicCache
@@ -58,7 +52,8 @@ class Job:
 
     # Functions
     resolve: Promise | None
-    update: Callable[["Job"], None] | None
+    update: Optional[Callable[["Job"], None]]
+    complete: Callable[[], None]
 
     def __init__(
             self,
@@ -66,6 +61,7 @@ class Job:
             messages: List[ChatMessage],
             pipe_id: str,
             model_id: str,
+            prefill_chunk_size: int,
             data: Optional[JobData] = None,
             temperature: float = 1.0,
             top_k: int = 0,
@@ -89,9 +85,7 @@ class Job:
         self.data = data
         self.result = None
         self.input_ids = []
-        self.times = []
-        self.current_times = []
-        self.timing_stats = TimingStats()
+        self.timing_stats = TimingStats(self.job_id, prefill_chunk_size)
         self.prompt_tokens = 0
         self.current_token = 0
         self.messages = messages
@@ -103,20 +97,24 @@ class Job:
         self.presence_penalty = presence_penalty
         self.max_completion_tokens = max_completion_tokens
         
-        self.prefill_start_time = 0
-        self.chunk_start_time = 0
         self.current_layer = 0
 
         self.cache = DynamicCache()
-        self.chunking = ChunkState()
+        self.chunking = ChunkState(self.job_id)
         self.resolve = resolve
         self.update = update
-        self.complete = lambda: complete(self)
+
+        if complete is not None:
+            self.complete = lambda: complete(self)
+        else:
+            self.complete = self.pass_complete
+        
         self.last_update = time()
 
+    def pass_complete(self):
+        pass
+
     def init_chunking(self, chunk_size: int):
-        self.chunk_start_time = time()
-        self.prefill_start_time = time()
         self.chunking.init(self.prompt_tokens, chunk_size)
 
     def set_layer(self, state: torch.Tensor, layer: int, num_hidden_layers: int):
@@ -182,7 +180,7 @@ class Job:
             self.current_layer = network_job.current_layer
             
         self.data = network_job.data
-        self.current_times = list(network_job.times)
+        self.timing_stats.receive_network_job(network_job.times)
         
         return True
 
@@ -202,20 +200,12 @@ class Job:
             data=self.data, 
             data_hash=data_hash, 
             compute_step=self.compute_step, 
-            times=list(self.current_times)
+            times=list(self.timing_stats.current_times)
         )
 
     def set_last_update(self):
         from time import time
         self.last_update = time()
-
-    def add_timing(self, timing: JobTime) -> None:
-        self.current_times.append(timing)
-
-    def finalize_token_timing(self) -> None:
-        if self.current_times:
-            self.times.append(self.current_times)
-        self.current_times = []
 
     def print_job(self, logger):
         logger.info(f"""

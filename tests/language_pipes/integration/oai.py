@@ -24,9 +24,7 @@ def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: Option
         "--hosted-models", f"id={MODEL},device=cpu,memory={max_memory},load_ends=true", 
         "--peer-port", str(peer_port),
         "--app-dir", "./",
-        "--model-validation",
-        "--print-times",
-        "--print-job-data"
+        "--model-validation"
     ]
     if oai_port is not None:
         args.extend(["--openai-port", str(oai_port)])
@@ -149,46 +147,12 @@ class OpenAITests(unittest.TestCase):
         start_node("node-2", 3, 5001, None, 5000)
         time.sleep(5)
         
-        yappi.set_clock_type("cpu")
-        yappi.start()
         res = oai_complete(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
         ])
-        yappi.stop()
         
         print("\"" + res.choices[0].message.content + "\"")
-        
-        stats = yappi.get_func_stats()
-        # Filter for src/language_pipes and sort by cumulative time (ttot)
-        filtered_stats = [s for s in stats if 'src/language_pipes' in s.module]
-        filtered_stats.sort(key=lambda s: s.ncall, reverse=True)
-        
-        print(f"{'ncall':>10} {'ttot':>10} {'tsub':>10} {'tavg':>10} {'name'}")
-        for s in filtered_stats[:200]:  # Print top 200
-            print(f"{s.ncall:>10} {s.ttot:>10.5f} {s.tsub:>10.5f} {s.tavg:>10.5f} {s.module}:{s.lineno} {s.name}")
-
-        filtered_stats = [s for s in stats if 'src/language_pipes' in s.module]
-        filtered_stats.sort(key=lambda s: s.ttot, reverse=True)
-        
-        print(f"{'ncall':>10} {'ttot':>10} {'tsub':>10} {'tavg':>10} {'name'}")
-        for s in filtered_stats[:200]:  # Print top 200
-            print(f"{s.ncall:>10} {s.ttot:>10.5f} {s.tsub:>10.5f} {s.tavg:>10.5f} {s.module}:{s.lineno} {s.name}")
-
-        filtered_stats = [s for s in stats if 'src/language_pipes' in s.module]
-        filtered_stats.sort(key=lambda s: s.tsub, reverse=True)
-        
-        print(f"{'ncall':>10} {'ttot':>10} {'tsub':>10} {'tavg':>10} {'name'}")
-        for s in filtered_stats[:200]:  # Print top 200
-            print(f"{s.ncall:>10} {s.ttot:>10.5f} {s.tsub:>10.5f} {s.tavg:>10.5f} {s.module}:{s.lineno} {s.name}")
-
-        filtered_stats = [s for s in stats if 'src/language_pipes' in s.module]
-        filtered_stats.sort(key=lambda s: s.tavg, reverse=True)
-        
-        print(f"{'ncall':>10} {'ttot':>10} {'tsub':>10} {'tavg':>10} {'name'}")
-        for s in filtered_stats[:200]:  # Print top 200
-            print(f"{s.ncall:>10} {s.ttot:>10.5f} {s.tsub:>10.5f} {s.tavg:>10.5f} {s.module}:{s.lineno} {s.name}")
-            
         self.assertTrue(len(res.choices) > 0)
 
     def test_double_long(self):

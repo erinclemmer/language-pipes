@@ -43,8 +43,6 @@ class LpConfig:
     # Processing options
     max_pipes: int
     model_validation: bool
-    print_times: bool
-    print_job_data: bool
     prefill_chunk_size: int
 
     @staticmethod
@@ -66,14 +64,6 @@ class LpConfig:
         if model_dir is None:
             model_dir = default_model_dir()
         
-        print_times = data.get('print_times', None)
-        if print_times is None:
-            print_times = False
-        
-        print_job_data = data.get('print_job_data', None)
-        if print_job_data is None:
-            print_job_data = False
-
         model_validation = data.get('model_validation', None)
         if model_validation is None:
             model_validation = False
@@ -102,8 +92,6 @@ class LpConfig:
             # Processing options
             max_pipes=max_pipes,
             model_validation=model_validation,
-            print_times=print_times,
-            print_job_data=print_job_data,
             prefill_chunk_size=prefill_chunk_size
         )
 
@@ -136,8 +124,6 @@ class LpConfig:
         lines.append("--- Processing Options ---")
         lines.append(f"  {'Max Pipes:':<18} {self.max_pipes}")
         lines.append(f"  {'Model Validation:':<18} {'Enabled' if self.model_validation else 'Disabled'}")
-        lines.append(f"  {'Print Times:':<18} {'Enabled' if self.print_times else 'Disabled'}")
-        lines.append(f"  {'Print Job Data:':<18} {'Enabled' if self.print_job_data else 'Disabled'}")
         lines.append(f"  {'Prefill Chunk Size:':<18} {self.prefill_chunk_size}")
         
         # Hosted models

@@ -133,3 +133,7 @@ class TestProcessLayersState(unittest.TestCase):
         self.assertEqual(next_state, JobState.EMBED)
         self.assertTrue(local_model.processed)
         self.assertGreater(job.last_update, 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

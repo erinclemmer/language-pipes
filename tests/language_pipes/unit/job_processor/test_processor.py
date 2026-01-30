@@ -75,3 +75,6 @@ class TestFullProcessorRun(unittest.TestCase):
         processor.run()
 
         self.assertEqual(processor.state, JobState.DONE)
+
+if __name__ == "__main__":
+    unittest.main()

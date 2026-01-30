@@ -55,8 +55,6 @@ def build_parser():
     run_parser.add_argument("--model-validation", help="Whether to validate the model weight hashes when connecting to a pipe.", action="store_true")
     run_parser.add_argument("--hosted-models", nargs="*", metavar="MODEL", 
         help="Hosted models as key=value pairs: id=MODEL,device=DEVICE,memory=GB,load_ends=BOOL (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=false)")
-    run_parser.add_argument("--print-times", help="Print timing information for layer computations and network transfers", action="store_true")
-    run_parser.add_argument("--print-job-data", help="Print job data when jobs complete", action="store_true")
     run_parser.add_argument("--prefill-chunk-size", help="Number of tokens to process for each batch in prefill", type=int)
 
     return parser
@@ -76,8 +74,6 @@ def apply_overrides(data, args):
         "model_validation": os.getenv("LP_MODEL_VALIDATION"),
         "max_pipes": os.getenv("LP_MAX_PIPES"),
         "hosted_models": os.getenv("LP_HOSTED_MODELS"),
-        "print_times": os.getenv("LP_PRINT_TIMES"),
-        "print_job_data": os.getenv("LP_PRINT_JOB_DATA"),
         "prefill_chunk_size": os.getenv("LP_PREFILL_CHUNK_SIZE"),
         "model_dir": os.getenv("LP_MODEL_DIR"),
     }
@@ -108,8 +104,6 @@ def apply_overrides(data, args):
         "model_validation": precedence("model_validation", args.model_validation),
         "max_pipes": precedence("max_pipes", args.max_pipes),
         "hosted_models": precedence("hosted_models", args.hosted_models),
-        "print_times": precedence("print_times", args.print_times),
-        "print_job_data": precedence("print_job_data", args.print_job_data),
         "prefill_chunk_size": precedence("prefill_chunk_size", args.prefill_chunk_size),
         "model_dir": precedence("model_dir", args.model_dir),
     }

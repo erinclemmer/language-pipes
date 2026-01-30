@@ -21,9 +21,6 @@ Language Pipes is an open-source distributed network application designed to inc
 
 ---
 
-### Overview
-Over the past few years open source language models have become much more powerful yet the most powerful models are still out of reach of the general population because of the extreme amounts of RAM that is needed to host these models. Language Pipes allows multiple computer systems to host the same model and move computation data between them so that no one computer has to hold all of the data for the model. Our privacy preserving architecture 
-
 #### Features
 - Quick Setup
 - Decentralized peer to peer network
@@ -34,7 +31,7 @@ Over the past few years open source language models have become much more powerf
 ---
 
 ### What Does Language Pipes do?
-In a basic sense, language models work by passing information through many layers. At each layer, several matrix multiplicatitons between the layer weights and the system state are performed and the data is moved to the next layer. Language pipes works by hosting different layers on different machines to split up the RAM cost across the system. The difference between Language Pipes and existing options is the decentralized nature and privacy protections.  
+Large Language models work by passing information through many layers. At each layer, several matrix multiplicatitons between the layer weights and the system state are performed and the data is moved to the next layer. Language pipes works by hosting different layers on different machines to split up the RAM cost across the system. This project contrasts with existing programs like vLLM by focusing on decentralization and privacy.  
   
 Here are some helpful links to get started:
 - To learn more about the [privacy protecting mechanism click here](./documentation/privacy.md).  
@@ -65,28 +62,10 @@ The easiest way to get started is with the interactive setup wizard:
 language-pipes
 ```
 
-This launches a menu where you can create, view, and load configurations:
+This launches a menu where you can create, view, and load configurations. Select **Create Config** to walk through the setup wizard, which guides you through your first configuration. After creating a config, select **Load Config** to start the server.
 
-```
-Main Menu
-[0] View Config
-[1] Load Config
-[2] Create Config
-[3] Delete Config
-Select number of choice: 
-```
-
-Select **Create Config** to walk through the setup wizard, which guides you through:
-- **Node ID** — A unique name for your computer on the network
-- **Model selection** — Choose a HuggingFace model ID (e.g., `Qwen/Qwen3-1.7B`)
-- **Device & memory** — Where to run the model and how much RAM to use
-- **API server** — Enable an OpenAI-compatible endpoint
-- **Network settings** — Ports and encryption options
-
-After creating a config, select **Load Config** to start the server.
-
-More information about how to [configure Language Pipes can be found here](./documentation/configuration.md).  
-If you prefer a more CLI based approach then [read the CLI documentation here](./documentation/cli.md).
+[We also support loading toml files directly!](./documentation/configuration.md)  
+If you need help loading them [read the CLI documentation here](./documentation/cli.md).
 
 ---
 
@@ -95,25 +74,22 @@ If you prefer a more CLI based approach then [read the CLI documentation here](.
 This example shows how to distribute a model across two computers using the interactive wizard.
 
 ### Node 1 (First Computer)
-Start language pipes with this command:
+Start language pipes:
 ```bash
 language-pipes
 ```
 
-1. Select **Create Config**
-2. Enter a name (e.g., `node1`)
-3. Follow the prompts:
-   - **Node ID**: `node-1`
-   - **Model ID**: `Qwen/Qwen3-1.7B`
-   - **Device**: `cpu`
-   - **Max memory**: `1` (loads part of the model)
-   - **Load embedding/output layers**: `Y`
-   - **Enable OpenAI API**: `Y`
-   - **API port**: `8000`
-   - **First node in network**: `Y`
-   - **Encrypt network traffic**: `N`
-
-4. Select **Load Config** → choose `node1` to start the server
+| Prompt | Value | Description |
+|--------|-------|-------------|
+| Node ID | `node-1` | Unique identifier for this node on the network |
+| Model ID | `Qwen/Qwen3-1.7B` | HuggingFace model to load |
+| Device | `cpu` | Hardware to run inference on |
+| Max memory | `1` | GB of RAM to use (loads part of the model) |
+| Load embedding/output layers | `Y` | Required for the first node to handle input/output |
+| Enable OpenAI API | `Y` | Exposes the OpenAI-compatible endpoint |
+| API port | `8000` | Port for the API server |
+| First node in network | `Y` | This node starts the network |
+| Encrypt network traffic | `N` | Disable encryption for simplicity |
 
 ### Node 2 (Second Computer)
 
@@ -121,22 +97,18 @@ Start language pipes with this command:
 ```bash
 language-pipes
 ```
-
-1. Select **Create Config**
-2. Enter a name (e.g., `node2`)
-3. Follow the prompts:
-   - **Node ID**: `node-2`
-   - **Model ID**: `Qwen/Qwen3-1.7B`
-   - **Device**: `cpu`
-   - **Max memory**: `3` (loads remaining layers)
-   - **Load embedding/output layers**: `N` (node-1 has them)
-   - **Enable OpenAI API**: `N`
-   - **First node in network**: `N`
-   - **Bootstrap node IP**: `192.168.0.10` (node-1's local IP)
-   - **Bootstrap port**: `5000`
-   - **Encrypt network traffic**: `N`
-
-4. Select **Load Config** → choose `node2` to start the server
+| Prompt | Value | Description |
+|--------|-------|-------------|
+| Node ID | `node-2` | Unique identifier for this node on the network |
+| Model ID | `Qwen/Qwen3-1.7B` | Must match the model on node-1 |
+| Device | `cpu` | Hardware to run inference on |
+| Max memory | `3` | GB of RAM to use (loads remaining layers) |
+| Load embedding/output layers | `N` | Node-1 already handles these |
+| Enable OpenAI API | `N` | Only node-1 needs the API |
+| First node in network | `N` | This node joins an existing network |
+| Bootstrap node IP | `192.168.0.10` | Node-1's local IP address |
+| Bootstrap port | `5000` | Node-1's network port |
+| Encrypt network traffic | `N` | Must match node-1's setting |
 
 Node-2 connects to node-1 and loads the remaining model layers. The model is now ready for inference!
 
@@ -173,10 +145,10 @@ To learn about how to work with the [Open AI compatable server click here](./doc
 - [transformers](https://huggingface.co/docs/transformers) 
 
 ### Documentation
-* [Architecture Overview](./documentation/architecture.md)
-* [Privacy Protection](./documentation/privacy.md)
 * [CLI Reference](./documentation/cli.md)
+* [Privacy Protection](./documentation/privacy.md)
 * [Configuration Manual](./documentation/configuration.md)
+* [Architecture Overview](./documentation/architecture.md)
 * [Open AI Compatable API](./documentation/oai.md)
 * [Job Processor State Machine](./documentation/job-processor.md)
 * [The default peer to peer implementation](./documentation/distributed-state-network/README.md)

@@ -74,12 +74,10 @@ class JobTracker:
         if job.resolve is None:
             return
         self.logger.info(f'Received job complete for {job_id}\n')
-        if self.config.print_times and job.times:
-            stats = job.timing_stats
-            if not stats.network_ms and not stats.embed_ms and not stats.head_ms and not stats.layer_ms and not stats.token_ms:
-                for token_times in job.times:
-                    stats.add_token(token_times)
-            stats.log_summary(self.logger, job_id)
+        self.logger.info("[TIMING] Prefill Summary:")
+        job.timing_stats.prefill_times.log_summary(self.logger)
+        self.logger.info("[TIMING] Output Summary:")
+        job.timing_stats.output_times.log_summary(self.logger)
         job.resolve(job)
         self.jobs_pending = [j for j in self.jobs_pending if j.job_id != job_id]
 
@@ -99,6 +97,7 @@ class JobTracker:
             origin_node_id=network_job.origin_node_id,
             messages=[],
             model_id="",
+            prefill_chunk_size=self.config.prefill_chunk_size,
             pipe_id=network_job.pipe_id,
             data=network_job.data
         )

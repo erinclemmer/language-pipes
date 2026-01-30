@@ -21,8 +21,6 @@ def view_config(config_path: str):
         "logging_level": "Verbosity level (DEBUG/INFO/WARNING/ERROR)",
         "max_pipes": "Max concurrent distributed model instances",
         "model_validation": "Verify model weight hashes match across nodes",
-        "print_times": "Show timing info for computations and transfers",
-        "print_job_data": "Show job data (input/output) when jobs complete",
     }
     
     # Display simple properties
@@ -59,8 +57,6 @@ def view_config(config_path: str):
     _print_property("Logging Level", config.get("logging_level", "INFO"), descriptions["logging_level"])
     _print_property("Max Pipes", config.get("max_pipes", 1), descriptions["max_pipes"])
     _print_property("Model Validation", "Enabled" if config.get("model_validation") else "Disabled", descriptions["model_validation"])
-    _print_property("Print Times", "Enabled" if config.get("print_times") else "Disabled", descriptions["print_times"])
-    _print_property("Print Job Data", "Enabled" if config.get("print_job_data") else "Disabled", descriptions["print_job_data"])
     
     # Display hosted models
     models = config.get("hosted_models", [])

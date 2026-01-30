@@ -64,7 +64,7 @@ class FakeModel:
         self.loaded = True
         self.num_hidden_layers = num_hidden_layers
 
-    def process_job(self, job):
+    def process_job(self, job, logger):
         if job.data is None:
             job.data = JobData()
         job.set_layer(torch.zeros((1, 1)), self.end_layer + 1, self.num_hidden_layers)
@@ -74,10 +74,9 @@ class TrackingModel(FakeModel):
         super().__init__(node_id, start_layer, end_layer, virtual=virtual, num_hidden_layers=num_hidden_layers)
         self.processed = False
 
-    def process_job(self, job):
+    def process_job(self, job, logger):
         self.processed = True
-        super().process_job(job)
-
+        super().process_job(job, logger)
 
 class FakePipe:
     def __init__(self, model):
@@ -116,7 +115,7 @@ class IncompletePipe(FakePipe):
         return False
 
 
-def make_config(node_id="node-a", prefill_chunk_size=2, print_times=False, print_job_data=False):
+def make_config(node_id="node-a", prefill_chunk_size=2):
     return LpConfig(
         logging_level="INFO",
         app_dir=".",
@@ -126,8 +125,6 @@ def make_config(node_id="node-a", prefill_chunk_size=2, print_times=False, print
         hosted_models=[],
         max_pipes=1,
         model_validation=False,
-        print_times=print_times,
-        print_job_data=print_job_data,
         prefill_chunk_size=prefill_chunk_size,
     )
 
@@ -142,6 +139,7 @@ def make_job(**kwargs):
         "messages": [],
         "pipe_id": "pipe-1",
         "model_id": "model-1",
+        "prefill_chunk_size": 6
     }
     defaults.update(kwargs)
     return Job(**defaults)

@@ -113,7 +113,7 @@ class TestHeadState(unittest.TestCase):
 
         processor = make_processor(
             job=job,
-            config=make_config(print_times=True, print_job_data=True),
+            config=make_config(),
             logger=logger,
             end_model=FakeEndModel(),
         )

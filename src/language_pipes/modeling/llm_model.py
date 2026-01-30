@@ -2,6 +2,7 @@ import os
 import logging
 from pathlib import Path
 from uuid import uuid4
+from logging import Logger
 from typing import List, Optional, Callable
 
 import torch
@@ -15,7 +16,6 @@ from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata
 
 from language_pipes.jobs.job import Job
-from language_pipes.jobs.network_job import JobTime
 from language_pipes.jobs.job_data import jobDataToComputationState, detachCompState
 
 def compute_layers(job_data, device, layers, cache):
@@ -111,15 +111,10 @@ Device: {self.device}
 =================================
 ''')
 
-    def process_job(self, job: Job):
-        layer_time = JobTime(
-            node_id=self.node_id,
-            start_layer=job.current_layer,
-            end_layer=self.end_layer
-        )
-        job.add_timing(layer_time)
+    def process_job(self, job: Job, logger: Logger):
+        job.timing_stats.add_layer_time(self.node_id, job.current_layer, self.end_layer)
         self.compute_layers(job)
-        layer_time.set_send_time()
+        job.timing_stats.set_send_time(logger)
 
     def compute_layers(
         self, 

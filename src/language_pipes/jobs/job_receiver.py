@@ -13,13 +13,9 @@ from language_pipes.jobs.job_processor import JobProcessor, JobContext
 
 from language_pipes.modeling.model_manager import ModelManager
 
-from language_pipes.util import stop_thread
-
 from language_pipes.config import LpConfig
 
 class JobReceiver:
-    print_times: bool
-    print_job_data: bool
     config: LpConfig
     job_factory: JobFactory
     job_queue: List[NetworkJob]

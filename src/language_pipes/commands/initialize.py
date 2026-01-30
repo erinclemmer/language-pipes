@@ -174,20 +174,6 @@ def interactive_init(output_path: str):
             required=True
         )
         
-        print("\n  Print timing information for layer computations and network")
-        print("  transfers when a token completes. Useful for debugging and")
-        print("  performance analysis.")
-        config["print_times"] = prompt_bool(
-            "  Print timing info?",
-            required=True
-        )
-        
-        print("\n  Print request parameters and job information on token completion")
-        config["print_job_data"] = prompt_bool(
-            "  Print job data?",
-            required=True
-        )
-
     # === Write Config File ===
     print("\n" + "=" * 50)
     print("  Configuration Summary")

@@ -57,6 +57,7 @@ class JobFactory:
             pipe_id=pipe.pipe_id, 
             model_id=pipe.model_id,
             temperature=temperature, 
+            prefill_chunk_size=self.config.prefill_chunk_size,
             top_k=top_k, 
             top_p=top_p, 
             min_p=min_p, 
@@ -67,8 +68,7 @@ class JobFactory:
             complete=self.job_tracker.complete_job
         )
         
-        if self.config.print_job_data:
-            job.print_job(self.logger)
+        job.print_job(self.logger)
         
         network_job = job.to_network_job()
         pipe.send_job(network_job, self.config.node_id)

@@ -28,8 +28,6 @@ def edit_config(config_path: str):
             ("logging_level", "Logging Level"),
             ("max_pipes", "Max Pipes"),
             ("model_validation", "Model Validation"),
-            ("print_times", "Print Times"),
-            ("print_job_data", "Print Job Data"),
             ("prefill_chunk_size", "Prefill Chunk Size"),
         ]
         
@@ -144,18 +142,6 @@ def edit_config(config_path: str):
         elif selected_key == "model_validation":
             config[selected_key] = prompt_bool(
                 "Enable model hash validation?",
-                default=config.get(selected_key, False)
-            )
-
-        elif selected_key == "print_times":
-            config[selected_key] = prompt_bool(
-                "Print timing info?",
-                default=config.get(selected_key, False)
-            )
-        
-        elif selected_key == "print_job_data":
-            config[selected_key] = prompt_bool(
-                "Print job data?",
                 default=config.get(selected_key, False)
             )
         
