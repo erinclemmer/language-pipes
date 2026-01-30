@@ -30,7 +30,7 @@ class TestSecurity(DSNTestBase):
         try:
             response = requests.post(
                 f'http://127.0.0.1:{n.config.port}/ping',
-                data=b'TEST',
+                data=bytes([4]) + b'TEST',
                 timeout=2
             )
             self.assertNotEqual(response.status_code, 200)

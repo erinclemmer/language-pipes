@@ -62,7 +62,6 @@ def oai_stream(port: int, messages: List[ChatMessage], retries: int = 0):
         )
         stream = client.chat.completions.create(
             model=MODEL,
-            # model="gpt-5",
             stream=True,
             max_completion_tokens=100,
             messages=[m.to_json() for m in messages]

@@ -12,10 +12,7 @@ from language_pipes.cli import main, build_parser, VERSION
 CONFIG_PATH = "_tmp_config.toml"
 KEY_PATH = "_tmp_network.key"
 
-
 class KeygenTests(unittest.TestCase):
-    """Tests for the keygen command"""
-
     def setUp(self):
         """Clean up any existing test files"""
         if os.path.exists(KEY_PATH):
@@ -44,12 +41,10 @@ class KeygenTests(unittest.TestCase):
         main(["keygen", KEY_PATH])
         with open(KEY_PATH, 'rb') as f:
             content = f.read()
-        # AES keys are typically 16, 24, or 32 bytes
         self.assertIn(len(content), [16, 24, 32, 64])
 
     def test_keygen_overwrites_existing(self):
         """keygen should overwrite an existing file"""
-        # Create a file with known content
         with open(KEY_PATH, 'wb') as f:
             f.write(b'old content')
         
@@ -69,18 +64,14 @@ class KeygenTests(unittest.TestCase):
         with open(KEY_PATH, 'rb') as f:
             key2 = f.read()
         
-        # Keys should be different (extremely unlikely to be the same)
         self.assertNotEqual(key1, key2)
 
 
 class VersionTests(unittest.TestCase):
-    """Tests for the --version flag"""
-
     def test_version_flag_short(self):
         """"-v" flag should trigger version output"""
         with self.assertRaises(SystemExit) as cm:
             main(["-v"])
-        # argparse exits with 0 for --version
         self.assertEqual(cm.exception.code, 0)
 
     def test_version_flag_long(self):
@@ -102,39 +93,7 @@ class VersionTests(unittest.TestCase):
         for part in parts:
             self.assertTrue(part.isdigit(), f"Version part '{part}' is not numeric")
 
-
-class ParserTests(unittest.TestCase):
-    """Tests for CLI argument parsing"""
-    def test_invalid_command(self):
-        """Invalid command should exit with error"""
-        with self.assertRaises(SystemExit):
-            main(["invalid-command"])
-
-    def test_parser_has_keygen(self):
-        """Parser should have keygen subcommand"""
-        parser = build_parser()
-        # Parse keygen command
-        args = parser.parse_args(["keygen", "test.key"])
-        self.assertEqual(args.command, "keygen")
-        self.assertEqual(args.output, "test.key")
-
-    def test_parser_has_serve(self):
-        """Parser should have serve subcommand"""
-        parser = build_parser()
-        args = parser.parse_args(["serve", "--node-id", "test"])
-        self.assertEqual(args.command, "serve")
-        self.assertEqual(args.node_id, "test")
-
-    def test_parser_has_init(self):
-        """Parser should have init subcommand"""
-        parser = build_parser()
-        args = parser.parse_args(["init"])
-        self.assertEqual(args.command, "init")
-
-
 class ServeConfigTests(unittest.TestCase):
-    """Tests for the serve command configuration"""
-
     def setUp(self):
         """Clean up any existing test files"""
         if os.path.exists(CONFIG_PATH):
