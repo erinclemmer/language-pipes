@@ -23,9 +23,9 @@ Language Pipes is an open-source distributed network application designed to inc
 
 #### Features
 - Quick Setup
-- Decentralized peer to peer network
 - OpenAI compatible API
 - Privacy-focused architecture
+- Decentralized peer to peer network
 - Download and use models by HuggingFace ID
 
 ---
@@ -139,6 +139,9 @@ print(response.choices[0].message.content)
 Install the OpenAI library with: `pip install openai`
 
 To learn about how to work with the [Open AI compatable server click here](./documentation/oai.md).
+
+## Model choice
+Currently Language Pipes targets the Qwen3 and Qwen3-moe architectures.
 
 ### Dependencies
 - [pytorch](pytorch.org)
