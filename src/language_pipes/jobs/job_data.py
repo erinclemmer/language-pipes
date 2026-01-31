@@ -2,7 +2,7 @@ import torch
 import hashlib
 from typing import Optional, Tuple
 from language_pipes.util.byte_helper import ByteHelper
-from llm_layer_collector.compute import LLmComputationState
+from language_pipes.llm_layer_collector.compute import LLmComputationState
 
 from language_pipes.util import tensor_to_bytes, bytes_to_tensor, maybeTo
 

@@ -1,6 +1,6 @@
 from io import BytesIO
 from typing import Optional
-from distributed_state_network.util import bytes_to_int, int_to_bytes, float_to_bytes, bytes_to_float
+from language_pipes.distributed_state_network.util import bytes_to_int, int_to_bytes, float_to_bytes, bytes_to_float
 
 class ByteHelper:
     def __init__(self, data: Optional[bytes] = None):

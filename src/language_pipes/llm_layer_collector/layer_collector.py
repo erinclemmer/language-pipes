@@ -8,11 +8,11 @@ import torch
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import AutoConfig
 
-from llm_layer_collector.load_layer import load_layers
-from llm_layer_collector.cache import build_cache_data
-from llm_layer_collector.helpers import load_shard_tensor
-from llm_layer_collector.auto.auto_rms import AutoRMSNorm
-from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from language_pipes.llm_layer_collector.load_layer import load_layers
+from language_pipes.llm_layer_collector.cache import build_cache_data
+from language_pipes.llm_layer_collector.helpers import load_shard_tensor
+from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
+from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 class LlmLayerCollector:
     layer_prefix: str

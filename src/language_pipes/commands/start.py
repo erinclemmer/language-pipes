@@ -3,7 +3,7 @@ import toml
 from time import sleep
 from pathlib import Path
 
-from distributed_state_network import DSNodeServer, DSNodeConfig
+from language_pipes.distributed_state_network import DSNodeServer, DSNodeConfig
 
 from language_pipes.config import LpConfig, default_config_dir, default_model_dir
 from language_pipes.commands.initialize import interactive_init

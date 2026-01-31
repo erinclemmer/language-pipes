@@ -30,8 +30,8 @@ The LlmLayerCollector class serves as your central interface to the package's fu
 This example uses all of the parts of the package to generate a token prediction
 
 ```python
-from llm_layer_collector import LlmLayerCollector
-from llm_layer_collector.compute import compute_embedding, compute_layer, compute_head
+from language_pipes.llm_layer_collector import LlmLayerCollector
+from language_pipes.llm_layer_collector.compute import compute_embedding, compute_layer, compute_head
 from transformers import AutoTokenizer
 import torch
 

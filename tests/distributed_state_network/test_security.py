@@ -8,8 +8,8 @@ import requests
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
-from distributed_state_network import DSNodeServer, DSNodeConfig
-from distributed_state_network.objects.data_packet import DataPacket
+from language_pipes.distributed_state_network import DSNodeServer, DSNodeConfig
+from language_pipes.distributed_state_network.objects.data_packet import DataPacket
 
 from base import DSNTestBase, spawn_node, remove_node
 

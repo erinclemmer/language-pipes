@@ -4,9 +4,9 @@ import torch
 from typing import List, Tuple, Optional
 
 from transformers.models.auto import AutoConfig
-from llm_layer_collector.auto.auto_rms import AutoRMSNorm
+from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from transformers.configuration_utils import PretrainedConfig
-from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 from language_pipes.util import size_of_tensor, tensor_hash
 from language_pipes.util.enums import ModelPartType

@@ -6,7 +6,7 @@ from typing import List, Dict, Optional, Callable
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../src'))
 
-from distributed_state_network import DSNodeServer, DSNodeConfig
+from language_pipes.distributed_state_network import DSNodeServer, DSNodeConfig
 
 current_port = 8000
 nodes = []

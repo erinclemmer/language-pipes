@@ -4,7 +4,7 @@ from typing import List, Dict
 
 from safetensors import safe_open
 from transformers.configuration_utils import PretrainedConfig
-from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 def files_to_load_for_layer(
         layer_prefix: str,

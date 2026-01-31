@@ -1,9 +1,9 @@
 from typing import Optional
 
-from distributed_state_network.objects.endpoint import Endpoint
+from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 
-from distributed_state_network.objects.signed_packet import SignedPacket
-from distributed_state_network.util.byte_helper import ByteHelper
+from language_pipes.distributed_state_network.objects.signed_packet import SignedPacket
+from language_pipes.distributed_state_network.util.byte_helper import ByteHelper
 
 class HelloPacket(SignedPacket):
     version: str

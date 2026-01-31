@@ -3,7 +3,7 @@
 Configuration object for initializing a DSNode instance.
 
 ```python
-from distributed_state_network import DSNodeConfig
+from language_pipes.distributed_state_network import DSNodeConfig
 ```
 
 ### Class Definition

@@ -7,9 +7,9 @@ from logging import Logger
 
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
-from llm_layer_collector import LlmLayerCollector
-from llm_layer_collector.auto.auto_rms import AutoRMSNorm
-from llm_layer_collector.compute import compute_embedding, compute_head
+from language_pipes.llm_layer_collector import LlmLayerCollector
+from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
+from language_pipes.llm_layer_collector.compute import compute_embedding, compute_head
 
 from language_pipes.jobs.job import ComputeStep, Job
 from language_pipes.jobs.job_data import computationStateToJobData

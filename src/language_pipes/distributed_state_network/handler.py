@@ -3,10 +3,10 @@ import threading
 import logging
 from typing import Callable, List, Optional
 from flask import Flask, request, Response
-from distributed_state_network.dsnode import DSNode
-from distributed_state_network.objects.config import DSNodeConfig
-from distributed_state_network.util.aes import generate_aes_key
-from distributed_state_network.util import stop_thread
+from language_pipes.distributed_state_network.dsnode import DSNode
+from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.distributed_state_network.util.aes import generate_aes_key
+from language_pipes.distributed_state_network.util import stop_thread
 
 VERSION = "0.6.7"
 logging.basicConfig(level=logging.INFO)

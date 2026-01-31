@@ -2,7 +2,7 @@ import os
 import toml
 import argparse
 
-from distributed_state_network import DSNodeConfig, DSNodeServer
+from language_pipes.distributed_state_network import DSNodeConfig, DSNodeServer
 
 from language_pipes.config import LpConfig
 from language_pipes.util.aes import save_new_aes_key

@@ -9,7 +9,7 @@ from transformers.models.qwen3.modeling_qwen3 import Qwen3DecoderLayer
 from transformers.models.gemma3.modeling_gemma3 import Gemma3DecoderLayer
 from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeDecoderLayer
 
-from llm_layer_collector.state_obj import LLmComputationState
+from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 
 mapper = {
     "llama": LlamaDecoderLayer,

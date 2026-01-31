@@ -2,7 +2,7 @@ import os
 import logging
 from typing import Callable, Tuple
 
-from distributed_state_network.util.ecdsa import generate_key_pair
+from language_pipes.distributed_state_network.util.ecdsa import generate_key_pair
 
 class KeyManager:
     def __init__(

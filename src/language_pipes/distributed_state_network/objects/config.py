@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
-from distributed_state_network.objects.endpoint import Endpoint
+from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 
 @dataclass(frozen=True)
 class DSNodeConfig:

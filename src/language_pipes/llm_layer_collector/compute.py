@@ -5,8 +5,8 @@ from transformers.masking_utils import create_causal_mask, create_sliding_window
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.cache_utils import DynamicCache
 
-from llm_layer_collector.auto.auto_rotary import AutoRotaryEmbedding
-from llm_layer_collector.state_obj import LLmComputationState
+from language_pipes.llm_layer_collector.auto.auto_rotary import AutoRotaryEmbedding
+from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 
 def compute_embedding(
         input_embedder: torch.nn.Embedding,

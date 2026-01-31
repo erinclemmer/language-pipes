@@ -20,7 +20,7 @@ Distributed state network uses a very simple implementation of the gossip protoc
 The simplest DSN network is a single node:
 
 ```python
-from distributed_state_network import DSNodeServer, DSNodeConfig
+from language_pipes.distributed_state_network import DSNodeServer, DSNodeConfig
 
 # Start a node
 node = DSNodeServer.start(DSNodeConfig(

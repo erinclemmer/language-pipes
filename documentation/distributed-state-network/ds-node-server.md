@@ -3,7 +3,7 @@
 Flask server wrapper for DSNode that handles incoming network requests.
 
 ```python
-from distributed_state_network import DSNodeServer
+from language_pipes.distributed_state_network import DSNodeServer
 ```
 
 ### Class Definition

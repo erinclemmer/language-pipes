@@ -1,5 +1,5 @@
-from distributed_state_network.objects.signed_packet import SignedPacket
-from distributed_state_network.util.byte_helper import ByteHelper
+from language_pipes.distributed_state_network.objects.signed_packet import SignedPacket
+from language_pipes.distributed_state_network.util.byte_helper import ByteHelper
 
 class DataPacket(SignedPacket):
     node_id: str

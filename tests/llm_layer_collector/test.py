@@ -13,11 +13,11 @@ from transformers.cache_utils import DynamicCache
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../src'))
 
-from llm_layer_collector.layer_collector import LlmLayerCollector
-from llm_layer_collector.compute import compute_embedding, compute_head
-from llm_layer_collector.cache import get_shard_files
-from llm_layer_collector.helpers import load_shard_tensor
-from llm_layer_collector.load_layer import files_to_load_for_layer
+from language_pipes.llm_layer_collector.layer_collector import LlmLayerCollector
+from language_pipes.llm_layer_collector.compute import compute_embedding, compute_head
+from language_pipes.llm_layer_collector.cache import get_shard_files
+from language_pipes.llm_layer_collector.helpers import load_shard_tensor
+from language_pipes.llm_layer_collector.load_layer import files_to_load_for_layer
 
 PROMPT = "The quick brown fox jumps over the "
 

@@ -1,6 +1,6 @@
 from typing import Dict, Optional
 from dataclasses import dataclass
-from distributed_state_network.util.byte_helper import ByteHelper
+from language_pipes.distributed_state_network.util.byte_helper import ByteHelper
 
 @dataclass(frozen=True)
 class Endpoint:

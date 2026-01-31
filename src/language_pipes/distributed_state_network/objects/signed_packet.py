@@ -1,5 +1,5 @@
 from typing import Optional
-from distributed_state_network.util.ecdsa import verify_signature, sign_message
+from language_pipes.distributed_state_network.util.ecdsa import verify_signature, sign_message
 
 class SignedPacket:
     ecdsa_signature: Optional[bytes]

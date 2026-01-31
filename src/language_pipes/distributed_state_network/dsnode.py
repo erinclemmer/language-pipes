@@ -5,16 +5,16 @@ import threading
 import requests
 from typing import Dict, List, Optional, Callable
 
-from distributed_state_network.objects.endpoint import Endpoint
-from distributed_state_network.objects.hello_packet import HelloPacket
-from distributed_state_network.objects.peers_packet import PeersPacket
-from distributed_state_network.objects.state_packet import StatePacket
-from distributed_state_network.objects.data_packet import DataPacket
-from distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.distributed_state_network.objects.endpoint import Endpoint
+from language_pipes.distributed_state_network.objects.hello_packet import HelloPacket
+from language_pipes.distributed_state_network.objects.peers_packet import PeersPacket
+from language_pipes.distributed_state_network.objects.state_packet import StatePacket
+from language_pipes.distributed_state_network.objects.data_packet import DataPacket
+from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 
-from distributed_state_network.util import get_dict_hash
-from distributed_state_network.util.key_manager import CredentialManager
-from distributed_state_network.util.aes import aes_encrypt, aes_decrypt
+from language_pipes.distributed_state_network.util import get_dict_hash
+from language_pipes.distributed_state_network.util.key_manager import CredentialManager
+from language_pipes.distributed_state_network.util.aes import aes_encrypt, aes_decrypt
 
 TICK_INTERVAL = 3
 HTTP_TIMEOUT = 2  # seconds
