@@ -15,7 +15,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "language-pipes"
-version = "0.19.6"
+version = "0.19.7"
 authors = [{name="Erin Clemmer", email="erin.c.clemmer@gmail.com"}]
 description = "A privacy focused distributed algorithm for llm inference"
 keywords = ["distributed", "networking", "AI", "Language Model", "pipe", "pipeline", "server"]
