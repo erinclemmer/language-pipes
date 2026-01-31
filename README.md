@@ -140,8 +140,18 @@ Install the OpenAI library with: `pip install openai`
 
 To learn about how to work with the [Open AI compatable server click here](./documentation/oai.md).
 
-## Model choice
+### Model choice
 Currently Language Pipes targets the Qwen3 and Qwen3-moe architectures.
+
+### Future Updates
+There are plans to update the project in the future if it gets enough traction. These improvements include:
+- More models supported
+- 8 bit and 4 bit quantization support (currently everything is run in fp16)
+- GGUF support (currently everything needs to be in safetensors format)
+- Responses endpoint (currently only /v1/chat/completions is supported)
+- huggingface library support for downloading models that require authentication (currently git-lfs)
+
+So please star the repo if you find it useful :)
 
 ### Dependencies
 - [pytorch](pytorch.org)
