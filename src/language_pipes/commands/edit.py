@@ -176,7 +176,7 @@ def edit_hosted_models(models: List) -> List[dict]:
         options = [
             "Add model",
             "Edit model",
-            "Delete Model",
+            "Delete model",
             "Done editing models"
         ]
         
