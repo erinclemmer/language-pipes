@@ -40,7 +40,7 @@ Here are some helpful links to get started:
 
 
 ### Installation
-Ensure that you have Python 3.10.18 (or any 3.10 version) installed. For an easy to use Python version manager use [pyenv](https://github.com/pyenv/pyenv). This specific version is necessary for the [transformers](https://github.com/huggingface/transformers) library to work properly.  
+Ensure that you have Python installed.
   
 If you need gpu support, first make sure you have the correct pytorch version installed for your GPU's Cuda compatibility using this link:  
 https://pytorch.org/get-started/locally/

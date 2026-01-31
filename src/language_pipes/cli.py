@@ -12,7 +12,7 @@ from language_pipes.commands.upgrade import upgrade_lp
 
 from language_pipes.lp import LanguagePipes
 
-VERSION = "0.19.5"
+VERSION = "0.19.6"
 
 def build_parser():
     parser = argparse.ArgumentParser(

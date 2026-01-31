@@ -15,7 +15,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "language-pipes"
-version = "0.19.5"
+version = "0.19.6"
 authors = [{name="Erin Clemmer", email="erin.c.clemmer@gmail.com"}]
 description = "A privacy focused distributed algorithm for llm inference"
 keywords = ["distributed", "networking", "AI", "Language Model", "pipe", "pipeline", "server"]
@@ -34,7 +34,7 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "torch",
-    "transformers",
+    "transformers==4.57.6",
     "uuid",
     "promise",
     "requests",

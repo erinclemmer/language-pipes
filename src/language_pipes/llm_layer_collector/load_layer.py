@@ -69,7 +69,7 @@ def load_layer(
     for key in shard_data.keys():
         if key.startswith(f'{layer_prefix}{idx}.'):
             module_name = key.replace(f'{layer_prefix}{idx}.', '').replace('.weight', '')
-            module = lyr.get_submodule(module_name)
+            module = lyr.cls.get_submodule(module_name)
             module.load_state_dict({ "weight": shard_data[key] })
 
     return lyr.to(dtype)
