@@ -41,9 +41,9 @@ def compute_embedding(
     if past_seen_tokens == 0 or chunked_prefill:
         input_seq = input_ids
     else:
-        input_seq = torch.tensor([[input_ids[:, -1]]])
+        input_seq = torch.tensor([[input_ids[:, -1]]]).to(device)
     
-    state.state = input_embedder(input_seq)
+    state.state = input_embedder(input_seq.to(device))
 
     converter = AttentionMaskConverter(is_causal=True)
     L = input_seq.size()[1]

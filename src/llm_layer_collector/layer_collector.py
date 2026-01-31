@@ -97,7 +97,7 @@ class LlmLayerCollector:
     def load_norm(self, device: Optional[str] = None) -> AutoRMSNorm:
         device = self.device if device is None else device
         norm = AutoRMSNorm(self.config)
-        norm.weight = torch.nn.Parameter(self._load_shard_tensor(self.norm_layer_name, device))
+        norm.cls.weight = torch.nn.Parameter(self._load_shard_tensor(self.norm_layer_name, device))
         return norm
     
     def load_head(self, device: Optional[str] = None) -> torch.nn.Linear:

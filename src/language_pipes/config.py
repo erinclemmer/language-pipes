@@ -22,7 +22,7 @@ class HostedModel:
         return HostedModel(
             id=data['id'],
             device=data['device'],
-            max_memory=data['max_memory'],
+            max_memory=float(data['max_memory']),
             load_ends=data.get('load_ends', False)
         )
 
