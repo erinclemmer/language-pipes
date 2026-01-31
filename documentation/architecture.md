@@ -124,3 +124,13 @@ Only the node hosting the **EndModel** can see raw text:
 For privacy-sensitive deployments, keep `load_ends = true` on your own machine and let other nodes host only layer segments.
 
 For more information how the architecture ensures privacy see [the privacy documentation](./privacy.md).
+
+### Documentation
+* [CLI Reference](./cli.md)
+* [Privacy Protection](./privacy.md)
+* [Configuration Manual](./configuration.md)
+* [Architecture Overview](./architecture.md)
+* [Open AI Compatable API](./oai.md)
+* [Job Processor State Machine](./job-processor.md)
+* [The default peer to peer implementation](./distributed-state-network/README.md)
+* [The way Language Pipes abstracts from model architecture](./llm-layer-collector.md)

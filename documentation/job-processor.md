@@ -234,8 +234,12 @@ Jobs exit in three ways:
 3. **Error:** Processing stops, job marked as failed
 
 
-## Learn more
-
-- [Architecture](./architecture.md) — System overview and component interactions
-- [Configuration](./configuration.md) — `prefill_chunk_size` and `print_times` options
-- [Privacy](./privacy.md) — How the end model provides privacy guarantees
+### Documentation
+* [CLI Reference](./cli.md)
+* [Privacy Protection](./privacy.md)
+* [Configuration Manual](./configuration.md)
+* [Architecture Overview](./architecture.md)
+* [Open AI Compatable API](./oai.md)
+* [Job Processor State Machine](./job-processor.md)
+* [The default peer to peer implementation](./distributed-state-network/README.md)
+* [The way Language Pipes abstracts from model architecture](./llm-layer-collector.md)

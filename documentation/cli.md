@@ -162,9 +162,12 @@ language-pipes serve \
     "id=Qwen/Qwen3-0.6B,device=cuda:0,memory=2"
 ```
 
-## See Also
-
-- [Configuration](./configuration.md) — TOML config file reference
-- [Architecture](./architecture.md) — How Language Pipes works
-- [JobProcessor State Machine](./job-processor.md) — Job processing FSM details
-- [OpenAI API](./oai.md) — API endpoint documentation
+### Documentation
+* [CLI Reference](./cli.md)
+* [Privacy Protection](./privacy.md)
+* [Configuration Manual](./configuration.md)
+* [Architecture Overview](./architecture.md)
+* [Open AI Compatable API](./oai.md)
+* [Job Processor State Machine](./job-processor.md)
+* [The default peer to peer implementation](./distributed-state-network/README.md)
+* [The way Language Pipes abstracts from model architecture](./llm-layer-collector.md)

@@ -186,7 +186,12 @@ Hidden states require the exact model weights and architecture to decode. Revers
 No—it's architectural privacy. Protection comes from model component separation, not cryptography. For additional AES encryption security, set `network_key` in the configuration.
 
 
-## See Also
-
-- [Architecture Overview](./architecture.md) — How distributed inference works
-- [Configuration Reference](./configuration.md) — The `load_ends` option
+### Documentation
+* [CLI Reference](./cli.md)
+* [Privacy Protection](./privacy.md)
+* [Configuration Manual](./configuration.md)
+* [Architecture Overview](./architecture.md)
+* [Open AI Compatable API](./oai.md)
+* [Job Processor State Machine](./job-processor.md)
+* [The default peer to peer implementation](./distributed-state-network/README.md)
+* [The way Language Pipes abstracts from model architecture](./llm-layer-collector.md)

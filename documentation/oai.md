@@ -241,8 +241,12 @@ Unlike frequency penalty, presence penalty applies equally to all tokens that ha
 
 ---
 
-## See Also
-
-- [Configuration](./configuration.md) — Enable the API with `oai_port`
-- [CLI Reference](./cli.md) — Command-line usage
-- [OpenAI API Reference](https://platform.openai.com/docs/api-reference/chat) — Official documentation
+### Documentation
+* [CLI Reference](./cli.md)
+* [Privacy Protection](./privacy.md)
+* [Configuration Manual](./configuration.md)
+* [Architecture Overview](./architecture.md)
+* [Open AI Compatable API](./oai.md)
+* [Job Processor State Machine](./job-processor.md)
+* [The default peer to peer implementation](./distributed-state-network/README.md)
+* [The way Language Pipes abstracts from model architecture](./llm-layer-collector.md)

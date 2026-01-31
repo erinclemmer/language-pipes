@@ -321,9 +321,12 @@ All properties can be set via environment variables with the `LP_` prefix:
 
 ---
 
-## See Also
-
-- [CLI Reference](./cli.md) — Command-line usage and flags
-- [Architecture](./architecture.md) — How Language Pipes works
-- [JobProcessor State Machine](./job-processor.md) — Job processing FSM details
-- [OpenAI API](./oai.md) — API endpoint documentation
+### Documentation
+* [CLI Reference](./cli.md)
+* [Privacy Protection](./privacy.md)
+* [Configuration Manual](./configuration.md)
+* [Architecture Overview](./architecture.md)
+* [Open AI Compatable API](./oai.md)
+* [Job Processor State Machine](./job-processor.md)
+* [The default peer to peer implementation](./distributed-state-network/README.md)
+* [The way Language Pipes abstracts from model architecture](./llm-layer-collector.md)
