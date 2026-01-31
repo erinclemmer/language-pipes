@@ -124,8 +124,6 @@ def interactive_init(output_path: str):
             "Network IP",
             required=True
         )
-    else:
-        del config["network_ip"]
 
     print("\nThe network key is an AES encryption key shared by all nodes.")
     print("It encrypts communication and prevents unauthorized access.")
@@ -143,9 +141,6 @@ def interactive_init(output_path: str):
             config["network_key"] = key
             print(f"Generated new key: {key}")
             print("Note: Save this key somewhere and supply it to other nodes on the network")
-    else:
-        if "network_key" in config:
-            del config["network_key"]
 
     # === Advanced Options ===
     print("\n--- Advanced Options ---\n")
