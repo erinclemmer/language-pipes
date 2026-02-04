@@ -12,8 +12,6 @@ from language_pipes.jobs.job_tracker import JobTracker
 
 from language_pipes.config import LpConfig
 
-from language_pipes.modeling.llm_meta_data import validate_model
-
 class JobFactory:
     config: LpConfig
     job_tracker: JobTracker

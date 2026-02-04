@@ -84,7 +84,7 @@ class OpenAITests(unittest.TestCase):
         main([])
 
     def test_single_node(self):
-        start_node("node-1", 5, 5000, 8000)
+        start_node("node-1", 6, 5000, 8000)
         res = oai_complete(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")
