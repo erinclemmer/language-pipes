@@ -3,11 +3,9 @@ import re
 import os
 import shutil
 import struct
-from pathlib import Path
 import json
 import base64
 import ctypes
-import subprocess
 from uuid import UUID
 from hashlib import sha256
 from threading import Thread
@@ -15,6 +13,8 @@ from typing import Optional
 
 import numpy as np
 import torch
+from huggingface_hub import snapshot_download
+from huggingface_hub.utils import HfHubHTTPError, RepositoryNotFoundError, GatedRepoError
 
 def uuid_to_bytes(uid: str) -> bytes:
     return UUID(hex=uid).bytes
@@ -106,23 +106,36 @@ def stop_thread(thread: Thread):
         ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
         print('Exception raise failure')
 
-def clone_model(model_id: str, model_dir: str):
-    repo_url = f"https://huggingface.co/{model_id}"
+def clone_model(model_id: str, model_dir: str, token: Optional[str] = None):
     clone_dir = f"{model_dir}/data"
 
-    if not os.path.exists(clone_dir):
-        Path(clone_dir).mkdir(parents=True)
     try:
-        subprocess.run(["git", "clone", repo_url, clone_dir])
-        subprocess.run(["git", "lfs", "install"], cwd=clone_dir, check=True)
-        subprocess.run(["git", "lfs", "pull"], cwd=clone_dir, check=True)
+        snapshot_download(
+            repo_id=model_id,
+            local_dir=clone_dir,
+            local_dir_use_symlinks=False,
+            token=token
+        )
+    except RepositoryNotFoundError:
+        if os.path.exists(model_dir):
+            shutil.rmtree(model_dir)
+        print(f"Error: Model '{model_id}' not found on HuggingFace Hub")
+        exit(1)
+    except GatedRepoError:
+        if os.path.exists(model_dir):
+            shutil.rmtree(model_dir)
+        print(f"Error: Model '{model_id}' is gated. Please accept the license at https://huggingface.co/{model_id} and set 'huggingface_token' in your config file")
+        exit(1)
+    except HfHubHTTPError as e:
+        if os.path.exists(model_dir):
+            shutil.rmtree(model_dir)
+        print(f"Error downloading model '{model_id}': {e}")
+        exit(1)
     except Exception as e:
         if os.path.exists(model_dir):
             shutil.rmtree(model_dir)
-        print(e)
-        print("Git LFS Error occurred: please ensure that git-lfs is installed")
-        exit()
-
+        print(f"Unexpected error downloading model '{model_id}': {e}")
+        exit(1)
 
 def sanitize_file_name(raw_name: str):
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', raw_name).strip().strip('.') + ".toml"

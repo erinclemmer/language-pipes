@@ -56,7 +56,8 @@ class LlmModel:
             device: str,
             model_dir: str,
             process_id: Optional[str] = None,
-            virtual: bool = False
+            virtual: bool = False,
+            huggingface_token: Optional[str] = None
     ):
         self.model_id = model_id
         self.node_id = node_id
@@ -72,7 +73,7 @@ class LlmModel:
         if not virtual:
             model_path = str(Path(model_dir) / self.model_id)
             if not os.path.exists(model_path):
-                clone_model(model_id, model_path)
+                clone_model(model_id, model_path, token=huggingface_token)
             self.collector = LlmLayerCollector(
                     model_dir=os.path.join(model_path, 'data'),
                     cache_file=os.path.join(model_path, 'cache.json'),
@@ -172,13 +173,14 @@ Device: {self.device}
         return model
     
     @staticmethod
-    def from_id(model_dir: str, model_id: str, node_id: str, pipe_id: str, device: str) -> 'LlmModel':
+    def from_id(model_dir: str, model_id: str, node_id: str, pipe_id: str, device: str, huggingface_token: Optional[str] = None) -> 'LlmModel':
         model = LlmModel(
             model_id=model_id, 
             node_id=node_id, 
             pipe_id=pipe_id, 
             device=device, 
-            model_dir=model_dir
+            model_dir=model_dir,
+            huggingface_token=huggingface_token
         )
 
         model_path = str(Path(model_dir) / model_id)

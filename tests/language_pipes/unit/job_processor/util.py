@@ -126,6 +126,7 @@ def make_config(node_id="node-a", prefill_chunk_size=2):
         max_pipes=1,
         model_validation=False,
         prefill_chunk_size=prefill_chunk_size,
+        huggingface_token=None
     )
 
 def mock_complete(a):

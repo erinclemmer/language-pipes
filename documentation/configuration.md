@@ -300,7 +300,7 @@ print_times = true
 
 ## Environment Variables
 
-All properties can be set via environment variables with the `LP_` prefix:
+Most properties can be set via environment variables with the `LP_` prefix:
 
 | Property | Environment Variable |
 |----------|---------------------|
@@ -318,6 +318,21 @@ All properties can be set via environment variables with the `LP_` prefix:
 | `app_dir` | `LP_APP_DIR` |
 | `model_dir` | `LP_MODEL_DIR` |
 | `print_times` | `LP_PRINT_TIMES` |
+
+### Authentication (Environment Variable Only)
+
+#### `LP_HUGGINGFACE_TOKEN`
+
+HuggingFace API token for downloading gated or private models (like Llama). This is only available as an environment variable for better security.
+
+Get your token from [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
+
+```bash
+export LP_HUGGINGFACE_TOKEN="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+language-pipes serve -c config.toml
+```
+
+**Note:** For gated models (like Llama), you must also accept the model's license agreement on the HuggingFace website before downloading.
 
 ---
 

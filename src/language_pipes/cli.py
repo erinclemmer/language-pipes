@@ -1,10 +1,9 @@
-import os
 import toml
 import argparse
 
 from language_pipes.distributed_state_network import DSNodeConfig, DSNodeServer
 
-from language_pipes.config import LpConfig
+from language_pipes.config import LpConfig, apply_env_overrides
 from language_pipes.util.aes import save_new_aes_key
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.start import start_wizard
@@ -60,56 +59,27 @@ def build_parser():
     return parser
 
 def apply_overrides(data, args):
-    # Environment variable mapping
-    env_map = {
-        "logging_level": os.getenv("LP_LOGGING_LEVEL"),
-        "oai_port": os.getenv("LP_OAI_PORT"),
-        "app_dir": os.getenv("LP_APP_DIR"),
-        "node_id": os.getenv("LP_NODE_ID"),
-        "peer_port": os.getenv("LP_PEER_PORT"),
-        "network_ip": os.getenv("LP_NETWORK_IP"),
-        "bootstrap_address": os.getenv("LP_BOOTSTRAP_ADDRESS"),
-        "bootstrap_port": os.getenv("LP_BOOTSTRAP_PORT"),
-        "network_key": os.getenv("LP_NETWORK_KEY"),
-        "model_validation": os.getenv("LP_MODEL_VALIDATION"),
-        "max_pipes": os.getenv("LP_MAX_PIPES"),
-        "hosted_models": os.getenv("LP_HOSTED_MODELS"),
-        "prefill_chunk_size": os.getenv("LP_PREFILL_CHUNK_SIZE"),
-        "model_dir": os.getenv("LP_MODEL_DIR"),
-    }
-
-    def precedence(key, arg):
-        if arg is not None:
-            return arg
-        if key in env_map and env_map[key] is not None:
-            return env_map[key]
-        if key in data:
-            return data[key]
-        return None
-
     app_dir_arg = args.app_dir
     if app_dir_arg is None and hasattr(args, "app_data_dir"):
         app_dir_arg = args.app_data_dir
 
-    config = {
-        "logging_level": precedence("logging_level", args.logging_level),
-        "oai_port": precedence("oai_port", args.openai_port),
-        "app_dir": precedence("app_dir", app_dir_arg),
-        "node_id": precedence("node_id", args.node_id),
-        "peer_port": precedence("peer_port", args.peer_port),
-        "network_ip": precedence("network_ip", None),
-        "bootstrap_address": precedence("bootstrap_address", args.bootstrap_address),
-        "bootstrap_port": precedence("bootstrap_port", args.bootstrap_port),
-        "network_key": precedence("network_key", args.network_key),
-        "model_validation": precedence("model_validation", args.model_validation),
-        "max_pipes": precedence("max_pipes", args.max_pipes),
-        "hosted_models": precedence("hosted_models", args.hosted_models),
-        "prefill_chunk_size": precedence("prefill_chunk_size", args.prefill_chunk_size),
-        "model_dir": precedence("model_dir", args.model_dir),
+    cli_args = {
+        "logging_level": args.logging_level,
+        "openai_port": args.openai_port,
+        "app_dir": app_dir_arg,
+        "node_id": args.node_id,
+        "peer_port": args.peer_port,
+        "bootstrap_address": args.bootstrap_address,
+        "bootstrap_port": args.bootstrap_port,
+        "network_key": args.network_key,
+        "model_validation": args.model_validation,
+        "max_pipes": args.max_pipes,
+        "hosted_models": args.hosted_models,
+        "prefill_chunk_size": args.prefill_chunk_size,
+        "model_dir": args.model_dir,
     }
 
-    if config["peer_port"] is not None:
-        config["peer_port"] = int(config["peer_port"])
+    config = apply_env_overrides(data, cli_args)
 
     if config["hosted_models"] is None:
         print("Error: hosted_models param must be supplied in config")
@@ -118,40 +88,6 @@ def apply_overrides(data, args):
     if config["node_id"] is None:
         print("Error: node_id param is not supplied in config")
         exit()
-    
-    if config["oai_port"] is not None:
-        config["oai_port"] = int(config["oai_port"])
-    
-    if config["bootstrap_port"] is not None:
-        config["bootstrap_port"] = int(config["bootstrap_port"])
-
-    hosted_models = []
-    for m in config["hosted_models"]:
-        if type(m) is str:
-            # Parse Docker-style key=value pairs: id=X,device=Y,memory=Z,load_ends=W
-            model_config = {}
-            for pair in m.split(","):
-                if "=" not in pair:
-                    raise ValueError(f"Invalid format '{pair}' in '{m}'. Expected key=value pairs (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=false)")
-                key, value = pair.split("=", 1)
-                model_config[key.strip()] = value.strip()
-            
-            # Validate required keys
-            required_keys = {"id", "device", "memory"}
-            missing = required_keys - set(model_config.keys())
-            if missing:
-                raise ValueError(f"Missing required keys {missing} in '{m}'")
-            
-            hosted_models.append({
-                "id": model_config["id"],
-                "device": model_config["device"],
-                "max_memory": float(model_config["memory"]),
-                "load_ends": model_config.get("load_ends", "false").lower() == "true"
-            })
-        else:
-            hosted_models.append(m)
-
-    config["hosted_models"] = hosted_models
 
     return config
 

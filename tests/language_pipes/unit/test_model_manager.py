@@ -94,6 +94,7 @@ def make_config(
         max_pipes=max_pipes,
         model_validation=model_validation,
         prefill_chunk_size=6,
+        huggingface_token=None
     )
 
 
@@ -152,7 +153,7 @@ class FakeLlmModel:
 class FakeEndModel:
     """Mock EndModel for testing without loading real models."""
     
-    def __init__(self, model_dir: str, model_id: str, device: str):
+    def __init__(self, model_dir: str, model_id: str, device: str, hf_token: str = None):
         self.model_dir = model_dir
         self.model_id = model_id
         self.device = device
@@ -589,7 +590,7 @@ class ModelManagerMultipleModelsTests(unittest.TestCase):
         """Test ModelManager handles multiple hosted models correctly."""
         call_count = [0]
         
-        def create_model(model_dir, model_id, node_id, pipe_id, device):
+        def create_model(model_dir, model_id, node_id, pipe_id, device, huggingface_token):
             call_count[0] += 1
             fake_model = FakeLlmModel(model_id, node_id, pipe_id, device)
             fake_model.start_layer = 0
