@@ -59,7 +59,7 @@ def check_embedding(tst: unittest.TestCase, model_dir: str, cache_file: str, sta
     input_embedder = collector.load_input_embedding()
     tokenizer = AutoTokenizer.from_pretrained(model_dir)
     input_ids = tokenizer(PROMPT, return_tensors='pt')['input_ids']
-    state = StaticAutoModel.compute_embedding(input_embedder, input_ids, collector.config, DynamicCache())
+    state = StaticAutoModel.compute_embedding(len(input_ids), 128, input_embedder, input_ids, collector.config, DynamicCache())
     tst.assertEqual(state.state.shape, state_shape)
     tst.assertEqual(state.position_ids.shape, position_ids_shape)
     tst.assertEqual(state.position_embeddings[0].shape, position_embeddings_shape)
@@ -102,7 +102,7 @@ def check_stack(tst: unittest.TestCase, model_dir: str, cache_file: str):
     state = None
     cache = DynamicCache()
     while current_token < num_tokens:
-        state = StaticAutoModel.compute_embedding(input_embed, input_ids, collector.config, cache)
+        state = StaticAutoModel.compute_embedding(original_num_tokens, 6, input_embed, input_ids, collector.config, cache)
         for lyr in layers:
             state.state = StaticAutoModel.compute_layer(lyr, state, cache)
         topk = 1
@@ -137,19 +137,11 @@ def check_chunked_prefill(tst: unittest.TestCase, model_dir: str, cache_file: st
     print(f"Processing {num_chunks} chunks")
     
     for chunk_idx in range(num_chunks):
-        chunk_start = chunk_idx * chunk_size
-        chunk_end = min(chunk_start + chunk_size, total_tokens)
-        chunk_tokens = all_input_ids[:, chunk_start:chunk_end]
-        
-        print(f"Chunk {chunk_idx + 1}/{num_chunks}: tokens {chunk_start}-{chunk_end} ({chunk_end - chunk_start} tokens)")
-        
         is_chunked = chunk_idx > 0
-        state = StaticAutoModel.compute_embedding(input_embed, chunk_tokens, collector.config, cache)
+        state = StaticAutoModel.compute_embedding(total_tokens, 6, input_embed, all_input_ids, collector.config, cache)
         
-        expected_start = chunk_start
-        expected_end = chunk_end
-        tst.assertEqual(state.cache_position[0].item(), expected_start)
-        tst.assertEqual(state.cache_position[-1].item(), expected_end - 1)
+        tst.assertEqual(state.cache_position[0].item(), chunk_idx * 6)
+        tst.assertEqual(state.cache_position[-1].item(), (chunk_idx * 6) + 5)
         
         for lyr in layers:
             state.state = StaticAutoModel.compute_layer(lyr, state, cache)

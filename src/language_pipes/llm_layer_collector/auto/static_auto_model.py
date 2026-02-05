@@ -11,22 +11,31 @@ from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 class StaticAutoModel:
     @staticmethod
     def compute_embedding(
+        prompt_tokens: int,
+        chunk_size: int,
         input_embedder: torch.nn.Embedding,
         input_ids: torch.Tensor,
         config: PretrainedConfig,
-        cache: DynamicCache
+        cache: DynamicCache,
     ) -> LLmComputationState:
         # TODO Automatically trim state etc depending upon the state of the cache
         device = input_embedder.weight.device
 
+        input_seq = input_ids.clone()
+
         state = LLmComputationState()
         
         past_seen_tokens = cache.get_seq_length()
+
+        if past_seen_tokens < prompt_tokens:
+            input_seq = input_seq[:, past_seen_tokens:past_seen_tokens + chunk_size]
+        else:
+            input_seq = input_seq[:, past_seen_tokens:past_seen_tokens + 1]
         
-        state.state = input_embedder(input_ids.to(device))
+        state.state = input_embedder(input_seq.to(device))
 
         converter = AttentionMaskConverter(is_causal=True)
-        L = input_ids.size()[1]
+        L = input_seq.size()[1]
 
         attention_mask = converter.to_causal_4d(
             batch_size=1,
