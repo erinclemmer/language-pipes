@@ -4,6 +4,7 @@ from transformers.masking_utils import create_causal_mask
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 
+from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 from language_pipes.llm_layer_collector.modeling.Qwen3Model import Qwen3Model
 from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 
@@ -15,6 +16,7 @@ class StaticAutoModel:
         config: PretrainedConfig,
         cache: DynamicCache
     ) -> LLmComputationState:
+        # TODO Automatically trim state etc depending upon the state of the cache
         device = input_embedder.weight.device
 
         state = LLmComputationState()
@@ -63,15 +65,15 @@ class StaticAutoModel:
 
     @staticmethod
     def compute_layer(
-        config: PretrainedConfig,
+        layer: AutoDecoderLayer,
         state: LLmComputationState,
         cache: DynamicCache
     ) -> torch.Tensor:
-        match config.model_type:
+        match layer.config.model_type:
             case "qwen3":
-                return Qwen3Model.compute_layer(state, cache)
+                return Qwen3Model.compute_layer(layer, state, cache)
             case "qwen3_moe":
-                return Qwen3Model.compute_layer(state, cache)
+                return Qwen3Model.compute_layer(layer, state, cache)
 
     @staticmethod
     def compute_head(

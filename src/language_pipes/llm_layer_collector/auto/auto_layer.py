@@ -28,44 +28,6 @@ class AutoDecoderLayer:
             self.config._attn_implementation = "eager"
         self.cls = getClass(self.config)(self.config, layer_index)
 
-    def __call__(
-        self, 
-        state: LLmComputationState,
-        cache: DynamicCache
-    ) -> torch.Tensor:
-        attention_type = "full_attention"
-        try:
-            attention_type = self.cls.attention_type
-        except AttributeError:
-            pass
-
-        try:
-            if self.config.sliding_window is not None:
-                attention_type = "sliding_attention"
-        except AttributeError:
-            pass
-
-        kwargs = {
-            "hidden_states": state.state,
-            "attention_mask": state.causal_mask[attention_type],
-            "position_ids": state.position_ids,
-            "use_cache": self.config.use_cache,
-            "cache_position": state.cache_position,
-        }
-
-        if self.config.model_type == "qwen3" or self.config.model_type == "qwen3_moe":
-            kwargs["past_key_values"] = cache
-        else:
-            kwargs["past_key_value"] = cache
-
-        if self.config.model_type == "gemma3_text":
-            kwargs["position_embeddings_local"] = state.position_embeddings_local
-            kwargs["position_embeddings_global"] = state.position_embeddings_global
-            return self.cls(**kwargs)[0]
-        else:
-            kwargs["position_embeddings"] = state.position_embeddings
-            return self.cls(**kwargs)
-
     def to_empty(self, device: Optional[str]) -> 'AutoDecoderLayer':
         self.cls = self.cls.to_empty(device=device)
         return self
