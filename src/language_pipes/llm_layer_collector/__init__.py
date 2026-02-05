@@ -1,2 +1,2 @@
 from language_pipes.llm_layer_collector.layer_collector import LlmLayerCollector
-from language_pipes.llm_layer_collector import compute
+from language_pipes.llm_layer_collector.auto.auto_model import StaticAutoModel
