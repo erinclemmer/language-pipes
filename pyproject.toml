@@ -34,7 +34,7 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "torch",
-    "transformers==4.57.6",
+    "transformers",
     "uuid",
     "promise",
     "requests",
