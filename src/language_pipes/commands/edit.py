@@ -47,6 +47,8 @@ def edit_config(config_path: str):
         prop_keys.append("__cancel__")
         
         selection = prompt_number_choice("\nSelect property to edit", editable_props, required=True)
+        if selection is None:
+            return
         selected_key = prop_keys[editable_props.index(selection)]
         
         if selected_key == "__save__":

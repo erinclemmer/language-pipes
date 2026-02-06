@@ -36,6 +36,8 @@ def interactive_init(output_path: str):
                 "    Model ID",
                 required=True
             )
+            if model_id is None:
+                raise KeyboardInterrupt()
             
             print("\n    Select the compute device for this model. Use 'cpu' for CPU-only,")
             print("    or 'cuda:0', 'cuda:1', etc. for specific GPUs.")
@@ -74,6 +76,8 @@ def interactive_init(output_path: str):
         pass
 
     config["hosted_models"] = hosted_models
+    if len(hosted_models) == 0:
+        return
 
     # === API Server ===
     print("\n--- API Server ---\n")

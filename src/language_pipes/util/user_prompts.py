@@ -86,7 +86,7 @@ def prompt_number_choice(message: str, choices: list, default=None, required=Fal
                 continue
             selection = int(strSelect)
         except KeyboardInterrupt:
-            exit()
+            return None
         except:
             print("Invalid selection")
             continue
@@ -135,7 +135,7 @@ def prompt_model_id(message: str, required=False) -> str | None:
         print("  Available local models:")
         for i, model in enumerate(available_models):
             print(f"    [{i + 1}] {model}")
-        print(f"    [0] Enter custom model ID")
+        print("    [0] Enter custom model ID")
         
         while True:
             try:
@@ -147,7 +147,7 @@ def prompt_model_id(message: str, required=False) -> str | None:
                 print("  Please enter a valid number.")
                 continue
             except KeyboardInterrupt:
-                exit()
+                return None
             
             if selection == 0:
                 return prompt("    Custom model ID", required=required)

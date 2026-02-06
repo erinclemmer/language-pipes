@@ -48,6 +48,7 @@ def start_server(app_dir: str, config_path: str):
 
 def new_config(app_dir: str):
     raw_name = prompt("Name of new configuration", required=True)
+    
     if raw_name is None:
         return
     file_name = sanitize_file_name(raw_name)
@@ -101,7 +102,7 @@ Version: {version}
     if not os.path.exists(model_dir):
         Path(model_dir).mkdir(parents=True)
 
-    while True: # TODO Add model list        
+    while True:
         main_menu_cmd = prompt_number_choice("Main Menu", [
             "View Config",
             "Load Config",
@@ -129,7 +130,10 @@ Version: {version}
                 if config_path is not None:
                     view_config(config_path)
             case "Create Config":
-                new_config(app_dir)
+                try:
+                    new_config(app_dir)
+                except KeyboardInterrupt:
+                    pass
             case "Edit Config":
                 if len(get_config_files(config_dir)) == 0:
                     print("No configs found...\n\n")
