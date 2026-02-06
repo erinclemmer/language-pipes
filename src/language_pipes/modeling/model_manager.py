@@ -56,7 +56,8 @@ class ModelManager:
             model_id=model_id,
             node_id=self.config.node_id,
             pipe_id=pipe.pipe_id,
-            device=device
+            device=device,
+            huggingface_token=self.config.huggingface_token
         )
         if new_model is None:
             return None
@@ -85,7 +86,7 @@ class ModelManager:
         return available_memory, new_model
 
     def _load_end_model(self, model_id: str, device: str):
-        model = EndModel(self.config.model_dir, model_id, device)
+        model = EndModel(self.config.model_dir, model_id, device, self.config.huggingface_token)
         self.end_models.append(model)
         return model
 

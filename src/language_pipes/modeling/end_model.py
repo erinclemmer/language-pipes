@@ -27,14 +27,14 @@ class EndModel:
     head: torch.nn.Linear
     collector: LlmLayerCollector
 
-    def __init__(self, model_dir: str, model_id: str, device: str):
+    def __init__(self, model_dir: str, model_id: str, device: str, huggingface_token: str | None = None):
         self.model_id = model_id
         self.device = device
 
         self.process_id = str(uuid4())
         model_path = str(Path(model_dir) / self.model_id)
         if not os.path.exists(model_path):
-            clone_model(model_id, model_path)
+            clone_model(model_id, model_path, token=huggingface_token)
         self.meta_data = LlmMetadata(model_path)
         self.collector = LlmLayerCollector(
             model_dir=os.path.join(model_path, 'data'),

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from language_pipes.distributed_state_network import DSNodeServer, DSNodeConfig
 
-from language_pipes.config import LpConfig, default_config_dir, default_model_dir
+from language_pipes.config import LpConfig, default_config_dir, default_model_dir, apply_env_overrides
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.edit import edit_config
 from language_pipes.commands.view import view_config
@@ -19,7 +19,7 @@ def start_server(app_dir: str, config_path: str):
     with open(config_path, "r", encoding="utf-8") as f:
         data = toml.load(f)
 
-    data["app_dir"] = app_dir
+    data = apply_env_overrides(data, {"app_dir": app_dir})
     
     config = LpConfig.from_dict(data)
 
