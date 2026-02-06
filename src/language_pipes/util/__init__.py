@@ -113,18 +113,18 @@ def clone_model(model_id: str, model_dir: str, token: Optional[str] = None):
         snapshot_download(
             repo_id=model_id,
             local_dir=clone_dir,
-            local_dir_use_symlinks=False,
             token=token
         )
-    except RepositoryNotFoundError:
+    except RepositoryNotFoundError as e:
+        if "Repository Not Found for url" in e.args[0]:
+            print(f"Error: Model '{model_id}' not found on HuggingFace Hub")
+
+        if "Cannot access gated repo" in e.args[0]:
+            print(f"Error: Model '{model_id}' is gated. Please accept the license at https://huggingface.co/{model_id} and set 'huggingface_token' in your config file")
+        
         if os.path.exists(model_dir):
             shutil.rmtree(model_dir)
-        print(f"Error: Model '{model_id}' not found on HuggingFace Hub")
-        exit(1)
-    except GatedRepoError:
-        if os.path.exists(model_dir):
-            shutil.rmtree(model_dir)
-        print(f"Error: Model '{model_id}' is gated. Please accept the license at https://huggingface.co/{model_id} and set 'huggingface_token' in your config file")
+        
         exit(1)
     except HfHubHTTPError as e:
         if os.path.exists(model_dir):
