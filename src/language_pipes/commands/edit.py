@@ -156,7 +156,9 @@ def edit_config(config_path: str):
         
         elif selected_key == "hosted_models":
             try:
-                config["hosted_models"] = edit_hosted_models(config.get("hosted_models", []))
+                hosted_models = edit_hosted_models(config.get("hosted_models", []))
+                if hosted_models is not None:
+                    config["hosted_models"] = hosted_models
             except KeyboardInterrupt:
                 continue
 
@@ -167,8 +169,10 @@ def select_hosted_model(models: List[dict]) -> int | None:
         options.append(model_str)
     options.append("Cancel")
     model_selection = prompt_number_choice("Select Model", options)
-    if model_selection == "Cancel":
+    
+    if model_selection is None or model_selection == "Cancel":
         return None
+
     return options.index(model_selection)
 
 def edit_hosted_models(models: List) -> List[dict]:
@@ -182,24 +186,33 @@ def edit_hosted_models(models: List) -> List[dict]:
             "Done editing models"
         ]
         
-        selection = prompt_number_choice("Select model to edit", options, required=True)
+        selection = prompt_number_choice("Select option", options, required=True)
+
+        if selection is None:
+            return
         
         if selection == "Add model":
-            new_model = {
-                "id": prompt_model_id("Model ID", True),
-                "device": prompt("Device", "cpu", required=True),
-                "max_memory": prompt("Max Memory (GB)"),
-                "load_ends": prompt_bool("Load Ends", required=True)
-            }
-            if new_model:
-                models.append(new_model)
+            model_id = prompt_model_id("Model ID", True)
+            if model_id is None:
+                continue
+            try:
+                new_model = {
+                    "id": model_id,
+                    "device": prompt("Device", "cpu", required=True),
+                    "max_memory": prompt("Max Memory (GB)"),
+                    "load_ends": prompt_bool("Load Ends", required=True)
+                }
+            except KeyboardInterrupt:
+                continue
+            
+            models.append(new_model)
             continue
         
         if selection == "Edit model":
-            model_idx = select_hosted_model(models)
-            if model_idx is None:
-                continue
             try:
+                model_idx = select_hosted_model(models)
+                if model_idx is None:
+                    continue
                 edited = edit_single_model(models[model_idx])
                 if edited:
                     models[model_idx] = edited
@@ -233,7 +246,7 @@ def edit_single_model(model: dict) -> dict | None:
         options.append("Done")
         
         selection = prompt_number_choice("Select property", options, required=True)
-        if selection == "Cancel":
+        if selection is None or selection == "Cancel":
             return None
         
         if selection == "Done":
@@ -242,24 +255,30 @@ def edit_single_model(model: dict) -> dict | None:
         selected_idx = options.index(selection)
         selected_key = props[selected_idx][0]
         
-        if selected_key == "id":
-            edited_model[selected_key] = prompt_model_id("Model ID", required=True)
-        
-        elif selected_key == "device":
-            edited_model[selected_key] = prompt(
-                "Device (cpu, cuda:0, etc.)",
-                default=edited_model.get(selected_key, "cpu"),
-                required=True
-            )
-        
-        elif selected_key == "max_memory":
-            edited_model[selected_key] = prompt_float(
-                "Max Memory (GB)",
-                required=True
-            )
-        
-        elif selected_key == "load_ends":
-            edited_model["load_ends"] = prompt_bool(
-                "Load embedding/output layers?",
-                required=True
-            )
+        try:
+            if selected_key == "id":
+                model_id = prompt_model_id("Model ID", required=True)
+                if model_id is None:
+                    continue
+                edited_model[selected_key] = model_id
+            
+            elif selected_key == "device":
+                edited_model[selected_key] = prompt(
+                    "Device (cpu, cuda:0, etc.)",
+                    default=edited_model.get(selected_key, "cpu"),
+                    required=True
+                )
+            
+            elif selected_key == "max_memory":
+                edited_model[selected_key] = prompt_float(
+                    "Max Memory (GB)",
+                    required=True
+                )
+            
+            elif selected_key == "load_ends":
+                edited_model["load_ends"] = prompt_bool(
+                    "Load embedding/output layers?",
+                    required=True
+                )
+        except KeyboardInterrupt:
+            continue

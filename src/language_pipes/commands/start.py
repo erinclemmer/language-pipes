@@ -68,7 +68,7 @@ def delete_config(app_dir: str):
 
 def modify_config(app_dir: str):
     config_path = select_config(app_dir)
-    if config_path:
+    if config_path is not None:
         edit_config(config_path)
 
 def start_wizard(apply_overrides, version: str):
@@ -110,6 +110,8 @@ Version: {version}
             "Edit Config",
             "Delete Config"
         ])
+        if main_menu_cmd is None:
+            exit()
 
         print("\n" + ("=" * 50) + "\n")
 
@@ -138,7 +140,10 @@ Version: {version}
                 if len(get_config_files(config_dir)) == 0:
                     print("No configs found...\n\n")
                     continue
-                modify_config(app_dir)
+                try:
+                    modify_config(app_dir)
+                except KeyboardInterrupt:
+                    pass
             case "Delete Config":
                 if len(get_config_files(config_dir)) == 0:
                     print("No configs found...\n\n")
