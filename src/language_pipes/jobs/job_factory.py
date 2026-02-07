@@ -43,7 +43,7 @@ class JobFactory:
         update: Optional[Callable] = None,
         resolve: Optional[Promise] = None
     ) -> Optional[Job]:
-        pipe = self.pipe_manager.get_pipe_by_model_id(model_id)
+        pipe = self.pipe_manager.get_pipe_by_model_id(model_id, start_layer=self.config.num_local_layers)
         if pipe is None:
             resolve('No pipe available')
             raise_exception(self.logger, f"Could not find pipe for model {model_id}")

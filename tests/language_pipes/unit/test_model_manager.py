@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock
 from typing import List, Optional
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'tests', 'language_pipes', 'unit'))
 
 from language_pipes.config import LpConfig, LayerModel
 from language_pipes.modeling.model_manager import ModelManager
@@ -12,55 +13,7 @@ from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.pipes.router_pipes import RouterPipes
-
-
-class FakeLogger:
-    def __init__(self):
-        self.messages = []
-
-    def info(self, message):
-        self.messages.append(("info", message))
-
-    def warning(self, message):
-        self.messages.append(("warning", message))
-
-    def error(self, message):
-        self.messages.append(("error", message))
-
-
-class FakeConnection:
-    def __init__(self, address: str):
-        self.address = address
-
-
-class FakeStateNetworkNode:
-    def __init__(self, node_id: str):
-        self._node_id = node_id
-        self._data = {}
-        self._peers = []
-        self.logger = None
-
-    def node_id(self):
-        return self._node_id
-
-    def read_data(self, node_id: str, key: str):
-        return self._data.get((node_id, key))
-
-    def update_data(self, key: str, value: str):
-        self._data[(self._node_id, key)] = value
-
-    def peers(self):
-        return self._peers
-
-    def connection_from_node(self, node_id: str):
-        return FakeConnection("127.0.0.1")
-
-    def add_peer(self, peer_id: str, models=None):
-        self._peers.append(peer_id)
-        if models is None:
-            models = []
-        import json
-        self._data[(peer_id, "models")] = json.dumps([m.to_json() for m in models])
+from util import FakeLogger, FakeStateNetworkNode
 
 
 def make_metadata():
@@ -79,6 +32,7 @@ def make_config(
     node_id="node-a",
     layer_models: Optional[List[LayerModel]] = None,
     end_models: Optional[List[str]] = None,
+    num_local_layers:int = 0,
     max_pipes=2,
     model_validation=False
 ):
@@ -96,6 +50,7 @@ def make_config(
         layer_models=layer_models,
         end_models=end_models,
         max_pipes=max_pipes,
+        num_local_layers=num_local_layers,
         model_validation=model_validation,
         prefill_chunk_size=6,
         huggingface_token=None
@@ -157,10 +112,11 @@ class FakeLlmModel:
 class FakeEndModel:
     """Mock EndModel for testing without loading real models."""
     
-    def __init__(self, model_dir: str, model_id: str, device: str, hf_token: str = None):
+    def __init__(self, num_local_layers: int, model_dir: str, model_id: str, device: str, hf_token: str = None):
         self.model_dir = model_dir
         self.model_id = model_id
         self.device = device
+        self.layers = list(range(num_local_layers))
         self.loaded = False
 
     def load(self):
@@ -211,7 +167,7 @@ class ModelManagerTests(unittest.TestCase):
         # Manually add some fake models
         fake_model = FakeLlmModel("model-1", "node-a", "pipe-1", "cpu")
         manager.models.append(fake_model)
-        fake_end_model = FakeEndModel("./models", "model-1", "cpu")
+        fake_end_model = FakeEndModel(0, "models", "model-1", "cpu")
         manager.end_models.append(fake_end_model)
 
         manager.stop()
@@ -229,8 +185,8 @@ class ModelManagerTests(unittest.TestCase):
         router = RouterPipes(node)
 
         manager = ModelManager(logger, config, router)
-        end_model_1 = FakeEndModel("./models", "model-1", "cpu")
-        end_model_2 = FakeEndModel("./models", "model-2", "cpu")
+        end_model_1 = FakeEndModel(0, "./models", "model-1", "cpu")
+        end_model_2 = FakeEndModel(0, "./models", "model-2", "cpu")
         manager.end_models.append(end_model_1)
         manager.end_models.append(end_model_2)
 
@@ -249,7 +205,7 @@ class ModelManagerTests(unittest.TestCase):
         router = RouterPipes(node)
 
         manager = ModelManager(logger, config, router)
-        end_model = FakeEndModel("./models", "model-1", "cpu")
+        end_model = FakeEndModel(0, "./models", "model-1", "cpu")
         manager.end_models.append(end_model)
 
         result = manager.get_end_model("nonexistent-model")
@@ -261,7 +217,7 @@ class ModelManagerTests(unittest.TestCase):
     def test_end_model_loads(self, mock_llm_model_class):
         """Test _host_model loads EndModel when end_models is supplied in config"""
         logger = FakeLogger()
-        config = make_config(end_models=["model-1", "model-2"])
+        config = make_config(end_models=["model-1", "model-2"], num_local_layers=0)
         node = FakeStateNetworkNode("node-a")
         node.add_peer("node-a", [])
         router = RouterPipes(node)
@@ -272,9 +228,33 @@ class ModelManagerTests(unittest.TestCase):
         self.assertEqual(len(manager.end_models), 2)
         self.assertEqual(manager.end_models[0].model_id, "model-1")
         self.assertTrue(manager.end_models[0].loaded)
+        self.assertEqual(len(manager.end_models[0].layers), 0)
 
         self.assertEqual(manager.end_models[1].model_id, "model-2")
         self.assertTrue(manager.end_models[1].loaded)
+        self.assertEqual(len(manager.end_models[1].layers), 0)
+
+    @patch('language_pipes.modeling.model_manager.EndModel', FakeEndModel)
+    @patch('language_pipes.modeling.model_manager.LlmModel')
+    def test_end_model_loads_layers(self, mock_llm_model_class):
+        """Test _host_model loads EndModel when end_models is supplied in config"""
+        logger = FakeLogger()
+        config = make_config(end_models=["model-1", "model-2"], num_local_layers=2)
+        node = FakeStateNetworkNode("node-a")
+        node.add_peer("node-a", [])
+        router = RouterPipes(node)
+
+        manager = ModelManager(logger, config, router)
+
+        # Should have loaded an end model
+        self.assertEqual(len(manager.end_models), 2)
+        self.assertEqual(manager.end_models[0].model_id, "model-1")
+        self.assertTrue(manager.end_models[0].loaded)
+        self.assertEqual(len(manager.end_models[0].layers), 2)
+
+        self.assertEqual(manager.end_models[1].model_id, "model-2")
+        self.assertTrue(manager.end_models[1].loaded)
+        self.assertEqual(len(manager.end_models[1].layers), 2)
 
     @patch('language_pipes.modeling.model_manager.EndModel', FakeEndModel)
     @patch('language_pipes.modeling.model_manager.LlmModel')
@@ -296,7 +276,32 @@ class ModelManagerTests(unittest.TestCase):
 
         manager = ModelManager(logger, config, router)
         self.assertEqual(len(manager.models), 1)
+        self.assertEqual(manager.models[0].start_layer, 0)
         self.assertEqual(len(manager.end_models), 0)
+
+    @patch('language_pipes.modeling.model_manager.EndModel', FakeEndModel)
+    @patch('language_pipes.modeling.model_manager.LlmModel')
+    def test_host_model_does_not_load_end_model(self, mock_llm_model_class):
+        """Test _host_model does not load EndModel"""
+        fake_model = FakeLlmModel("model-1", "node-a", "pipe-1", "cpu")
+        mock_llm_model_class.from_id.return_value = fake_model
+
+        logger = FakeLogger()
+        layer_model = LayerModel(
+            id="model-1",
+            device="cpu",
+            max_memory=1.0
+        )
+        config = make_config(layer_models=[layer_model], end_models=["model-1"], num_local_layers=1)
+        node = FakeStateNetworkNode("node-a")
+        node.add_peer("node-a", [])
+        router = RouterPipes(node)
+
+        manager = ModelManager(logger, config, router)
+        self.assertEqual(len(manager.models), 1)
+        self.assertEqual(manager.models[0].start_layer, 1)
+        self.assertEqual(len(manager.end_models), 1)
+        self.assertEqual(len(manager.end_models[0].layers), 1)
 
     @patch('language_pipes.modeling.model_manager.EndModel', FakeEndModel)
     @patch('language_pipes.modeling.model_manager.LlmModel')

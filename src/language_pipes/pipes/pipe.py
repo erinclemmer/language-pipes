@@ -3,7 +3,6 @@ from pathlib import Path
 from uuid import uuid4
 
 from transformers import AutoTokenizer
-from transformers.models.auto import AutoConfig
 from language_pipes.network_protocol import StateNetworkNode
 
 from language_pipes.pipes.meta_pipe import MetaPipe
@@ -69,12 +68,12 @@ class Pipe:
     def sort_segments(self):
         self.segments = sorted(self.segments, key=lambda x: x.start_layer)
 
-    def is_complete(self):
+    def is_complete(self, start_layer: int):
         if len(self.segments) == 0:
             return False
         
         self.sort_segments()
-        current_layer = 0
+        current_layer = start_layer
         for s in self.segments:
             if not s.loaded:
                 break

@@ -60,9 +60,9 @@ class RouterPipes:
         
         return aggregate_models(models)[0]
 
-    def get_pipe_by_model_id(self, model_id: str) -> Optional[MetaPipe]:
+    def get_pipe_by_model_id(self, model_id: str, start_layer: int = 0) -> Optional[MetaPipe]:
         available_pipes: List[MetaPipe] = []
-        for p in self.pipes_for_model(model_id, True):
+        for p in self.pipes_for_model(model_id, find_completed=True, start_layer=start_layer):
             if not p.is_loading():
                 available_pipes.append(p)
         if len(available_pipes) == 0:
@@ -70,9 +70,9 @@ class RouterPipes:
 
         return random.choice(available_pipes)
 
-    def print_pipes(self, logger: logging.Logger):
+    def print_pipes(self, num_local_layers: int, logger: logging.Logger):
         for p in self._network_pipes():
-            p.print(logger)
+            p.print(num_local_layers, logger)
 
     def _all_models(self) -> List[MetaModel]:
         network_models: Dict[str, List[MetaModel]] = { }
@@ -86,14 +86,14 @@ class RouterPipes:
             models.extend(network_models[key])
         return models
 
-    def pipes_for_model(self, model_id: str, find_completed: bool) -> List[MetaPipe]:
+    def pipes_for_model(self, model_id: str, find_completed: bool, start_layer: int = 0) -> List[MetaPipe]:
         models: List[MetaModel] = []
         for model in self._all_models():
             if model.model_id != model_id:
                 continue
             models.append(model)
 
-        return [pipe for pipe in aggregate_models(models) if pipe.is_complete() == find_completed]
+        return [pipe for pipe in aggregate_models(models) if pipe.is_complete(start_layer) == find_completed]
 
     def _network_pipes(self) -> List[MetaPipe]:
         return aggregate_models(self._all_models())

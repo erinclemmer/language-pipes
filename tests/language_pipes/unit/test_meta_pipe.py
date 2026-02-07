@@ -29,7 +29,7 @@ class MetaPipeTests(unittest.TestCase):
         ]
         pipe = MetaPipe("pipe-1", "model-1", segments)
 
-        self.assertTrue(pipe.is_complete())
+        self.assertTrue(pipe.is_complete(0))
 
     def test_is_incomplete_with_gap(self):
         meta_data = make_computed()
@@ -39,7 +39,7 @@ class MetaPipeTests(unittest.TestCase):
         ]
         pipe = MetaPipe("pipe-1", "model-1", segments)
 
-        self.assertFalse(pipe.is_complete())
+        self.assertFalse(pipe.is_complete(0))
 
     def test_next_start_and_end_layer(self):
         meta_data = make_computed()
@@ -48,8 +48,8 @@ class MetaPipeTests(unittest.TestCase):
         ]
         pipe = MetaPipe("pipe-1", "model-1", segments)
 
-        self.assertEqual(pipe.next_start_layer(), 2)
-        self.assertEqual(pipe.next_end_layer(), 3)
+        self.assertEqual(pipe.next_start_layer(0), 2)
+        self.assertEqual(pipe.next_end_layer(0), 3)
 
     def test_aggregate_models_sorts_segments(self):
         meta_data = make_computed()

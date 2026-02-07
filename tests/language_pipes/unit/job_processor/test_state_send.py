@@ -10,7 +10,7 @@ from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_processor import JobState
 from language_pipes.util.enums import ComputeStep
 
-from job_processor.util import make_processor, make_job, make_config, FakeModel, FakePipe
+from util import make_processor, make_job, make_config, FakeModel, PipeWrapper
 
 class TestSendState(unittest.TestCase):
     """Tests for the _state_send method."""
@@ -22,15 +22,15 @@ class TestSendState(unittest.TestCase):
         job.data = JobData()
         job.data.state = torch.zeros((1, 1))
 
-        pipe = FakePipe(FakeModel("node-b", 0, 0, virtual=True))
+        virtual_model = FakeModel("node-b", 0, 0, virtual=True, num_hidden_layers=2)
+        local_model = FakeModel("node-a", 1, 1, virtual=False, num_hidden_layers=2)
+        pipe = PipeWrapper("node-a", "model-a", [virtual_model, local_model])
         processor = make_processor(job=job, pipe=pipe, end_model=None)
 
         next_state = processor._state_send()
 
         self.assertEqual(next_state, JobState.DONE)
-        self.assertEqual(len(pipe.sent_jobs), 1)
-        _, node_id = pipe.sent_jobs[0]
-        self.assertEqual(node_id, "node-b")
+        self.assertEqual(pipe.calls, ["send job"])
 
     def test_routes_tokenize_job_to_next_node_when_origin_mismatch(self):
         job = make_job(origin_node_id="node-b")
@@ -39,7 +39,8 @@ class TestSendState(unittest.TestCase):
         job.data = JobData()
         job.data.state = torch.zeros((1, 1))
 
-        pipe = FakePipe(FakeModel("node-c", 0, 0))
+        next_model = FakeModel("node-c", 0, 0, virtual=False, num_hidden_layers=1)
+        pipe = PipeWrapper("node-a", "model-a", [next_model])
         processor = make_processor(
             job=job,
             pipe=pipe,
@@ -49,6 +50,6 @@ class TestSendState(unittest.TestCase):
 
         processor.run()
 
-        self.assertEqual(len(pipe.sent_jobs), 1)
-        _, node_id = pipe.sent_jobs[0]
-        self.assertEqual(node_id, "node-c")
+        self.assertEqual(processor.states, [JobState.VALIDATING, JobState.SEND])
+        self.assertEqual(processor.state, JobState.DONE)
+        self.assertEqual(pipe.calls, ["send job"])

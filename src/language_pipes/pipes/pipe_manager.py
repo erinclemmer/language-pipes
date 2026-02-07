@@ -37,8 +37,8 @@ class PipeManager:
             return None
         return self._get_pipe_from_meta(meta_pipe)
 
-    def get_pipe_by_model_id(self, model_id: str) -> Optional[Pipe]:
-        meta_pipe = self.router_pipes.get_pipe_by_model_id(model_id)
+    def get_pipe_by_model_id(self, model_id: str, start_layer: int = 0) -> Optional[Pipe]:
+        meta_pipe = self.router_pipes.get_pipe_by_model_id(model_id, start_layer=start_layer)
         if meta_pipe is None:
             return None
         return self._get_pipe_from_meta(meta_pipe)

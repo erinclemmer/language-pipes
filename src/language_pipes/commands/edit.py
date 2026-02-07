@@ -29,6 +29,7 @@ def edit_config(config_path: str):
             ("max_pipes", "Max Pipes"),
             ("model_validation", "Model Validation"),
             ("prefill_chunk_size", "Prefill Chunk Size"),
+            ("num_local_layers", "Number of local layers")
         ]
         
         layer_model_count = len(config.get("layer_models", []))
@@ -154,8 +155,13 @@ def edit_config(config_path: str):
         elif selected_key == "prefill_chunk_size":
             config[selected_key] = prompt_int(
                 "Prefill Chunk Size",
-                default=config.get(selected_key, 6),
-                required=True
+                default=config.get(selected_key, 6)
+            )
+
+        elif selected_key == "num_local_layers":
+            config[selected_key] = prompt_int(
+                "Number of local layers",
+                default=config.get(selected_key, 1)
             )
         
         elif selected_key == "layer_models":

@@ -10,7 +10,7 @@ from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_processor import JobState
 from language_pipes.util.enums import ComputeStep
 
-from job_processor.util import make_processor, make_job, FakeEndModel
+from util import make_processor, make_job, FakeEndModel, FakeModel, PipeWrapper
 
 class TestValidatingState(unittest.TestCase):
     """Tests for the _state_validating method."""
@@ -26,8 +26,10 @@ class TestValidatingState(unittest.TestCase):
         job.prompt_tokens = 2
         job.data = JobData()
         job.data.state = torch.zeros((1, 1))
+        model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
+        pipe = PipeWrapper("node-a", "model-a", [model])
 
-        processor = make_processor(job=job, end_model=FakeEndModel())
+        processor = make_processor(job=job, pipe=pipe, end_model=FakeEndModel())
         next_state = processor._state_validating()
 
         self.assertEqual(next_state, JobState.HEAD)
@@ -40,8 +42,10 @@ class TestValidatingState(unittest.TestCase):
         job.init_chunking(chunk_size=2)
         job.data = JobData()
         job.data.state = torch.zeros((1, 1))
+        model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
+        pipe = PipeWrapper("node-a", "model-a", [model])
 
-        processor = make_processor(job=job, end_model=FakeEndModel())
+        processor = make_processor(job=job, pipe=pipe, end_model=FakeEndModel())
         next_state = processor._state_validating()
 
         self.assertEqual(next_state, JobState.EMBED)
@@ -52,8 +56,10 @@ class TestValidatingState(unittest.TestCase):
         job.current_layer = 0
         job.data = JobData()
         job.data.state = torch.zeros((1, 1))
+        model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
+        pipe = PipeWrapper("node-a", "model-a", [model])
 
-        processor = make_processor(job=job, end_model=None)
+        processor = make_processor(job=job, pipe=pipe, end_model=None)
         next_state = processor._state_validating()
 
         self.assertEqual(next_state, JobState.PROCESS_LAYERS)

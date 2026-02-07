@@ -1,4 +1,5 @@
 from typing import List
+from logging import Logger
 from dataclasses import dataclass
 from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata
@@ -36,11 +37,11 @@ class MetaPipe:
                 filled_slots[i] = 2 if segment.loaded else 1
         return filled_slots
 
-    def print_pipe(self):
+    def print_pipe(self, start_layer: int):
         filled_slots = self.get_filled_slots()
         num_layers = len(filled_slots)
         pipe_pieces = ["|>"]
-        for slot in filled_slots:
+        for slot in filled_slots[start_layer:]:
             match (slot):
                 case 0:
                     pipe_pieces.append("X")
@@ -51,19 +52,19 @@ class MetaPipe:
         pipe_pieces.append("<|")
         return "".join(pipe_pieces)
 
-    def next_start_layer(self) -> int:
+    def next_start_layer(self, min_layer: int) -> int:
         if len(self.segments) == 0:
-            return 0
+            return min_layer
         filled_slots = self.get_filled_slots()
-        for slot in range(0, self.num_layers()):
+        for slot in range(min_layer, self.num_layers()):
             if filled_slots[slot] == 0:
                 return slot
         return -1
 
-    def next_end_layer(self, num_layers: int | None = None) -> int:
+    def next_end_layer(self, min_layer: int, num_layers: int | None = None) -> int:
         if num_layers is None:
             num_layers = self.num_layers()
-        start = self.next_start_layer()
+        start = self.next_start_layer(min_layer)
         filled_slots = self.get_filled_slots(num_layers)
         for end_layer in range(start, num_layers):
             if end_layer == num_layers - 1:
@@ -79,9 +80,9 @@ class MetaPipe:
                 peers.append(segment.node_id)
         return peers
 
-    def is_complete(self):
+    def is_complete(self, start_layer: int):
         self.sort_segments()
-        current_layer = 0
+        current_layer = start_layer
         for s in self.segments:
             if s.start_layer == -1 or not s.loaded:
                 continue
@@ -90,7 +91,7 @@ class MetaPipe:
 
         return current_layer == self.segments[0].num_layers
 
-    def print(self, logger):
+    def print(self, start_layer: int, logger: Logger):
         self.sort_segments()
         logger.info(f'''
 =================================
@@ -98,8 +99,8 @@ Pipe Status:
 Model ID: {self.model_id}
 Pipe: {self.pipe_id}
 Segments: {', '.join([s.node_id for s in self.segments])}
-{self.print_pipe()}
+{self.print_pipe(start_layer)}
 End Layer: {self.segments[-1].end_layer} / {self.num_layers() - 1}
-Complete: {self.is_complete()}
+Complete: {self.is_complete(start_layer)}
 =================================
 ''')

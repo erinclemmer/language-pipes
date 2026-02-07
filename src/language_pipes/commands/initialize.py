@@ -92,6 +92,13 @@ def interactive_init(output_path: str):
 
     config["end_models"] = end_models
 
+    if len(config["end_models"]) > 0:
+        print("\nHere you can specify how many layers of the end models you want to load")
+        print("This means you will always control the first n layers of the pipe to help obfuscate your prompt")
+        num_local_layers = prompt_int("Number of local layers?", default=1)
+        if num_local_layers is not None:
+            config["num_local_layers"] = num_local_layers
+
     # === API Server ===
     print("\n--- API Server ---\n")
 

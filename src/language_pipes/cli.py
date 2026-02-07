@@ -55,6 +55,7 @@ def build_parser():
     run_parser.add_argument("--layer-models", nargs="*", metavar="MODEL", 
         help="Layer models as key=value pairs: id=MODEL,device=DEVICE,memory=GB (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4)")
     run_parser.add_argument("--end-models", nargs="*", metavar="END", help="End models to host as model IDs like \"Qwen/Qwen3-1.7B\"")
+    run_parser.add_argument("--num-local-layers", type=int, help="Number of local layers to run on your machine. More layers means better prompt obfuscation")
     run_parser.add_argument("--prefill-chunk-size", help="Number of tokens to process for each batch in prefill", type=int)
 
     return parser
@@ -78,6 +79,7 @@ def apply_overrides(data, args):
         "layer_models": args.layer_models,
         "end_models": args.end_models,
         "prefill_chunk_size": args.prefill_chunk_size,
+        "num_local_layers": args.num_local_layers,
         "model_dir": args.model_dir,
     }
 

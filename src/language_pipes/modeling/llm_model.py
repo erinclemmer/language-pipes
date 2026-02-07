@@ -14,19 +14,10 @@ from language_pipes.util import clone_model
 
 from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata
+from language_pipes.modeling.compute import compute_layers
 
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_data import jobDataToComputationState, detachCompState
-
-def compute_layers(job_data, device, layers, cache):
-    comp_state = jobDataToComputationState(job_data, device)
-    comp_state = detachCompState(comp_state)
-    
-    with torch.inference_mode():
-        for lyr in layers:
-            comp_state.state = lyr(comp_state, cache).detach()
-    
-    return comp_state.state.detach()
 
 class LlmModel:
     model_id: str
