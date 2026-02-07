@@ -111,7 +111,12 @@ class LanguagePipes:
         level = getattr(logging, logging_level.upper(), None)
         if level is None:
             raise ValueError(f"Invalid logging level: {logging_level}")
-        logging.basicConfig(level=level)
+        logging.basicConfig(
+            level=level,
+            format="%(levelname)s [%(asctime)s] %(name)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+            force=True
+        )
 
     def stop(self):
         self.model_manager.stop()
