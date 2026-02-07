@@ -31,8 +31,11 @@ class ModelManager:
         self.models = []
         self.end_models = []
         self.pipes_hosted = { }
-        for m in self.config.hosted_models:
-            self._host_model(m.id, m.max_memory, m.device, m.load_ends)
+        for m in self.config.layer_models:
+            self._host_model(m.id, m.max_memory, m.device)
+
+        for m in self.config.end_models:
+            self._load_end_model(m, "cpu")
 
     def stop(self):
         for m in self.models:
@@ -86,16 +89,16 @@ class ModelManager:
         return available_memory, new_model
 
     def _load_end_model(self, model_id: str, device: str):
+        self.logger.info(f"Loading end model: {model_id}")
         model = EndModel(self.config.model_dir, model_id, device, self.config.huggingface_token)
+        model.load()
         self.end_models.append(model)
-        return model
+        self.logger.info("End model loading complete")
 
-    def _host_model(self, model_id: str, max_memory: float, device: str, load_ends: bool):
+    def _host_model(self, model_id: str, max_memory: float, device: str):
         available_memory = max_memory * 10 ** 9
         models_to_load: List[LlmModel] = []
         end_model = None
-        if load_ends:
-            end_model = self._load_end_model(model_id, device)
         
         if model_id not in self.pipes_hosted:
             self.pipes_hosted[model_id] = []
@@ -122,9 +125,6 @@ class ModelManager:
             if model is not None:
                 self.router_pipes.add_model_to_network(model.to_meta())
                 models_to_load.append(model)
-
-        if load_ends and end_model is not None:
-            end_model.load()
 
         for m in models_to_load:
             m.load()

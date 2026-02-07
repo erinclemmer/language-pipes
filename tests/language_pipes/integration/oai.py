@@ -21,7 +21,8 @@ MODEL = "Qwen/Qwen3-1.7B"
 def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: Optional[int] = None, bootstrap_port: Optional[int] = None):
     args = ["serve", 
         "--node-id", node_id, 
-        "--hosted-models", f"id={MODEL},device=cpu,memory={max_memory},load_ends=true", 
+        "--layer-models", f"id={MODEL},device=cpu,memory={max_memory}", 
+        "--end-models", MODEL,
         "--peer-port", str(peer_port),
         "--app-dir", "./",
         "--model-validation"

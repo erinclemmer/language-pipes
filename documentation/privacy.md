@@ -159,14 +159,18 @@ Token ID: 12366  →  "Paris"
 
 ```toml
 # Your machine
-[[hosted_models]]
+[[layer_models]]
 id = "Qwen/Qwen3-1.7B"
-load_ends = true   # ← You control the End Model
+device = "cpu"
+max_memory = 4
+
+end_models = ["Qwen/Qwen3-1.7B"]  # ← You control the End Model
 
 # Friend's machine  
-[[hosted_models]]
+[[layer_models]]
 id = "Qwen/Qwen3-1.7B"
-load_ends = false  # ← Does not matter for privacy
+device = "cuda:0"
+max_memory = 8
 ```
 
 Your friend can choose to also host an end model for the model but only your machine will see your prompts if you send a request to your machine.

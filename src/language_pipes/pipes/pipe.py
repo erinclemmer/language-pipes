@@ -86,7 +86,7 @@ class Pipe:
     @staticmethod
     def from_meta(
         meta_pipe: MetaPipe, 
-        hosted_models: List[LlmModel], 
+        layer_models: List[LlmModel], 
         router: StateNetworkNode,
         model_dir: str
     ) -> 'Pipe':
@@ -97,7 +97,7 @@ class Pipe:
             router=router
         )
         local_segments = []
-        for model in hosted_models:
+        for model in layer_models:
             if model.pipe_id == meta_pipe.pipe_id:
                 p.segments.append(model)
                 local_segments.append(model.process_id)

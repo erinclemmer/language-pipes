@@ -25,10 +25,10 @@ Client ──► OAIHttpServer ──► JobFactory ──► JobReceiver ──
 
 `ModelManager` hosts model segments based on configuration:
 
-- **Hosted models** are declared with `id`, `device`, `max_memory`, and `load_ends`.
-- For each hosted model, the manager estimates how many layers fit in the memory budget.
+- **Layer models** are declared with `id`, `device`, and `max_memory`.
+- For each layer model, the manager estimates how many layers fit in the memory budget.
 - It tries to **fill gaps** in existing pipes first, then creates a new pipe if `max_pipes` allows it.
-- When `load_ends` is enabled, the node also loads the **EndModel** (embedding, RMS norm, output head, tokenizer).
+- **End models** are specified separately via the `end_models` configuration list. When a model ID is included in `end_models`, the node also loads the **EndModel** (embedding, RMS norm, output head, tokenizer) for that model.
 - If `model_validation` is enabled, computed hashes must match the network pipe’s hashes before loading.
 
 ## Model Metadata and Pipe Construction
@@ -121,7 +121,7 @@ Only the node hosting the **EndModel** can see raw text:
 - The **EndModel** handles tokenization, embedding, normalization, and head projection.
 - All other nodes only receive **hidden-state tensors** which do not have prompt data in them.
 
-For privacy-sensitive deployments, keep `load_ends = true` on your own machine and let other nodes host only layer segments.
+For privacy-sensitive deployments, include the model in your `end_models` list on your own machine and let other nodes host only layer segments.
 
 For more information how the architecture ensures privacy see [the privacy documentation](./privacy.md).
 

@@ -17,7 +17,7 @@ def get_env_config() -> Dict[str, Optional[str]]:
         "network_key": os.getenv("LP_NETWORK_KEY"),
         "model_validation": os.getenv("LP_MODEL_VALIDATION"),
         "max_pipes": os.getenv("LP_MAX_PIPES"),
-        "hosted_models": os.getenv("LP_HOSTED_MODELS"),
+        "layer_models": os.getenv("LP_LAYER_MODELS"),
         "prefill_chunk_size": os.getenv("LP_PREFILL_CHUNK_SIZE"),
         "model_dir": os.getenv("LP_MODEL_DIR"),
         "huggingface_token": os.getenv("LP_HUGGINGFACE_TOKEN"),
@@ -49,12 +49,13 @@ def apply_env_overrides(data: Dict[str, Any], cli_args: Optional[Dict[str, Any]]
         "node_id": precedence("node_id"),
         "peer_port": precedence("peer_port"),
         "network_ip": precedence("network_ip"),
+        "end_models": precedence("end_models"),
         "bootstrap_address": precedence("bootstrap_address"),
         "bootstrap_port": precedence("bootstrap_port"),
         "network_key": precedence("network_key"),
         "model_validation": precedence("model_validation"),
         "max_pipes": precedence("max_pipes"),
-        "hosted_models": precedence("hosted_models"),
+        "layer_models": precedence("layer_models"),
         "prefill_chunk_size": precedence("prefill_chunk_size"),
         "model_dir": precedence("model_dir"),
         "huggingface_token": precedence("huggingface_token"),
@@ -67,25 +68,25 @@ def apply_env_overrides(data: Dict[str, Any], cli_args: Optional[Dict[str, Any]]
     if config["bootstrap_port"] is not None:
         config["bootstrap_port"] = int(config["bootstrap_port"])
 
-    if config["hosted_models"] is not None:
-        config["hosted_models"] = parse_hosted_models(config["hosted_models"])
+    if config["layer_models"] is not None:
+        config["layer_models"] = parse_layer_models(config["layer_models"])
 
     return config
 
 
-def parse_hosted_models(hosted_models: str | Dict) -> List[Dict[str, Any]]:
-    if isinstance(hosted_models, str):
-        hosted_models = [hosted_models]
+def parse_layer_models(layer_models: str | Dict) -> List[Dict[str, Any]]:
+    if isinstance(layer_models, str):
+        layer_models = [layer_models]
     
     result = []
-    for m in hosted_models:
+    for m in layer_models:
         if isinstance(m, str):
             model_config = {}
             for pair in m.split(","):
                 if "=" not in pair:
                     raise ValueError(
                         f"Invalid format '{pair}' in '{m}'. "
-                        "Expected key=value pairs (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=false)"
+                        "Expected key=value pairs (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4)"
                     )
                 key, value = pair.split("=", 1)
                 model_config[key.strip()] = value.strip()
@@ -98,8 +99,7 @@ def parse_hosted_models(hosted_models: str | Dict) -> List[Dict[str, Any]]:
             result.append({
                 "id": model_config["id"],
                 "device": model_config["device"],
-                "max_memory": float(model_config["memory"]),
-                "load_ends": model_config.get("load_ends", "false").lower() == "true"
+                "max_memory": float(model_config["memory"])
             })
         else:
             result.append(m)
@@ -115,19 +115,17 @@ def default_model_dir() -> str:
 
 
 @dataclass
-class HostedModel:
+class LayerModel:
     id: str
     device: str
     max_memory: float  # in gigabytes
-    load_ends: bool  # Loads head and embed of model
 
     @staticmethod
-    def from_dict(data: Dict) -> 'HostedModel':
-        return HostedModel(
+    def from_dict(data: Dict) -> 'LayerModel':
+        return LayerModel(
             id=data['id'],
             device=data['device'],
-            max_memory=float(data['max_memory']),
-            load_ends=data.get('load_ends', False)
+            max_memory=float(data['max_memory'])
         )
 
 @dataclass
@@ -142,7 +140,8 @@ class LpConfig:
     oai_port: Optional[int]
     
     # Model hosting
-    hosted_models: List[HostedModel]
+    layer_models: List[LayerModel]
+    end_models: List[str]
     huggingface_token: Optional[str]
     
     # Processing options
@@ -154,8 +153,8 @@ class LpConfig:
     def from_dict(data: Dict) -> 'LpConfig':
         if data.get("node_id") is None:
             raise Exception("Node ID must be supplied to config")
-        if data.get("hosted_models") is None:
-            raise Exception("Hosted models must be supplied to the configuration")
+        if data.get("layer_models") is None:
+            raise Exception("Layer models must be supplied to the configuration")
         
         logging_level = data.get('logging_level', None)
         if logging_level is None:
@@ -181,6 +180,10 @@ class LpConfig:
         if max_pipes is None:
             max_pipes = 1
 
+        end_models = data.get('end_models', None)
+        if end_models is None:
+            end_models = []
+
         return LpConfig(
             # Core settings
             node_id=data.get('node_id'),
@@ -192,7 +195,8 @@ class LpConfig:
             oai_port=data.get('oai_port', None),
             
             # Model hosting
-            hosted_models=[HostedModel.from_dict(m) for m in data['hosted_models']],
+            layer_models=[LayerModel.from_dict(m) for m in data['layer_models']],
+            end_models=end_models,
             huggingface_token=data.get('huggingface_token', None),
             
             # Processing options
@@ -239,14 +243,13 @@ class LpConfig:
         
         # Hosted models
         lines.append("")
-        lines.append(f"--- Hosted Models ({len(self.hosted_models)}) ---")
-        for i, model in enumerate(self.hosted_models):
+        lines.append(f"--- Layer Models ({len(self.layer_models)}) ---")
+        for i, model in enumerate(self.layer_models):
             lines.append("")
             lines.append(f"  Model #{i+1}:")
             lines.append(f"    ID:          {model.id}")
             lines.append(f"    Device:      {model.device}")
             lines.append(f"    Max Memory:  {model.max_memory} GB")
-            lines.append(f"    Load Ends:   {'Yes' if model.load_ends else 'No'}")
         
         lines.append("")
         lines.append("=" * 60)

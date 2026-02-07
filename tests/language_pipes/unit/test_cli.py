@@ -120,7 +120,7 @@ class ServeConfigTests(unittest.TestCase):
         """serve should fail without node_id"""
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
             toml.dump({
-                "hosted_models": [{
+                "layer_models": [{
                     "id": "meta-llama/Llama-3.2-1B",
                     "device": "cpu",
                     "max_memory": 5
@@ -129,8 +129,8 @@ class ServeConfigTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             main(["serve", "--config", CONFIG_PATH])
 
-    def test_config_no_hosted_models(self):
-        """serve should fail without hosted_models"""
+    def test_config_no_layer_models(self):
+        """serve should fail without layer_models"""
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
             toml.dump({
                 "node_id": "node-1"
@@ -138,28 +138,38 @@ class ServeConfigTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             main(["serve", "--config", CONFIG_PATH])
 
-    def test_hosted_models_cli_format(self):
-        """serve should accept Docker-style key=value hosted-models"""
+    def test_layer_models_cli_format(self):
+        """serve should accept Docker-style key=value layer-models"""
         parser = build_parser()
         args = parser.parse_args([
             "serve",
             "--node-id", "node-1",
-            "--hosted-models", "id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
+            "--layer-models", "id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
         ])
         self.assertEqual(args.node_id, "node-1")
-        self.assertEqual(args.hosted_models, ["id=Qwen/Qwen3-1.7B,device=cpu,memory=4"])
+        self.assertEqual(args.layer_models, ["id=Qwen/Qwen3-1.7B,device=cpu,memory=4"])
 
-    def test_hosted_models_multiple(self):
-        """serve should accept multiple hosted-models"""
+    def test_layer_models_multiple(self):
+        """serve should accept multiple layer-models"""
         parser = build_parser()
         args = parser.parse_args([
             "serve",
             "--node-id", "node-1",
-            "--hosted-models",
+            "--layer-models",
             "id=Qwen/Qwen3-1.7B,device=cpu,memory=4",
             "id=meta-llama/Llama-3.2-1B,device=cuda:0,memory=8"
         ])
-        self.assertEqual(len(args.hosted_models), 2)
+        self.assertEqual(len(args.layer_models), 2)
+
+    def test_end_model_flag(self):
+        """should be able to use the --end-model flag"""
+        parser = build_parser()
+        args = parser.parse_args([
+            "serve",
+            "--node-id", "node-1",
+            "--end-model", "Qwen/Qwen3-1.7B", "Qwen/Qwen3-2.7B"
+        ])
+        self.assertEqual(len(args.end_models), 2)
 
 
 if __name__ == '__main__':
