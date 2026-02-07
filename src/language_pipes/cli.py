@@ -52,8 +52,9 @@ def build_parser():
     run_parser.add_argument("--max-pipes", type=int, help="Maximum amount of pipes to host")
     run_parser.add_argument("--network-key", type=str, help="AES key to access network (Default: network.key)")
     run_parser.add_argument("--model-validation", help="Whether to validate the model weight hashes when connecting to a pipe.", action="store_true")
-    run_parser.add_argument("--hosted-models", nargs="*", metavar="MODEL", 
-        help="Hosted models as key=value pairs: id=MODEL,device=DEVICE,memory=GB,load_ends=BOOL (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=false)")
+    run_parser.add_argument("--layer-models", nargs="*", metavar="MODEL", 
+        help="Layer models as key=value pairs: id=MODEL,device=DEVICE,memory=GB (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4)")
+    run_parser.add_argument("--end-models", nargs="*", metavar="END", help="End models to host as model IDs like \"Qwen/Qwen3-1.7B\"")
     run_parser.add_argument("--prefill-chunk-size", help="Number of tokens to process for each batch in prefill", type=int)
 
     return parser
@@ -74,15 +75,16 @@ def apply_overrides(data, args):
         "network_key": args.network_key,
         "model_validation": args.model_validation,
         "max_pipes": args.max_pipes,
-        "hosted_models": args.hosted_models,
+        "layer_models": args.layer_models,
+        "end_models": args.end_models,
         "prefill_chunk_size": args.prefill_chunk_size,
         "model_dir": args.model_dir,
     }
 
     config = apply_env_overrides(data, cli_args)
 
-    if config["hosted_models"] is None:
-        print("Error: hosted_models param must be supplied in config")
+    if config["layer_models"] is None:
+        print("Error: layer_models param must be supplied in config")
         exit()
 
     if config["node_id"] is None:

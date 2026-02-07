@@ -83,7 +83,8 @@ See [Configuration](./configuration.md) for all available options and their desc
 | `--config FILE` | `-c` | Load configuration from TOML file |
 | `--node-id ID` | | Node identifier (required) |
 | `--openai-port PORT` | | Enable OpenAI API on port |
-| `--hosted-models MODEL...` | | Models to host |
+| `--layer-models MODEL...` | | Models to host (layers) |
+| `--end-models MODEL...` | | Model IDs for which to load end models |
 | `--logging-level LEVEL` | `-l` | Log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `--bootstrap-address HOST` | | Connect to existing network |
 | `--app-dir PATH` | | Application config directory (default: `~/.config/language_pipes`) |
@@ -94,10 +95,10 @@ Run `language-pipes serve --help` for all options.
 
 #### Model Specification
 
-Models are specified as comma-separated `key=value` pairs:
+**Layer models** are specified as comma-separated `key=value` pairs:
 
 ```bash
---hosted-models "id=MODEL,device=DEVICE,memory=GB[,load_ends=BOOL]"
+--layer-models "id=MODEL,device=DEVICE,memory=GB"
 ```
 
 | Key | Required | Example |
@@ -105,7 +106,12 @@ Models are specified as comma-separated `key=value` pairs:
 | `id` | ✓ | `Qwen/Qwen3-1.7B`, `meta-llama/Llama-3.2-1B-Instruct` |
 | `device` | ✓ | `cpu`, `cuda:0` |
 | `memory` | ✓ | `4`, `8.5` |
-| `load_ends` | | `true`, `false` (default) |
+
+**End models** are specified as a list of model IDs:
+
+```bash
+--end-models "Qwen/Qwen3-1.7B" "meta-llama/Llama-3.2-1B-Instruct"
+```
 
 ---
 
@@ -117,7 +123,8 @@ Models are specified as comma-separated `key=value` pairs:
 language-pipes serve \
   --node-id "node-1" \
   --openai-port 8000 \
-  --hosted-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=true"
+  --layer-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4" \
+  --end-models "Qwen/Qwen3-1.7B"
 ```
 
 ### Start with config file
@@ -138,7 +145,7 @@ language-pipes serve -c config.toml --logging-level DEBUG --openai-port 8080
 language-pipes serve \
   --node-id "node-2" \
   --bootstrap-address "192.168.1.100" \
-  --hosted-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
+  --layer-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
 ```
 
 ### Using environment variables
@@ -146,7 +153,7 @@ language-pipes serve \
 ```bash
 export LP_NODE_ID="node-1"
 export LP_OAI_PORT="8000"
-export LP_HOSTED_MODELS="id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
+export LP_LAYER_MODELS="id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
 
 language-pipes serve
 ```
@@ -157,7 +164,7 @@ language-pipes serve
 language-pipes serve \
   --node-id "multi-model" \
   --openai-port 8000 \
-  --hosted-models \
+  --layer-models \
     "id=Qwen/Qwen3-1.7B,device=cpu,memory=4" \
     "id=Qwen/Qwen3-0.6B,device=cuda:0,memory=2"
 ```

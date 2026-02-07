@@ -31,9 +31,13 @@ def edit_config(config_path: str):
             ("prefill_chunk_size", "Prefill Chunk Size"),
         ]
         
-        model_count = len(config.get("hosted_models", []))
-        editable_props.append(f"Hosted Models ({model_count} configured)")
-        prop_keys.append("hosted_models")
+        layer_model_count = len(config.get("layer_models", []))
+        editable_props.append(f"Layer Models ({layer_model_count} configured)")
+        prop_keys.append("layer_models")
+
+        end_model_count = len(config.get("end_models", []))
+        editable_props.append(f"End Models ({end_model_count} configured)")
+        prop_keys.append("end_models")
         
         for key, label in simple_props:
             current_val = config.get(key, "Not set")
@@ -154,15 +158,23 @@ def edit_config(config_path: str):
                 required=True
             )
         
-        elif selected_key == "hosted_models":
+        elif selected_key == "layer_models":
             try:
-                hosted_models = edit_hosted_models(config.get("hosted_models", []))
-                if hosted_models is not None:
-                    config["hosted_models"] = hosted_models
+                layer_models = edit_layer_models(config.get("layer_models", []))
+                if layer_models is not None:
+                    config["layer_models"] = layer_models
             except KeyboardInterrupt:
                 continue
 
-def select_hosted_model(models: List[dict]) -> int | None:
+        elif selected_key == "end_models":
+            try:
+                end_models = edit_end_models(config.get("end_models", []))
+                if end_models is not None:
+                    config["end_models"] = end_models
+            except KeyboardInterrupt:
+                continue
+
+def select_layer_model(models: List[dict]) -> int | None:
     options = []
     for i, model in enumerate(models):
         model_str = f"Model #{i+1}: {model.get('id', 'Unknown')} ({model.get('device', 'cpu')}, {model.get('max_memory', 4)}GB)"
@@ -175,9 +187,9 @@ def select_hosted_model(models: List[dict]) -> int | None:
 
     return options.index(model_selection)
 
-def edit_hosted_models(models: List) -> List[dict]:
+def edit_layer_models(models: List) -> List[dict]:
     while True:
-        print("\n--- Hosted Models ---\n")
+        print("\n--- Layer Models ---\n")
         
         options = [
             "Add model",
@@ -199,8 +211,7 @@ def edit_hosted_models(models: List) -> List[dict]:
                 new_model = {
                     "id": model_id,
                     "device": prompt("Device", "cpu", required=True),
-                    "max_memory": prompt("Max Memory (GB)"),
-                    "load_ends": prompt_bool("Load Ends", required=True)
+                    "max_memory": prompt("Max Memory (GB)")
                 }
             except KeyboardInterrupt:
                 continue
@@ -210,7 +221,7 @@ def edit_hosted_models(models: List) -> List[dict]:
         
         if selection == "Edit model":
             try:
-                model_idx = select_hosted_model(models)
+                model_idx = select_layer_model(models)
                 if model_idx is None:
                     continue
                 edited = edit_single_model(models[model_idx])
@@ -220,7 +231,7 @@ def edit_hosted_models(models: List) -> List[dict]:
                 continue
 
         if selection == "Delete model":
-            model_idx = select_hosted_model(models)
+            model_idx = select_layer_model(models)
             if model_idx is None:
                 continue
             models.pop(model_idx)
@@ -228,14 +239,62 @@ def edit_hosted_models(models: List) -> List[dict]:
         if selection == "Done editing models":
             return models
 
+def edit_end_models(models: List[str]) -> List[str]:
+    while True:
+        print("\n--- End Models ---\n")
+        
+        if models:
+            for i, model_id in enumerate(models):
+                print(f"  {i+1}. {model_id}")
+            print()
+        else:
+            print("  No end models configured.\n")
+        
+        options = [
+            "Add model",
+            "Delete model",
+            "Done editing models"
+        ]
+        
+        selection = prompt_number_choice("Select option", options, required=True)
+
+        if selection is None:
+            return models
+        
+        if selection == "Add model":
+            model_id = prompt_model_id("Model ID", required=True)
+            if model_id is None:
+                continue
+            models.append(model_id)
+            continue
+        
+        if selection == "Delete model":
+            if not models:
+                print("\nNo models to delete.")
+                continue
+            
+            model_options = [f"{i+1}. {model_id}" for i, model_id in enumerate(models)]
+            model_options.append("Cancel")
+            
+            model_selection = prompt_number_choice("Select model to delete", model_options)
+            if model_selection is None or model_selection == "Cancel":
+                continue
+            
+            model_idx = model_options.index(model_selection)
+            models.pop(model_idx)
+            continue
+
+        if selection == "Done editing models":
+            return models
+
+
 def edit_single_model(model: dict) -> dict | None:
     print("\n--- Edit Model ---\n")
     
     props = [
         ("id", "Model ID"),
         ("device", "Device"),
-        ("max_memory", "Max Memory (GB)"),
-        ("load_ends", "Load Ends")
+        ("max_memory", "Max Memory (GB)")
     ]
     
     edited_model = model.copy()
@@ -272,12 +331,6 @@ def edit_single_model(model: dict) -> dict | None:
             elif selected_key == "max_memory":
                 edited_model[selected_key] = prompt_float(
                     "Max Memory (GB)",
-                    required=True
-                )
-            
-            elif selected_key == "load_ends":
-                edited_model["load_ends"] = prompt_bool(
-                    "Load embedding/output layers?",
                     required=True
                 )
         except KeyboardInterrupt:
