@@ -71,12 +71,12 @@ class ModelManager:
         
         num_layers_to_load = int(available_memory // meta_data.avg_layer_size) - 1
         total_layers = new_model.collector.config.num_hidden_layers
-        start_layer = pipe.next_start_layer()
+        start_layer = pipe.next_start_layer(self.config.num_local_layers)
         if num_layers_to_load == -1:
             start_layer = -1
             end_layer = -1
         else:
-            end_layer = min([start_layer + num_layers_to_load, pipe.next_end_layer(total_layers), new_model.num_hidden_layers]) if start_layer != -1 else -1
+            end_layer = min([start_layer + num_layers_to_load, pipe.next_end_layer(self.config.num_local_layers, total_layers), new_model.num_hidden_layers]) if start_layer != -1 else -1
             available_memory = available_memory - (end_layer - start_layer + 1) * meta_data.avg_layer_size
 
         if num_layers_to_load > -1 and end_layer != -1 and start_layer != -1:
@@ -90,7 +90,7 @@ class ModelManager:
 
     def _load_end_model(self, model_id: str, device: str):
         self.logger.info(f"Loading end model: {model_id}")
-        model = EndModel(self.config.model_dir, model_id, device, self.config.huggingface_token)
+        model = EndModel(self.config.num_local_layers, self.config.model_dir, model_id, device, self.config.huggingface_token)
         model.load()
         self.end_models.append(model)
         self.logger.info("End model loading complete")
@@ -103,7 +103,7 @@ class ModelManager:
         if model_id not in self.pipes_hosted:
             self.pipes_hosted[model_id] = []
         
-        for pipe_id in [p.pipe_id for p in self.router_pipes.pipes_for_model(model_id, False)]:
+        for pipe_id in [p.pipe_id for p in self.router_pipes.pipes_for_model(model_id, find_completed=False, start_layer=self.config.num_local_layers)]:
             if pipe_id not in self.pipes_hosted[model_id] and len(self.pipes_hosted[model_id]) >= self.config.max_pipes:
                 break
             loaded = True

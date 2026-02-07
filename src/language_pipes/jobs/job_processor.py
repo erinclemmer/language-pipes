@@ -44,6 +44,9 @@ def get_next_state(ctx: JobContext) -> JobState:
         else:
             return JobState.HEAD
 
+    if ctx.job.current_layer == 0 and ctx.end_model is not None and len(ctx.end_model.layers) > 0:
+        return JobState.PROCESS_LAYERS
+
     model = ctx.pipe.get_layer(ctx.job.current_layer, False)
     if model is None:
         log_done_error(
@@ -119,7 +122,7 @@ class JobProcessor:
         pipe = self.ctx.pipe
         
         # Ensure we have an available pipe
-        if pipe is None or not pipe.is_complete():
+        if pipe is None or not pipe.is_complete(self.ctx.config.num_local_layers):
             log_done_error(self.ctx, "[FSM] Pipe unavailable or incomplete; completing with error.")
             return JobState.DONE
         
@@ -207,14 +210,13 @@ class JobProcessor:
         """Process job through local layers."""
         pipe = self.ctx.pipe
         job = self.ctx.job
-        
-        model = pipe.get_layer(job.current_layer, True)
-        if model is None:
-            log_done_error(
-                self.ctx,
-                f"[FSM] Missing local model for layer={job.current_layer}; completing with error."
-            )
-            return JobState.DONE
+
+        if job.current_layer == 0 and self.ctx.end_model is not None and len(self.ctx.end_model.layers) > 0:
+            self.ctx.end_model.compute_layers(job)
+
+        model = pipe.get_layer(job.current_layer, False)
+        if model.virtual:
+            return JobState.SEND
         
         model.process_job(job, self.ctx.logger)
         job.set_last_update()

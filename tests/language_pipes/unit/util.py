@@ -1,6 +1,7 @@
 import torch
 from typing import Optional
 
+from language_pipes.pipes.pipe import Pipe
 from language_pipes.config import LpConfig
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_data import JobData
@@ -19,12 +20,13 @@ class FakeLogger:
 
 
 class FakeEndModel:
-    def __init__(self):
+    def __init__(self, num_local_layers: int = 0):
         self.calls = []
+        self.layers = list(range(num_local_layers))
 
     def tokenize(self, job):
         self.calls.append("tokenize")
-        job.input_ids = list(range(24))
+        job.input_ids = list(range(2))
         job.prompt_tokens = len(job.input_ids)
         job.next_step()
 
@@ -78,43 +80,6 @@ class TrackingModel(FakeModel):
         self.processed = True
         super().process_job(job, logger)
 
-class FakePipe:
-    def __init__(self, model):
-        self._model = model
-        self.sent_jobs = []
-
-    def is_complete(self):
-        return True
-
-    def get_layer(self, layer, need_physical=False):
-        return self._model
-
-    def send_job(self, job, node_id):
-        self.sent_jobs.append((job, node_id))
-
-
-class FakePipeMulti(FakePipe):
-    def __init__(self, local_model, next_model):
-        super().__init__(local_model)
-        self._local_model = local_model
-        self._next_model = next_model
-
-    def get_layer(self, layer, need_physical=False):
-        if need_physical:
-            return self._local_model
-        return self._next_model
-
-
-class EmptyPipe(FakePipe):
-    def get_layer(self, layer, need_physical=False):
-        return None
-
-
-class IncompletePipe(FakePipe):
-    def is_complete(self):
-        return False
-
-
 def make_config(node_id="node-a", prefill_chunk_size=2):
     return LpConfig(
         logging_level="INFO",
@@ -127,6 +92,7 @@ def make_config(node_id="node-a", prefill_chunk_size=2):
         max_pipes=1,
         model_validation=False,
         prefill_chunk_size=prefill_chunk_size,
+        num_local_layers=0,
         huggingface_token=None
     )
 
@@ -147,14 +113,91 @@ def make_job(**kwargs):
     return Job(**defaults)
 
 
-def make_processor(job=None, pipe: Optional[FakePipe]=None, end_model=None, config=None, logger=None):
+class ProcessorWrapper(JobProcessor):
+    def __init__(self, ctx: JobContext):
+        super().__init__(ctx)
+        self.states = []
+    
+    def _transition(self):
+        self.states.append(self.state)
+        return super()._transition()
+
+def make_processor(job=None, pipe: Optional[Pipe]=None, end_model=None, config=None, logger=None):
     """Helper to create a JobProcessor with sensible defaults."""
-    return JobProcessor(
+    return ProcessorWrapper(
         JobContext(
             config=config or make_config(),
             logger=logger or FakeLogger(),
             job=job,
-            pipe=pipe or FakePipe(FakeModel("node-a", 0, 0)),
+            pipe=pipe,
             end_model=end_model,
         )
     )
+
+
+class FakeLogger:
+    def __init__(self):
+        self.messages = []
+
+    def info(self, message):
+        self.messages.append(("info", message))
+
+    def warning(self, message):
+        self.messages.append(("warning", message))
+
+    def error(self, message):
+        self.messages.append(("error", message))
+
+
+class FakeConnection:
+    def __init__(self, address: str):
+        self.address = address
+
+
+class FakeStateNetworkNode:
+    def __init__(self, node_id: str):
+        self._node_id = node_id
+        self._data = {}
+        self._peers = []
+        self.logger = None
+
+    def node_id(self):
+        return self._node_id
+
+    def read_data(self, node_id: str, key: str):
+        return self._data.get((node_id, key))
+
+    def update_data(self, key: str, value: str):
+        self._data[(self._node_id, key)] = value
+
+    def peers(self):
+        return self._peers
+
+    def connection_from_node(self, node_id: str):
+        return FakeConnection("127.0.0.1")
+
+    def add_peer(self, peer_id: str, models=None):
+        self._peers.append(peer_id)
+        if models is None:
+            models = []
+        import json
+        self._data[(peer_id, "models")] = json.dumps([m.to_json() for m in models])
+
+class PipeWrapper(Pipe):
+    def __init__(self, node_id: str, model_id: str, segments: List[FakeModel]):
+        router = FakeStateNetworkNode(node_id)
+        super().__init__(router, None, model_id, "")
+        self.calls = []
+        self.segments = segments
+    
+    def tokenizer():
+        self.calls.append("tokenizer")
+        def t(x):
+            return "res"
+        return t
+    
+    def send_job(self, job, node_id):
+        self.calls.append("send job")
+
+    def empty():
+        pass

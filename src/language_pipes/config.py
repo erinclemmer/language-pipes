@@ -19,6 +19,7 @@ def get_env_config() -> Dict[str, Optional[str]]:
         "max_pipes": os.getenv("LP_MAX_PIPES"),
         "layer_models": os.getenv("LP_LAYER_MODELS"),
         "prefill_chunk_size": os.getenv("LP_PREFILL_CHUNK_SIZE"),
+        "num_local_layers": os.getenv("LP_NUM_LOCAL_LAYERS"),
         "model_dir": os.getenv("LP_MODEL_DIR"),
         "huggingface_token": os.getenv("LP_HUGGINGFACE_TOKEN"),
     }
@@ -55,6 +56,7 @@ def apply_env_overrides(data: Dict[str, Any], cli_args: Optional[Dict[str, Any]]
         "network_key": precedence("network_key"),
         "model_validation": precedence("model_validation"),
         "max_pipes": precedence("max_pipes"),
+        "num_local_layers": precedence("num_local_layers"),
         "layer_models": precedence("layer_models"),
         "prefill_chunk_size": precedence("prefill_chunk_size"),
         "model_dir": precedence("model_dir"),
@@ -148,6 +150,7 @@ class LpConfig:
     max_pipes: int
     model_validation: bool
     prefill_chunk_size: int
+    num_local_layers: int
 
     @staticmethod
     def from_dict(data: Dict) -> 'LpConfig':
@@ -179,6 +182,10 @@ class LpConfig:
         max_pipes = data.get('max_pipes', None)
         if max_pipes is None:
             max_pipes = 1
+        
+        num_local_layers = data.get('num_local_layers', None)
+        if num_local_layers is None:
+            num_local_layers = 1
 
         end_models = data.get('end_models', None)
         if end_models is None:
@@ -202,7 +209,8 @@ class LpConfig:
             # Processing options
             max_pipes=max_pipes,
             model_validation=model_validation,
-            prefill_chunk_size=prefill_chunk_size
+            prefill_chunk_size=prefill_chunk_size,
+            num_local_layers=num_local_layers
         )
 
     def to_string(self) -> str:
@@ -235,6 +243,7 @@ class LpConfig:
         lines.append(f"  {'Max Pipes:':<18} {self.max_pipes}")
         lines.append(f"  {'Model Validation:':<18} {'Enabled' if self.model_validation else 'Disabled'}")
         lines.append(f"  {'Prefill Chunk Size:':<18} {self.prefill_chunk_size}")
+        lines.append(f"  {'Num local layers:':<18} {self.num_local_layers}")
         
         # Model hosting
         lines.append("")

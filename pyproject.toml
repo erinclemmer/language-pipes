@@ -56,3 +56,17 @@ language-pipes="language_pipes.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/language_pipes"]
+
+[tool.coverage.run]
+source = ["src/language_pipes"]
+omit = [
+    "*/_remote_module_non_scriptable"
+]
+
+[tool.coverage.report]
+omit = [
+    "*/_remote_module_non_scriptable",
+    "src/language_pipes/commands/*",
+    "src/language_pipes/distributed_state_network/*",
+    "src/language_pipes/util/user_prompts.py"
+]

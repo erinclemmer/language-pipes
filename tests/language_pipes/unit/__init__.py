@@ -14,6 +14,7 @@ def load_tests(loader, tests, pattern):
     """Load all tests from this package."""
     package_dir = os.path.dirname(__file__)
     suite = loader.discover(start_dir=package_dir, pattern='test_*.py')
+    suite.addTests(loader.discover(start_dir=package_dir + "/job_processor", pattern='test_*.py')._tests)
     return suite
 
 

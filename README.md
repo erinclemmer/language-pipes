@@ -1,6 +1,6 @@
 # Language Pipes (Beta)
 
-**A privacy focused distributed algorithm for llm inference**
+**Privacy-preserving distributed inference for open-source language models**
 
 [![GitHub license][License-Image]](License-Url)
 [![Release][Release-Image]][Release-Url] 
@@ -14,42 +14,42 @@
 [PyPiVersion-Url]: https://img.shields.io/pypi/v/language-pipes
 [PythonVersion-Url]: https://img.shields.io/pypi/pyversions/language-pipes
 
-Language Pipes is an open-source distributed network application designed to increase access to local language models by allowing for privacy protected computation between peer to peer nodes. 
+Language Pipes is an open-source distributed inference system that splits large language model computation across multiple machines. By separating the model's text-handling components (embedding and output head) from its intermediate transformer layers, Language Pipes enables peer-to-peer inference where layer nodes process only floating-point tensors and not raw text. See the [Privacy Architecture](./documentation/privacy.md) documentation for a detailed probabilistic analysis of the privacy guarantees and their limitations.
 
-
-**Disclaimer:** This software is currently in Beta. Please be patient and if you encounter an error, please [fill out a github issue](https://github.com/erinclemmer/language-pipes/issues/new)!   
+**Disclaimer:** This software is currently in Beta. If you encounter an issue, please [file a GitHub issue](https://github.com/erinclemmer/language-pipes/issues/new).
 
 ---
 
 #### Features
-- Quick Setup
-- OpenAI compatible API
-- Privacy-focused architecture
-- Decentralized peer to peer network
-- Download and use models by HuggingFace ID
+- Interactive setup wizard
+- Automatic model download by HuggingFace ID
+- OpenAI-compatible API (`/v1/chat/completions`)
+- End Model architecture with layered privacy mitigations
+- Decentralized peer-to-peer network with optional AES encryption
 
 ---
 
-### What Does Language Pipes do?
-Large Language models work by passing information through many layers. At each layer, several matrix multiplicatitons between the layer weights and the system state are performed and the data is moved to the next layer. Language pipes works by hosting different layers on different machines to split up the RAM cost across the system. This project contrasts with existing programs like vLLM by focusing on decentralization and privacy.  
-  
-Here are some helpful links to get started:
-- To learn more about the [privacy protecting mechanism click here](./documentation/privacy.md).  
-- To learn more about [how language pipes works click here](./documentation/architecture.md).  
-- To learn about how Language Pipes [processes jobs click here](./documentation/job-processor.md).
+### How It Works
+Language models process input through a sequence of transformer layers. Each layer performs matrix multiplications between learned weights and a hidden state tensor, passing the result to the next layer. Language Pipes distributes these layers across machines, splitting the memory cost across the network while keeping the text-handling components (the **End Model**) on the origin node.
+
+The End Model architecture provides architectural separation: layer nodes operate on continuous-valued tensors rather than discrete text. The [Privacy Architecture](./documentation/privacy.md) documentation provides a probabilistic threat model that quantifies the difficulty of known inversion attacks under various mitigation configurations.
+
+Further reading:
+- [Architecture Overview](./documentation/architecture.md): runtime components and inference flow
+- [Job Processor State Machine](./documentation/job-processor.md): how jobs traverse the distributed pipeline
 
 
 ### Installation
-Ensure that you have Python installed.
+Requires Python 3.10+.
   
-If you need gpu support, first make sure you have the correct pytorch version installed for your GPU's Cuda compatibility using this link:  
+For GPU support, install the appropriate PyTorch version for your CUDA configuration:  
 https://pytorch.org/get-started/locally/
 
-To download the models from Huggingface, ensure that you have [git](https://git-scm.com/) and [git lfs](https://git-lfs.com/) installed.  
+Model downloads require [git](https://git-scm.com/) and [git-lfs](https://git-lfs.com/).  
 
-To start using the application, install the latest version of the package from PyPi.
+Install from PyPI:
 
-**Using Pip:**
+**pip:**
 ```bash
 pip install language-pipes
 ```
@@ -64,8 +64,7 @@ language-pipes
 
 This launches a menu where you can create, view, and load configurations. Select **Create Config** to walk through the setup wizard, which guides you through your first configuration. After creating a config, select **Load Config** to start the server.
 
-[We also support loading toml files directly!](./documentation/configuration.md)  
-If you need help loading them [read the CLI documentation here](./documentation/cli.md).
+Configuration can also be specified via [TOML files](./documentation/configuration.md). See the [CLI reference](./documentation/cli.md) for details on loading configurations from the command line.
 
 ---
 
@@ -110,11 +109,11 @@ language-pipes
 | Bootstrap port | `5000` | Node-1's network port |
 | Encrypt network traffic | `N` | Must match node-1's setting |
 
-Node-2 connects to node-1 and loads the remaining model layers. The model is now ready for inference!
+Node-2 connects to node-1 and loads the remaining model layers. The model is now distributed across both machines and ready for inference.
 
 ### Test the API
 
-The model is accessible via an [OpenAI-compatible API](https://platform.openai.com/docs/api-reference/chat/create). Using the [OpenAI Python library](https://github.com/openai/openai-python):
+The model is accessible via the [OpenAI-compatible API](https://platform.openai.com/docs/api-reference/chat/create). Example using the [OpenAI Python library](https://github.com/openai/openai-python):
 
 ```python
 from openai import OpenAI
@@ -138,20 +137,17 @@ print(response.choices[0].message.content)
 
 Install the OpenAI library with: `pip install openai`
 
-To learn about how to work with the [Open AI compatable server click here](./documentation/oai.md).
+See the [OpenAI-compatible API documentation](./documentation/oai.md) for the full endpoint reference and sampling parameter descriptions.
 
-### Model choice
-Currently Language Pipes targets the Qwen3 and Qwen3-moe architectures.
+### Supported Models
+Language Pipes currently targets the Qwen3 and Qwen3-MoE architectures.
 
-### Future Updates
-There are plans to update the project in the future if it gets enough traction. These improvements include:
-- More models supported
-- 8 bit and 4 bit quantization support (currently everything is run in fp16)
-- GGUF support (currently everything needs to be in safetensors format)
-- Responses endpoint (currently only /v1/chat/completions is supported)
-- huggingface library support for downloading models that require authentication (currently git-lfs)
-
-So please star the repo if you find it useful :)
+### Planned Improvements
+- Additional model architectures
+- INT8 and INT4 quantization (currently all inference uses fp16)
+- GGUF format support (currently requires safetensors)
+- `/v1/responses` endpoint (currently only `/v1/chat/completions`)
+- HuggingFace library integration for authenticated model downloads (currently requires git-lfs)
 
 ### Dependencies
 - [pytorch](pytorch.org)
@@ -159,10 +155,11 @@ So please star the repo if you find it useful :)
 
 ### Documentation
 * [CLI Reference](./documentation/cli.md)
-* [Privacy Protection](./documentation/privacy.md)
+* [Privacy Architecture](./documentation/privacy.md)
+* [SipIt Case Study](./documentation/threat-model/sipit.md)
 * [Configuration Manual](./documentation/configuration.md)
 * [Architecture Overview](./documentation/architecture.md)
-* [Open AI Compatable API](./documentation/oai.md)
+* [OpenAI-Compatible API](./documentation/oai.md)
 * [Job Processor State Machine](./documentation/job-processor.md)
-* [The default peer to peer implementation](./documentation/distributed-state-network/README.md)
-* [The way Language Pipes abstracts from model architecture](./documentation/llm-layer-collector.md)
+* [Distributed State Network](./documentation/distributed-state-network/README.md)
+* [LLM Layer Collector](./documentation/llm-layer-collector.md)
