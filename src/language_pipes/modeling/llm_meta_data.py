@@ -1,8 +1,6 @@
 import os
-import gc
 import json
 import torch
-import psutil
 from typing import List, Tuple, Optional
 
 from transformers.models.auto import AutoConfig
@@ -23,14 +21,9 @@ def get_avg_layer_size(model_path: str) -> Tuple[int, List[str]]:
         dtype=torch.float16
     )
 
-    gc.collect()
-    torch.cuda.empty_cache()
-    process = psutil.Process()
-    mem_before = process.memory_info().rss
-    
     lyrs = collector.load_layer_set(0, 0)
     
-    total_size = process.memory_info().rss - mem_before
+    total_size = sum(size_of_tensor(p) for p in lyrs[0].cls.parameters())
     
     print(f"Total Layer Size is {total_size / 10**6:.2f}MB")
 
