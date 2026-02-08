@@ -57,7 +57,12 @@ class ChatCompletionRequest:
     
     @staticmethod
     def from_dict(data):
-        max_completion_tokens = data['max_completion_tokens'] if 'max_completion_tokens' in data else 1000
+        max_completion_tokens = 1000
+        if "max_tokens" in data:
+            max_completion_tokens = data['max_tokens']
+        if "max_completion_tokens" in data:
+            max_completion_tokens = data['max_completion_tokens']
+        
         stream = data['stream'] if 'stream' in data else False
         temperature = data['temperature'] if 'temperature' in data else 1.0
         top_k = data['top_k'] if 'top_k' in data else 0
@@ -117,6 +122,13 @@ def send_update_chunk(
         return False # Stop job when pipe is broken
     return True
 
+def send_complete(handler: BaseHTTPRequestHandler):
+    try:
+        handler.wfile.write(b'data: [DONE]\n\n')
+        handler.wfile.flush()
+    except BrokenPipeError as e:
+        print(e)
+
 def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict):
     req = ChatCompletionRequest.from_dict(data)
     created_at = time.time()
@@ -136,13 +148,13 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
         }, created_at, None, handler)
         
     def complete(job: Job):
-        if type(job) == type('') and job == 'NO_PIPE':
+        if type(job) is type('') and job == 'NO_PIPE':
             _respond_json(handler, { "error": "no pipe available" })
-        elif type(job) == type('') and job == 'NO_ENDS':
+        elif type(job) is type('') and job == 'NO_ENDS':
             _respond_json(handler, { "error": "no model ends available" })
         else:
             if req.stream:
-                send_update_chunk(job, { }, created_at, "stop", handler)
+                send_complete(handler)
             else:
                 _respond_json(handler, {
                     "id": job.job_id,
