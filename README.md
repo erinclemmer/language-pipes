@@ -17,9 +17,9 @@
 Language Pipes is an open-source distributed inference system built on the [transformers library](https://github.com/huggingface/transformers) that splits large language model computation across multiple machines. By separating the model's text-handling components (embedding and output head) from its intermediate transformer layers, Language Pipes enables peer-to-peer inference.
 
 #### Features
+- OpenAI-compatible API
 - Interactive setup wizard
 - Automatic model download by HuggingFace ID
-- OpenAI-compatible API (`/v1/chat/completions`)
 - Privacy-oriented architecture with layered privacy mitigations
 - Decentralized peer-to-peer network with optional AES encryption
 

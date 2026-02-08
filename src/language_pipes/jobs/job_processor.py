@@ -200,6 +200,7 @@ class JobProcessor:
                 log_done_error(self.ctx, "[FSM] Failed to send prefill job update; completing with error.")
                 return JobState.DONE
         
+        job.set_last_update()
         job.timing_stats.add_embed_time(self.ctx.config.node_id)
         end_model.compute_embed(job, logger, self.ctx.config.prefill_chunk_size)
         job.timing_stats.set_send_time(logger)

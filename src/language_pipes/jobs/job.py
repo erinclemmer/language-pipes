@@ -204,7 +204,6 @@ class Job:
         )
 
     def set_last_update(self):
-        from time import time
         self.last_update = time()
 
     def print_job(self, logger):

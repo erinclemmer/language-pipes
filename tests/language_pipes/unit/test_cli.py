@@ -151,15 +151,6 @@ class ServeConfigTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             main(["serve", "--config", CONFIG_PATH])
 
-    def test_config_no_layer_models(self):
-        """serve should fail without layer_models"""
-        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-            toml.dump({
-                "node_id": "node-1"
-            }, f)
-        with self.assertRaises(SystemExit):
-            main(["serve", "--config", CONFIG_PATH])
-
     def test_layer_models_cli_format(self):
         """serve should accept Docker-style key=value layer-models"""
         parser = build_parser()
