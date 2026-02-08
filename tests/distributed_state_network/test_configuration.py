@@ -34,9 +34,9 @@ class TestConfiguration(DSNTestBase):
         self.assertEqual(config_dict["bootstrap_nodes"][0]["port"], config.bootstrap_nodes[0].port)
 
     def test_aes_key_generation(self):
-        """Generated AES key should be 64 characters"""
+        """Generated AES key should be 32 hex characters (16 bytes)"""
         key = DSNodeServer.generate_key()
-        self.assertEqual(64, len(key))
+        self.assertEqual(32, len(key))
 
 
 if __name__ == "__main__":

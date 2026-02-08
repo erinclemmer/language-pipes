@@ -6,10 +6,12 @@ The network uses **HTTP** with a Flask server for all communication.
 ### Packet Structure
 Each HTTP request follows this structure:
 1. **HTTP POST request** to the appropriate endpoint
-2. **Request Body**: AES Encrypted Payload containing:
+2. **Request Body**: AES-CBC Encrypted Payload containing:
+   - Random IV (16 bytes, generated per message)
    - Message type (1 byte) - for verification
    - Message payload (variable length)
-3. **Response Body**: AES Encrypted Payload containing:
+3. **Response Body**: AES-CBC Encrypted Payload containing:
+   - Random IV (16 bytes, generated per message)
    - Message type (1 byte) - matches request type
    - Response payload (variable length)
 
@@ -22,7 +24,8 @@ Internal message type constants (used for verification):
 - **Type 5 (DATA)**: Send data between nodes
 
 ### Security
-- All communication is encrypted using AES with a shared key
+- All communication is encrypted using AES-CBC with a shared AES-128 key
+- A fresh random IV is generated for every encrypted message and prepended to ciphertext
 - Messages are signed using ECDSA for authentication
 - HTTP request/response bodies are encrypted end-to-end
 
@@ -48,7 +51,7 @@ Internal message type constants (used for verification):
 
 ## Important Notes
 
-1. **Shared AES Key**: All nodes in the network must use the same AES key file
+1. **Shared AES Key**: All nodes in the network must use the same AES-128 key (16 bytes / 32 hex chars)
 2. **Unique Node IDs**: Each node must have a unique node_id
 3. **Bootstrap Nodes**: At least one bootstrap node is required to join an existing network
 4. **Network Tick**: The network performs maintenance checks every 3 seconds

@@ -14,7 +14,7 @@ from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 
 from language_pipes.distributed_state_network.util import get_dict_hash
 from language_pipes.distributed_state_network.util.key_manager import CredentialManager
-from language_pipes.distributed_state_network.util.aes import aes_encrypt, aes_decrypt
+from language_pipes.distributed_state_network.util.aes import aes_encrypt, aes_decrypt, AES_KEY_LENGTH
 
 TICK_INTERVAL = 3
 HTTP_TIMEOUT = 2  # seconds
@@ -69,13 +69,21 @@ class DSNode:
         self.disconnect_cb = disconnect_callback
         self.update_cb = update_callback
         self.receive_cb = receive_callback
+
+        # Validate configured AES key eagerly so bad/legacy key formats fail fast.
+        self.get_aes_key()
         
         threading.Thread(target=self.network_tick, daemon=True).start()
 
     def get_aes_key(self) -> Optional[bytes]:
         if self.config.aes_key is None:
             return None
-        return bytes.fromhex(self.config.aes_key)
+        key = bytes.fromhex(self.config.aes_key)
+        if len(key) != AES_KEY_LENGTH:
+            raise ValueError(
+                f"Invalid AES key length ({len(key)} bytes). Expected {AES_KEY_LENGTH} bytes."
+            )
+        return key
 
     def write_address_book(self, node_id: str, conn: Endpoint):
         self.logger.info(f"Address set: {node_id} -> {conn.address}:{conn.port}")

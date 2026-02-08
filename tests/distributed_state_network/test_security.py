@@ -22,6 +22,12 @@ class TestSecurity(DSNTestBase):
         except Exception as e:
             print(e)
 
+    def test_legacy_aes_key_rejected(self):
+        """Legacy 32-byte [IV|KEY] material should be rejected."""
+        legacy_hex = (os.urandom(32)).hex()
+        with self.assertRaises(ValueError):
+            DSNodeServer.start(DSNodeConfig("legacy key test", "credentials", 8080, None, legacy_hex, []))
+
     def test_authorization_reject_unencrypted(self):
         """Unencrypted HTTP requests should be rejected"""
         n = spawn_node("node", "127.0.0.1")
