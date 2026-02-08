@@ -29,11 +29,16 @@ def edit_config(config_path: str):
             ("max_pipes", "Max Pipes"),
             ("model_validation", "Model Validation"),
             ("prefill_chunk_size", "Prefill Chunk Size"),
+            ("num_local_layers", "Number of local layers")
         ]
         
-        model_count = len(config.get("hosted_models", []))
-        editable_props.append(f"Hosted Models ({model_count} configured)")
-        prop_keys.append("hosted_models")
+        layer_model_count = len(config.get("layer_models", []))
+        editable_props.append(f"Layer Models ({layer_model_count} configured)")
+        prop_keys.append("layer_models")
+
+        end_model_count = len(config.get("end_models", []))
+        editable_props.append(f"End Models ({end_model_count} configured)")
+        prop_keys.append("end_models")
         
         for key, label in simple_props:
             current_val = config.get(key, "Not set")
@@ -47,6 +52,8 @@ def edit_config(config_path: str):
         prop_keys.append("__cancel__")
         
         selection = prompt_number_choice("\nSelect property to edit", editable_props, required=True)
+        if selection is None:
+            return
         selected_key = prop_keys[editable_props.index(selection)]
         
         if selected_key == "__save__":
@@ -148,31 +155,56 @@ def edit_config(config_path: str):
         elif selected_key == "prefill_chunk_size":
             config[selected_key] = prompt_int(
                 "Prefill Chunk Size",
-                default=config.get(selected_key, 6),
-                required=True
+                default=config.get(selected_key, 6)
+            )
+
+        elif selected_key == "num_local_layers":
+            config[selected_key] = prompt_int(
+                "Number of local layers",
+                default=config.get(selected_key, 1)
             )
         
-        elif selected_key == "hosted_models":
+        elif selected_key == "layer_models":
             try:
-                config["hosted_models"] = edit_hosted_models(config.get("hosted_models", []))
+                layer_models = edit_layer_models(config.get("layer_models", []))
+                if layer_models is not None:
+                    config["layer_models"] = layer_models
             except KeyboardInterrupt:
                 continue
 
-def select_hosted_model(models: List[dict]) -> int | None:
+        elif selected_key == "end_models":
+            try:
+                end_models = edit_end_models(config.get("end_models", []))
+                if end_models is not None:
+                    config["end_models"] = end_models
+            except KeyboardInterrupt:
+                continue
+
+def select_layer_model(models: List[dict]) -> int | None:
     options = []
     for i, model in enumerate(models):
         model_str = f"Model #{i+1}: {model.get('id', 'Unknown')} ({model.get('device', 'cpu')}, {model.get('max_memory', 4)}GB)"
         options.append(model_str)
     options.append("Cancel")
     model_selection = prompt_number_choice("Select Model", options)
-    if model_selection == "Cancel":
+    
+    if model_selection is None or model_selection == "Cancel":
         return None
+
     return options.index(model_selection)
 
-def edit_hosted_models(models: List) -> List[dict]:
+def edit_layer_models(models: List) -> List[dict]:
     while True:
-        print("\n--- Hosted Models ---\n")
+        print("\n--- Layer Models ---\n")
         
+        if models:
+            for i, model in enumerate(models):
+                model_id = model["id"]
+                print(f"  {i+1}. {model_id}")
+            print()
+        else:
+            print("  No layer models configured.\n")
+
         options = [
             "Add model",
             "Edit model",
@@ -180,24 +212,32 @@ def edit_hosted_models(models: List) -> List[dict]:
             "Done editing models"
         ]
         
-        selection = prompt_number_choice("Select model to edit", options, required=True)
+        selection = prompt_number_choice("Select option", options, required=True)
+
+        if selection is None:
+            return
         
         if selection == "Add model":
-            new_model = {
-                "id": prompt_model_id("Model ID", True),
-                "device": prompt("Device", "cpu", required=True),
-                "max_memory": prompt("Max Memory (GB)"),
-                "load_ends": prompt_bool("Load Ends", required=True)
-            }
-            if new_model:
-                models.append(new_model)
+            model_id = prompt_model_id("Model ID", True)
+            if model_id is None:
+                continue
+            try:
+                new_model = {
+                    "id": model_id,
+                    "device": prompt("Device", "cpu", required=True),
+                    "max_memory": prompt("Max Memory (GB)", required=True)
+                }
+            except KeyboardInterrupt:
+                continue
+            
+            models.append(new_model)
             continue
         
         if selection == "Edit model":
-            model_idx = select_hosted_model(models)
-            if model_idx is None:
-                continue
             try:
+                model_idx = select_layer_model(models)
+                if model_idx is None:
+                    continue
                 edited = edit_single_model(models[model_idx])
                 if edited:
                     models[model_idx] = edited
@@ -205,7 +245,7 @@ def edit_hosted_models(models: List) -> List[dict]:
                 continue
 
         if selection == "Delete model":
-            model_idx = select_hosted_model(models)
+            model_idx = select_layer_model(models)
             if model_idx is None:
                 continue
             models.pop(model_idx)
@@ -213,14 +253,62 @@ def edit_hosted_models(models: List) -> List[dict]:
         if selection == "Done editing models":
             return models
 
+def edit_end_models(models: List[str]) -> List[str]:
+    while True:
+        print("\n--- End Models ---\n")
+        
+        if models:
+            for i, model_id in enumerate(models):
+                print(f"  {i+1}. {model_id}")
+            print()
+        else:
+            print("  No end models configured.\n")
+        
+        options = [
+            "Add model",
+            "Delete model",
+            "Done editing models"
+        ]
+        
+        selection = prompt_number_choice("Select option", options, required=True)
+
+        if selection is None:
+            return models
+        
+        if selection == "Add model":
+            model_id = prompt_model_id("Model ID", required=True)
+            if model_id is None:
+                continue
+            models.append(model_id)
+            continue
+        
+        if selection == "Delete model":
+            if not models:
+                print("\nNo models to delete.")
+                continue
+            
+            model_options = [f"{i+1}. {model_id}" for i, model_id in enumerate(models)]
+            model_options.append("Cancel")
+            
+            model_selection = prompt_number_choice("Select model to delete", model_options)
+            if model_selection is None or model_selection == "Cancel":
+                continue
+            
+            model_idx = model_options.index(model_selection)
+            models.pop(model_idx)
+            continue
+
+        if selection == "Done editing models":
+            return models
+
+
 def edit_single_model(model: dict) -> dict | None:
     print("\n--- Edit Model ---\n")
     
     props = [
         ("id", "Model ID"),
         ("device", "Device"),
-        ("max_memory", "Max Memory (GB)"),
-        ("load_ends", "Load Ends")
+        ("max_memory", "Max Memory (GB)")
     ]
     
     edited_model = model.copy()
@@ -231,7 +319,7 @@ def edit_single_model(model: dict) -> dict | None:
         options.append("Done")
         
         selection = prompt_number_choice("Select property", options, required=True)
-        if selection == "Cancel":
+        if selection is None or selection == "Cancel":
             return None
         
         if selection == "Done":
@@ -240,24 +328,24 @@ def edit_single_model(model: dict) -> dict | None:
         selected_idx = options.index(selection)
         selected_key = props[selected_idx][0]
         
-        if selected_key == "id":
-            edited_model[selected_key] = prompt_model_id("Model ID", required=True)
-        
-        elif selected_key == "device":
-            edited_model[selected_key] = prompt(
-                "Device (cpu, cuda:0, etc.)",
-                default=edited_model.get(selected_key, "cpu"),
-                required=True
-            )
-        
-        elif selected_key == "max_memory":
-            edited_model[selected_key] = prompt_float(
-                "Max Memory (GB)",
-                required=True
-            )
-        
-        elif selected_key == "load_ends":
-            edited_model["load_ends"] = prompt_bool(
-                "Load embedding/output layers?",
-                required=True
-            )
+        try:
+            if selected_key == "id":
+                model_id = prompt_model_id("Model ID", required=True)
+                if model_id is None:
+                    continue
+                edited_model[selected_key] = model_id
+            
+            elif selected_key == "device":
+                edited_model[selected_key] = prompt(
+                    "Device (cpu, cuda:0, etc.)",
+                    default=edited_model.get(selected_key, "cpu"),
+                    required=True
+                )
+            
+            elif selected_key == "max_memory":
+                edited_model[selected_key] = prompt_float(
+                    "Max Memory (GB)",
+                    required=True
+                )
+        except KeyboardInterrupt:
+            continue

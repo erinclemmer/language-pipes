@@ -24,7 +24,7 @@ def getClass(config: PretrainedConfig) -> GradientCheckpointingLayer:
 class AutoDecoderLayer:
     def __init__(self, config: PretrainedConfig, layer_index: int):
         self.config = config
-        if self.config._attn_implementation is None:
+        if self.config._attn_implementation_internal is None:
             self.config._attn_implementation = "eager"
         self.cls = getClass(self.config)(self.config, layer_index)
 

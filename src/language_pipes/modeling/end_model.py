@@ -4,17 +4,20 @@ from uuid import uuid4
 from torch import tensor
 from pathlib import Path
 from logging import Logger
+from typing import List
 
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 from language_pipes.llm_layer_collector import LlmLayerCollector
 from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
+from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 from language_pipes.llm_layer_collector.compute import compute_embedding, compute_head
 
 from language_pipes.jobs.job import ComputeStep, Job
 from language_pipes.jobs.job_data import computationStateToJobData
 
 from language_pipes.modeling.llm_meta_data import LlmMetadata
+from language_pipes.modeling.compute import compute_layers
 
 from language_pipes.util import clone_model
 
@@ -26,15 +29,16 @@ class EndModel:
     norm: AutoRMSNorm
     head: torch.nn.Linear
     collector: LlmLayerCollector
+    layers: List[AutoDecoderLayer]
 
-    def __init__(self, model_dir: str, model_id: str, device: str):
+    def __init__(self, num_local_layers: int, model_dir: str, model_id: str, device: str, huggingface_token: str | None = None):
         self.model_id = model_id
         self.device = device
 
         self.process_id = str(uuid4())
         model_path = str(Path(model_dir) / self.model_id)
         if not os.path.exists(model_path):
-            clone_model(model_id, model_path)
+            clone_model(model_id, model_path, token=huggingface_token)
         self.meta_data = LlmMetadata(model_path)
         self.collector = LlmLayerCollector(
             model_dir=os.path.join(model_path, 'data'),
@@ -42,8 +46,21 @@ class EndModel:
             device=device,
             dtype=torch.float16
         )
+        self.layers = []
+        if num_local_layers > 0:
+            self.load_layers(num_local_layers)
         self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, 'data'))
     
+    def load_layers(self, num_local_layers: int):
+        self.layers = self.collector.load_layer_set(0, num_local_layers - 1, self.device)
+
+    def compute_layers(self, job: Job):
+        job.set_layer(
+            state=compute_layers(job.data, self.device, self.layers, job.cache),
+            layer=len(self.layers),
+            num_hidden_layers=self.collector.config.num_hidden_layers
+        )
+
     def size(self):
         return self.meta_data.embed_size + self.meta_data.head_size
 

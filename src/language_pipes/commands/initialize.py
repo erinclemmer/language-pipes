@@ -21,59 +21,83 @@ def interactive_init(output_path: str):
         required=True
     )
 
-    print("\n--- Model Configuration ---\n")
-    print("You need to specify at least one model to host.")
+    print("\n--- Layer Models ---\n")
+    print("Here you can specify which models to host")
     print("Models are automatically downloaded from HuggingFace by their ID")
     print("if they do not exist in the model folder already.\n")
 
-    hosted_models = []
-    try:
-        while True:
-            print(f"    Model #{len(hosted_models) + 1}:")
-            
-            print("    Select a locally available model or enter a HuggingFace model ID")
-            model_id = prompt_model_id(
-                "    Model ID",
-                required=True
-            )
-            
-            print("\n    Select the compute device for this model. Use 'cpu' for CPU-only,")
-            print("    or 'cuda:0', 'cuda:1', etc. for specific GPUs.")
-            device = prompt(
-                "    Device",
-                default="cpu",
-                required=True
-            )
-            
-            print("\n    Specify the maximum RAM/VRAM (in GB) this node should use for the model.")
-            print("    The model layers will be loaded until this limit is reached.")
-            max_memory = prompt_float(
-                "    Max memory (GB)",
-                required=True
-            )
-            
-            print("\n    The 'ends' of a model are the embedding layer (input) and the output head.")
-            print("    For the privacy protection to work correctly the requesting user must control an end node")
-            print("    It is possible for many nodes on the network to be an end node so long as all the layers are loaded on the network")
-            load_ends = prompt_bool(
-                "    Load embedding/output layers",
-                required=True
-            )
-            
-            hosted_models.append({
-                "id": model_id,
-                "device": device,
-                "max_memory": max_memory,
-                "load_ends": load_ends
-            })
-            
-            print()
-            if not prompt_bool("Add another model?", required=True):
-                break
-    except KeyboardInterrupt:
-        pass
+    layer_models = []
+    if prompt_bool("Add layer models?", required=True):
+        try:
+            while True:
+                print(f"    Model #{len(layer_models) + 1}:")
+                
+                print("    Select a locally available model or enter a HuggingFace model ID")
+                model_id = prompt_model_id(
+                    "    Model ID",
+                    required=True
+                )
+                if model_id is None:
+                    raise KeyboardInterrupt()
+                
+                print("\n    Select the compute device for this model. Use 'cpu' for CPU-only,")
+                print("    or 'cuda:0', 'cuda:1', etc. for specific GPUs.")
+                device = prompt(
+                    "    Device",
+                    default="cpu",
+                    required=True
+                )
+                
+                print("\n    Specify the maximum RAM/VRAM (in GB) this node should use for the model.")
+                print("    The model layers will be loaded until this limit is reached.")
+                max_memory = prompt_float(
+                    "    Max memory (GB)",
+                    required=True
+                )
+                
+                layer_models.append({
+                    "id": model_id,
+                    "device": device,
+                    "max_memory": max_memory
+                })
+                
+                print()
+                if not prompt_bool("Add another model?", required=True):
+                    break
+        except KeyboardInterrupt:
+            pass
 
-    config["hosted_models"] = hosted_models
+    config["layer_models"] = layer_models
+
+    print("\n--- End Models ---\n")
+    print("Here you can specify which end models to load")
+    print("To run a model in the network you need an end model on the machine that hosts the Open AI compatible server")
+    end_models = []
+    if prompt_bool("Add end model?", required=True):
+        try:
+            while True:
+                print(f"    End model #{len(end_models)}")
+
+                model_id = prompt_model_id("    Model ID", required=True)
+                if model_id is None:
+                    break
+                end_models.append(model_id)
+                print(f"Added {model_id} to end models")
+
+                if not prompt_bool("Add another model?", required=True):
+                    break
+
+        except KeyboardInterrupt:
+            pass
+
+    config["end_models"] = end_models
+
+    if len(config["end_models"]) > 0:
+        print("\nHere you can specify how many layers of the end models you want to load")
+        print("This means you will always control the first n layers of the pipe to help obfuscate your prompt")
+        num_local_layers = prompt_int("Number of local layers?", default=1)
+        if num_local_layers is not None:
+            config["num_local_layers"] = num_local_layers
 
     # === API Server ===
     print("\n--- API Server ---\n")
@@ -175,8 +199,8 @@ def interactive_init(output_path: str):
     print("=" * 50 + "\n")
 
     # Build clean config (remove None values)
-    clean_config = {k: v for k, v in config.items() if v is not None and k != "hosted_models"}
-    clean_config["hosted_models"] = config["hosted_models"]
+    clean_config = {k: v for k, v in config.items() if v is not None and k != "layer_models"}
+    clean_config["layer_models"] = config["layer_models"]
 
     # Check if file exists
     if os.path.exists(output_path):

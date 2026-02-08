@@ -5,89 +5,29 @@ from typing import List, Tuple, Optional
 
 from transformers.models.auto import AutoConfig
 from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
-from transformers.configuration_utils import PretrainedConfig
-from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from language_pipes.llm_layer_collector import LlmLayerCollector
 
 from language_pipes.util import size_of_tensor, tensor_hash
 from language_pipes.util.enums import ModelPartType
-
-def get_size_of_layer(config: PretrainedConfig, layer_idx: int) -> Tuple[float, str]:
-    print(f"Calculating layer size for layer {layer_idx}...")
-    print("Calculating attention size...")
-    lyr = AutoDecoderLayer(config, layer_idx).cls.to(dtype=torch.float16)
-    attn_tensors = []
-    try:
-        attn_tensors.append(lyr.input_layernorm.weight)
-    except AttributeError:
-        pass
-
-    try:
-        attn_tensors.append(lyr.post_attention_layernorm.weight)
-    except AttributeError:
-        pass
-
-    try:
-        attn_tensors.extend([
-            lyr.self_attn.q_norm.weight,
-            lyr.self_attn.k_norm.weight
-        ])
-    except AttributeError:
-        pass
-
-    attn_tensors.extend([
-        lyr.self_attn.q_proj.weight,
-        lyr.self_attn.k_proj.weight,
-        lyr.self_attn.v_proj.weight,
-        lyr.self_attn.o_proj.weight
-    ])
-
-    hash = tensor_hash(lyr.self_attn.q_proj.weight)
-    attn_size = sum([size_of_tensor(t) for t in attn_tensors])
-    print(f"Attention size is {attn_size / 10**6:.2f}MB")
-
-    print("Calculating mlp size...")
-    mlp_tensors = []
-    try:
-        mlp_tensors = [
-            lyr.mlp.gate_proj.weight,
-            lyr.mlp.up_proj.weight,
-            lyr.mlp.down_proj.weight
-        ] 
-    except AttributeError:
-        for i in range(0, lyr.mlp.num_experts):
-            mlp_tensors.extend([
-                lyr.mlp.gate.weight,
-                lyr.mlp.experts[i].gate_proj.weight,
-                lyr.mlp.experts[i].up_proj.weight,
-                lyr.mlp.experts[i].down_proj.weight
-            ]) 
-
-    mlp_size = sum([size_of_tensor(t) for t in mlp_tensors])
-    print(f"MLP Size is {mlp_size / 10**6:.2f}MB")
-
-    total_size = attn_size + mlp_size
-
-    print(f"Total Layer Size is {total_size / 10**6:.2f}MB")
-
-    return total_size, hash
-
 
 def get_avg_layer_size(model_path: str) -> Tuple[int, List[str]]:
     if not os.path.exists(model_path):
         print(f'Model {model_path} not found')
         return -1, []
-    config = AutoConfig.from_pretrained(model_path)
+    collector = LlmLayerCollector(
+        model_dir=model_path,
+        cache_file=os.path.join(model_path, '..', 'cache.json'),
+        device='cpu',
+        dtype=torch.float16
+    )
 
-    total_size = 0
-    layer_hashes = []
-    for size, hash in [get_size_of_layer(config, i) for i in range(config.num_hidden_layers)]:
-        total_size += size
-        layer_hashes.append(hash)
+    lyrs = collector.load_layer_set(0, 0)
     
-    avg_layer_size = total_size / config.num_hidden_layers
-    layer_hashes = layer_hashes
+    total_size = sum(size_of_tensor(p) for p in lyrs[0].cls.parameters())
     
-    return avg_layer_size, layer_hashes
+    print(f"Total Layer Size is {total_size / 10**6:.2f}MB")
+
+    return total_size, tensor_hash(lyrs[0].cls.self_attn.q_proj.weight)
 
 def data_of_type(typ: ModelPartType, model_path: str) -> Tuple[float, str]:
     config = AutoConfig.from_pretrained(model_path)

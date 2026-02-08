@@ -17,11 +17,12 @@ node_id = "my-node"
 network_ip = "[Your local IP address]"
 openai_port = 8000
 
-[[hosted_models]]
+[[layer_models]]
 id = "Qwen/Qwen3-1.7B"
 device = "cpu"
 max_memory = 4
-load_ends = true
+
+end_models = ["Qwen/Qwen3-1.7B"]
 ```
 
 ---
@@ -32,16 +33,18 @@ load_ends = true
 # === Required ===
 node_id = "node-1"
 
-[[hosted_models]]
+[[layer_models]]
 id = "meta-llama/Llama-3.2-1B-Instruct"
 device = "cpu"
 max_memory = 5
-load_ends = true
 
-[[hosted_models]]
+[[layer_models]]
 id = "Qwen/Qwen3-1.7B"
 device = "cuda:0"
 max_memory = 8
+
+# === End Models ===
+end_models = ["meta-llama/Llama-3.2-1B-Instruct"]
 
 # === API Server ===
 oai_port = 8000
@@ -78,16 +81,15 @@ node_id = "my-node-1"
 |------|:--------:|
 | string | ✓ |
 
-#### `hosted_models`
+#### `layer_models`
 
 Array of models to host. Each model is defined as a TOML table.
 
 ```toml
-[[hosted_models]]
+[[layer_models]]
 id = "Qwen/Qwen3-1.7B"
 device = "cpu"
 max_memory = 4
-load_ends = false
 ```
 
 | Property | Type | Required | Description |
@@ -95,34 +97,60 @@ load_ends = false
 | `id` | string | ✓ | HuggingFace model ID or path in `/models` directory |
 | `device` | string | ✓ | PyTorch device: `cpu`, `cuda:0`, `cuda:1`, etc. |
 | `max_memory` | number | ✓ | Maximum memory allocation in GB |
-| `load_ends` | bool | | Load the End Model: embedding + output head (default: `false`) |
-
-**About `load_ends` (End Model):**
-
-The "ends" of a model are the embedding layer and output head—the components that convert between text and numerical representations. The node with `load_ends = true` is the **only node that can see your actual prompts and responses**. Other nodes only process hidden state tensors and cannot read the conversation content.
-
-```toml
-# Privacy-preserving setup: you control the End Model
-[[hosted_models]]
-id = "Qwen/Qwen3-1.7B"
-load_ends = true   # Your prompts stay on this machine
-max_memory = 2
-```
-
-For maximum privacy, enable `load_ends` on your own machine and let untrusted nodes contribute compute with `load_ends = false`.
 
 **Multiple models:**
 ```toml
-[[hosted_models]]
+[[layer_models]]
 id = "Qwen/Qwen3-1.7B"
 device = "cpu"
 max_memory = 4
 
-[[hosted_models]]
+[[layer_models]]
 id = "meta-llama/Llama-3.2-1B-Instruct"
 device = "cuda:0"
 max_memory = 8
-load_ends = true
+```
+
+#### `end_models`
+
+Array of model IDs for which to load the End Model (embedding layer + output head). The End Model is the component that converts between text and numerical representations.
+
+```toml
+end_models = ["Qwen/Qwen3-1.7B"]
+```
+
+| Type | Default |
+|------|---------|
+| array of strings | `[]` (empty) |
+
+**About End Models:**
+
+The "ends" of a model are the embedding layer and output head—the components that convert between text and numerical representations. The node with a model in its `end_models` list is the **only node that can see your actual prompts and responses** for that model. Other nodes only process hidden state tensors and cannot read the conversation content.
+
+```toml
+# Privacy-preserving setup: you control the End Model
+[[layer_models]]
+id = "Qwen/Qwen3-1.7B"
+device = "cpu"
+max_memory = 2
+
+end_models = ["Qwen/Qwen3-1.7B"]  # Your prompts stay on this machine
+```
+
+**Multiple end models:**
+```toml
+[[layer_models]]
+id = "Qwen/Qwen3-1.7B"
+device = "cpu"
+max_memory = 4
+
+[[layer_models]]
+id = "meta-llama/Llama-3.2-1B-Instruct"
+device = "cuda:0"
+max_memory = 8
+
+# Load end models for both
+end_models = ["Qwen/Qwen3-1.7B", "meta-llama/Llama-3.2-1B-Instruct"]
 ```
 
 ---
@@ -272,6 +300,18 @@ model_dir = "~/.cache/language_pipes/models"
 
 ### Other
 
+#### `num_local_layers`
+
+Number of initial model layers to execute locally before forwarding work to other nodes. Higher values improve prompt obfuscation by keeping more of the early pipeline on your machine. It is expected that all nodes on the network have the same value so that model layers are loaded correctly.
+
+```toml
+num_local_layers = 1
+```
+
+| Type | Default |
+|------|---------|
+| int | `1` |
+
 #### `max_pipes`
 
 Maximum number of model pipes to participate in.
@@ -300,12 +340,12 @@ print_times = true
 
 ## Environment Variables
 
-All properties can be set via environment variables with the `LP_` prefix:
+Most properties can be set via environment variables with the `LP_` prefix:
 
 | Property | Environment Variable |
 |----------|---------------------|
 | `node_id` | `LP_NODE_ID` |
-| `hosted_models` | `LP_HOSTED_MODELS` |
+| `layer_models` | `LP_LAYER_MODELS` |
 | `logging_level` | `LP_LOGGING_LEVEL` |
 | `oai_port` | `LP_OAI_PORT` |
 | `peer_port` | `LP_PEER_PORT` |
@@ -313,11 +353,27 @@ All properties can be set via environment variables with the `LP_` prefix:
 | `bootstrap_address` | `LP_BOOTSTRAP_ADDRESS` |
 | `bootstrap_port` | `LP_BOOTSTRAP_PORT` |
 | `network_key` | `LP_NETWORK_KEY` |
+| `num_local_layers` | `LP_NUM_LOCAL_LAYERS` |
 | `max_pipes` | `LP_MAX_PIPES` |
 | `model_validation` | `LP_MODEL_VALIDATION` |
 | `app_dir` | `LP_APP_DIR` |
 | `model_dir` | `LP_MODEL_DIR` |
 | `print_times` | `LP_PRINT_TIMES` |
+
+### Authentication (Environment Variable Only)
+
+#### `LP_HUGGINGFACE_TOKEN`
+
+HuggingFace API token for downloading gated or private models (like Llama). This is only available as an environment variable for better security. You can also supply it at download time via a prompt.
+
+Get your token from [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
+
+```bash
+export LP_HUGGINGFACE_TOKEN="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+language-pipes serve -c config.toml
+```
+
+**Note:** For gated models (like Llama), you must also accept the model's license agreement on the HuggingFace website before downloading.
 
 ---
 

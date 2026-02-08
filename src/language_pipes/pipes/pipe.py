@@ -3,7 +3,6 @@ from pathlib import Path
 from uuid import uuid4
 
 from transformers import AutoTokenizer
-from transformers.models.auto import AutoConfig
 from language_pipes.network_protocol import StateNetworkNode
 
 from language_pipes.pipes.meta_pipe import MetaPipe
@@ -59,8 +58,7 @@ class Pipe:
     
     def num_hidden_layers(self) -> Optional[int]:
         for segment in self.segments:
-            if not segment.virtual:
-                return segment.num_hidden_layers
+            return segment.num_hidden_layers
         return None
 
     def get_computed(self):
@@ -69,12 +67,12 @@ class Pipe:
     def sort_segments(self):
         self.segments = sorted(self.segments, key=lambda x: x.start_layer)
 
-    def is_complete(self):
+    def is_complete(self, start_layer: int):
         if len(self.segments) == 0:
             return False
         
         self.sort_segments()
-        current_layer = 0
+        current_layer = start_layer
         for s in self.segments:
             if not s.loaded:
                 break
@@ -86,7 +84,7 @@ class Pipe:
     @staticmethod
     def from_meta(
         meta_pipe: MetaPipe, 
-        hosted_models: List[LlmModel], 
+        layer_models: List[LlmModel], 
         router: StateNetworkNode,
         model_dir: str
     ) -> 'Pipe':
@@ -97,7 +95,7 @@ class Pipe:
             router=router
         )
         local_segments = []
-        for model in hosted_models:
+        for model in layer_models:
             if model.pipe_id == meta_pipe.pipe_id:
                 p.segments.append(model)
                 local_segments.append(model.process_id)

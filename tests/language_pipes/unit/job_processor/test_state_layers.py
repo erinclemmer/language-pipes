@@ -10,7 +10,7 @@ from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_processor import JobState
 from language_pipes.util.enums import ComputeStep
 
-from job_processor.util import make_processor, make_job, FakePipe, FakePipeMulti, FakeModel, TrackingModel, EmptyPipe
+from util import make_processor, make_job, FakeModel, TrackingModel, PipeWrapper
 
 class TestProcessLayersState(unittest.TestCase):
     """Tests for the _state_process_layers method."""
@@ -18,17 +18,15 @@ class TestProcessLayersState(unittest.TestCase):
     def test_transitions_to_done_when_local_model_missing(self):
         job = make_job()
         job.compute_step = ComputeStep.LAYER
-        job.current_layer = 0
+        job.current_layer = 1
         job.data = JobData()
         job.data.state = torch.zeros((1, 1))
 
-        processor = make_processor(
-            job=job,
-            pipe=EmptyPipe(FakeModel("node-a", 0, 0)),
-            end_model=None,
-        )
+        model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
+        pipe = PipeWrapper("node-a", "model-a", [model])
+        processor = make_processor(job=job, pipe=pipe, end_model=None)
 
-        next_state = processor._state_process_layers()
+        next_state = processor._state_validating()
 
         self.assertEqual(next_state, JobState.DONE)
 
@@ -42,7 +40,7 @@ class TestProcessLayersState(unittest.TestCase):
 
         local_model = TrackingModel("node-a", 0, 0, virtual=False, num_hidden_layers=2)
         remote_model = FakeModel("node-b", 1, 1, virtual=True)
-        pipe = FakePipeMulti(local_model, remote_model)
+        pipe = PipeWrapper("node-a", "model-a", [local_model, remote_model])
 
         processor = make_processor(job=job, pipe=pipe, end_model=None)
 
@@ -62,7 +60,7 @@ class TestProcessLayersState(unittest.TestCase):
 
         local_model = TrackingModel("node-a", 0, 0, virtual=False, num_hidden_layers=2)
         next_model = FakeModel("node-a", 1, 1, virtual=False)
-        pipe = FakePipeMulti(local_model, next_model)
+        pipe = PipeWrapper("node-a", "model-a", [local_model, next_model])
 
         processor = make_processor(job=job, pipe=pipe, end_model=None)
 
@@ -81,7 +79,7 @@ class TestProcessLayersState(unittest.TestCase):
         job.last_update = 0
 
         local_model = TrackingModel("node-a", 0, 1, virtual=False, num_hidden_layers=2)
-        pipe = FakePipe(local_model)
+        pipe = PipeWrapper("node-a", "model-a", [local_model])
 
         processor = make_processor(job=job, pipe=pipe, end_model=None)
 
@@ -102,7 +100,7 @@ class TestProcessLayersState(unittest.TestCase):
         job.last_update = 0
 
         local_model = TrackingModel("node-a", 0, 1, virtual=False, num_hidden_layers=2)
-        pipe = FakePipe(local_model)
+        pipe = PipeWrapper("node-a", "model-a", [local_model])
 
         processor = make_processor(job=job, pipe=pipe, end_model=None)
 
@@ -124,7 +122,7 @@ class TestProcessLayersState(unittest.TestCase):
         job.last_update = 0
 
         local_model = TrackingModel("node-a", 0, 1, virtual=False, num_hidden_layers=2)
-        pipe = FakePipe(local_model)
+        pipe = PipeWrapper("node-a", "model-a", [local_model])
 
         processor = make_processor(job=job, pipe=pipe, end_model=None)
 

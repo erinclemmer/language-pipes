@@ -4,6 +4,8 @@ import toml
 import unittest
 import tempfile
 import shutil
+import io
+from contextlib import redirect_stdout
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -104,6 +106,26 @@ class ServeConfigTests(unittest.TestCase):
         if os.path.exists(CONFIG_PATH):
             os.remove(CONFIG_PATH)
 
+    def test_serve_no_options(self):
+        """Should give helpful text if serve given with no options"""
+        captured = io.StringIO()
+        with self.assertRaises(SystemExit), redirect_stdout(captured):
+            main(["serve"])
+        self.assertEqual(
+            captured.getvalue().strip(),
+            "Error: node_id param is not supplied in config"
+        )
+
+    def test_serve_just_node_id(self):
+        """Should give helpful text if serve given with no options"""
+        captured = io.StringIO()
+        with redirect_stdout(captured):
+            main(["serve", "--node-id", "test"])
+        self.assertIn(
+            "Configuration Details",
+            captured.getvalue().strip()
+        )
+
     def test_config_file_not_exist(self):
         """serve should fail if config file doesn't exist"""
         with self.assertRaises((FileNotFoundError, SystemExit)):
@@ -120,7 +142,7 @@ class ServeConfigTests(unittest.TestCase):
         """serve should fail without node_id"""
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
             toml.dump({
-                "hosted_models": [{
+                "layer_models": [{
                     "id": "meta-llama/Llama-3.2-1B",
                     "device": "cpu",
                     "max_memory": 5
@@ -129,37 +151,38 @@ class ServeConfigTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             main(["serve", "--config", CONFIG_PATH])
 
-    def test_config_no_hosted_models(self):
-        """serve should fail without hosted_models"""
-        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-            toml.dump({
-                "node_id": "node-1"
-            }, f)
-        with self.assertRaises(SystemExit):
-            main(["serve", "--config", CONFIG_PATH])
-
-    def test_hosted_models_cli_format(self):
-        """serve should accept Docker-style key=value hosted-models"""
+    def test_layer_models_cli_format(self):
+        """serve should accept Docker-style key=value layer-models"""
         parser = build_parser()
         args = parser.parse_args([
             "serve",
             "--node-id", "node-1",
-            "--hosted-models", "id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
+            "--layer-models", "id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
         ])
         self.assertEqual(args.node_id, "node-1")
-        self.assertEqual(args.hosted_models, ["id=Qwen/Qwen3-1.7B,device=cpu,memory=4"])
+        self.assertEqual(args.layer_models, ["id=Qwen/Qwen3-1.7B,device=cpu,memory=4"])
 
-    def test_hosted_models_multiple(self):
-        """serve should accept multiple hosted-models"""
+    def test_layer_models_multiple(self):
+        """serve should accept multiple layer-models"""
         parser = build_parser()
         args = parser.parse_args([
             "serve",
             "--node-id", "node-1",
-            "--hosted-models",
+            "--layer-models",
             "id=Qwen/Qwen3-1.7B,device=cpu,memory=4",
             "id=meta-llama/Llama-3.2-1B,device=cuda:0,memory=8"
         ])
-        self.assertEqual(len(args.hosted_models), 2)
+        self.assertEqual(len(args.layer_models), 2)
+
+    def test_end_model_flag(self):
+        """should be able to use the --end-model flag"""
+        parser = build_parser()
+        args = parser.parse_args([
+            "serve",
+            "--node-id", "node-1",
+            "--end-model", "Qwen/Qwen3-1.7B", "Qwen/Qwen3-2.7B"
+        ])
+        self.assertEqual(len(args.end_models), 2)
 
 
 if __name__ == '__main__':

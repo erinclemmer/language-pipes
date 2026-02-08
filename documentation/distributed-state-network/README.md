@@ -42,7 +42,7 @@ DSN creates a peer-to-peer network where each node maintains its own state datab
 - Each node owns its state and is the only one who can modify it
 - State changes are automatically broadcast to all connected nodes
 - Any node can read any other node's state instantly
-- All communications can be encrypted with AES
+- All communications can be encrypted with AES-128-CBC using a fresh random IV per message
 
 ## Example: Distributed Temperature Monitoring
 

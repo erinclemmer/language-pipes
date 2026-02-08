@@ -58,19 +58,29 @@ def view_config(config_path: str):
     _print_property("Max Pipes", config.get("max_pipes", 1), descriptions["max_pipes"])
     _print_property("Model Validation", "Enabled" if config.get("model_validation") else "Disabled", descriptions["model_validation"])
     
-    # Display hosted models
-    models = config.get("hosted_models", [])
-    print(f"\n--- Hosted Models ({len(models)}) ---")
-    for i, model in enumerate(models):
-        print(f"\n  Model #{i+1}:")
-        print(f"    ID:          {model.get('id', 'Unknown')}")
-        # print(f"                 (HuggingFace model identifier)")
-        print(f"    Device:      {model.get('device', 'cpu')}")
-        # print(f"                 (Compute device: cpu, cuda:0, cuda:1, etc.)")
-        print(f"    Max Memory:  {model.get('max_memory', 4)} GB")
-        # print(f"                 (Maximum RAM/VRAM to use for model layers)")
-        print(f"    Load Ends:   {'Yes' if model.get('load_ends') else 'No'}")
-        # print(f"                 (Load embedding layer and output head)")
+    # Display layer models
+    models = config.get("layer_models", [])
+    print(f"\n--- Layer Models ({len(models)}) ---")
+    if models:
+        for i, model in enumerate(models):
+            print(f"\n  Model #{i+1}:")
+            print(f"    ID:          {model.get('id', 'Unknown')}")
+            # print(f"                 (HuggingFace model identifier)")
+            print(f"    Device:      {model.get('device', 'cpu')}")
+            # print(f"                 (Compute device: cpu, cuda:0, cuda:1, etc.)")
+            print(f"    Max Memory:  {model.get('max_memory', 4)} GB")
+            # print(f"                 (Maximum RAM/VRAM to use for model layers)")
+    else:
+        print("    No layer models configured")
+    
+    # Display end models
+    end_models = config.get("end_models", [])
+    print(f"\n--- End Models ({len(end_models)}) ---")
+    if end_models:
+        for i, model_id in enumerate(end_models):
+            print(f"  {i+1}. {model_id}")
+    else:
+        print("  No end models configured.")
     
     print("\n" + "=" * 60)
 

@@ -21,7 +21,8 @@ MODEL = "Qwen/Qwen3-1.7B"
 def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: Optional[int] = None, bootstrap_port: Optional[int] = None):
     args = ["serve", 
         "--node-id", node_id, 
-        "--hosted-models", f"id={MODEL},device=cpu,memory={max_memory},load_ends=true", 
+        "--layer-models", f"id={MODEL},device=cpu,memory={max_memory}", 
+        "--end-models", MODEL,
         "--peer-port", str(peer_port),
         "--app-dir", "./",
         "--model-validation"
@@ -84,7 +85,7 @@ class OpenAITests(unittest.TestCase):
         main([])
 
     def test_single_node(self):
-        start_node("node-1", 5, 5000, 8000)
+        start_node("node-1", 6, 5000, 8000)
         res = oai_complete(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
             ChatMessage(ChatRole.USER, "Hello, how are you?")

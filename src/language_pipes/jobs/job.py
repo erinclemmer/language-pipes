@@ -10,10 +10,10 @@ from transformers.cache_utils import DynamicCache
 from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.jobs.timing_stats import TimingStats
-from language_pipes.util.chunk_state import ChunkState
 
-from language_pipes.util.enums import ComputeStep, JobStatus
 from language_pipes.util.chat import ChatMessage
+from language_pipes.util.chunk_state import ChunkState
+from language_pipes.util.enums import ComputeStep, JobStatus
 
 class Job:
     # IDs
@@ -204,7 +204,6 @@ class Job:
         )
 
     def set_last_update(self):
-        from time import time
         self.last_update = time()
 
     def print_job(self, logger):

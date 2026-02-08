@@ -23,7 +23,7 @@ class DSNodeConfig:
 - **port** (`int`): Port number for the node to listen on (UDP)
 - **credential_dir**: (`str`) directory to store ECDSA credentials (default: "[current_directory]/credentials")
 - **network_ip** (`str`): Network ip address (only required if other nodes will connect to you)
-- **aes_key** (`str`): Hexidecimal encoded AES key for network encryption
+- **aes_key** (`str`): Hexadecimal encoded AES-128 key for network encryption (16 bytes / 32 hex characters)
 - **bootstrap_nodes** (`List[Endpoint]`): List of initial nodes to connect to when joining the network
 
 **Note:** If `network_ip` is not supplied, the node's public IP address is automatically detected by the bootstrap server during the initial handshake.

@@ -63,7 +63,7 @@ class LanguagePipes:
         )
 
         # View currently loaded pipes
-        self.router_pipes.print_pipes(self.logger)
+        self.router_pipes.print_pipes(self.config.num_local_layers, self.logger)
 
         # Holds pending jobs
         self.job_tracker = JobTracker(self.logger, self.config)
@@ -96,7 +96,7 @@ class LanguagePipes:
     def print_pipes(self):
         if self.router_pipes is None:
             return
-        self.router_pipes.print_pipes(self.logger)
+        self.router_pipes.print_pipes(self.config.num_local_layers, self.logger)
 
     def start_oai(self):
         if self.config.oai_port is None:
@@ -111,7 +111,12 @@ class LanguagePipes:
         level = getattr(logging, logging_level.upper(), None)
         if level is None:
             raise ValueError(f"Invalid logging level: {logging_level}")
-        logging.basicConfig(level=level)
+        logging.basicConfig(
+            level=level,
+            format="%(levelname)s [%(asctime)s] %(name)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+            force=True
+        )
 
     def stop(self):
         self.model_manager.stop()

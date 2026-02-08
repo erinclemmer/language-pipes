@@ -3,7 +3,7 @@ import ctypes
 import torch
 from time import time
 from typing import List, Optional
-from time import time, sleep
+from time import sleep
 from threading import Thread
 
 from language_pipes.jobs.job import Job
@@ -18,7 +18,7 @@ try:
     _malloc_trim = _libc.malloc_trim
     _malloc_trim.argtypes = [ctypes.c_size_t]
     _malloc_trim.restype = ctypes.c_int
-except:
+except:  # noqa: E722
     _malloc_trim = None
 
 class JobTracker:

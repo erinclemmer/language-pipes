@@ -5,7 +5,7 @@ from pathlib import Path
 
 from language_pipes.distributed_state_network import DSNodeServer, DSNodeConfig
 
-from language_pipes.config import LpConfig, default_config_dir, default_model_dir
+from language_pipes.config import LpConfig, default_config_dir, default_model_dir, apply_env_overrides
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.edit import edit_config
 from language_pipes.commands.view import view_config
@@ -19,7 +19,7 @@ def start_server(app_dir: str, config_path: str):
     with open(config_path, "r", encoding="utf-8") as f:
         data = toml.load(f)
 
-    data["app_dir"] = app_dir
+    data = apply_env_overrides(data, {"app_dir": app_dir})
     
     config = LpConfig.from_dict(data)
 
@@ -48,6 +48,7 @@ def start_server(app_dir: str, config_path: str):
 
 def new_config(app_dir: str):
     raw_name = prompt("Name of new configuration", required=True)
+    
     if raw_name is None:
         return
     file_name = sanitize_file_name(raw_name)
@@ -67,18 +68,18 @@ def delete_config(app_dir: str):
 
 def modify_config(app_dir: str):
     config_path = select_config(app_dir)
-    if config_path:
+    if config_path is not None:
         edit_config(config_path)
 
 def start_wizard(apply_overrides, version: str):
     print(f"""         
 ==============================================================================
-
- | |                                              |  __ (_)                
+  _                                                ____
+ | |                                              |  __`(_)                
  | |     __ _ _ __   __ _ _   _  __ _  __ _  ___  | |__) | _ __   ___  ___ 
- | |    / _` | '_ \ / _` | | | |/ _` |/ _` |/ _ \ |  ___/ | '_ \ / _ \/ __|
- | |___| (_| | | | | (_| | |_| | (_| | (_| |  __/ | |   | | |_) |  __/\__ \\
- |______\__,_|_| |_|\__, |\__,_|\__,_|\__, |\___| |_|   |_| .__/ \___||___/
+ | |    / _` | '_ \\ / _` | | | |/ _` |/ _` |/ _ \\ |  ___/ | '_ \\ / _ \\/ __|
+ | |___| (_| | | | | (_| | |_| | (_| | (_| |  __/ | |   | | |_) |  __/\\__ \\
+ |______\\__,_|_| |_|\\__, |\\__,_|\\__,_|\\__, |\\___| |_|   |_| .__/ \\___||___/
                      __/ |             __/ |              | |              
                     |___/             |___/               |_|      
 Version: {version}
@@ -101,7 +102,7 @@ Version: {version}
     if not os.path.exists(model_dir):
         Path(model_dir).mkdir(parents=True)
 
-    while True: # TODO Add model list        
+    while True:
         main_menu_cmd = prompt_number_choice("Main Menu", [
             "View Config",
             "Load Config",
@@ -109,6 +110,8 @@ Version: {version}
             "Edit Config",
             "Delete Config"
         ])
+        if main_menu_cmd is None:
+            exit()
 
         print("\n" + ("=" * 50) + "\n")
 
@@ -129,12 +132,18 @@ Version: {version}
                 if config_path is not None:
                     view_config(config_path)
             case "Create Config":
-                new_config(app_dir)
+                try:
+                    new_config(app_dir)
+                except KeyboardInterrupt:
+                    pass
             case "Edit Config":
                 if len(get_config_files(config_dir)) == 0:
                     print("No configs found...\n\n")
                     continue
-                modify_config(app_dir)
+                try:
+                    modify_config(app_dir)
+                except KeyboardInterrupt:
+                    pass
             case "Delete Config":
                 if len(get_config_files(config_dir)) == 0:
                     print("No configs found...\n\n")

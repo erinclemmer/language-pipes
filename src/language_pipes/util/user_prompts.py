@@ -86,8 +86,8 @@ def prompt_number_choice(message: str, choices: list, default=None, required=Fal
                 continue
             selection = int(strSelect)
         except KeyboardInterrupt:
-            exit()
-        except:
+            return None
+        except ValueError:
             print("Invalid selection")
             continue
         if selection < 0 or selection >= len(choices):
@@ -135,7 +135,7 @@ def prompt_model_id(message: str, required=False) -> str | None:
         print("  Available local models:")
         for i, model in enumerate(available_models):
             print(f"    [{i + 1}] {model}")
-        print(f"    [0] Enter custom model ID")
+        print("    [0] Enter custom model ID")
         
         while True:
             try:
@@ -143,18 +143,20 @@ def prompt_model_id(message: str, required=False) -> str | None:
                 if selection_str is None:
                     return None
                 selection = int(selection_str)
+            
+                if selection == 0:
+                    return prompt("    Custom model ID", required=required)
+                elif 1 <= selection <= len(available_models):
+                    return available_models[selection - 1]
+                else:
+                    print(f"  Please select a number between 0 and {len(available_models)}.")
+            
             except ValueError:
                 print("  Please enter a valid number.")
                 continue
             except KeyboardInterrupt:
-                exit()
-            
-            if selection == 0:
-                return prompt("    Custom model ID", required=required)
-            elif 1 <= selection <= len(available_models):
-                return available_models[selection - 1]
-            else:
-                print(f"  Please select a number between 0 and {len(available_models)}.")
+                return None
+
     else:
         # No local models available, prompt for custom ID directly
         return prompt(message, required=required)
@@ -170,7 +172,7 @@ def select_config(app_dir: str) -> str | None:
     if len(existing_configs) > 0:
         load_config = prompt_number_choice("Select Configuration", existing_configs, required=True)
         if load_config is None:
-            exit()
+            return None
         load_config = load_config + ".toml"
     else:
         print("No configs found...")

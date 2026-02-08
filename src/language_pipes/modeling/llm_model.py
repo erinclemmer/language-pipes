@@ -14,19 +14,10 @@ from language_pipes.util import clone_model
 
 from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata
+from language_pipes.modeling.compute import compute_layers
 
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_data import jobDataToComputationState, detachCompState
-
-def compute_layers(job_data, device, layers, cache):
-    comp_state = jobDataToComputationState(job_data, device)
-    comp_state = detachCompState(comp_state)
-    
-    with torch.inference_mode():
-        for lyr in layers:
-            comp_state.state = lyr(comp_state, cache).detach()
-    
-    return comp_state.state.detach()
 
 class LlmModel:
     model_id: str
@@ -56,7 +47,9 @@ class LlmModel:
             device: str,
             model_dir: str,
             process_id: Optional[str] = None,
-            virtual: bool = False
+            virtual: bool = False,
+            huggingface_token: Optional[str] = None,
+            num_hidden_layers: Optional[int] = None
     ):
         self.model_id = model_id
         self.node_id = node_id
@@ -69,10 +62,12 @@ class LlmModel:
         self.device = device
         self.model_dir = model_dir
 
-        if not virtual:
+        if virtual:
+            self.num_hidden_layers = num_hidden_layers
+        else:
             model_path = str(Path(model_dir) / self.model_id)
             if not os.path.exists(model_path):
-                clone_model(model_id, model_path)
+                clone_model(model_id, model_path, token=huggingface_token)
             self.collector = LlmLayerCollector(
                     model_dir=os.path.join(model_path, 'data'),
                     cache_file=os.path.join(model_path, 'cache.json'),
@@ -161,6 +156,7 @@ Device: {self.device}
             device='cpu',
             model_dir=model_dir,
             process_id=meta.process_id,
+            num_hidden_layers=meta.num_layers,
             virtual=True
         )
         model.loaded = meta.loaded
@@ -172,13 +168,14 @@ Device: {self.device}
         return model
     
     @staticmethod
-    def from_id(model_dir: str, model_id: str, node_id: str, pipe_id: str, device: str) -> 'LlmModel':
+    def from_id(model_dir: str, model_id: str, node_id: str, pipe_id: str, device: str, huggingface_token: Optional[str] = None) -> 'LlmModel':
         model = LlmModel(
             model_id=model_id, 
             node_id=node_id, 
             pipe_id=pipe_id, 
             device=device, 
-            model_dir=model_dir
+            model_dir=model_dir,
+            huggingface_token=huggingface_token
         )
 
         model_path = str(Path(model_dir) / model_id)

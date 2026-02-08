@@ -83,8 +83,8 @@ class RouterPipesTests(unittest.TestCase):
             ],
         )
 
-        completed = router.pipes_for_model("model-1", True)
-        loading = router.pipes_for_model("model-1", False)
+        completed = router.pipes_for_model("model-1", find_completed=True)
+        loading = router.pipes_for_model("model-1", find_completed=False)
 
         self.assertEqual([p.pipe_id for p in completed], ["pipe-1"])
         self.assertEqual([p.pipe_id for p in loading], ["pipe-2"])

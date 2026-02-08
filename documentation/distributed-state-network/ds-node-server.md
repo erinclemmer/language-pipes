@@ -62,7 +62,9 @@ connector = DSNodeServer.start(connector_config)
 ```
 
 ### `generate_key() -> str`
-Generates a new hexadecimal encoded AES key for network encryption. All nodes in the same network must share the same AES key.
+Generates a new hexadecimal encoded AES-128 key for network encryption. All nodes in the same network must share the same AES key.
+
+- Output length: 32 hex characters (16 bytes)
 
 **Parameters:**
 - None

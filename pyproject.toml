@@ -15,9 +15,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "language-pipes"
-version = "0.19.7"
+version = "1.0.0"
 authors = [{name="Erin Clemmer", email="erin.c.clemmer@gmail.com"}]
-description = "A privacy focused distributed algorithm for llm inference"
+description = "Peer-to-peer distributed inference for open-source language models"
 keywords = ["distributed", "networking", "AI", "Language Model", "pipe", "pipeline", "server"]
 license = "MIT"
 readme = "README.md"
@@ -35,6 +35,7 @@ requires-python = ">=3.10"
 dependencies = [
     "torch",
     "transformers==4.57.6",
+    "huggingface_hub",
     "uuid",
     "promise",
     "requests",
@@ -42,6 +43,7 @@ dependencies = [
     "toml",
     "flask",
     "ecdsa",
+    "psutil",
     "cryptography"
 ]
 
@@ -54,3 +56,17 @@ language-pipes="language_pipes.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/language_pipes"]
+
+[tool.coverage.run]
+source = ["src/language_pipes"]
+omit = [
+    "*/_remote_module_non_scriptable"
+]
+
+[tool.coverage.report]
+omit = [
+    "*/_remote_module_non_scriptable",
+    "src/language_pipes/commands/*",
+    "src/language_pipes/distributed_state_network/*",
+    "src/language_pipes/util/user_prompts.py"
+]

@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..
 from language_pipes.jobs.job_processor import JobState
 from language_pipes.util.enums import ComputeStep
 
-from job_processor.util import make_processor, make_job, make_config, FakeEndModel, FakeModel, FakePipe, EmptyPipe
+from util import make_processor, make_job, make_config, FakeEndModel, FakeModel, PipeWrapper
 
 class TestEmbedState(unittest.TestCase):
     """Tests for the _state_embed method."""
@@ -42,9 +42,11 @@ class TestEmbedState(unittest.TestCase):
         job.compute_step = ComputeStep.EMBED
         job.prompt_tokens = 1
 
+        model = FakeModel("node-a", 1, 1, virtual=False, num_hidden_layers=2)
+        pipe = PipeWrapper("node-a", "model-a", [model])
         processor = make_processor(
             job=job,
-            pipe=EmptyPipe(FakeModel("node-a", 0, 0)),
+            pipe=pipe,
             end_model=FakeEndModel(),
         )
 
@@ -57,7 +59,9 @@ class TestEmbedState(unittest.TestCase):
         job.compute_step = ComputeStep.EMBED
         job.prompt_tokens = 1
 
-        pipe = FakePipe(FakeModel("node-b", 0, 0, virtual=True))
+        virtual_model = FakeModel("node-b", 0, 0, virtual=True, num_hidden_layers=2)
+        local_model = FakeModel("node-a", 1, 1, virtual=False, num_hidden_layers=2)
+        pipe = PipeWrapper("node-a", "model-a", [virtual_model, local_model])
         processor = make_processor(job=job, pipe=pipe, end_model=FakeEndModel())
 
         next_state = processor._state_embed()
@@ -69,9 +73,11 @@ class TestEmbedState(unittest.TestCase):
         job.compute_step = ComputeStep.EMBED
         job.prompt_tokens = 1
 
+        model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
+        pipe = PipeWrapper("node-a", "model-a", [model])
         processor = make_processor(
             job=job,
-            pipe=FakePipe(FakeModel("node-a", 0, 0, virtual=False)),
+            pipe=pipe,
             end_model=FakeEndModel(),
         )
 
@@ -83,10 +89,12 @@ class TestEmbedState(unittest.TestCase):
         job = make_job()
         job.compute_step = ComputeStep.EMBED
 
+        model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
+        pipe = PipeWrapper("node-a", "model-a", [model])
         processor = make_processor(
             job=job,
-            pipe=FakePipe(FakeModel("node-a", 0, 0, virtual=False)),
-            end_model=FakeEndModel(),
+            pipe=pipe,
+            end_model=FakeEndModel(num_local_layers=0),
         )
 
         next_state = processor._state_embed()
@@ -97,6 +105,43 @@ class TestEmbedState(unittest.TestCase):
         next_state = processor._state_embed()
 
         self.assertEqual(next_state, JobState.PROCESS_LAYERS)
+
+    def test_transitions_to_process_layers_for_num_local_layers(self):
+        job = make_job()
+        job.compute_step = ComputeStep.EMBED
+
+        virtual_model = FakeModel("node-a", 0, 0, virtual=True, num_hidden_layers=2)
+        local_model = FakeModel("node-a", 1, 1, virtual=False, num_hidden_layers=2)
+        pipe = PipeWrapper("node-a", "model-a", [virtual_model, local_model])
+        processor = make_processor(
+            job=job,
+            # Simulate node loading the same layer as the EndModel
+            pipe=pipe,
+            end_model=FakeEndModel(num_local_layers=1)
+        )
+
+        next_state = processor._state_embed()
+
+        # The job should not be sent to the virtual node
+        self.assertEqual(next_state, JobState.PROCESS_LAYERS)
+
+    def test_transitions_to_send_without_local_layers(self):
+        job = make_job()
+        job.compute_step = ComputeStep.EMBED
+        virtual_model = FakeModel("node-a", 0, 0, virtual=True, num_hidden_layers=2)
+        local_model = FakeModel("node-a", 1, 1, virtual=False, num_hidden_layers=2)
+        pipe = PipeWrapper("node-a", "model-a", [virtual_model, local_model])
+        processor = make_processor(
+            job=job,
+            # Simulate node loading the same layer as the EndModel
+            pipe=pipe,
+            end_model=FakeEndModel(num_local_layers=0)
+        )
+
+        next_state = processor._state_embed()
+
+        # The job should be sent to the virtual node if no local layers are specified
+        self.assertEqual(next_state, JobState.SEND)
 
 class TestEmbedPrefillIntegration(unittest.TestCase):
     """Integration tests for embed state during prefill operations."""
@@ -114,15 +159,22 @@ class TestEmbedPrefillIntegration(unittest.TestCase):
         job = make_job(update=fail_update, complete=complete)
         job.compute_step = ComputeStep.TOKENIZE
         end_model = FakeEndModel()
+        model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
+        pipe = PipeWrapper("node-a", "model-a", [model])
 
         processor = make_processor(
             job=job,
+            pipe=pipe,
             config=make_config(prefill_chunk_size=1),
             end_model=end_model,
         )
 
         processor.run()
 
+        self.assertEqual(
+            processor.states,
+            [JobState.VALIDATING, JobState.EMBED, JobState.PROCESS_LAYERS, JobState.EMBED],
+        )
         self.assertEqual(processor.state, JobState.DONE)
         self.assertIn("tokenize", end_model.calls)
         self.assertIn("compute_embed", end_model.calls)

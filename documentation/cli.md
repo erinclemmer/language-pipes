@@ -78,34 +78,41 @@ See [Configuration](./configuration.md) for all available options and their desc
 
 #### Common Flags
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--config FILE` | `-c` | Load configuration from TOML file |
-| `--node-id ID` | | Node identifier (required) |
-| `--openai-port PORT` | | Enable OpenAI API on port |
-| `--hosted-models MODEL...` | | Models to host |
-| `--logging-level LEVEL` | `-l` | Log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
-| `--bootstrap-address HOST` | | Connect to existing network |
-| `--app-dir PATH` | | Application config directory (default: `~/.config/language_pipes`) |
-| `--model-dir PATH` | | Model cache directory (default: `~/.cache/language_pipes/models`) |
-| `--print-times` | | Print timing info for layer computations and network transfers |
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--config FILE` | `-c` | Load configuration from TOML file | None |
+| `--node-id ID` | | Node identifier (required) | Required |
+| `--openai-port PORT` | | Enable OpenAI API on port | None |
+| `--layer-models MODEL...` | | Models to host (layers) | Empty|
+| `--end-models MODEL...` | | Model IDs for which to load end models | Empty | 
+| `--num-local-layers N` | | Number of local layers to run on your machine (higher values improve prompt obfuscation) | 1 |
+| `--logging-level LEVEL` | `-l` | Log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) | INFO |
+| `--bootstrap-address HOST` | | Connect to existing network | None |
+| `--app-dir PATH` | | Application config directory | `~/.config/language_pipes` |
+| `--model-dir PATH` | | Model cache directory | `~/.cache/language_pipes/models` |
+| `--print-times` | | Print timing info for layer computations and network transfers | False|
 
 Run `language-pipes serve --help` for all options.
 
 #### Model Specification
 
-Models are specified as comma-separated `key=value` pairs:
+**Layer models** are specified as comma-separated `key=value` pairs:
 
 ```bash
---hosted-models "id=MODEL,device=DEVICE,memory=GB[,load_ends=BOOL]"
+--layer-models "id=MODEL,device=DEVICE,memory=GB"
 ```
 
-| Key | Required | Example |
-|-----|:--------:|---------|
-| `id` | ✓ | `Qwen/Qwen3-1.7B`, `meta-llama/Llama-3.2-1B-Instruct` |
-| `device` | ✓ | `cpu`, `cuda:0` |
-| `memory` | ✓ | `4`, `8.5` |
-| `load_ends` | | `true`, `false` (default) |
+| Key | Example |
+|-----|---------|
+| `id` | `Qwen/Qwen3-1.7B`, `meta-llama/Llama-3.2-1B-Instruct` |
+| `device` | `cpu`, `cuda:0` |
+| `memory` | `4`, `8.5` |
+
+**End models** are specified as a list of model IDs:
+
+```bash
+--end-models "Qwen/Qwen3-1.7B" "meta-llama/Llama-3.2-1B-Instruct"
+```
 
 ---
 
@@ -117,7 +124,8 @@ Models are specified as comma-separated `key=value` pairs:
 language-pipes serve \
   --node-id "node-1" \
   --openai-port 8000 \
-  --hosted-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4,load_ends=true"
+  --layer-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4" \
+  --end-models "Qwen/Qwen3-1.7B"
 ```
 
 ### Start with config file
@@ -138,7 +146,7 @@ language-pipes serve -c config.toml --logging-level DEBUG --openai-port 8080
 language-pipes serve \
   --node-id "node-2" \
   --bootstrap-address "192.168.1.100" \
-  --hosted-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
+  --layer-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
 ```
 
 ### Using environment variables
@@ -146,7 +154,7 @@ language-pipes serve \
 ```bash
 export LP_NODE_ID="node-1"
 export LP_OAI_PORT="8000"
-export LP_HOSTED_MODELS="id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
+export LP_LAYER_MODELS="id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
 
 language-pipes serve
 ```
@@ -157,9 +165,10 @@ language-pipes serve
 language-pipes serve \
   --node-id "multi-model" \
   --openai-port 8000 \
-  --hosted-models \
+  --layer-models \
     "id=Qwen/Qwen3-1.7B,device=cpu,memory=4" \
-    "id=Qwen/Qwen3-0.6B,device=cuda:0,memory=2"
+    "id=Qwen/Qwen3-0.6B,device=cuda:0,memory=2" \
+  --end-models Qwen/Qwen3-1.7B Qwen/Qwen3-0.6B
 ```
 
 ### Documentation

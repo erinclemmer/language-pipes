@@ -31,8 +31,11 @@ class ModelManager:
         self.models = []
         self.end_models = []
         self.pipes_hosted = { }
-        for m in self.config.hosted_models:
-            self._host_model(m.id, m.max_memory, m.device, m.load_ends)
+        for m in self.config.layer_models:
+            self._host_model(m.id, m.max_memory, m.device)
+
+        for m in self.config.end_models:
+            self._load_end_model(m, "cpu")
 
     def stop(self):
         for m in self.models:
@@ -56,7 +59,8 @@ class ModelManager:
             model_id=model_id,
             node_id=self.config.node_id,
             pipe_id=pipe.pipe_id,
-            device=device
+            device=device,
+            huggingface_token=self.config.huggingface_token
         )
         if new_model is None:
             return None
@@ -67,12 +71,12 @@ class ModelManager:
         
         num_layers_to_load = int(available_memory // meta_data.avg_layer_size) - 1
         total_layers = new_model.collector.config.num_hidden_layers
-        start_layer = pipe.next_start_layer()
+        start_layer = pipe.next_start_layer(self.config.num_local_layers)
         if num_layers_to_load == -1:
             start_layer = -1
             end_layer = -1
         else:
-            end_layer = min([start_layer + num_layers_to_load, pipe.next_end_layer(total_layers), new_model.num_hidden_layers]) if start_layer != -1 else -1
+            end_layer = min([start_layer + num_layers_to_load, pipe.next_end_layer(self.config.num_local_layers, total_layers), new_model.num_hidden_layers]) if start_layer != -1 else -1
             available_memory = available_memory - (end_layer - start_layer + 1) * meta_data.avg_layer_size
 
         if num_layers_to_load > -1 and end_layer != -1 and start_layer != -1:
@@ -85,21 +89,21 @@ class ModelManager:
         return available_memory, new_model
 
     def _load_end_model(self, model_id: str, device: str):
-        model = EndModel(self.config.model_dir, model_id, device)
+        self.logger.info(f"Loading end model: {model_id}")
+        model = EndModel(self.config.num_local_layers, self.config.model_dir, model_id, device, self.config.huggingface_token)
+        model.load()
         self.end_models.append(model)
-        return model
+        self.logger.info("End model loading complete")
 
-    def _host_model(self, model_id: str, max_memory: float, device: str, load_ends: bool):
+    def _host_model(self, model_id: str, max_memory: float, device: str):
         available_memory = max_memory * 10 ** 9
         models_to_load: List[LlmModel] = []
         end_model = None
-        if load_ends:
-            end_model = self._load_end_model(model_id, device)
         
         if model_id not in self.pipes_hosted:
             self.pipes_hosted[model_id] = []
         
-        for pipe_id in [p.pipe_id for p in self.router_pipes.pipes_for_model(model_id, False)]:
+        for pipe_id in [p.pipe_id for p in self.router_pipes.pipes_for_model(model_id, find_completed=False, start_layer=self.config.num_local_layers)]:
             if pipe_id not in self.pipes_hosted[model_id] and len(self.pipes_hosted[model_id]) >= self.config.max_pipes:
                 break
             loaded = True
@@ -121,9 +125,6 @@ class ModelManager:
             if model is not None:
                 self.router_pipes.add_model_to_network(model.to_meta())
                 models_to_load.append(model)
-
-        if load_ends and end_model is not None:
-            end_model.load()
 
         for m in models_to_load:
             m.load()
