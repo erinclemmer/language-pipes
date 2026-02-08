@@ -156,8 +156,10 @@ class LpConfig:
     def from_dict(data: Dict) -> 'LpConfig':
         if data.get("node_id") is None:
             raise Exception("Node ID must be supplied to config")
+        
+        layer_models = data.get("layer_models", None)
         if data.get("layer_models") is None:
-            raise Exception("Layer models must be supplied to the configuration")
+            layer_models = []
         
         logging_level = data.get('logging_level', None)
         if logging_level is None:
@@ -202,7 +204,7 @@ class LpConfig:
             oai_port=data.get('oai_port', None),
             
             # Model hosting
-            layer_models=[LayerModel.from_dict(m) for m in data['layer_models']],
+            layer_models=[LayerModel.from_dict(m) for m in layer_models],
             end_models=end_models,
             huggingface_token=data.get('huggingface_token', None),
             

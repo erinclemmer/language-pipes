@@ -197,6 +197,14 @@ def edit_layer_models(models: List) -> List[dict]:
     while True:
         print("\n--- Layer Models ---\n")
         
+        if models:
+            for i, model in enumerate(models):
+                model_id = model["id"]
+                print(f"  {i+1}. {model_id}")
+            print()
+        else:
+            print("  No layer models configured.\n")
+
         options = [
             "Add model",
             "Edit model",
@@ -217,7 +225,7 @@ def edit_layer_models(models: List) -> List[dict]:
                 new_model = {
                     "id": model_id,
                     "device": prompt("Device", "cpu", required=True),
-                    "max_memory": prompt("Max Memory (GB)")
+                    "max_memory": prompt("Max Memory (GB)", required=True)
                 }
             except KeyboardInterrupt:
                 continue

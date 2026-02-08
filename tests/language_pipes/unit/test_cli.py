@@ -4,6 +4,8 @@ import toml
 import unittest
 import tempfile
 import shutil
+import io
+from contextlib import redirect_stdout
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -103,6 +105,26 @@ class ServeConfigTests(unittest.TestCase):
         """Clean up test files after each test"""
         if os.path.exists(CONFIG_PATH):
             os.remove(CONFIG_PATH)
+
+    def test_serve_no_options(self):
+        """Should give helpful text if serve given with no options"""
+        captured = io.StringIO()
+        with self.assertRaises(SystemExit), redirect_stdout(captured):
+            main(["serve"])
+        self.assertEqual(
+            captured.getvalue().strip(),
+            "Error: node_id param is not supplied in config"
+        )
+
+    def test_serve_just_node_id(self):
+        """Should give helpful text if serve given with no options"""
+        captured = io.StringIO()
+        with redirect_stdout(captured):
+            main(["serve", "--node-id", "test"])
+        self.assertIn(
+            "Configuration Details",
+            captured.getvalue().strip()
+        )
 
     def test_config_file_not_exist(self):
         """serve should fail if config file doesn't exist"""

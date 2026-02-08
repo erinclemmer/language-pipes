@@ -58,8 +58,7 @@ class Pipe:
     
     def num_hidden_layers(self) -> Optional[int]:
         for segment in self.segments:
-            if not segment.virtual:
-                return segment.num_hidden_layers
+            return segment.num_hidden_layers
         return None
 
     def get_computed(self):

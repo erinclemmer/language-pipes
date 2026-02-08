@@ -48,7 +48,8 @@ class LlmModel:
             model_dir: str,
             process_id: Optional[str] = None,
             virtual: bool = False,
-            huggingface_token: Optional[str] = None
+            huggingface_token: Optional[str] = None,
+            num_hidden_layers: Optional[int] = None
     ):
         self.model_id = model_id
         self.node_id = node_id
@@ -61,7 +62,9 @@ class LlmModel:
         self.device = device
         self.model_dir = model_dir
 
-        if not virtual:
+        if virtual:
+            self.num_hidden_layers = num_hidden_layers
+        else:
             model_path = str(Path(model_dir) / self.model_id)
             if not os.path.exists(model_path):
                 clone_model(model_id, model_path, token=huggingface_token)
@@ -153,6 +156,7 @@ Device: {self.device}
             device='cpu',
             model_dir=model_dir,
             process_id=meta.process_id,
+            num_hidden_layers=meta.num_layers,
             virtual=True
         )
         model.loaded = meta.loaded

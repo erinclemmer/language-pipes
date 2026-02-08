@@ -66,11 +66,18 @@ def load_layer(
     lyr = AutoDecoderLayer(config, idx)
     torch.set_default_device(device)
     lyr = lyr.to_empty(device=device)
-    for key in shard_data.keys():
-        if key.startswith(f'{layer_prefix}{idx}.'):
-            module_name = key.replace(f'{layer_prefix}{idx}.', '').replace('.weight', '')
-            module = lyr.cls.get_submodule(module_name)
-            module.load_state_dict({ "weight": shard_data[key] })
+
+    layer_key_prefix = f'{layer_prefix}{idx}.'
+    layer_state_dict: Dict[str, torch.Tensor] = {}
+    for key, value in shard_data.items():
+        if key.startswith(layer_key_prefix):
+            param_name = key[len(layer_key_prefix):]
+            layer_state_dict[param_name] = value
+
+    if len(layer_state_dict) == 0:
+        raise Exception(f"Could not find data for layer {idx}")
+
+    lyr.cls.load_state_dict(layer_state_dict, strict=False)
 
     return lyr.to(dtype)
 

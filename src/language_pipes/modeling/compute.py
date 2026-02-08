@@ -1,4 +1,5 @@
 import torch
+from typing import List
 from transformers.cache_utils import DynamicCache
 
 from language_pipes.jobs.job_data import JobData

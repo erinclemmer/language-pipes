@@ -1,6 +1,6 @@
-# Privacy Architecture
+# Privacy
 
-Language Pipes provides privacy-preserving distributed inference through its **End Model** architecture. This document describes the privacy properties of the system, the known attack surfaces, and the probabilistic guarantees each mitigation provides.
+This document describes the privacy properties Language Pipes, the known attack surfaces, and the probabilistic guarantees each mitigation provides.
 
 ---
 
@@ -166,7 +166,7 @@ If hidden states are transmitted immediately after embedding (capture at layer 0
 
 **Baseline recovery probability: ~100%** at layer 0.
 
-**Mitigation:** Retaining the first N transformer layers on the End Model node (first-N local layers) eliminates layer-0 exposure entirely.
+**Mitigation:** Retaining the first N transformer layers on the End Model node by setting the `num_local_layers` config option eliminates layer-0 exposure entirely. For this reason the `num_local_layers` config defaults to 1.
 
 #### 2. SipIt Deep-Layer Recovery
 
@@ -198,8 +198,8 @@ The following table summarizes the available mitigations, their effectiveness ag
 |------------|-------|--------------------|---------------|
 | **Architectural separation** (always on) | Prevents casual observation; does not prevent deliberate inversion | Same | Default behavior |
 | **AES encryption** (`network_key`) | Does not apply (malicious node decrypts to compute) | Same | `network_key` in config |
-| **First-N local layers** | **Effective.** Recovery drops exponentially with N | No effect (attacker completes forward pass) | Planned: `local_layer_count` |
-| **Trusted layer nodes** | **Effective.** Trusted operator will not attempt inversion | **Effective.** Same | Deploy layer nodes only on trusted machines |
+| **First-N local layers** | **Effective.** Recovery drops exponentially with N | No effect (attacker completes forward pass) | `num_local_layers` in config |
+| **Trusted layer nodes** | **Effective.** Trusted operator should not attempt inversion | **Effective.** Same | Deploy layer nodes only on trusted machines |
 
 ### Probabilistic Security Summary
 
@@ -274,24 +274,6 @@ For sensitive workloads with public models, retain the first N transformer layer
 ### Maximum Privacy: Trusted Network Only
 
 For the strongest protection, deploy layer nodes exclusively on machines operated by trusted parties. Combined with AES encryption and first-N local layers, this configuration addresses all known attack vectors: the architectural and computational mitigations raise the bar against passive and semi-active adversaries, while the trust relationship eliminates the motivated adversary scenario entirely.
-
----
-
-## FAQ
-
-**Can layer nodes reconstruct my prompts?**
-A layer node operator with access to the public model weights can, in principle, apply inversion algorithms to recover prompt tokens from captured hidden states. The difficulty of this reconstruction depends on the capture depth and active mitigations: with first-N local layers (N >= 5), SipIt-style recovery drops to low single-digit percentages. For the strongest guarantee, deploy layer nodes only on trusted machines.
-
-**What if someone captures the hidden states?**
-Hidden states encode sufficient information to reconstruct the input prompt when combined with the model weights (Gupta et al., 2025). Treat hidden states as sensitive data. Always enable `network_key` encryption for network transport, use first-N local layers to increase inversion difficulty, and deploy layer nodes only on trusted machines.
-
-**Is this encryption?**
-No. The End Model architecture provides *architectural separation*. Layer nodes operate on continuous-valued tensors rather than discrete text. This is not cryptographic protection: the tensors are theoretically invertible given the model weights. For cryptographic transport security, configure `network_key` to enable AES encryption. The combination of architectural separation and AES encryption provides defense in depth.
-
-**How does this compare to running the full model locally?**
-Running the full model on a single machine provides complete privacy and no data leaves the machine. Distributed inference trades some privacy for computational scalability. The mitigations described above narrow this gap, but do not fully close it when layer nodes are operated by untrusted parties.
-
----
 
 ## References
 

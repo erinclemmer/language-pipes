@@ -300,6 +300,18 @@ model_dir = "~/.cache/language_pipes/models"
 
 ### Other
 
+#### `num_local_layers`
+
+Number of initial model layers to execute locally before forwarding work to other nodes. Higher values improve prompt obfuscation by keeping more of the early pipeline on your machine. It is expected that all nodes on the network have the same value so that model layers are loaded correctly.
+
+```toml
+num_local_layers = 1
+```
+
+| Type | Default |
+|------|---------|
+| int | `1` |
+
 #### `max_pipes`
 
 Maximum number of model pipes to participate in.
@@ -341,6 +353,7 @@ Most properties can be set via environment variables with the `LP_` prefix:
 | `bootstrap_address` | `LP_BOOTSTRAP_ADDRESS` |
 | `bootstrap_port` | `LP_BOOTSTRAP_PORT` |
 | `network_key` | `LP_NETWORK_KEY` |
+| `num_local_layers` | `LP_NUM_LOCAL_LAYERS` |
 | `max_pipes` | `LP_MAX_PIPES` |
 | `model_validation` | `LP_MODEL_VALIDATION` |
 | `app_dir` | `LP_APP_DIR` |
@@ -351,7 +364,7 @@ Most properties can be set via environment variables with the `LP_` prefix:
 
 #### `LP_HUGGINGFACE_TOKEN`
 
-HuggingFace API token for downloading gated or private models (like Llama). This is only available as an environment variable for better security.
+HuggingFace API token for downloading gated or private models (like Llama). This is only available as an environment variable for better security. You can also supply it at download time via a prompt.
 
 Get your token from [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
 

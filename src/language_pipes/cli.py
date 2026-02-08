@@ -1,22 +1,25 @@
 import toml
 import argparse
 
-from language_pipes.distributed_state_network import DSNodeConfig, DSNodeServer
 
-from language_pipes.config import LpConfig, apply_env_overrides
-from language_pipes.util.aes import save_new_aes_key
-from language_pipes.commands.initialize import interactive_init
-from language_pipes.commands.start import start_wizard
-from language_pipes.commands.upgrade import upgrade_lp
+print("Starting Language Pipes...")
+from language_pipes.distributed_state_network import DSNodeConfig, DSNodeServer  # noqa: E402
 
-from language_pipes.lp import LanguagePipes
+from language_pipes.config import LpConfig, apply_env_overrides  # noqa: E402
+from language_pipes.util.aes import save_new_aes_key  # noqa: E402
+
+from language_pipes.commands.initialize import interactive_init  # noqa: E402
+from language_pipes.commands.start import start_wizard  # noqa: E402
+from language_pipes.commands.upgrade import upgrade_lp  # noqa: E402
+
+from language_pipes.lp import LanguagePipes  # noqa: E402
 
 VERSION = "0.19.7"
 
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="Language Pipes",
-        description="Distribute LLMs across multiple systems"
+        description="A privacy focused distributed algorithm for llm inference"
     )
 
     parser.add_argument("-v", "--version", action="version", version=VERSION)
@@ -84,10 +87,6 @@ def apply_overrides(data, args):
     }
 
     config = apply_env_overrides(data, cli_args)
-
-    if config["layer_models"] is None:
-        print("Error: layer_models param must be supplied in config")
-        exit()
 
     if config["node_id"] is None:
         print("Error: node_id param is not supplied in config")

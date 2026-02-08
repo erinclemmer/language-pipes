@@ -111,9 +111,7 @@ L5:   4.4%  ||
 
 Extrapolation: recovery drops below 1% by approximately L8, and approaches 0% by L10+. For larger models (70B+ with 80+ layers), the decay is expected to be steeper due to higher-dimensional hidden spaces and more complex attention routing.
 
-## Mitigations
-
-### First-N Local Layers
+## Mitigation: First-N Local Layers
 
 Retaining the first N transformer layers on the End Model node increases the capture depth from L0 to LN. This is the primary defense against SipIt.
 
@@ -121,42 +119,14 @@ Retaining the first N transformer layers on the End Model node increases the cap
 
 **Effectiveness:** At N=5, SipIt recovery drops from ~100% to ~4%. The performance cost depends on the model:
 
-| Model Layers | N=5 (% retained locally) | N=10 | N=15 |
-|-------------|--------------------------|------|------|
-| 28 (0.6B)   | 18%                      | 36%  | 54%  |
-| 32 (1.7B)   | 16%                      | 31%  | 47%  |
-| 80 (70B)    | 6%                       | 13%  | 19%  |
 
 For large models, N=5-10 is a modest overhead. For small models, it consumes a more significant fraction of available compute.
 
-**Configuration:** Planned as `local_layer_count` (default N=5).
+**Configuration:** Set `num_local_layers` in the configuration file or interactive settings (default N=1).
 
 **Quality impact:** No difference in inference compution.
 
-**Resource impact:** Each end node must load N layers into memory, increase minimum RAM requirements.
-
-### Combined Defense
-
-The recommended configuration against SipIt is first-N local layers (N >= 5). This provides:
-
-- Elimination of trivial layer-0 embedding inversion
-- Exponential reduction in deep-layer recovery probability
-- Noise-induced failure of gradient-guided search at the operating capture depth
-- No impact on inference quality
-
-## Limitations and Caveats
-
-### Theoretical Injectivity Still Holds
-
-First-N local layers exploit *practical* limitations (float16 precision, optimization difficulty, computational cost). The underlying mathematical injectivity of the Transformer map is not broken. A sufficiently motivated attacker could:
-
-- Develop improved optimization algorithms for deep-layer recovery
-- Apply large compute budgets to brute-force candidates
-- Average out noise across multiple observations of similar prompts
-
-These are resource-intensive approaches that raise the cost of attack substantially, but they are not provably impossible.
-
----
+**Resource impact:** Each end node must load N layers into memory. This increases the minimum RAM requirements.
 
 ## References
 
