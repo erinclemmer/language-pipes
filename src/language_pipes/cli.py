@@ -14,7 +14,7 @@ from language_pipes.commands.upgrade import upgrade_lp  # noqa: E402
 
 from language_pipes.lp import LanguagePipes  # noqa: E402
 
-VERSION = "0.19.7"
+VERSION = "1.0.0"
 
 def build_parser():
     parser = argparse.ArgumentParser(
