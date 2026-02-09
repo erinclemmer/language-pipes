@@ -1,7 +1,6 @@
 import os
 import torch
 from uuid import uuid4
-from torch import tensor
 from pathlib import Path
 from logging import Logger
 from typing import List
@@ -11,7 +10,7 @@ from transformers.models.auto.tokenization_auto import AutoTokenizer
 from language_pipes.llm_layer_collector import LlmLayerCollector
 from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
-from language_pipes.llm_layer_collector.compute import compute_embedding, compute_head
+from language_pipes.llm_layer_collector.auto.static_auto_model import StaticAutoModel
 
 from language_pipes.jobs.job import ComputeStep, Job
 from language_pipes.jobs.job_data import computationStateToJobData
@@ -82,18 +81,12 @@ class EndModel:
         if self.input_embedding is None:
             raise RuntimeError("Input Embedding must be loaded before computation")
         
-        chunk_start, chunk_end = (0, len(job.input_ids))
-        if job.chunking.has_more():
-            chunk_start, chunk_end = job.chunking.get_range()
-        else:
-            chunk_start = chunk_end - 1
-
-        chunk_tokens = job.input_ids[chunk_start:chunk_end]
-
-        comp_state = compute_embedding(
-            input_embedder=self.input_embedding, 
-            input_ids=tensor([chunk_tokens]), 
-            config=self.collector.config, 
+        comp_state = StaticAutoModel.compute_embedding(
+            prompt_tokens=job.prompt_tokens,
+            chunk_size=prefill_chunk_size,
+            input_embedder=self.input_embedding,
+            input_ids=torch.tensor([job.input_ids]),
+            config=self.collector.config,
             cache=job.cache
         )
         
@@ -112,16 +105,14 @@ class EndModel:
         if job.data is None or job.data.state is None:
             raise RuntimeError("Cannot compute head without job data")
         
-        head = compute_head(
+        head = StaticAutoModel.compute_head(
             head=self.head, 
-            input_ids=job.input_ids, 
-            device=self.device, 
             state=job.data.state, 
+            device=self.device,
             top_k=job.top_k,
             top_p=job.top_p,
             min_p=job.min_p,
-            temperature=job.temperature,
-            presence_penalty=job.presence_penalty
+            temperature=job.temperature
         )
 
         job.set_output(head, self.collector.config.eos_token_id)
