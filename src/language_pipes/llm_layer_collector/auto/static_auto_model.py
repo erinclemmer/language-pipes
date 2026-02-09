@@ -1,11 +1,13 @@
 import torch
+
 from transformers.cache_utils import DynamicCache
-from transformers.masking_utils import create_causal_mask
+from transformers.masking_utils import create_causal_mask # type: ignore
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 from language_pipes.llm_layer_collector.modeling.Qwen3Model import Qwen3Model
+from language_pipes.llm_layer_collector.modeling.LlamaModel import LlamaModel
 from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 
 class StaticAutoModel:
@@ -50,7 +52,7 @@ class StaticAutoModel:
         
         state.position_ids = state.cache_position.unsqueeze(0)
 
-        mask_kwargs = {
+        mask_kwargs = { # pyright: ignore[reportUnknownVariableType]
             "config": config,
             "input_embeds": state.state.detach(),
             "attention_mask": attention_mask,
@@ -59,15 +61,18 @@ class StaticAutoModel:
             "position_ids": state.position_ids
         }
         
-        state.causal_mask["full_attention"] = create_causal_mask(**mask_kwargs)
-        state.causal_mask["sliding_attention"] = None
+        state.causal_mask["full_attention"] = create_causal_mask(**mask_kwargs) # type: ignore
+        state.causal_mask["sliding_attention"] = None # type: ignore
 
-        match config.model_type:
+        match config.model_type: # pyright: ignore[reportMatchNotExhaustive]
             case "qwen3":
                 Qwen3Model.compute_embedding(state, config)
                 
             case "qwen3_moe":
                 Qwen3Model.compute_embedding(state, config)
+
+            case "llama":
+                LlamaModel.compute_embedding(state, config)
 
         return state
 
@@ -77,11 +82,17 @@ class StaticAutoModel:
         state: LLmComputationState,
         cache: DynamicCache
     ) -> torch.Tensor:
-        match layer.config.model_type:
+        match layer.config.model_type: # pyright: ignore[reportMatchNotExhaustive]
             case "qwen3":
                 return Qwen3Model.compute_layer(layer, state, cache)
+            
             case "qwen3_moe":
                 return Qwen3Model.compute_layer(layer, state, cache)
+            
+            case "llama":
+                return LlamaModel.compute_layer(layer, state, cache)
+            
+        return torch.tensor([])
 
     @staticmethod
     def compute_head(
@@ -92,7 +103,7 @@ class StaticAutoModel:
         top_p: float = 1,
         min_p: float = 0,
         temperature: float = 1
-    ) -> torch.Tensor:
+    ) -> int:
         with torch.inference_mode():
             state_on_device = state.detach().clone()[:, -1, :].to(device)
             logits = torch.nn.functional.linear(
@@ -102,9 +113,11 @@ class StaticAutoModel:
             ).flatten()
             del state_on_device
 
+            res: int = 0
+
             if temperature == 0:
                 # Greedy decoding - just pick the top token
-                head = int(logits.argmax().item())
+                res = int(logits.argmax().item())
             else:
                 # Apply temperature scaling to logits before softmax
                 # Lower temperature = sharper distribution (more deterministic)
@@ -144,7 +157,7 @@ class StaticAutoModel:
                     scaled_logits = torch.where(scaled_logits < threshold, torch.tensor(float('-inf'), device=scaled_logits.device), scaled_logits)
 
                 probabilities = torch.nn.functional.softmax(scaled_logits, dim=0)
-                head = int(torch.multinomial(probabilities, num_samples=1).item())
+                res = int(torch.multinomial(probabilities, num_samples=1).item())
             
             del logits
-            return head
+            return res

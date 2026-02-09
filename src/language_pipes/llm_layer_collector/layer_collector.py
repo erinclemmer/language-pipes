@@ -14,6 +14,9 @@ from language_pipes.llm_layer_collector.helpers import load_shard_tensor
 from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
+def get_config(model_dir: str) -> PretrainedConfig:
+    return AutoConfig.from_pretrained(model_dir) # type: ignore
+
 class LlmLayerCollector:
     layer_prefix: str
     norm_layer_name: str
@@ -29,7 +32,7 @@ class LlmLayerCollector:
     num_layers: int
     num_shards: int
     dtype: torch.dtype
-    device: str
+    device: torch.device
     layer_files: Dict[str, str]
 
     def __init__(
@@ -42,16 +45,16 @@ class LlmLayerCollector:
             norm_layer_name: str = 'model.norm.weight',
             lm_head_name: str = 'lm_head.weight',
             dtype: torch.dtype = torch.float16,
-            device: str = 'cpu'
+            device: torch.device = torch.device('cpu')
         ):
         config_file_path = os.path.join(model_dir, 'config.json')
         if not os.path.exists(config_file_path):
             raise FileNotFoundError('Could not find config file ' + config_file_path)
         
-        config = AutoConfig.from_pretrained(model_dir)
+        config = get_config(model_dir)
         self.config = config
         if "_attn_implementation" not in self.config:
-            self.config._attn_implementation = "sdpa"
+            self.config._attn_implementation = "sdpa" # pyright: ignore[reportPrivateUsage]
         self.num_layers = self.config.num_hidden_layers
         
         self.model_dir = model_dir
@@ -83,28 +86,27 @@ class LlmLayerCollector:
     # Use model.safetensors.index.json by default if it exists
     def _build_cache(self):
         self.layer_files = build_cache_data(self.model_dir, self.shard_pattern, self.device)
-        if self.cache_file is not None:
-            with open(self.cache_file, 'w', encoding='utf-8') as f:
-                json.dump(self.layer_files, f, indent=4)
+        with open(self.cache_file, 'w', encoding='utf-8') as f:
+            json.dump(self.layer_files, f, indent=4)
 
-    def _load_shard_tensor(self, layer_name: str, device: str) -> torch.Tensor:
+    def _load_shard_tensor(self, layer_name: str, device: torch.device) -> torch.Tensor:
         return load_shard_tensor(self.layer_files, self.model_dir, layer_name, device, self.dtype)
 
-    def load_input_embedding(self, device: Optional[str] = None) -> torch.nn.Embedding:
+    def load_input_embedding(self, device: Optional[torch.device] = None) -> torch.nn.Embedding:
         device = self.device if device is None else device
-        return torch.nn.Embedding.from_pretrained(self._load_shard_tensor(self.input_embedding_layer_name, device))
+        return torch.nn.Embedding.from_pretrained(self._load_shard_tensor(self.input_embedding_layer_name, device)) # pyright: ignore[reportUnknownMemberType]
     
-    def load_norm(self, device: Optional[str] = None) -> AutoRMSNorm:
+    def load_norm(self, device: Optional[torch.device] = None) -> AutoRMSNorm:
         device = self.device if device is None else device
         norm = AutoRMSNorm(self.config)
         norm.cls.weight = torch.nn.Parameter(self._load_shard_tensor(self.norm_layer_name, device))
         return norm
     
-    def load_head(self, device: Optional[str] = None) -> torch.nn.Linear:
+    def load_head(self, device: Optional[torch.device] = None) -> torch.nn.Linear:
         device = self.device if device is None else device
         weight = None
         
-        if self.lm_head_name is None or self.lm_head_name not in self.layer_files:
+        if self.lm_head_name not in self.layer_files:
             weight = self.load_input_embedding(device).weight
         else:
             weight = self._load_shard_tensor(self.lm_head_name, device)
@@ -113,9 +115,9 @@ class LlmLayerCollector:
         head.weight = torch.nn.Parameter(weight)
         return head
 
-    def load_layer_set(self, start_layer: int, end_layer: int, device: Optional[str] = None) -> List[AutoDecoderLayer]:
+    def load_layer_set(self, start_layer: int, end_layer: int, device: Optional[torch.device] = None) -> List[AutoDecoderLayer]:
         device = self.device if device is None else device
-        layers = []
+        layers: List[AutoDecoderLayer] = []
         for i in tqdm.tqdm(range(start_layer, end_layer+1, 3)):
             layers.extend(load_layers(min(i, end_layer), min(i+2, end_layer), self.layer_prefix, self.layer_files, self.config, self.model_dir, device, self.dtype))
         gc.collect()

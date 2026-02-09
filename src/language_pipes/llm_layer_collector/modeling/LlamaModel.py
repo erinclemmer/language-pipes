@@ -6,7 +6,7 @@ from language_pipes.llm_layer_collector.auto.auto_rotary import AutoRotaryEmbedd
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 
-class Qwen3Model:
+class LlamaModel:
     @staticmethod
     def compute_embedding(
         state: LLmComputationState,

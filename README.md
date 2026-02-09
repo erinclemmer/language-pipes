@@ -156,7 +156,6 @@ Language Pipes currently targets the Qwen3 and Qwen3-MoE architectures.
 ### Documentation
 * [CLI Reference](./documentation/cli.md)
 * [Privacy Architecture](./documentation/privacy.md)
-* [SipIt Case Study](./documentation/threat-model/sipit.md)
 * [Configuration Manual](./documentation/configuration.md)
 * [Architecture Overview](./documentation/architecture.md)
 * [OpenAI-Compatible API](./documentation/oai.md)
