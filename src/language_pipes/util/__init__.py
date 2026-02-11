@@ -109,6 +109,11 @@ def stop_thread(thread: Thread):
 def clone_model(model_id: str, model_dir: str, token: Optional[str] = None):
     clone_dir = f"{model_dir}/data"
 
+    if token is None:
+        res = input("Input your hugginface token: (press enter for no token)")
+        if res is not None and len(res) > 0:
+            token = res
+
     try:
         snapshot_download(
             repo_id=model_id,
