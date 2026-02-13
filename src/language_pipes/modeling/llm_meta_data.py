@@ -3,12 +3,12 @@ import json
 import torch
 from typing import List, Tuple, Optional
 
-from transformers.models.auto import AutoConfig
 from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from language_pipes.llm_layer_collector import LlmLayerCollector
 
 from language_pipes.util import size_of_tensor, tensor_hash
 from language_pipes.util.enums import ModelPartType
+from language_pipes.llm_layer_collector.helpers import get_config
 
 def get_avg_layer_size(model_path: str) -> Tuple[int, List[str]]:
     if not os.path.exists(model_path):
@@ -17,7 +17,7 @@ def get_avg_layer_size(model_path: str) -> Tuple[int, List[str]]:
     collector = LlmLayerCollector(
         model_dir=model_path,
         cache_file=os.path.join(model_path, '..', 'cache.json'),
-        device='cpu',
+        device=torch.device('cpu'),
         dtype=torch.float16
     )
 
@@ -30,7 +30,7 @@ def get_avg_layer_size(model_path: str) -> Tuple[int, List[str]]:
     return total_size, tensor_hash(lyrs[0].cls.self_attn.q_proj.weight)
 
 def data_of_type(typ: ModelPartType, model_path: str) -> Tuple[float, str]:
-    config = AutoConfig.from_pretrained(model_path)
+    config = get_config(model_path)
     
     size = 0
     hash = ''

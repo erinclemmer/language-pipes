@@ -6,16 +6,13 @@ from typing import List, Dict, Optional
 
 import torch
 from transformers.configuration_utils import PretrainedConfig
-from transformers.models.auto import AutoConfig
 
+from language_pipes.llm_layer_collector.helpers import get_config
 from language_pipes.llm_layer_collector.load_layer import load_layers
 from language_pipes.llm_layer_collector.cache import build_cache_data
 from language_pipes.llm_layer_collector.helpers import load_shard_tensor
 from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
-
-def get_config(model_dir: str) -> PretrainedConfig:
-    return AutoConfig.from_pretrained(model_dir) # type: ignore
 
 class LlmLayerCollector:
     layer_prefix: str

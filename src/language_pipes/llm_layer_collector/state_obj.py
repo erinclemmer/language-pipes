@@ -1,5 +1,5 @@
 import torch
-from typing import Optional, Dict, Tuple
+from typing import Dict, Tuple
 
 class LLmComputationState:
     state: torch.Tensor

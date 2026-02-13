@@ -3,6 +3,8 @@ from typing import Dict, List
 
 import torch
 from safetensors import safe_open
+from transformers import AutoConfig, AutoModelForCausalLM
+from transformers.configuration_utils import PretrainedConfig
 
 def get_shard_keys(st: safe_open) -> List[str]:
     return st.keys() # type: ignore
@@ -22,3 +24,9 @@ def load_shard_tensor(
     file = layer_file_cache[layer_name]
     shard = safe_open(os.path.join(model_dir, file), framework='pt', device=str(device))
     return get_shard_tensor(shard, layer_name).to(dtype)
+
+def get_config(model_dir: str) -> PretrainedConfig:
+    config = AutoConfig.from_pretrained(model_dir)
+    with torch.device('meta'):
+        meta_model = AutoModelForCausalLM.from_config(config)
+    return meta_model.config
