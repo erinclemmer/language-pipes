@@ -1,6 +1,6 @@
 from time import time
 from uuid import uuid4
-from typing import List, Optional
+from typing import Iterable, List, Optional
 
 import torch
 from promise import Promise
@@ -136,12 +136,21 @@ class Job:
         self.data.state = state
         self.next_step()
 
-    def set_output(self, token: int, eos_token: int):
+    def set_output(self, token: int, eos_token: int | Iterable[int] | None):
         if self.compute_step != ComputeStep.HEAD:
             raise Exception('Invalid step for head')
         self.input_ids.append(token)
         self.next_step()
-        if token == eos_token:
+
+        if eos_token is None:
+            return
+
+        if isinstance(eos_token, int):
+            stop_tokens = {eos_token}
+        else:
+            stop_tokens = set(eos_token)
+
+        if token in stop_tokens:
             self.status = JobStatus.COMPLETED
 
     def input_id_tensor(self):
