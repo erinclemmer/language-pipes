@@ -52,7 +52,7 @@ class Pipe:
 
     def get_layer(self, layer: int, need_physical: bool = False) -> Optional[LlmModel]:
         for segment in self.segments:
-            if segment.start_layer == layer and (not need_physical or not segment.virtual):
+            if layer >= segment.start_layer and layer <= segment.end_layer and (not need_physical or not segment.virtual):
                 return segment
         return None
     
@@ -76,7 +76,7 @@ class Pipe:
         for s in self.segments:
             if not s.loaded:
                 break
-            if s.start_layer == current_layer:
+            if current_layer >= s.start_layer and current_layer <= s.end_layer:
                 current_layer = s.end_layer + 1
 
         return current_layer == self.num_hidden_layers()

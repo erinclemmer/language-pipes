@@ -54,8 +54,10 @@ class EndModel:
         self.layers = self.collector.load_layer_set(0, num_local_layers - 1, self.device)
 
     def compute_layers(self, job: Job):
+        if job.data is None:
+            raise Exception("Job did not have data")
         job.set_layer(
-            state=compute_layers(job.data, self.device, self.layers, job.cache),
+            state=compute_layers(0, job.data, self.device, self.layers, job.cache),
             layer=len(self.layers),
             num_hidden_layers=self.collector.config.num_hidden_layers
         )

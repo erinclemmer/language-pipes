@@ -30,6 +30,9 @@ class FakeEndModel:
         job.prompt_tokens = len(job.input_ids)
         job.next_step()
 
+    def compute_layers(self, job):
+        job.current_layer = len(self.layers)
+
     def compute_embed(self, job, chunk_start=0, chunk_end=-1):
         if job.compute_step == ComputeStep.TOKENIZE:
             self.calls.append("tokenize")
