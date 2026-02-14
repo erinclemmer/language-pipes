@@ -119,6 +119,7 @@ Device: {self.device}
         
         job.set_layer(
             state=compute_layers(
+                job.current_layer,
                 job.data,
                 self.device, 
                 self.layers, 
