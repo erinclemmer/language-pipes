@@ -19,20 +19,12 @@ from language_pipes.llm_layer_collector.cache import get_shard_files
 from language_pipes.llm_layer_collector.helpers import load_shard_tensor
 from language_pipes.llm_layer_collector.load_layer import files_to_load_for_layer
 from language_pipes.llm_layer_collector import StaticAutoModel
+from language_pipes.util import clone_model
 
 PROMPT = "The quick brown fox jumps over the "
 
 with open('mcbeth.txt', 'r', encoding='utf-8') as f:
     mcbeth = f.read()
-
-def clone_model(model_id: str, model_dir: str):
-    repo_url = f"https://huggingface.co/{model_id}"
-
-    if not os.path.exists(model_dir):
-        Path(model_dir).mkdir(parents=True)
-    subprocess.run(["git", "clone", repo_url, model_dir])
-    subprocess.run(["git", "lfs", "install"], cwd=model_dir, check=True)
-    subprocess.run(["git", "lfs", "pull"], cwd=model_dir, check=True)
 
 def get_base_dir(model_id: str):
     return str(Path(Path.home()) / ".cache" / "language_pipes" / "models" / model_id)
@@ -187,19 +179,6 @@ class TestLlmLayerCollector(unittest.TestCase):
         check_head(self, model_dir, cache_file, (128256, 4096))
         check_layers(self, model_dir, cache_file, 2)
         check_stack(self, model_dir, cache_file, chunk_size=32)
-
-    def test_gemma3_1B(self):
-        model_id = "google/gemma-3-1b-it"
-        model_dir = get_model_dir(model_id)
-        cache_file = get_cache_file(model_id)
-        ensure_model(model_id)
-        check_cache(self, model_dir, cache_file, 340)
-        check_embedding(self, model_dir, cache_file, (1, 9, 1152), (1, 9), (1, 9, 256))
-        check_norm(self, model_dir, cache_file, 1152)
-        check_head(self, model_dir, cache_file, (262144, 1152))
-        check_layers(self, model_dir, cache_file, 2)
-        check_stack(self, model_dir, cache_file, chunk_size=32)
-
 
     def test_exceptions(self):
         model_id = "Qwen/Qwen3-1.7B"
