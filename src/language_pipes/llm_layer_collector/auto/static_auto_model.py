@@ -8,6 +8,7 @@ from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 from language_pipes.llm_layer_collector.modeling.Qwen3Model import Qwen3Model
 from language_pipes.llm_layer_collector.modeling.LlamaModel import LlamaModel
+from language_pipes.llm_layer_collector.modeling.Phi3Model import Phi3Model
 from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 
 class StaticAutoModel:
@@ -67,6 +68,9 @@ class StaticAutoModel:
         match config.model_type: # pyright: ignore[reportMatchNotExhaustive]
             case "qwen3":
                 Qwen3Model.compute_embedding(state, config)
+
+            case "phi3":
+                Phi3Model.compute_embedding(state, config)
                 
             case "qwen3_moe":
                 Qwen3Model.compute_embedding(state, config)
@@ -85,6 +89,9 @@ class StaticAutoModel:
         match layer.config.model_type: # pyright: ignore[reportMatchNotExhaustive]
             case "qwen3":
                 return Qwen3Model.compute_layer(layer, state, cache)
+
+            case "phi3":
+                return Phi3Model.compute_layer(layer, state, cache)
             
             case "qwen3_moe":
                 return Qwen3Model.compute_layer(layer, state, cache)
