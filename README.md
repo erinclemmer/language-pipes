@@ -2,8 +2,9 @@
 
 **Peer-to-peer distributed inference for open-source language models**
 
-[![GitHub license][License-Image]](License-Url)
 [![Release][Release-Image]][Release-Url] 
+[![GitHub license][License-Image]](License-Url)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/language-pipes)
 
 [License-Image]: https://img.shields.io/badge/license-MIT-blue.svg
 [License-Url]: https://github.com/erinclemmer/language-pipes/blob/main/LICENSE
