@@ -102,7 +102,13 @@ class LanguagePipes:
         if self.config.oai_port is None:
             self.logger.error("Tried to start Open AI server but no port was specified")
             return
-        self.oai_server = OAIHttpServer(self.config.oai_port, self.job_factory.start_job, self.router_pipes.get_models)
+
+        def get_models():
+            if self.router_pipes is None:
+                return
+            return self.router_pipes.get_models(self.config.num_local_layers)
+
+        self.oai_server = OAIHttpServer(self.config.oai_port, self.job_factory.start_job, get_models)
         self.oai_thread = Thread(target=self.oai_server.serve_forever, args=())
         self.oai_thread.start()
         self.job_factory.logger.info(f"OpenAI Server started on port {self.config.oai_port}")
