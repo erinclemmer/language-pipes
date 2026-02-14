@@ -205,6 +205,18 @@ class TestLlmLayerCollector(unittest.TestCase):
         check_layers(self, model_dir, cache_file, 2)
         check_stack(self, model_dir, cache_file, chunk_size=32)
 
+    def test_glm41V_9B(self):
+        model_id = "zai-org/GLM-4.1V-9B-Thinking"
+        model_dir = get_model_dir(model_id)
+        cache_file = get_cache_file(model_id)
+        ensure_model(model_id)
+        check_cache(self, model_dir, cache_file, 704)
+        check_embedding(self, model_dir, cache_file, (1, 8, 4096), (3, 1, 8), (1, 8, 256)) # pyright: ignore[reportArgumentType]
+        check_norm(self, model_dir, cache_file, 4096)
+        check_head(self, model_dir, cache_file, (151552, 4096))
+        check_layers(self, model_dir, cache_file, 2)
+        check_stack(self, model_dir, cache_file, chunk_size=32)
+
     def test_exceptions(self):
         model_id = "Qwen/Qwen3-1.7B"
         model_dir = get_model_dir(model_id)
