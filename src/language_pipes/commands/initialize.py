@@ -166,6 +166,40 @@ def interactive_init(output_path: str):
             print(f"Generated new key: {key}")
             print("Note: Save this key somewhere and supply it to other nodes on the network")
 
+    print("\nOptionally restrict peer communication to specific IP addresses.")
+    print("When enabled, this node will only accept/connect to IPs in this list.")
+    whitelist_ips = []
+    if prompt_bool("Configure peer IP whitelist?", default=False):
+        try:
+            while True:
+                ip = prompt("Whitelisted IP", required=True)
+                if ip is None:
+                    break
+                whitelist_ips.append(ip)
+                if not prompt_bool("Add another whitelisted IP?", required=True):
+                    break
+        except KeyboardInterrupt:
+            pass
+    if len(whitelist_ips) > 0:
+        config["whitelist_ips"] = whitelist_ips
+
+    print("\nOptionally restrict peer communication to specific node IDs.")
+    print("When enabled, this node will only accept/connect to node IDs in this list.")
+    whitelist_node_ids = []
+    if prompt_bool("Configure peer node ID whitelist?", default=False):
+        try:
+            while True:
+                node_id = prompt("Whitelisted node ID", required=True)
+                if node_id is None:
+                    break
+                whitelist_node_ids.append(node_id)
+                if not prompt_bool("Add another whitelisted node ID?", required=True):
+                    break
+        except KeyboardInterrupt:
+            pass
+    if len(whitelist_node_ids) > 0:
+        config["whitelist_node_ids"] = whitelist_node_ids
+
     # === Advanced Options ===
     print("\n--- Advanced Options ---\n")
 

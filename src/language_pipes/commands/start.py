@@ -29,7 +29,9 @@ def start_server(app_dir: str, config_path: str):
             "port": data.get("peer_port", 5000),
             "network_ip": data.get("network_ip", None),
             "credential_dir": str(Path(app_dir) / "credentials"),
-            "aes_key_file": data.get("network_key", None),
+            "aes_key": data.get("network_key", None),
+            "whitelist_ips": data.get("whitelist_ips", []),
+            "whitelist_node_ids": data.get("whitelist_node_ids", []),
             "bootstrap_nodes": [
                 {
                     "address": data["bootstrap_address"],

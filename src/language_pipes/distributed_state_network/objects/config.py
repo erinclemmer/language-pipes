@@ -10,7 +10,9 @@ class DSNodeConfig:
     port: int
     network_ip: Optional[str]
     aes_key: Optional[str]
+    whitelist_ips: List[str]
     bootstrap_nodes: List[Endpoint]
+    whitelist_node_ids: List[str]
 
     @staticmethod
     def from_dict(data: Dict) -> 'DSNodeConfig':
@@ -20,7 +22,9 @@ class DSNodeConfig:
             data["port"],
             data["network_ip"] if "network_ip" in data else None, 
             data["aes_key"] if "aes_key" in data else None, 
-            [Endpoint.from_json(e) for e in data["bootstrap_nodes"]]
+            data["whitelist_ips"] if "whitelist_ips" in data and data["whitelist_ips"] is not None else [],
+            [Endpoint.from_json(e) for e in data["bootstrap_nodes"]],
+            data["whitelist_node_ids"] if "whitelist_node_ids" in data and data["whitelist_node_ids"] is not None else [],
         )
 
     def to_string(self) -> str:
@@ -52,6 +56,16 @@ class DSNodeConfig:
             lines.append(f"  {'AES Key:':<18} {display_key}")
         else:
             lines.append("  Network Encryption: Disabled")
+
+        if self.whitelist_ips:
+            lines.append(f"  {'Whitelist IPs:':<18} {', '.join(self.whitelist_ips)}")
+        else:
+            lines.append("  Whitelist IPs:      Disabled (all peers allowed)")
+
+        if self.whitelist_node_ids:
+            lines.append(f"  {'Whitelist Node IDs:':<18} {', '.join(self.whitelist_node_ids)}")
+        else:
+            lines.append("  Whitelist Node IDs: Disabled (all peers allowed)")
         
         # Bootstrap nodes
         lines.append("")

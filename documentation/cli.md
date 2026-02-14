@@ -88,6 +88,8 @@ See [Configuration](./configuration.md) for all available options and their desc
 | `--num-local-layers N` | | Number of local layers to run on your machine (higher values improve prompt obfuscation) | 1 |
 | `--logging-level LEVEL` | `-l` | Log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) | INFO |
 | `--bootstrap-address HOST` | | Connect to existing network | None |
+| `--whitelist-ips IP...` | | Only communicate with peers whose IP is in this whitelist | Empty (allow all) |
+| `--whitelist-node-ids NODE_ID...` | | Only communicate with peers whose node ID is in this whitelist | Empty (allow all) |
 | `--app-dir PATH` | | Application config directory | `~/.config/language_pipes` |
 | `--model-dir PATH` | | Model cache directory | `~/.cache/language_pipes/models` |
 | `--print-times` | | Print timing info for layer computations and network transfers | False|

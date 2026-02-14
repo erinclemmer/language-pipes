@@ -85,7 +85,37 @@ class DSNode:
             )
         return key
 
+    def _is_ip_whitelisted(self, ip: Optional[str]) -> bool:
+        if len(self.config.whitelist_ips) == 0:
+            return True
+        if ip is None:
+            return False
+        return ip in self.config.whitelist_ips
+
+    def ensure_ip_allowed(self, ip: Optional[str]):
+        if not self._is_ip_whitelisted(ip):
+            raise Exception(401, f"IP address '{ip}' is not in whitelist")
+
+    def _is_node_id_whitelisted(self, node_id: Optional[str]) -> bool:
+        if len(self.config.whitelist_node_ids) == 0:
+            return True
+        if node_id is None:
+            return False
+        if node_id == self.config.node_id:
+            return True
+        return node_id in self.config.whitelist_node_ids
+
+    def ensure_node_id_allowed(self, node_id: Optional[str]):
+        if not self._is_node_id_whitelisted(node_id):
+            raise Exception(401, f"Node ID '{node_id}' is not in whitelist")
+
+    def ensure_endpoint_allowed(self, endpoint: Endpoint):
+        self.ensure_ip_allowed(endpoint.address)
+
     def write_address_book(self, node_id: str, conn: Endpoint):
+        if node_id != self.config.node_id:
+            self.ensure_node_id_allowed(node_id)
+            self.ensure_endpoint_allowed(conn)
         self.logger.info(f"Address set: {node_id} -> {conn.address}:{conn.port}")
         self.address_book[node_id] = conn
 
@@ -131,6 +161,7 @@ class DSNode:
 
     def send_http_request(self, endpoint: Endpoint, msg_type: int, payload: bytes, retries: int = 0) -> bytes:
         """Send HTTP request and wait for response"""
+        self.ensure_endpoint_allowed(endpoint)
         try:
             # Prepend message type to payload
             data = bytes([msg_type]) + payload
@@ -192,6 +223,7 @@ class DSNode:
                 raise Exception(f"HTTP request to {endpoint.to_string()} failed: {e}")
 
     def send_request_to_node(self, node_id: str, msg_type: int, payload: bytes) -> bytes:
+        self.ensure_node_id_allowed(node_id)
         con = self.connection_from_node(node_id)
         return self.send_http_request(con, msg_type, payload)
 
@@ -229,6 +261,7 @@ class DSNode:
 
     def handle_peers(self, data: bytes):
         pkt = PeersPacket.from_bytes(data)
+        self.ensure_node_id_allowed(pkt.node_id)
         if pkt.node_id not in self.address_book:
             raise Exception(401, f"Could not find {pkt.node_id} in address book")  # Not Authorized
         
@@ -282,7 +315,9 @@ class DSNode:
         self.node_states[node_id] = StatePacket(node_id, 0, b'', { })
 
     def handle_hello(self, data: bytes, detected_address: str) -> bytes:
+        self.ensure_ip_allowed(detected_address)
         pkt = HelloPacket.from_bytes(data)
+        self.ensure_node_id_allowed(pkt.node_id)
         self.logger.info(f"Received HELLO from {pkt.node_id}")
         if pkt.version != self.version:
             msg = f"HELLO => {pkt.node_id} (Version mismatch \"{pkt.version}\" != \"{self.version}\")"
@@ -327,6 +362,7 @@ class DSNode:
 
     def handle_update(self, data: bytes):
         pkt = StatePacket.from_bytes(data)
+        self.ensure_node_id_allowed(pkt.node_id)
         
         if not self.update_state(pkt):
             return b''
@@ -409,6 +445,7 @@ class DSNode:
     
     def receive_data(self, data: bytes):
         pkt = DataPacket.from_bytes(data)
+        self.ensure_node_id_allowed(pkt.node_id)
         self.logger.info(f"Received DATA from {pkt.node_id} ({len(pkt.data)} bytes)")
         
         # Ensure sender is known

@@ -18,8 +18,10 @@ def spawn_node(
     node_id: str,
     network_ip: Optional[str],
     bootstrap_nodes: List[Dict] = [],
+    whitelist_ips: Optional[List[str]] = None,
     disconnect_cb: Optional[Callable] = None,
-    update_cb: Optional[Callable] = None
+    update_cb: Optional[Callable] = None,
+    whitelist_node_ids: Optional[List[str]] = None,
 ):
     global current_port
     current_port += 1
@@ -28,6 +30,8 @@ def spawn_node(
         "port": current_port,
         "network_ip": network_ip,
         "aes_key": aes_key,
+        "whitelist_ips": whitelist_ips if whitelist_ips is not None else [],
+        "whitelist_node_ids": whitelist_node_ids if whitelist_node_ids is not None else [],
         "bootstrap_nodes": bootstrap_nodes
     }), disconnect_cb, update_cb)
     global nodes
