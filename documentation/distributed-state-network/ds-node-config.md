@@ -11,11 +11,13 @@ from language_pipes.distributed_state_network import DSNodeConfig
 @dataclass(frozen=True)
 class DSNodeConfig:
     node_id: str
-    port: int
     credential_dir: str
-    aes_key: Optional[str]
+    port: int
     network_ip: Optional[str]
+    aes_key: Optional[str]
+    whitelist_ips: List[str]
     bootstrap_nodes: List[Endpoint]
+    whitelist_node_ids: List[str]
 ```
 
 ### Attributes
@@ -24,6 +26,8 @@ class DSNodeConfig:
 - **credential_dir**: (`str`) directory to store ECDSA credentials (default: "[current_directory]/credentials")
 - **network_ip** (`str`): Network ip address (only required if other nodes will connect to you)
 - **aes_key** (`str`): Hexadecimal encoded AES-128 key for network encryption (16 bytes / 32 hex characters)
+- **whitelist_ips** (`List[str]`): Optional list of allowed peer IP addresses. If empty, all IPs are allowed.
+- **whitelist_node_ids** (`List[str]`): Optional list of allowed peer node IDs. If empty, all node IDs are allowed.
 - **bootstrap_nodes** (`List[Endpoint]`): List of initial nodes to connect to when joining the network
 
 **Note:** If `network_ip` is not supplied, the node's public IP address is automatically detected by the bootstrap server during the initial handshake.

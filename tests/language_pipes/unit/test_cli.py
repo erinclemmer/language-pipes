@@ -175,6 +175,16 @@ class ServeConfigTests(unittest.TestCase):
         ])
         self.assertEqual(len(args.layer_models), 2)
 
+    def test_whitelist_node_ids_flag(self):
+        """serve should accept --whitelist-node-ids values"""
+        parser = build_parser()
+        args = parser.parse_args([
+            "serve",
+            "--node-id", "node-1",
+            "--whitelist-node-ids", "node-a", "node-b"
+        ])
+        self.assertEqual(args.whitelist_node_ids, ["node-a", "node-b"])
+
     def test_end_model_flag(self):
         """should be able to use the --end-model flag"""
         parser = build_parser()

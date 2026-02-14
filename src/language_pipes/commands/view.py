@@ -18,6 +18,8 @@ def view_config(config_path: str):
         "bootstrap_address": "IP of existing node to join the network",
         "bootstrap_port": "Port of the bootstrap node",
         "network_key": "AES encryption key for secure communication",
+        "whitelist_ips": "Only communicate with peers whose IP is in this list",
+        "whitelist_node_ids": "Only communicate with peers whose node ID is in this list",
         "logging_level": "Verbosity level (DEBUG/INFO/WARNING/ERROR)",
         "max_pipes": "Max concurrent distributed model instances",
         "model_validation": "Verify model weight hashes match across nodes",
@@ -45,6 +47,18 @@ def view_config(config_path: str):
         _print_property("Network Key", display_key, descriptions["network_key"])
     else:
         print("  Network Encryption: Disabled")
+
+    whitelist_ips = config.get("whitelist_ips", [])
+    if whitelist_ips:
+        _print_property("Whitelist IPs", ", ".join(whitelist_ips), descriptions["whitelist_ips"])
+    else:
+        print("  Whitelist IPs:      Disabled (all peers allowed)")
+
+    whitelist_node_ids = config.get("whitelist_node_ids", [])
+    if whitelist_node_ids:
+        _print_property("Whitelist Node IDs", ", ".join(whitelist_node_ids), descriptions["whitelist_node_ids"])
+    else:
+        print("  Whitelist Node IDs: Disabled (all peers allowed)")
     
     print("\n--- API Settings ---")
     oai_port = config.get("oai_port")

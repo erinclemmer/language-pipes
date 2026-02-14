@@ -17,7 +17,7 @@ class TestSecurity(DSNTestBase):
     def test_bad_aes_key(self):
         """Invalid AES key should raise an error"""
         try:
-            DSNodeServer.start(DSNodeConfig("bad key test", "", 8080, None, "bad.key", []))
+            DSNodeServer.start(DSNodeConfig("bad key test", "", 8080, None, "bad.key", [], [], []))
             self.fail("Should throw error before this")
         except Exception as e:
             print(e)
@@ -26,7 +26,71 @@ class TestSecurity(DSNTestBase):
         """Legacy 32-byte [IV|KEY] material should be rejected."""
         legacy_hex = (os.urandom(32)).hex()
         with self.assertRaises(ValueError):
-            DSNodeServer.start(DSNodeConfig("legacy key test", "credentials", 8080, None, legacy_hex, []))
+            DSNodeServer.start(DSNodeConfig("legacy key test", "credentials", 8080, None, legacy_hex, [], [], []))
+
+    def test_whitelist_node_ids_allows_configured_node_id(self):
+        """Nodes should communicate when peer node_id is whitelisted."""
+        bootstrap = spawn_node("bootstrap", "127.0.0.1", whitelist_node_ids=["connector"])
+        connector = spawn_node(
+            "connector",
+            None,
+            [bootstrap.node.my_con().to_json()],
+            whitelist_node_ids=["bootstrap"]
+        )
+
+        self.assertIn("connector", bootstrap.node.peers())
+        self.assertIn("bootstrap", connector.node.peers())
+
+    def test_whitelist_node_ids_rejects_non_whitelisted_node_id(self):
+        """Nodes should not communicate when peer node_id is not whitelisted."""
+        bootstrap = spawn_node("bootstrap", "127.0.0.1", whitelist_node_ids=["some-other-node"])
+        connector = spawn_node(
+            "connector",
+            None,
+            [bootstrap.node.my_con().to_json()]
+        )
+
+        self.assertEqual(sorted(connector.node.peers()), ["connector"])
+
+    def test_whitelist_allows_configured_ip(self):
+        """Nodes should communicate when peer IP is whitelisted."""
+        bootstrap = spawn_node("bootstrap", "127.0.0.1", whitelist_ips=["127.0.0.1"])
+        connector = spawn_node(
+            "connector",
+            None,
+            [bootstrap.node.my_con().to_json()],
+            whitelist_ips=["127.0.0.1"]
+        )
+
+        self.assertIn("connector", bootstrap.node.peers())
+        self.assertIn("bootstrap", connector.node.peers())
+
+    def test_whitelist_rejects_non_whitelisted_inbound_ip(self):
+        """Inbound requests from non-whitelisted IPs should be rejected."""
+        n = spawn_node("node", "127.0.0.1", whitelist_ips=["192.168.1.10"])
+        time.sleep(0.5)
+
+        encrypted_data = n.node.encrypt_data(bytes([4]) + b'TEST')  # MSG_PING = 4
+        response = requests.post(
+            f'http://127.0.0.1:{n.config.port}/ping',
+            data=encrypted_data,
+            headers={'Content-Type': 'application/octet-stream'},
+            timeout=2
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_whitelist_rejects_non_whitelisted_outbound_ip(self):
+        """Outbound requests to non-whitelisted IPs should fail."""
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        connector = spawn_node(
+            "connector",
+            None,
+            [bootstrap.node.my_con().to_json()],
+            whitelist_ips=["10.10.10.10"]
+        )
+
+        self.assertEqual(sorted(connector.node.peers()), ["connector"])
 
     def test_authorization_reject_unencrypted(self):
         """Unencrypted HTTP requests should be rejected"""
