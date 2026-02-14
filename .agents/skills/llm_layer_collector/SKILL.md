@@ -231,6 +231,121 @@ def test_new_model(self):
 
 The `check_stack` test is the most important — it runs a full end-to-end inference (chunked prefill + decode) and verifies the model produces coherent output.
 
+---
+
+## Debugging Playbook (When Test Passes but Output Is Garbled)
+
+Sometimes shape/assertion tests pass but generated text is nonsense. This usually means model wiring is *nearly* correct, but one architecture-specific behavior is missing.
+
+### 1) Compare against HuggingFace reference model
+
+If generation is garbled, compare your forward path against `AutoModelForCausalLM` for the same prompt.
+
+Useful command:
+
+```bash
+PYTHONPATH=/home/erin/prog/language-pipes/src python - <<'PY'
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers.cache_utils import DynamicCache
+from language_pipes.llm_layer_collector.layer_collector import LlmLayerCollector
+from language_pipes.llm_layer_collector import StaticAutoModel
+
+model_dir='/home/erin/.cache/language_pipes/models/google/gemma-3-1b-it/data'
+cache_file='/home/erin/.cache/language_pipes/models/google/gemma-3-1b-it/cache.json'
+
+tok=AutoTokenizer.from_pretrained(model_dir)
+hf=AutoModelForCausalLM.from_pretrained(model_dir, dtype=torch.float16).eval()
+ids=tok.apply_chat_template([
+    {"role":"system","content":"You are a helpful assistant"},
+    {"role":"user","content":"How do molecules work?"}
+], tokenize=True, add_generation_prompt=True, return_tensors='pt')
+
+with torch.no_grad():
+    out=hf.model(input_ids=ids, use_cache=True)
+    hf_last=out.last_hidden_state[:, -1, :].float()
+
+collector=LlmLayerCollector(model_dir, cache_file)
+emb=collector.load_input_embedding(); norm=collector.load_norm(); layers=collector.load_layer_set(0, collector.config.num_hidden_layers - 1)
+cache=DynamicCache()
+state=StaticAutoModel.compute_embedding(ids.shape[1], 32, emb, ids, collector.config, cache)
+for lyr in layers:
+    state.state=StaticAutoModel.compute_layer(lyr, state, cache)
+ours_last=norm(state.state)[:, -1, :].float()
+
+print('cosine_similarity_last_hidden =', torch.nn.functional.cosine_similarity(hf_last, ours_last).item())
+PY
+```
+
+If cosine similarity is very low (e.g. ~0.07), divergence is happening before sampling, usually in embedding/mask/positional wiring.
+
+### 2) Inspect HF model internals directly
+
+Use `inspect.getsource(...)` on the exact architecture classes to verify required behavior:
+
+```bash
+python - <<'PY'
+import inspect
+from transformers.models.gemma3 import modeling_gemma3 as m
+print(inspect.getsource(m.Gemma3TextModel.__init__))
+print(inspect.getsource(m.Gemma3DecoderLayer.forward))
+PY
+```
+
+This quickly reveals architecture-specific details (extra kwargs, local/global RoPE, scaled embeddings, etc.).
+
+### 3) Verify layer-state loading is complete
+
+Before blaming sampling, confirm no silent state_dict mismatch:
+
+```bash
+PYTHONPATH=/home/erin/prog/language-pipes/src python - <<'PY'
+import torch, json
+from transformers import AutoConfig
+from language_pipes.llm_layer_collector.load_layer import get_shard_data
+from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+
+model_dir='/home/erin/.cache/language_pipes/models/google/gemma-3-1b-it/data'
+cache_file='/home/erin/.cache/language_pipes/models/google/gemma-3-1b-it/cache.json'
+with open(cache_file) as f: layer_files=json.load(f)
+cfg=AutoConfig.from_pretrained(model_dir)
+shard_data=get_shard_data(0,0,torch.device('cpu'),model_dir,'model.layers.',layer_files,torch.float16)
+
+torch.set_default_device('meta'); lyr=AutoDecoderLayer(cfg,0)
+torch.set_default_device('cpu'); lyr=lyr.to_empty(device=torch.device('cpu'))
+prefix='model.layers.0.'
+state={k[len(prefix):]:v for k,v in shard_data.items() if k.startswith(prefix)}
+res=lyr.cls.load_state_dict(state, strict=False)
+print('missing_keys=', len(res.missing_keys), 'unexpected_keys=', len(res.unexpected_keys))
+PY
+```
+
+### 4) Gemma3-specific gotchas (learned)
+
+- **Input embedding must be scaled** using `Gemma3TextScaledWordEmbedding` (`embed_scale=sqrt(hidden_size)`), not plain `torch.nn.Embedding`.
+- **LM head should be bias-free** (`bias=False`) for this decoder-only setup.
+- Matching mask APIs alone is not enough if embedding behavior differs from HF architecture.
+
+---
+
+## Useful discovery commands
+
+Fast code discovery commands that help during model bring-up:
+
+```bash
+# Find model_type dispatch points
+grep -R "model_type" -n src/language_pipes/llm_layer_collector
+
+# Find compute_head / sampling path
+grep -R "def compute_head" -n src tests
+
+# Find where a specific model class is referenced
+grep -R "Gemma3" -n src/language_pipes/llm_layer_collector
+
+# Run only the target llm_layer_collector test
+python -m unittest tests.llm_layer_collector.test.TestLlmLayerCollector.test_gemma3_1B 2>&1
+```
+
 ### 3. Determine expected test values
 
 Read these from the model's `config.json`:

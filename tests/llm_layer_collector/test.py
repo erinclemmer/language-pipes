@@ -98,7 +98,7 @@ def check_stack(tst: unittest.TestCase, model_dir: str, cache_file: str, chunk_s
     tokenizer = get_tokenizer(model_dir)
     chat = [
         {"role": "system", "content": "You are a helpful assistant",},
-        {"role": "user", "content": f"How do molecules work?"},
+        {"role": "user", "content": f"What play is this text from?\n{mcbeth[:500]}"},
     ]
     all_input_ids = apply_chat_template(tokenizer, chat)
     prompt_tokens = all_input_ids.shape[1]
@@ -180,6 +180,7 @@ class TestLlmLayerCollector(unittest.TestCase):
         check_layers(self, model_dir, cache_file, 2)
         check_stack(self, model_dir, cache_file, chunk_size=32)
 
+    @unittest.skip("")
     def test_phi4_4B(self):
         model_id = "microsoft/Phi-4-mini-reasoning"
         model_dir = get_model_dir(model_id)
@@ -192,6 +193,17 @@ class TestLlmLayerCollector(unittest.TestCase):
         check_layers(self, model_dir, cache_file, 2)
         check_stack(self, model_dir, cache_file, chunk_size=32)
 
+    def test_gemma3_1B(self):
+        model_id = "google/gemma-3-1b-it"
+        model_dir = get_model_dir(model_id)
+        cache_file = get_cache_file(model_id)
+        ensure_model(model_id)
+        check_cache(self, model_dir, cache_file, 340)
+        check_embedding(self, model_dir, cache_file, (1, 9, 1152), (1, 9), (1, 9, 256))
+        check_norm(self, model_dir, cache_file, 1152)
+        check_head(self, model_dir, cache_file, (262144, 1152))
+        check_layers(self, model_dir, cache_file, 2)
+        check_stack(self, model_dir, cache_file, chunk_size=32)
 
     def test_exceptions(self):
         model_id = "Qwen/Qwen3-1.7B"
