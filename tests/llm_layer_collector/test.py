@@ -36,7 +36,7 @@ def get_cache_file(model_id: str):
     return get_base_dir(model_id) + "/cache.json"
 
 def ensure_model(model_id: str):
-    model_dir = get_model_dir(model_id)
+    model_dir = get_base_dir(model_id)
     if os.path.exists(model_dir):
         return
     clone_model(model_id, model_dir)
@@ -179,6 +179,19 @@ class TestLlmLayerCollector(unittest.TestCase):
         check_head(self, model_dir, cache_file, (128256, 4096))
         check_layers(self, model_dir, cache_file, 2)
         check_stack(self, model_dir, cache_file, chunk_size=32)
+
+    def test_phi4_4B(self):
+        model_id = "microsoft/Phi-4-mini-reasoning"
+        model_dir = get_model_dir(model_id)
+        cache_file = get_cache_file(model_id)
+        ensure_model(model_id)
+        check_cache(self, model_dir, cache_file, 194)
+        check_embedding(self, model_dir, cache_file, (1, 8, 3072), (1, 8), (1, 8, 128))
+        check_norm(self, model_dir, cache_file, 3072)
+        check_head(self, model_dir, cache_file, (200064, 3072))
+        check_layers(self, model_dir, cache_file, 2)
+        check_stack(self, model_dir, cache_file, chunk_size=32)
+
 
     def test_exceptions(self):
         model_id = "Qwen/Qwen3-1.7B"
