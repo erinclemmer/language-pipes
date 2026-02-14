@@ -6,6 +6,7 @@ from typing import List, Dict, Optional
 
 import torch
 from transformers.configuration_utils import PretrainedConfig
+from transformers.models.gemma3.modeling_gemma3 import Gemma3TextScaledWordEmbedding
 
 from language_pipes.llm_layer_collector.helpers import get_config
 from language_pipes.llm_layer_collector.load_layer import load_layers
@@ -91,7 +92,20 @@ class LlmLayerCollector:
 
     def load_input_embedding(self, device: Optional[torch.device] = None) -> torch.nn.Embedding:
         device = self.device if device is None else device
-        return torch.nn.Embedding.from_pretrained(self._load_shard_tensor(self.input_embedding_layer_name, device)) # pyright: ignore[reportUnknownMemberType]
+        emb_weight = self._load_shard_tensor(self.input_embedding_layer_name, device)
+
+        if self.config.model_type == "gemma3_text":
+            padding_idx = 0 if self.config.pad_token_id is None else self.config.pad_token_id
+            embed = Gemma3TextScaledWordEmbedding(
+                self.config.vocab_size,
+                self.config.hidden_size,
+                padding_idx,
+                embed_scale=self.config.hidden_size ** 0.5
+            )
+            embed.weight = torch.nn.Parameter(emb_weight)
+            return embed.to(device=device, dtype=self.dtype)
+
+        return torch.nn.Embedding.from_pretrained(emb_weight) # pyright: ignore[reportUnknownMemberType]
     
     def load_norm(self, device: Optional[torch.device] = None) -> AutoRMSNorm:
         device = self.device if device is None else device
@@ -108,7 +122,8 @@ class LlmLayerCollector:
         else:
             weight = self._load_shard_tensor(self.lm_head_name, device)
 
-        head = torch.nn.Linear(weight.size()[1], weight.size()[0], device=device, dtype=self.dtype)
+        # Decoder-only LMs in this project use an lm_head without bias.
+        head = torch.nn.Linear(weight.size()[1], weight.size()[0], bias=False, device=device, dtype=self.dtype)
         head.weight = torch.nn.Parameter(weight)
         return head
 

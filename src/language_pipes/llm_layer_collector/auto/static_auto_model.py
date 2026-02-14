@@ -3,11 +3,11 @@ import torch
 from transformers.cache_utils import DynamicCache
 from transformers.masking_utils import create_causal_mask # type: ignore
 from transformers.configuration_utils import PretrainedConfig
-from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 from language_pipes.llm_layer_collector.modeling.Qwen3Model import Qwen3Model
 from language_pipes.llm_layer_collector.modeling.LlamaModel import LlamaModel
+from language_pipes.llm_layer_collector.modeling.Gemma3Model import Gemma3Model
 from language_pipes.llm_layer_collector.modeling.Phi3Model import Phi3Model
 from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 
@@ -36,16 +36,7 @@ class StaticAutoModel:
         
         state.state = input_embedder(input_seq.to(device))
 
-        converter = AttentionMaskConverter(is_causal=True)
         L = input_seq.size()[1]
-
-        attention_mask = converter.to_causal_4d(
-            batch_size=1,
-            query_length=L,
-            key_value_length=past_seen_tokens + L,
-            dtype=state.state.dtype,
-            device=device
-        )
         
         state.cache_position = torch.arange(
             past_seen_tokens, end=past_seen_tokens + L, device=device
@@ -56,7 +47,8 @@ class StaticAutoModel:
         mask_kwargs = { # pyright: ignore[reportUnknownVariableType]
             "config": config,
             "input_embeds": state.state.detach(),
-            "attention_mask": attention_mask,
+            # Let transformers build the default causal/sliding masks.
+            "attention_mask": None,
             "cache_position": state.cache_position,
             "past_key_values": cache,
             "position_ids": state.position_ids
@@ -78,6 +70,9 @@ class StaticAutoModel:
             case "llama":
                 LlamaModel.compute_embedding(state, config)
 
+            case "gemma3_text":
+                Gemma3Model.compute_embedding(state, config, mask_kwargs)
+
         return state
 
     @staticmethod
@@ -98,6 +93,9 @@ class StaticAutoModel:
             
             case "llama":
                 return LlamaModel.compute_layer(layer, state, cache)
+
+            case "gemma3_text":
+                return Gemma3Model.compute_layer(layer, state, cache)
             
         return torch.tensor([])
 
