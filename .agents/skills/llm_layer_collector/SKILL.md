@@ -326,6 +326,30 @@ PY
 - **LM head should be bias-free** (`bias=False`) for this decoder-only setup.
 - Matching mask APIs alone is not enough if embedding behavior differs from HF architecture.
 
+### 5) GLM-4.1V-specific gotchas (learned)
+
+- Some GLM-4.1V checkpoints (e.g. `zai-org/GLM-4.1V-9B-Thinking`) may ship `config.json` with `"rope_scaling": null`.
+- In current `transformers`, `Glm4vTextAttention.forward()` unconditionally accesses:
+
+  ```python
+  self.rope_scaling["mrope_section"]
+  ```
+
+  so a `None` value crashes at runtime during layer execution with:
+  `TypeError: 'NoneType' object is not subscriptable`.
+- Practical fix in Language Pipes: after loading `Glm4vTextConfig`, inject a default when missing:
+
+  ```python
+  if config.rope_scaling is None:
+      config.rope_scaling = {
+          "rope_type": "default",
+          "mrope_section": [16, 24, 24],
+      }
+  ```
+
+  For GLM-4.1V-9B, this split is compatible with `head_dim=128` because
+  `sum([16,24,24]) * 2 == 128`, matching how `apply_multimodal_rotary_pos_emb()` uses `mrope_section`.
+
 ---
 
 ## Useful discovery commands

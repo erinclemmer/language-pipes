@@ -51,6 +51,12 @@ class LlmLayerCollector:
         
         config = get_config(model_dir)
         self.config = config
+
+        if self.config.model_type == "glm4v":
+            input_embedding_layer_name = "model.language_model.embed_tokens.weight"
+            layer_prefix = 'model.language_model.layers.'
+            norm_layer_name = 'model.language_model.norm.weight'
+
         if "_attn_implementation" not in self.config:
             self.config._attn_implementation = "sdpa" # pyright: ignore[reportPrivateUsage]
         self.num_layers = self.config.num_hidden_layers
