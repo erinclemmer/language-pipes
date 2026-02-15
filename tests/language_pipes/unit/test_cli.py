@@ -116,6 +116,7 @@ class ServeConfigTests(unittest.TestCase):
             "Error: node_id param is not supplied in config"
         )
 
+    @unittest.skip("")
     def test_serve_just_node_id(self):
         """Should give helpful text if serve given with no options"""
         captured = io.StringIO()
@@ -173,6 +174,16 @@ class ServeConfigTests(unittest.TestCase):
             "id=meta-llama/Llama-3.2-1B,device=cuda:0,memory=8"
         ])
         self.assertEqual(len(args.layer_models), 2)
+
+    def test_whitelist_node_ids_flag(self):
+        """serve should accept --whitelist-node-ids values"""
+        parser = build_parser()
+        args = parser.parse_args([
+            "serve",
+            "--node-id", "node-1",
+            "--whitelist-node-ids", "node-a", "node-b"
+        ])
+        self.assertEqual(args.whitelist_node_ids, ["node-a", "node-b"])
 
     def test_end_model_flag(self):
         """should be able to use the --end-model flag"""

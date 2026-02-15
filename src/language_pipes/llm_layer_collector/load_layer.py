@@ -5,12 +5,13 @@ from typing import List, Dict
 from safetensors import safe_open
 from transformers.configuration_utils import PretrainedConfig
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from language_pipes.llm_layer_collector.helpers import get_shard_keys, get_shard_tensor
 
 def files_to_load_for_layer(
         layer_prefix: str,
-        layer_file_cache: dict,
+        layer_file_cache: Dict[str, str],
     ) -> List[str]:
-    files_to_load = []
+    files_to_load: List[str] = []
     for key in layer_file_cache.keys():
         if key.startswith(layer_prefix) and layer_file_cache[key] not in files_to_load:
             files_to_load.append(layer_file_cache[key])
@@ -22,9 +23,9 @@ def files_to_load_for_layers(
         start_layer: int,
         end_layer: int,
         layer_prefix: str,
-        layer_file_cache: dict
+        layer_file_cache: Dict[str, str]
     ) -> List[str]:
-    files_to_load = []
+    files_to_load: List[str] = []
     for i in range(start_layer, end_layer+1):
         for f in files_to_load_for_layer(f'{layer_prefix}{i}.', layer_file_cache):
             if f not in files_to_load:
@@ -34,21 +35,21 @@ def files_to_load_for_layers(
 def get_shard_data(
         start_layer: int,
         end_layer: int,
-        device: str,
+        device: torch.device,
         model_dir: str,
         layer_prefix: str,
         layer_file_cache: Dict[str, str],
-        dtype: str
+        dtype: torch.dtype
     ) -> Dict[str, torch.Tensor]:
     prefixes = [f'{layer_prefix}{i}.' for i in range(start_layer, end_layer+1)]
-    shard_data = { }
+    shard_data: Dict[str, torch.Tensor] = { }
     for file_path in files_to_load_for_layers(start_layer, end_layer, layer_prefix, layer_file_cache):
         full_path = f'{model_dir}/{file_path}'
-        shard: dict = safe_open(full_path, framework='pt', device=device)
-        for key in shard.keys():
+        shard = safe_open(full_path, framework='pt', device=str(device))
+        for key in get_shard_keys(shard):
             for prefix in prefixes:
                 if key.startswith(prefix):
-                    shard_data[key] = shard.get_tensor(key).detach().to(dtype)
+                    shard_data[key] = get_shard_tensor(shard, key).detach().to(dtype)
         del shard
         gc.collect()
     
@@ -57,10 +58,10 @@ def get_shard_data(
 def load_layer(
         config: PretrainedConfig, 
         idx: int, 
-        shard_data: Dict,
+        shard_data: Dict[str, torch.Tensor],
         layer_prefix: str,
-        device: str,
-        dtype: str
+        device: torch.device,
+        dtype: torch.dtype
     ) -> AutoDecoderLayer:
     torch.set_default_device('meta')
     lyr = AutoDecoderLayer(config, idx)
@@ -77,9 +78,9 @@ def load_layer(
     if len(layer_state_dict) == 0:
         raise Exception(f"Could not find data for layer {idx}")
 
-    lyr.cls.load_state_dict(layer_state_dict, strict=False)
+    lyr.cls.load_state_dict(layer_state_dict, strict=False) # pyright: ignore[reportUnknownMemberType]
 
-    return lyr.to(dtype)
+    return lyr.to(device, dtype)
 
 def load_layers(
         start_layer: int, 
@@ -88,12 +89,12 @@ def load_layers(
         layer_file_cache: Dict[str, str],
         config: PretrainedConfig,
         model_dir: str,
-        device: str,
-        dtype: str
+        device: torch.device,
+        dtype: torch.dtype
     ) -> List[AutoDecoderLayer]:
     torch.set_default_device(device)
     shard_data = get_shard_data(start_layer, end_layer, device, model_dir, layer_prefix, layer_file_cache, dtype)
-    layers = []
+    layers: List[AutoDecoderLayer] = []
     for i in range(start_layer, end_layer+1):
         layers.append(load_layer(config, i, shard_data, layer_prefix, device, dtype))
 

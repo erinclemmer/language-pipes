@@ -14,7 +14,7 @@ from typing import Optional
 import numpy as np
 import torch
 from huggingface_hub import snapshot_download
-from huggingface_hub.utils import HfHubHTTPError, RepositoryNotFoundError, GatedRepoError
+from huggingface_hub.errors import HfHubHTTPError, RepositoryNotFoundError
 
 def uuid_to_bytes(uid: str) -> bytes:
     return UUID(hex=uid).bytes
@@ -108,6 +108,12 @@ def stop_thread(thread: Thread):
 
 def clone_model(model_id: str, model_dir: str, token: Optional[str] = None):
     clone_dir = f"{model_dir}/data"
+    print(f"Downloading {model_id} to {model_dir}")
+
+    if token is None:
+        res = input("Input your hugginface token: (press enter for no token) ")
+        if res is not None and len(res) > 0:
+            token = res
 
     try:
         snapshot_download(

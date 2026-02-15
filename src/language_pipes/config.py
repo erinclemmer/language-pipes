@@ -15,6 +15,8 @@ def get_env_config() -> Dict[str, Optional[str]]:
         "bootstrap_address": os.getenv("LP_BOOTSTRAP_ADDRESS"),
         "bootstrap_port": os.getenv("LP_BOOTSTRAP_PORT"),
         "network_key": os.getenv("LP_NETWORK_KEY"),
+        "whitelist_ips": os.getenv("LP_WHITELIST_IPS"),
+        "whitelist_node_ids": os.getenv("LP_WHITELIST_NODE_IDS"),
         "model_validation": os.getenv("LP_MODEL_VALIDATION"),
         "max_pipes": os.getenv("LP_MAX_PIPES"),
         "layer_models": os.getenv("LP_LAYER_MODELS"),
@@ -54,6 +56,8 @@ def apply_env_overrides(data: Dict[str, Any], cli_args: Optional[Dict[str, Any]]
         "bootstrap_address": precedence("bootstrap_address"),
         "bootstrap_port": precedence("bootstrap_port"),
         "network_key": precedence("network_key"),
+        "whitelist_ips": precedence("whitelist_ips"),
+        "whitelist_node_ids": precedence("whitelist_node_ids"),
         "model_validation": precedence("model_validation"),
         "max_pipes": precedence("max_pipes"),
         "num_local_layers": precedence("num_local_layers"),
@@ -70,13 +74,27 @@ def apply_env_overrides(data: Dict[str, Any], cli_args: Optional[Dict[str, Any]]
     if config["bootstrap_port"] is not None:
         config["bootstrap_port"] = int(config["bootstrap_port"])
 
+    if isinstance(config["whitelist_ips"], str):
+        config["whitelist_ips"] = [
+            ip.strip() for ip in config["whitelist_ips"].split(",") if ip.strip() != ""
+        ]
+    elif config["whitelist_ips"] is None:
+        config["whitelist_ips"] = []
+
+    if isinstance(config["whitelist_node_ids"], str):
+        config["whitelist_node_ids"] = [
+            node_id.strip() for node_id in config["whitelist_node_ids"].split(",") if node_id.strip() != ""
+        ]
+    elif config["whitelist_node_ids"] is None:
+        config["whitelist_node_ids"] = []
+
     if config["layer_models"] is not None:
         config["layer_models"] = parse_layer_models(config["layer_models"])
 
     return config
 
 
-def parse_layer_models(layer_models: str | Dict) -> List[Dict[str, Any]]:
+def parse_layer_models(layer_models: str | List[str] | Dict[str, Any] | List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if isinstance(layer_models, str):
         layer_models = [layer_models]
     

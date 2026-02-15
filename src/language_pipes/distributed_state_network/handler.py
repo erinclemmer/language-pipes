@@ -77,6 +77,8 @@ class DSNodeServer:
         if not self.running:
             return Response(status=500)
         try:
+            self.node.ensure_ip_allowed(remote_addr)
+
             # Decrypt the data
             if self.config.aes_key is not None:
                 data = self.node.decrypt_data(data)

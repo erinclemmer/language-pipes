@@ -17,7 +17,6 @@ from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.modeling.compute import compute_layers
 
 from language_pipes.jobs.job import Job
-from language_pipes.jobs.job_data import jobDataToComputationState, detachCompState
 
 class LlmModel:
     model_id: str
@@ -120,6 +119,7 @@ Device: {self.device}
         
         job.set_layer(
             state=compute_layers(
+                job.current_layer,
                 job.data,
                 self.device, 
                 self.layers, 

@@ -25,6 +25,8 @@ def edit_config(config_path: str):
             ("bootstrap_address", "Bootstrap Address"),
             ("bootstrap_port", "Bootstrap Port"),
             ("network_key", "Network Key"),
+            ("whitelist_ips", "Whitelist IPs"),
+            ("whitelist_node_ids", "Whitelist Node IDs"),
             ("logging_level", "Logging Level"),
             ("max_pipes", "Max Pipes"),
             ("model_validation", "Model Validation"),
@@ -129,6 +131,52 @@ def edit_config(config_path: str):
                     print(f"Generated new key: {key}")
                 else:
                     config[selected_key] = new_key
+            else:
+                config.pop(selected_key, None)
+
+        elif selected_key == "whitelist_ips":
+            current = config.get(selected_key, [])
+            if prompt_bool("Enable peer IP whitelist?", default=len(current) > 0):
+                ips = []
+                if isinstance(current, list):
+                    ips.extend([str(ip) for ip in current])
+
+                if len(ips) > 0 and prompt_bool("Keep existing whitelist entries?", default=True):
+                    pass
+                else:
+                    ips = []
+
+                while True:
+                    ip = prompt("Whitelisted IP", required=True)
+                    if ip is None:
+                        break
+                    ips.append(ip)
+                    if not prompt_bool("Add another whitelisted IP?", required=True):
+                        break
+                config[selected_key] = ips
+            else:
+                config.pop(selected_key, None)
+
+        elif selected_key == "whitelist_node_ids":
+            current = config.get(selected_key, [])
+            if prompt_bool("Enable peer node ID whitelist?", default=len(current) > 0):
+                node_ids = []
+                if isinstance(current, list):
+                    node_ids.extend([str(node_id) for node_id in current])
+
+                if len(node_ids) > 0 and prompt_bool("Keep existing whitelist entries?", default=True):
+                    pass
+                else:
+                    node_ids = []
+
+                while True:
+                    node_id = prompt("Whitelisted node ID", required=True)
+                    if node_id is None:
+                        break
+                    node_ids.append(node_id)
+                    if not prompt_bool("Add another whitelisted node ID?", required=True):
+                        break
+                config[selected_key] = node_ids
             else:
                 config.pop(selected_key, None)
         

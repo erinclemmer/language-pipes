@@ -247,6 +247,30 @@ network_key = "network.key"
 |------|---------|
 | string | null |
 
+#### `whitelist_ips`
+
+Optional list of IP addresses this node will allow for peer communication. If configured, the node will only accept inbound DSN requests from these IPs and only send outbound requests to these IPs.
+
+```toml
+whitelist_ips = ["192.168.1.100", "192.168.1.101"]
+```
+
+| Type | Default |
+|------|---------|
+| array of strings | `[]` (allow all IPs) |
+
+#### `whitelist_node_ids`
+
+Optional list of peer node IDs this node will allow for peer communication. If configured, the node will only accept inbound DSN messages from these node IDs and only send outbound DSN messages to these node IDs.
+
+```toml
+whitelist_node_ids = ["bootstrap-node", "trusted-worker-1"]
+```
+
+| Type | Default |
+|------|---------|
+| array of strings | `[]` (allow all node IDs) |
+
 ---
 
 ### Security
@@ -353,6 +377,8 @@ Most properties can be set via environment variables with the `LP_` prefix:
 | `bootstrap_address` | `LP_BOOTSTRAP_ADDRESS` |
 | `bootstrap_port` | `LP_BOOTSTRAP_PORT` |
 | `network_key` | `LP_NETWORK_KEY` |
+| `whitelist_ips` | `LP_WHITELIST_IPS` |
+| `whitelist_node_ids` | `LP_WHITELIST_NODE_IDS` |
 | `num_local_layers` | `LP_NUM_LOCAL_LAYERS` |
 | `max_pipes` | `LP_MAX_PIPES` |
 | `model_validation` | `LP_MODEL_VALIDATION` |

@@ -143,6 +143,30 @@ class TestEmbedState(unittest.TestCase):
         # The job should be sent to the virtual node if no local layers are specified
         self.assertEqual(next_state, JobState.SEND)
 
+    def test_transitions_to_send_for_misaligned_layers(self):
+        """Allow starting computation for a layer not at the start layer of a model"""
+        job = make_job()
+        config = make_config()
+        config.num_local_layers = 1
+        job.compute_step = ComputeStep.EMBED
+        virtual_model = FakeModel("node-a", 0, 1, True, 2)
+        end_model = FakeEndModel(num_local_layers=1)
+        pipe = PipeWrapper("node-a", "model-a", [virtual_model])
+
+        processor = make_processor(
+            job=job,
+            config=config,
+            pipe=pipe,
+            end_model=end_model
+        )
+
+        processor.run()
+
+        self.assertEqual(processor.states, 
+            [JobState.VALIDATING, JobState.EMBED, JobState.PROCESS_LAYERS, JobState.SEND]
+        )
+        self.assertEqual(job.current_layer, 1)
+
 class TestEmbedPrefillIntegration(unittest.TestCase):
     """Integration tests for embed state during prefill operations."""
 

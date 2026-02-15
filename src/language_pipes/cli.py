@@ -14,7 +14,7 @@ from language_pipes.commands.upgrade import upgrade_lp  # noqa: E402
 
 from language_pipes.lp import LanguagePipes  # noqa: E402
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -54,6 +54,8 @@ def build_parser():
     run_parser.add_argument("--bootstrap-port", type=int, help="Bootstrap node port for the network (e.g. 8000)")
     run_parser.add_argument("--max-pipes", type=int, help="Maximum amount of pipes to host")
     run_parser.add_argument("--network-key", type=str, help="AES key to access network (Default: network.key)")
+    run_parser.add_argument("--whitelist-ips", nargs="*", metavar="IP", help="Only communicate with peers whose IP is in this whitelist")
+    run_parser.add_argument("--whitelist-node-ids", nargs="*", metavar="NODE_ID", help="Only communicate with peers whose node_id is in this whitelist")
     run_parser.add_argument("--model-validation", help="Whether to validate the model weight hashes when connecting to a pipe.", action="store_true")
     run_parser.add_argument("--layer-models", nargs="*", metavar="MODEL", 
         help="Layer models as key=value pairs: id=MODEL,device=DEVICE,memory=GB (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4)")
@@ -77,6 +79,8 @@ def apply_overrides(data, args):
         "bootstrap_address": args.bootstrap_address,
         "bootstrap_port": args.bootstrap_port,
         "network_key": args.network_key,
+        "whitelist_ips": args.whitelist_ips,
+        "whitelist_node_ids": args.whitelist_node_ids,
         "model_validation": args.model_validation,
         "max_pipes": args.max_pipes,
         "layer_models": args.layer_models,
@@ -137,6 +141,8 @@ def main(argv = None):
             "port": data.get("peer_port", 5000),
             "network_ip": data.get("network_ip", None),
             "aes_key": data.get("network_key", None),
+            "whitelist_ips": data.get("whitelist_ips", []),
+            "whitelist_node_ids": data.get("whitelist_node_ids", []),
             "bootstrap_nodes": [
                 {
                     "address": data["bootstrap_address"],

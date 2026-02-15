@@ -1,6 +1,7 @@
 from enum import Enum, auto
 from dataclasses import dataclass
 from logging import Logger
+from typing import Optional
 
 from language_pipes.jobs.job import Job
 
@@ -24,7 +25,7 @@ class JobContext:
     pipe: Pipe
     logger: Logger
     config: LpConfig
-    end_model: EndModel
+    end_model: Optional[EndModel]
 
 def should_prefill_chunk(job) -> bool:
     return job.current_token == 0 and job.chunking.has_more()
@@ -148,6 +149,8 @@ class JobProcessor:
         """Handle norm/head computation and prepare to embed the next token."""
         job = self.ctx.job
         end_model = self.ctx.end_model
+        if end_model is None:
+            return JobState.DONE
 
         # Log prefill completion when transitioning from prefill to decode
         if job.current_token == 0:
@@ -186,6 +189,9 @@ class JobProcessor:
         end_model = self.ctx.end_model
         logger = self.ctx.logger
 
+        if end_model is None:
+            return JobState.DONE
+
         if job.prompt_tokens == 0:
             end_model.tokenize(job)
             logger.info(f"[Prefill] job={job.job_id[:8]} started")
@@ -216,6 +222,9 @@ class JobProcessor:
             self.ctx.end_model.compute_layers(job)
 
         model = pipe.get_layer(job.current_layer, False)
+        if model is None:
+            return JobState.DONE
+        
         if model.virtual:
             return JobState.SEND
         

@@ -1,17 +1,16 @@
 import os
 import torch
 from uuid import uuid4
-from torch import tensor
 from pathlib import Path
 from logging import Logger
-from typing import List
+from typing import List, Set, Optional
 
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 from language_pipes.llm_layer_collector import LlmLayerCollector
 from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
-from language_pipes.llm_layer_collector.compute import compute_embedding, compute_head
+from language_pipes.llm_layer_collector.auto.static_auto_model import StaticAutoModel
 
 from language_pipes.jobs.job import ComputeStep, Job
 from language_pipes.jobs.job_data import computationStateToJobData
@@ -55,8 +54,10 @@ class EndModel:
         self.layers = self.collector.load_layer_set(0, num_local_layers - 1, self.device)
 
     def compute_layers(self, job: Job):
+        if job.data is None:
+            raise Exception("Job did not have data")
         job.set_layer(
-            state=compute_layers(job.data, self.device, self.layers, job.cache),
+            state=compute_layers(0, job.data, self.device, self.layers, job.cache),
             layer=len(self.layers),
             num_hidden_layers=self.collector.config.num_hidden_layers
         )
@@ -82,18 +83,12 @@ class EndModel:
         if self.input_embedding is None:
             raise RuntimeError("Input Embedding must be loaded before computation")
         
-        chunk_start, chunk_end = (0, len(job.input_ids))
-        if job.chunking.has_more():
-            chunk_start, chunk_end = job.chunking.get_range()
-        else:
-            chunk_start = chunk_end - 1
-
-        chunk_tokens = job.input_ids[chunk_start:chunk_end]
-
-        comp_state = compute_embedding(
-            input_embedder=self.input_embedding, 
-            input_ids=tensor([chunk_tokens]), 
-            config=self.collector.config, 
+        comp_state = StaticAutoModel.compute_embedding(
+            prompt_tokens=job.prompt_tokens,
+            chunk_size=prefill_chunk_size,
+            input_embedder=self.input_embedding,
+            input_ids=torch.tensor([job.input_ids]),
+            config=self.collector.config,
             cache=job.cache
         )
         
@@ -106,32 +101,50 @@ class EndModel:
         norm = self.norm(job.data.state.to(self.device))
         job.set_norm(norm)
 
+    @staticmethod
+    def _add_stop_tokens(stop_tokens: Set[int], token_value: Optional[int]):
+        if token_value is None:
+            return
+
+        if isinstance(token_value, int) and token_value > 0:
+            stop_tokens.add(token_value)
+            return
+
+        if isinstance(token_value, (list, tuple, set)):
+            for token in token_value:
+                if isinstance(token, int) and token > 0:
+                    stop_tokens.add(token)
+
     def compute_head(self, job: Job):
         if self.head is None:
             raise RuntimeError("Head must be loaded before computation")
         if job.data is None or job.data.state is None:
             raise RuntimeError("Cannot compute head without job data")
         
-        head = compute_head(
+        head = StaticAutoModel.compute_head(
             head=self.head, 
-            input_ids=job.input_ids, 
-            device=self.device, 
             state=job.data.state, 
+            device=self.device,
             top_k=job.top_k,
             top_p=job.top_p,
             min_p=job.min_p,
-            temperature=job.temperature,
-            presence_penalty=job.presence_penalty
+            temperature=job.temperature
         )
 
-        job.set_output(head, self.collector.config.eos_token_id)
-        job.delta = self.tokenizer.decode([job.input_ids[-1]])
+        stop_tokens: Set[int] = set()
+
+        EndModel._add_stop_tokens(stop_tokens, self.collector.config.eos_token_id)
+        EndModel._add_stop_tokens(stop_tokens, self.tokenizer.eos_token_id)
+        EndModel._add_stop_tokens(stop_tokens, self.tokenizer.convert_tokens_to_ids("<|eot_id|>"))
+
+        job.set_output(head, stop_tokens)
+        job.delta = self.tokenizer.decode([job.input_ids[-1]], skip_special_tokens=True)
 
     def set_result(self, job: Job):
         res_tokens = job.input_id_tensor()
         if res_tokens is None:
             raise Exception("Cannot decode result tensor: no input ids")
-        job.result = self.tokenizer.decode(res_tokens[job.prompt_tokens:])
+        job.result = self.tokenizer.decode(res_tokens[job.prompt_tokens:], skip_special_tokens=True)
 
     def clean_up(self):
         del self.input_embedding

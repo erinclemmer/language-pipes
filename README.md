@@ -2,8 +2,9 @@
 
 **Peer-to-peer distributed inference for open-source language models**
 
-[![GitHub license][License-Image]](License-Url)
 [![Release][Release-Image]][Release-Url] 
+[![GitHub license][License-Image]](License-Url)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/language-pipes)
 
 [License-Image]: https://img.shields.io/badge/license-MIT-blue.svg
 [License-Url]: https://github.com/erinclemmer/language-pipes/blob/main/LICENSE
@@ -141,7 +142,7 @@ Install the OpenAI library with: `pip install openai`
 See the [OpenAI-compatible API documentation](./documentation/oai.md) for the full endpoint reference and sampling parameter descriptions.
 
 ### Supported Models
-Language Pipes currently targets the Qwen3 and Qwen3-MoE architectures.
+Language pipes currently supports a few model families including llama3, Phi4, Qwen3, and GLM4.1v. [View all tested models here](./documentation/model_support.md)  
 
 ### Planned Improvements
 - Additional model architectures
@@ -156,7 +157,6 @@ Language Pipes currently targets the Qwen3 and Qwen3-MoE architectures.
 ### Documentation
 * [CLI Reference](./documentation/cli.md)
 * [Privacy Architecture](./documentation/privacy.md)
-* [SipIt Case Study](./documentation/threat-model/sipit.md)
 * [Configuration Manual](./documentation/configuration.md)
 * [Architecture Overview](./documentation/architecture.md)
 * [OpenAI-Compatible API](./documentation/oai.md)

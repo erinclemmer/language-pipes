@@ -64,6 +64,8 @@ class JobReceiver:
         job = self.job_tracker.get_job(network_job.job_id)
         if job is None:
             job = self.job_tracker.add_job(network_job)
+            if job is None:
+                return
 
         # Validate network job
         if not job.receive_network_job(network_job):
@@ -105,7 +107,7 @@ class JobReceiver:
         """Receive and validate incoming job data."""
         job, valid = NetworkJob.from_bytes(data)
         if not valid:
-            self.restart_job(job)
+            self.restart_token(job)
             return
         
         # Ignore duplicate jobs
