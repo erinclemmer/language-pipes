@@ -8,6 +8,7 @@ from transformers.models.qwen3.modeling_qwen3 import Qwen3RMSNorm
 from transformers.models.gemma3.modeling_gemma3 import Gemma3RMSNorm
 from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeRMSNorm
 from transformers.models.glm4v.modeling_glm4v import Glm4vRMSNorm
+from transformers.models.gpt_oss.modeling_gpt_oss import GptOssRMSNorm
 
 mapper = { # pyright: ignore[reportUnknownVariableType]
     "llama": LlamaRMSNorm,
@@ -15,7 +16,8 @@ mapper = { # pyright: ignore[reportUnknownVariableType]
     "qwen3": Qwen3RMSNorm,
     "gemma3_text": Gemma3RMSNorm,
     "qwen3_moe": Qwen3MoeRMSNorm,
-    "glm4v": Glm4vRMSNorm
+    "glm4v": Glm4vRMSNorm,
+    "gpt_oss": GptOssRMSNorm,
 }
 
 def getClass(config: PretrainedConfig) -> torch.nn.Module:

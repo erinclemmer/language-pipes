@@ -62,6 +62,9 @@ class StaticAutoModel:
             case "qwen3":
                 Qwen3Model.compute_embedding(state, config)
 
+            case "gpt_oss":
+                LlamaModel.compute_embedding(state, config)
+
             case "phi3":
                 Phi3Model.compute_embedding(state, config)
                 
@@ -88,6 +91,9 @@ class StaticAutoModel:
         match layer.config.model_type: # pyright: ignore[reportMatchNotExhaustive]
             case "qwen3":
                 return Qwen3Model.compute_layer(layer, state, cache)
+
+            case "gpt_oss":
+                return LlamaModel.compute_layer(layer, state, cache)
 
             case "phi3":
                 return Phi3Model.compute_layer(layer, state, cache)

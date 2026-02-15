@@ -16,3 +16,6 @@ Below are the models that are tested and known to work. Any fine-tuned model bas
 **Meta:**
 - meta-llama/Llama-3.1-8B-Instruct
 - meta-llama/Llama-3.2-1B-Instruct
+
+**OpenAI:**
+- openai/gpt-oss-20b
