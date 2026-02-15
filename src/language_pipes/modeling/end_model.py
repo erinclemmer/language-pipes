@@ -3,7 +3,7 @@ import torch
 from uuid import uuid4
 from pathlib import Path
 from logging import Logger
-from typing import List
+from typing import List, Set, Optional
 
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
@@ -101,6 +101,20 @@ class EndModel:
         norm = self.norm(job.data.state.to(self.device))
         job.set_norm(norm)
 
+    @staticmethod
+    def _add_stop_tokens(stop_tokens: Set[int], token_value: Optional[int]):
+        if token_value is None:
+            return
+
+        if isinstance(token_value, int) and token_value > 0:
+            stop_tokens.add(token_value)
+            return
+
+        if isinstance(token_value, (list, tuple, set)):
+            for token in token_value:
+                if isinstance(token, int) and token > 0:
+                    stop_tokens.add(token)
+
     def compute_head(self, job: Job):
         if self.head is None:
             raise RuntimeError("Head must be loaded before computation")
@@ -117,14 +131,20 @@ class EndModel:
             temperature=job.temperature
         )
 
-        job.set_output(head, self.collector.config.eos_token_id)
-        job.delta = self.tokenizer.decode([job.input_ids[-1]])
+        stop_tokens: Set[int] = set()
+
+        EndModel._add_stop_tokens(stop_tokens, self.collector.config.eos_token_id)
+        EndModel._add_stop_tokens(stop_tokens, self.tokenizer.eos_token_id)
+        EndModel._add_stop_tokens(stop_tokens, self.tokenizer.convert_tokens_to_ids("<|eot_id|>"))
+
+        job.set_output(head, stop_tokens)
+        job.delta = self.tokenizer.decode([job.input_ids[-1]], skip_special_tokens=True)
 
     def set_result(self, job: Job):
         res_tokens = job.input_id_tensor()
         if res_tokens is None:
             raise Exception("Cannot decode result tensor: no input ids")
-        job.result = self.tokenizer.decode(res_tokens[job.prompt_tokens:])
+        job.result = self.tokenizer.decode(res_tokens[job.prompt_tokens:], skip_special_tokens=True)
 
     def clean_up(self):
         del self.input_embedding

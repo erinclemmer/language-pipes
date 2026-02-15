@@ -10,10 +10,10 @@ from language_pipes.util import size_of_tensor, tensor_hash
 from language_pipes.util.enums import ModelPartType
 from language_pipes.llm_layer_collector.helpers import get_config
 
-def get_avg_layer_size(model_path: str) -> Tuple[int, List[str]]:
+def get_avg_layer_size(model_path: str) -> Tuple[int, str]:
     if not os.path.exists(model_path):
         print(f'Model {model_path} not found')
-        return -1, []
+        return -1, ""
     collector = LlmLayerCollector(
         model_dir=model_path,
         cache_file=os.path.join(model_path, '..', 'cache.json'),
@@ -27,7 +27,13 @@ def get_avg_layer_size(model_path: str) -> Tuple[int, List[str]]:
     
     print(f"Total Layer Size is {total_size / 10**6:.2f}MB")
 
-    return total_size, tensor_hash(lyrs[0].cls.self_attn.q_proj.weight)
+    hsh = ""
+    if collector.config.model_type == "phi3":
+        hsh = tensor_hash(lyrs[0].cls.self_attn.o_proj.weight) # type: ignore
+    else:
+        hsh = tensor_hash(lyrs[0].cls.self_attn.q_proj.weight) # type: ignore
+
+    return total_size, hsh
 
 def data_of_type(typ: ModelPartType, model_path: str) -> Tuple[float, str]:
     config = get_config(model_path)

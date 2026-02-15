@@ -108,6 +108,7 @@ def stop_thread(thread: Thread):
 
 def clone_model(model_id: str, model_dir: str, token: Optional[str] = None):
     clone_dir = f"{model_dir}/data"
+    print(f"Downloading {model_id} to {model_dir}")
 
     if token is None:
         res = input("Input your hugginface token: (press enter for no token) ")

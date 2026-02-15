@@ -142,7 +142,7 @@ Install the OpenAI library with: `pip install openai`
 See the [OpenAI-compatible API documentation](./documentation/oai.md) for the full endpoint reference and sampling parameter descriptions.
 
 ### Supported Models
-Language Pipes currently targets the Qwen3 and Qwen3-MoE architectures.
+Language pipes currently supports a few model families including llama3, Phi4, Qwen3, and GLM4.1v. [View all tested models here](./documentation/model_support.md)  
 
 ### Planned Improvements
 - Additional model architectures
