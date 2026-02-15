@@ -8,6 +8,7 @@ Below are the models that are tested and known to work. Any fine-tuned model bas
 
 **Phi:**
 - microsoft/Phi-4-mini-reasoning
+- microsoft/Phi-4-reasoning-plus
 
 **Z.ai:**
 - zai-org/GLM-4.1V-9B-Thinking
