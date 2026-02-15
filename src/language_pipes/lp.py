@@ -106,7 +106,8 @@ class LanguagePipes:
         def get_models():
             if self.router_pipes is None:
                 return
-            return self.router_pipes.get_models(self.config.num_local_layers)
+            available_models = self.router_pipes.get_models(self.config.num_local_layers)
+            return [m.model_id for m in self.model_manager.end_models if m.model_id in available_models]
 
         self.oai_server = OAIHttpServer(self.config.oai_port, self.job_factory.start_job, get_models)
         self.oai_thread = Thread(target=self.oai_server.serve_forever, args=())
