@@ -29,8 +29,8 @@ class TestGptOssSupport(unittest.TestCase):
         self.assertEqual(get_rotary_class(GptOssConfig()), GptOssRotaryEmbedding)
 
     @patch("language_pipes.llm_layer_collector.auto.static_auto_model.create_causal_mask")
-    @patch("language_pipes.llm_layer_collector.auto.static_auto_model.LlamaModel.compute_embedding")
-    def test_static_auto_model_embedding_dispatches_gpt_oss_to_llama_impl(
+    @patch("language_pipes.llm_layer_collector.auto.static_auto_model.GptOssModel.compute_embedding")
+    def test_static_auto_model_embedding_dispatches_gpt_oss_to_gpt_oss_impl(
         self,
         mock_compute_embedding,
         mock_create_causal_mask,
@@ -50,8 +50,8 @@ class TestGptOssSupport(unittest.TestCase):
         self.assertEqual(state.state.shape, (1, 2, 8))
         mock_compute_embedding.assert_called_once()
 
-    @patch("language_pipes.llm_layer_collector.auto.static_auto_model.LlamaModel.compute_layer")
-    def test_static_auto_model_layer_dispatches_gpt_oss_to_llama_impl(self, mock_compute_layer):
+    @patch("language_pipes.llm_layer_collector.auto.static_auto_model.GptOssModel.compute_layer")
+    def test_static_auto_model_layer_dispatches_gpt_oss_to_gpt_oss_impl(self, mock_compute_layer):
         expected = torch.zeros((1, 1, 1), dtype=torch.float16)
         mock_compute_layer.return_value = expected
 

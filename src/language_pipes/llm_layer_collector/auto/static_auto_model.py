@@ -7,6 +7,7 @@ from transformers.configuration_utils import PretrainedConfig
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 from language_pipes.llm_layer_collector.modeling.Qwen3Model import Qwen3Model
 from language_pipes.llm_layer_collector.modeling.LlamaModel import LlamaModel
+from language_pipes.llm_layer_collector.modeling.GptOssModel import GptOssModel
 from language_pipes.llm_layer_collector.modeling.Glm4vModel import Glm4vModel
 from language_pipes.llm_layer_collector.modeling.Gemma3Model import Gemma3Model
 from language_pipes.llm_layer_collector.modeling.Phi3Model import Phi3Model
@@ -63,7 +64,7 @@ class StaticAutoModel:
                 Qwen3Model.compute_embedding(state, config)
 
             case "gpt_oss":
-                LlamaModel.compute_embedding(state, config)
+                GptOssModel.compute_embedding(state, config)
 
             case "phi3":
                 Phi3Model.compute_embedding(state, config)
@@ -93,7 +94,7 @@ class StaticAutoModel:
                 return Qwen3Model.compute_layer(layer, state, cache)
 
             case "gpt_oss":
-                return LlamaModel.compute_layer(layer, state, cache)
+                return GptOssModel.compute_layer(layer, state, cache)
 
             case "phi3":
                 return Phi3Model.compute_layer(layer, state, cache)
