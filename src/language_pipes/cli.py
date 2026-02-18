@@ -119,7 +119,7 @@ def main(argv = None):
         interactive_init(args.output)
     elif args.command == "start":
         try:
-            return start_wizard(apply_overrides, VERSION)
+            return start_wizard(VERSION)
         except KeyboardInterrupt:
             exit()
     elif args.command == "serve":
