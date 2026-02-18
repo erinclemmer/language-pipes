@@ -163,3 +163,4 @@ Language pipes currently supports a few model families including llama3, Phi4, Q
 * [Job Processor State Machine](./documentation/job-processor.md)
 * [Distributed State Network](./documentation/distributed-state-network/README.md)
 * [LLM Layer Collector](./documentation/llm-layer-collector.md)
+* [Release Notes](./documentation/release-notes.md)
