@@ -105,7 +105,7 @@ def interactive_init(output_path: str):
     print("Language Pipes can expose an OpenAI-compatible HTTP API, allowing you to")
     print("use standard OpenAI client libraries (Python, JavaScript, curl, etc.)")
     print("to interact with your distributed model.\n")
-    if prompt_bool("Enable OpenAI-compatible API server?", default=True):
+    if prompt_bool("Enable OpenAI-compatible API server?", required=True):
         print("\n  Choose a port for the API server. Clients will connect to")
         print("  http://<ip-address>:<port>/v1/chat/completions")
         config["oai_port"] = prompt_int(

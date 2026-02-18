@@ -77,7 +77,7 @@ def edit_config(config_path: str):
         
         elif selected_key == "oai_port":
             current = config.get(selected_key)
-            if prompt_bool("Enable OpenAI API?", default=current is not None):
+            if prompt_bool("Enable OpenAI API?", required=True):
                 config[selected_key] = prompt_int(
                     "API Port",
                     default=current or 8000,
