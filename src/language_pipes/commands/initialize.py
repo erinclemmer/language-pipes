@@ -4,7 +4,7 @@ import toml
 
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.commands.view import view_config
-from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_model_id, show_banner
+from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_model_id, show_banner, prompt_device
 
 def interactive_init(output_path: str):
     show_banner("Configuration Setup")
@@ -42,7 +42,7 @@ def interactive_init(output_path: str):
                 
                 print("\n    Select the compute device for this model. Use 'cpu' for CPU-only,")
                 print("    or 'cuda:0', 'cuda:1', etc. for specific GPUs.")
-                device = prompt(
+                device = prompt_device(
                     "    Device",
                     default="cpu",
                     required=True

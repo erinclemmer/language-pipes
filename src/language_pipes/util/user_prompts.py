@@ -1,4 +1,5 @@
 import os
+import torch
 from pathlib import Path
 
 from language_pipes.config import default_model_dir
@@ -21,6 +22,16 @@ def prompt(message: str, default=None, required=False) -> str | None:
             return None
         return value
 
+def prompt_device(message: str, default=None, required=False) -> str | None:
+    while True:
+        value = prompt(message, default, required)
+        if value is None:
+            return None
+        try:
+            torch.device(value)
+            return value
+        except RuntimeError:
+            continue
 
 def prompt_int(message: str, default=None, required=False) -> int | None:
     """Prompt user for integer input."""

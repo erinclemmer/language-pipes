@@ -4,7 +4,7 @@ from typing import List
 
 from language_pipes.commands.view import view_config
 from language_pipes.util.aes import generate_aes_key
-from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_number_choice, show_banner, prompt_model_id
+from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_number_choice, show_banner, prompt_model_id, prompt_device
 
 def edit_config(config_path: str):
     with open(config_path, 'r', encoding='utf-8') as f:
@@ -263,7 +263,7 @@ def edit_layer_models(models: List) -> List[dict]:
         selection = prompt_number_choice("Select option", options, required=True)
 
         if selection is None:
-            return
+            return models
         
         if selection == "Add model":
             model_id = prompt_model_id("Model ID", True)
@@ -272,7 +272,7 @@ def edit_layer_models(models: List) -> List[dict]:
             try:
                 new_model = {
                     "id": model_id,
-                    "device": prompt("Device", "cpu", required=True),
+                    "device": prompt_device("Device", "cpu", required=True),
                     "max_memory": prompt("Max Memory (GB)", required=True)
                 }
             except KeyboardInterrupt:
