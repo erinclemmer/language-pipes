@@ -10,7 +10,6 @@ from language_pipes.util.aes import save_new_aes_key  # noqa: E402
 
 from language_pipes.commands.initialize import interactive_init  # noqa: E402
 from language_pipes.commands.start import start_wizard  # noqa: E402
-from language_pipes.commands.upgrade import upgrade_lp  # noqa: E402
 
 from language_pipes.lp import LanguagePipes  # noqa: E402
 
@@ -116,8 +115,6 @@ def main(argv = None):
         key = save_new_aes_key(args.output)
         print(f"✓ Network key generated: {key}")
         print(f"✓ Network key saved to '{args.output}'")
-    elif args.command == "upgrade":
-        upgrade_lp()
     elif args.command == "init":
         interactive_init(args.output)
     elif args.command == "start":
