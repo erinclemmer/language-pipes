@@ -20,6 +20,7 @@ def edit_config(config_path: str):
         simple_props = [
             ("node_id", "Node ID"),
             ("oai_port", "OpenAI API Port"),
+            ("api_key", "API Key(s)"),
             ("peer_port", "Peer Port"),
             ("network_ip", "Network IP"),
             ("bootstrap_address", "Bootstrap Address"),
@@ -86,6 +87,11 @@ def edit_config(config_path: str):
             else:
                 config.pop(selected_key, None)
         
+        elif selected_key == "api_key":
+            current = config.get(selected_key)
+            if prompt_bool("Enable API Keys", required=True):
+                pass
+
         elif selected_key == "peer_port":
             config[selected_key] = prompt_int(
                 "Peer Port",

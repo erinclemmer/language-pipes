@@ -2,7 +2,9 @@ import toml
 import argparse
 
 
+from time import time
 print("Starting Language Pipes...")
+start_time = time()
 from language_pipes.distributed_state_network import DSNodeConfig, DSNodeServer  # noqa: E402
 
 from language_pipes.config import LpConfig, apply_env_overrides  # noqa: E402
@@ -12,6 +14,7 @@ from language_pipes.commands.initialize import interactive_init  # noqa: E402
 from language_pipes.commands.start import start_wizard  # noqa: E402
 
 from language_pipes.lp import LanguagePipes  # noqa: E402
+print(f'loaded libraries in {time() - start_time:.2f}s')
 
 VERSION = "1.1.0"
 
@@ -48,11 +51,12 @@ def build_parser():
     run_parser.add_argument("--model-dir", type=str, help="Directory to store model data (default: ~/.cache/language_pipes/models)")
     run_parser.add_argument("--node-id", help="Node ID for the network (Required)")
     run_parser.add_argument("--app-dir", type=str, help="Directory to store data for this application")
+    run_parser.add_argument("--api-keys", nargs="*", metavar="API_KEY", help="API key(s) for the Open AI compatable server")
     run_parser.add_argument("--peer-port", type=int, help="Port for peer-to-peer network (Default: 5000)")
     run_parser.add_argument("--bootstrap-address", help="Bootstrap node address (e.g. 192.168.1.100)")
     run_parser.add_argument("--bootstrap-port", type=int, help="Bootstrap node port for the network (e.g. 8000)")
     run_parser.add_argument("--max-pipes", type=int, help="Maximum amount of pipes to host")
-    run_parser.add_argument("--network-key", type=str, help="AES key to access network (Default: network.key)")
+    run_parser.add_argument("--network-key", type=str, help="AES key to access network")
     run_parser.add_argument("--whitelist-ips", nargs="*", metavar="IP", help="Only communicate with peers whose IP is in this whitelist")
     run_parser.add_argument("--whitelist-node-ids", nargs="*", metavar="NODE_ID", help="Only communicate with peers whose node_id is in this whitelist")
     run_parser.add_argument("--model-validation", help="Whether to validate the model weight hashes when connecting to a pipe.", action="store_true")
@@ -72,6 +76,8 @@ def apply_overrides(data, args):
     cli_args = {
         "logging_level": args.logging_level,
         "openai_port": args.openai_port,
+        "api_key": args.api_key,
+        "api_key_file": args.api_key_file,
         "app_dir": app_dir_arg,
         "node_id": args.node_id,
         "peer_port": args.peer_port,
