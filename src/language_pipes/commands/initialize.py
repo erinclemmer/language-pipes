@@ -1,10 +1,11 @@
 import os
 import socket
 import toml
+import secrets
 
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.commands.view import view_config
-from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_model_id, show_banner
+from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_model_id, show_banner, prompt_device
 
 def interactive_init(output_path: str):
     show_banner("Configuration Setup")
@@ -42,7 +43,7 @@ def interactive_init(output_path: str):
                 
                 print("\n    Select the compute device for this model. Use 'cpu' for CPU-only,")
                 print("    or 'cuda:0', 'cuda:1', etc. for specific GPUs.")
-                device = prompt(
+                device = prompt_device(
                     "    Device",
                     default="cpu",
                     required=True
@@ -105,7 +106,7 @@ def interactive_init(output_path: str):
     print("Language Pipes can expose an OpenAI-compatible HTTP API, allowing you to")
     print("use standard OpenAI client libraries (Python, JavaScript, curl, etc.)")
     print("to interact with your distributed model.\n")
-    if prompt_bool("Enable OpenAI-compatible API server?", default=True):
+    if prompt_bool("Enable OpenAI-compatible API server?", required=True):
         print("\n  Choose a port for the API server. Clients will connect to")
         print("  http://<ip-address>:<port>/v1/chat/completions")
         config["oai_port"] = prompt_int(
@@ -113,6 +114,17 @@ def interactive_init(output_path: str):
             default=8000,
             required=True
         )
+
+        if prompt_bool("  Use API Keys?", default=False):
+            num_keys = prompt_int(
+                "  Number of keys to generate",
+                default=1
+            )
+            if num_keys is not None:
+                config["api_keys"] = [secrets.token_urlsafe(32) for _ in range(0, num_keys)]
+                print(f"  Generated {num_keys} keys")
+            else:
+                print("  No keys generated")
 
     # === Network Configuration ===
     print("\n--- Network Configuration ---\n")

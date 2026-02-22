@@ -17,6 +17,17 @@ Or via CLI:
 language-pipes serve --openai-port 8000 ...
 ```
 
+Optionally you can set an API key for use with the server. Any number of api keys will work with the flag:
+
+```toml
+api_keys = ["foo", "bar", "baz"]
+```
+
+Or via CLI:
+```bash
+language-pipes serve --openai-port 8000 --api-keys foo bar baz
+```
+
 ---
 
 ## Using the OpenAI Python Library
@@ -29,12 +40,17 @@ pip install openai
 
 ### Basic Usage
 
+Run the serve like this:
+```bash
+language-pipes serve --openai-port 8000 --api-keys foo
+```
+
 ```python
 from openai import OpenAI
 
 client = OpenAI(
     base_url="http://localhost:8000/v1",
-    api_key="not-needed"  # Language Pipes doesn't require authentication
+    api_key="foo"
 )
 
 response = client.chat.completions.create(

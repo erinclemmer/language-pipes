@@ -16,7 +16,7 @@ sys.path.append(os.path.join(cd, 'src'))
 from language_pipes.cli import main
 from language_pipes.util.chat import ChatMessage, ChatRole
 
-MODEL = "Qwen/Qwen3-1.7B"
+MODEL = "Qwen/Qwen3-0.6B"
 
 def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: Optional[int] = None, bootstrap_port: Optional[int] = None):
     args = ["serve", 
@@ -25,6 +25,7 @@ def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: Option
         "--end-models", MODEL,
         "--peer-port", str(peer_port),
         "--app-dir", "./",
+        "--api-keys", "test_key",
         "--model-validation"
     ]
     if oai_port is not None:
@@ -38,7 +39,7 @@ def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: Option
 def oai_complete(port: int, messages: List[ChatMessage], retries: int = 0):
     try:
         client = openai.OpenAI(
-            api_key="",
+            api_key="test_key",
             base_url=f"http://127.0.0.1:{port}/v1",
         )
         response = client.chat.completions.create(
@@ -142,9 +143,9 @@ class OpenAITests(unittest.TestCase):
         self.assertEqual(400, res.status_code)
 
     def test_double_node(self):
-        start_node("node-1", 1.5, 5000, 8000)
+        start_node("node-1", 0.5, 5000, 8000)
         time.sleep(5)
-        start_node("node-2", 3, 5001, None, 5000)
+        start_node("node-2", 1, 5001, None, 5000)
         time.sleep(5)
         
         res = oai_complete(8000, [

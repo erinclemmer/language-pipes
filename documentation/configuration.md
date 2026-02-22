@@ -48,6 +48,7 @@ end_models = ["meta-llama/Llama-3.2-1B-Instruct"]
 
 # === API Server ===
 oai_port = 8000
+api_keys = ["test_key"]
 
 # === Network ===
 peer_port = 5000
@@ -168,6 +169,19 @@ oai_port = 8000
 | Type | Default |
 |------|---------|
 | int | None (disabled) |
+
+
+#### `api_keys`
+
+List of keys that are acceptable to use for the OpenAI compatable server. [See official documentation for more information](https://developers.openai.com/api/reference/overview/)
+
+```toml
+api_keys = ["test_key"]
+```
+
+| Type | Default |
+|------|---------|
+| str | None (disabled) |
 
 #### `logging_level`
 
@@ -372,6 +386,7 @@ Most properties can be set via environment variables with the `LP_` prefix:
 | `layer_models` | `LP_LAYER_MODELS` |
 | `logging_level` | `LP_LOGGING_LEVEL` |
 | `oai_port` | `LP_OAI_PORT` |
+| `api_keys` | `LP_API_KEYS` |
 | `peer_port` | `LP_PEER_PORT` |
 | `network_ip` | `LP_NETWORK_IP` |
 | `bootstrap_address` | `LP_BOOTSTRAP_ADDRESS` |

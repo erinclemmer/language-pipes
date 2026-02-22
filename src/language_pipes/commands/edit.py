@@ -1,10 +1,11 @@
 import socket
 import toml
+import secrets
 from typing import List
 
 from language_pipes.commands.view import view_config
 from language_pipes.util.aes import generate_aes_key
-from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_number_choice, show_banner, prompt_model_id
+from language_pipes.util.user_prompts import prompt, prompt_bool, prompt_choice, prompt_float, prompt_int, prompt_number_choice, show_banner, prompt_model_id, prompt_device
 
 def edit_config(config_path: str):
     with open(config_path, 'r', encoding='utf-8') as f:
@@ -20,6 +21,7 @@ def edit_config(config_path: str):
         simple_props = [
             ("node_id", "Node ID"),
             ("oai_port", "OpenAI API Port"),
+            ("api_keys", "API Key(s)"),
             ("peer_port", "Peer Port"),
             ("network_ip", "Network IP"),
             ("bootstrap_address", "Bootstrap Address"),
@@ -44,7 +46,15 @@ def edit_config(config_path: str):
         
         for key, label in simple_props:
             current_val = config.get(key, "Not set")
-            editable_props.append(f"{label}: {current_val}")
+            if current_val is None:
+                current_val = "Not set"
+
+            if current_val == "Not set":
+                editable_props.append(f"{label}: Not set")
+            elif key == "api_keys":
+                editable_props.append(f"{label}: {len(current_val)} keys")
+            else:
+                editable_props.append(f"{label}: {current_val}")
             prop_keys.append(key)
         
         editable_props.append("Save and Exit")
@@ -77,7 +87,7 @@ def edit_config(config_path: str):
         
         elif selected_key == "oai_port":
             current = config.get(selected_key)
-            if prompt_bool("Enable OpenAI API?", default=current is not None):
+            if prompt_bool("Enable OpenAI API?", required=True):
                 config[selected_key] = prompt_int(
                     "API Port",
                     default=current or 8000,
@@ -86,6 +96,18 @@ def edit_config(config_path: str):
             else:
                 config.pop(selected_key, None)
         
+        elif selected_key == "api_keys":
+            current = config.get(selected_key)
+            if prompt_bool("Enable API Keys", required=True):
+                res = prompt_int("How many API keys to generate?", default=1)
+                if res is not None:
+                    config[selected_key] = [secrets.token_urlsafe(32) for _ in range(0, res)]
+                    print(f"Generated {len(config[selected_key])} keys")
+                else:
+                    print("No keys were generated")
+            else:
+                config[selected_key] = None
+
         elif selected_key == "peer_port":
             config[selected_key] = prompt_int(
                 "Peer Port",
@@ -263,7 +285,7 @@ def edit_layer_models(models: List) -> List[dict]:
         selection = prompt_number_choice("Select option", options, required=True)
 
         if selection is None:
-            return
+            return models
         
         if selection == "Add model":
             model_id = prompt_model_id("Model ID", True)
@@ -272,7 +294,7 @@ def edit_layer_models(models: List) -> List[dict]:
             try:
                 new_model = {
                     "id": model_id,
-                    "device": prompt("Device", "cpu", required=True),
+                    "device": prompt_device("Device", "cpu", required=True),
                     "max_memory": prompt("Max Memory (GB)", required=True)
                 }
             except KeyboardInterrupt:

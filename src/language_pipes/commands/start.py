@@ -1,7 +1,9 @@
 import os
 import toml
+import requests
 from time import sleep
 from pathlib import Path
+from typing import Optional
 
 from language_pipes.distributed_state_network import DSNodeServer, DSNodeConfig
 
@@ -12,6 +14,17 @@ from language_pipes.commands.view import view_config
 from language_pipes.lp import LanguagePipes
 from language_pipes.util.user_prompts import prompt, prompt_number_choice, select_config, get_config_files, show_banner
 from language_pipes.util import sanitize_file_name
+
+def check_latest_version() -> Optional[str]:
+    res = requests.get('https://raw.githubusercontent.com/erinclemmer/language-pipes/refs/heads/main/pyproject.toml')
+    if res.status_code != 200:
+        return None
+    try:
+        data = toml.loads(res.content.decode())
+        return data['project']['version']
+    except Exception as e:
+        print(e)
+        return None
 
 def start_server(app_dir: str, config_path: str):
     show_banner("Starting server")
@@ -73,7 +86,7 @@ def modify_config(app_dir: str):
     if config_path is not None:
         edit_config(config_path)
 
-def start_wizard(apply_overrides, version: str):
+def start_wizard(version: str):
     print(f"""         
 ==============================================================================
   _                                                ____
@@ -87,12 +100,17 @@ def start_wizard(apply_overrides, version: str):
 Version: {version}
 ==============================================================================
 
-- Made with <3 by Erin
 """)
 
     app_dir = default_config_dir()
     model_dir = default_model_dir()
-    
+    tag = "- Made with <3 by Erin"
+    latest_version = check_latest_version()
+    if latest_version is not None and latest_version != version:
+        tag = f"Version {latest_version} now available!\nInstall with: pip install --upgrade language-pipes"
+    print(tag)
+    print("")
+
     if not os.path.exists(app_dir):
         Path(app_dir).mkdir(parents=True)
         print(f"Created directory: {app_dir}")
