@@ -1,0 +1,60 @@
+import sys
+import termios
+import tty
+from typing import Optional
+
+ESC = "\x1b["
+ALT_SCR_ENTER = f"{ESC}?1049h"
+ALT_SCR_EXIT  = f"{ESC}?1049l"
+CLS = f"{ESC}2J"
+HOME = f"{ESC}H"
+
+def write(s: str):
+    sys.stdout.write(s)
+    sys.stdout.flush()
+
+def enable_vt_mode():
+    """
+    Linux terminals typically already support ANSI output.
+    Put stdin into cbreak mode so keypresses are immediate (no Enter),
+    and disable echo so keys are not printed.
+    """
+    fd_in = sys.stdin.fileno()
+    old_in_attrs = termios.tcgetattr(fd_in)
+    tty.setcbreak(fd_in)
+    write(ALT_SCR_ENTER + CLS + HOME)
+    return (fd_in, old_in_attrs)
+
+def exit_vt_mode():
+    write(ALT_SCR_EXIT)
+
+def restore_mode(fd_in, old_in_attrs):
+    termios.tcsetattr(fd_in, termios.TCSADRAIN, old_in_attrs)
+
+def print_pos(row: int, col: int, s: str, fg: Optional[int] = None, bg: Optional[int] = None, bold: bool =False):
+    # ANSI positions are 1-based
+    s = color(s, fg, bg, bold)
+    write(f"{ESC}{row + 1};{col + 1}H{s}")
+
+def move_cursor(row: int, col: int):
+    write(f"{ESC}{row + 1};{col + 1}H")
+
+def color(text, fg=None, bg=None, bold=False) -> str:
+    codes = []
+    if bold:
+        codes.append("1")
+
+    # Foreground
+    if isinstance(fg, int):
+        codes.append(f"38;5;{fg}")
+
+    # Background
+    if isinstance(bg, int):
+        codes.append(f"48;5;{bg}")
+    
+    if len(codes) == 0:
+        return text
+
+    prefix = f"\033[{';'.join(codes)}m" if codes else ""
+    reset = "\033[0m"
+    return f"{prefix}{text}{reset}"
