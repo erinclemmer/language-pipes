@@ -2,9 +2,6 @@ import toml
 import argparse
 
 
-from time import time
-print("Starting Language Pipes...")
-start_time = time()
 from language_pipes.distributed_state_network import DSNodeConfig, DSNodeServer  # noqa: E402
 
 from language_pipes.config import LpConfig, apply_env_overrides  # noqa: E402
@@ -14,7 +11,6 @@ from language_pipes.commands.initialize import interactive_init  # noqa: E402
 from language_pipes.commands.start import start_wizard  # noqa: E402
 
 from language_pipes.lp import LanguagePipes  # noqa: E402
-print(f'loaded libraries in {time() - start_time:.2f}s')
 
 VERSION = "1.1.0"
 
@@ -76,8 +72,7 @@ def apply_overrides(data, args):
     cli_args = {
         "logging_level": args.logging_level,
         "openai_port": args.openai_port,
-        "api_key": args.api_key,
-        "api_key_file": args.api_key_file,
+        "api_keys": args.api_keys,
         "app_dir": app_dir_arg,
         "node_id": args.node_id,
         "peer_port": args.peer_port,

@@ -1,6 +1,7 @@
 import os
 import socket
 import toml
+import secrets
 
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.commands.view import view_config
@@ -113,6 +114,17 @@ def interactive_init(output_path: str):
             default=8000,
             required=True
         )
+
+        if prompt_bool("  Use API Keys?", default=False):
+            num_keys = prompt_int(
+                "  Number of keys to generate",
+                default=1
+            )
+            if num_keys is not None:
+                config["api_keys"] = [secrets.token_urlsafe(32) for _ in range(0, num_keys)]
+                print(f"  Generated {num_keys} keys")
+            else:
+                print("  No keys generated")
 
     # === Network Configuration ===
     print("\n--- Network Configuration ---\n")

@@ -8,8 +8,7 @@ def get_env_config() -> Dict[str, Optional[str]]:
     return {
         "logging_level": os.getenv("LP_LOGGING_LEVEL"),
         "oai_port": os.getenv("LP_OAI_PORT"),
-        "api_key": os.getenv("LP_API_KEY"),
-        "api_key_file": os.getenv("LP_API_KEY_FILE"),
+        "api_keys": os.getenv("LP_API_KEYS"),
         "app_dir": os.getenv("LP_APP_DIR"),
         "node_id": os.getenv("LP_NODE_ID"),
         "peer_port": os.getenv("LP_PEER_PORT"),
@@ -50,8 +49,7 @@ def apply_env_overrides(data: Dict[str, Any], cli_args: Optional[Dict[str, Any]]
     config = {
         "logging_level": precedence("logging_level"),
         "oai_port": precedence("oai_port", "openai_port"),
-        "api_key": precedence("api_key", "api_key"),
-        "api_key_file": precedence("api_key_file", "api_key_file"),
+        "api_keys": precedence("api_keys", "api_keys"),
         "app_dir": precedence("app_dir"),
         "node_id": precedence("node_id"),
         "peer_port": precedence("peer_port"),
@@ -216,13 +214,7 @@ class LpConfig:
         if end_models is None:
             end_models = []
 
-        api_keys: List[str] = data.get('api_key', [])
-        api_key_file = data.get('api_key_file', None)
-        if api_key_file is not None:
-            with open(api_key_file, 'r') as f:
-                file_keys = f.read().split("\n")
-                print(f"Found {len(file_keys)} API keys in {api_key_file}")
-                api_keys.extend(file_keys)
+        api_keys: List[str] = data.get('api_keys', [])
 
         return LpConfig(
             # Core settings
