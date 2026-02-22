@@ -109,7 +109,12 @@ class LanguagePipes:
             available_models = self.router_pipes.get_models(self.config.num_local_layers)
             return [m.model_id for m in self.model_manager.end_models if m.model_id in available_models]
 
-        self.oai_server = OAIHttpServer(self.config.oai_port, self.job_factory.start_job, get_models)
+        self.oai_server = OAIHttpServer(
+                self.config.oai_port, 
+                self.config.api_keys,
+                self.job_factory.start_job, 
+                get_models
+        )
         self.oai_thread = Thread(target=self.oai_server.serve_forever, args=())
         self.oai_thread.start()
         self.job_factory.logger.info(f"OpenAI Server started on port {self.config.oai_port}")

@@ -1,5 +1,6 @@
 import socket
 import toml
+import secrets
 from typing import List
 
 from language_pipes.commands.view import view_config
@@ -20,7 +21,7 @@ def edit_config(config_path: str):
         simple_props = [
             ("node_id", "Node ID"),
             ("oai_port", "OpenAI API Port"),
-            ("api_key", "API Key(s)"),
+            ("api_keys", "API Key(s)"),
             ("peer_port", "Peer Port"),
             ("network_ip", "Network IP"),
             ("bootstrap_address", "Bootstrap Address"),
@@ -45,7 +46,15 @@ def edit_config(config_path: str):
         
         for key, label in simple_props:
             current_val = config.get(key, "Not set")
-            editable_props.append(f"{label}: {current_val}")
+            if current_val is None:
+                current_val = "Not set"
+
+            if current_val == "Not set":
+                editable_props.append(f"{label}: Not set")
+            elif key == "api_keys":
+                editable_props.append(f"{label}: {len(current_val)} keys")
+            else:
+                editable_props.append(f"{label}: {current_val}")
             prop_keys.append(key)
         
         editable_props.append("Save and Exit")
@@ -87,10 +96,17 @@ def edit_config(config_path: str):
             else:
                 config.pop(selected_key, None)
         
-        elif selected_key == "api_key":
+        elif selected_key == "api_keys":
             current = config.get(selected_key)
             if prompt_bool("Enable API Keys", required=True):
-                pass
+                res = prompt_int("How many API keys to generate?", default=1)
+                if res is not None:
+                    config[selected_key] = [secrets.token_urlsafe(32) for _ in range(0, res)]
+                    print(f"Generated {len(config[selected_key])} keys")
+                else:
+                    print("No keys were generated")
+            else:
+                config[selected_key] = None
 
         elif selected_key == "peer_port":
             config[selected_key] = prompt_int(

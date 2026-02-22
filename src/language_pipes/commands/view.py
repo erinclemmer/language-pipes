@@ -13,6 +13,7 @@ def view_config(config_path: str):
     descriptions = {
         "node_id": "Unique identifier for this node on the network",
         "oai_port": "Port for OpenAI-compatible API server",
+        "api_keys": "Authentication tokens used to connect to OpenAI-compatible API server",
         "peer_port": "Port for peer-to-peer network coordination",
         "network_ip": "IP address other nodes use to connect to this node",
         "bootstrap_address": "IP of existing node to join the network",
@@ -62,8 +63,11 @@ def view_config(config_path: str):
     
     print("\n--- API Settings ---")
     oai_port = config.get("oai_port")
+    api_keys = config.get("api_keys", [])
+    api_key_desc = "No API key required" if len(api_keys) == 0 else f"{len(api_keys)} keys set"
     if oai_port:
         _print_property("OpenAI API Port", oai_port, descriptions["oai_port"])
+        _print_property("API keys", api_key_desc, "")
     else:
         print("  OpenAI API:         Disabled")
     
