@@ -12,7 +12,7 @@ from language_pipes.commands.start import start_wizard  # noqa: E402
 
 from language_pipes.lp import LanguagePipes  # noqa: E402
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 def build_parser():
     parser = argparse.ArgumentParser(
