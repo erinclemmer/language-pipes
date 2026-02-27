@@ -2,14 +2,13 @@ import os
 import sys
 import toml
 import unittest
-import tempfile
-import shutil
 import io
 from contextlib import redirect_stdout
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from language_pipes.cli import main, build_parser, VERSION
+from language_pipes.util import parse_bootstrap_args
 
 CONFIG_PATH = "_tmp_config.toml"
 KEY_PATH = "_tmp_network.key"
@@ -195,6 +194,30 @@ class ServeConfigTests(unittest.TestCase):
         ])
         self.assertEqual(len(args.end_models), 2)
 
+    def test_bootstrap_flag(self):
+        """Should be able to parse bootstrap node config"""
+        parser = build_parser()
+        args = parser.parse_args([
+            "serve",
+            "--bootstrap-addresses",
+            "192.168.1.1:5000",
+            "192.168.1.2:5000"
+        ])
+        self.assertEqual(len(args.bootstrap_addresses), 2)
+        self.assertEqual(args.bootstrap_addresses[0], "192.168.1.1:5000")
+        self.assertEqual(args.bootstrap_addresses[1], "192.168.1.2:5000")
+
+    def test_bootstrap_toml(self):
+        """should be able to parse bootstrap_addresses in toml file"""
+        res = parse_bootstrap_args([
+            "192.168.1.1:5000",
+            "192.168.1.2:6000"
+        ])
+        self.assertEqual(len(res), 2)
+        self.assertEqual(res[0]["address"], "192.168.1.1")
+        self.assertEqual(res[0]["port"], "5000")
+        self.assertEqual(res[1]["address"], "192.168.1.2")
+        self.assertEqual(res[1]["port"], "6000")
 
 if __name__ == '__main__':
     unittest.main()

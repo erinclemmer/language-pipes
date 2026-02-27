@@ -9,7 +9,7 @@ import ctypes
 from uuid import UUID
 from hashlib import sha256
 from threading import Thread
-from typing import Optional
+from typing import Optional, List, Dict
 
 import numpy as np
 import torch
@@ -156,3 +156,18 @@ def maybeTo(t: Optional[torch.Tensor], device: str) -> Optional[torch.Tensor]:
     if str(t.device) == device:
         return t.detach()
     return t.detach().to(device)
+
+def parse_bootstrap_args(addresses: Optional[List[str]]) -> List[Dict]:
+    if addresses is None:
+        return []
+    bootstrap_addresses = []
+    for addr in addresses:
+        parts = addr.split(":")
+        if len(parts) != 2:
+            print(f"Warning: {addr} is not a valid address+port combination, use something like \"192.168.1.1:5000\"")
+            continue
+        bootstrap_addresses.append({
+            "address": parts[0],
+            "port": parts[1]
+        })
+    return bootstrap_addresses

@@ -5,6 +5,7 @@ import argparse
 from language_pipes.distributed_state_network import DSNodeConfig, DSNodeServer  # noqa: E402
 
 from language_pipes.config import LpConfig, apply_env_overrides  # noqa: E402
+from language_pipes.util import parse_bootstrap_args
 from language_pipes.util.aes import save_new_aes_key  # noqa: E402
 
 from language_pipes.commands.initialize import interactive_init  # noqa: E402
@@ -49,8 +50,7 @@ def build_parser():
     run_parser.add_argument("--app-dir", type=str, help="Directory to store data for this application")
     run_parser.add_argument("--api-keys", nargs="*", metavar="API_KEY", help="API key(s) for the Open AI compatable server")
     run_parser.add_argument("--peer-port", type=int, help="Port for peer-to-peer network (Default: 5000)")
-    run_parser.add_argument("--bootstrap-address", help="Bootstrap node address (e.g. 192.168.1.100)")
-    run_parser.add_argument("--bootstrap-port", type=int, help="Bootstrap node port for the network (e.g. 8000)")
+    run_parser.add_argument("--bootstrap-addresses", nargs="*", metavar="BOOTSTRAP_ADDRESSES", help="IP addresses and ports for bootstrap nodes (example: 192.168.1.1:5000)")
     run_parser.add_argument("--max-pipes", type=int, help="Maximum amount of pipes to host")
     run_parser.add_argument("--network-key", type=str, help="AES key to access network")
     run_parser.add_argument("--whitelist-ips", nargs="*", metavar="IP", help="Only communicate with peers whose IP is in this whitelist")
@@ -76,8 +76,7 @@ def apply_overrides(data, args):
         "app_dir": app_dir_arg,
         "node_id": args.node_id,
         "peer_port": args.peer_port,
-        "bootstrap_address": args.bootstrap_address,
-        "bootstrap_port": args.bootstrap_port,
+        "bootstrap_addresses": args.bootstrap_addresses,
         "network_key": args.network_key,
         "whitelist_ips": args.whitelist_ips,
         "whitelist_node_ids": args.whitelist_node_ids,
@@ -141,12 +140,7 @@ def main(argv = None):
             "aes_key": data.get("network_key", None),
             "whitelist_ips": data.get("whitelist_ips", []),
             "whitelist_node_ids": data.get("whitelist_node_ids", []),
-            "bootstrap_nodes": [
-                {
-                    "address": data["bootstrap_address"],
-                    "port": data["bootstrap_port"]
-                }
-            ] if data.get("bootstrap_address") is not None else []
+            "bootstrap_nodes": parse_bootstrap_args(data.get("bootstrap_addresses", None))
         })
 
         print(router_config.to_string())
