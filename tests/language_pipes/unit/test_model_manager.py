@@ -53,7 +53,8 @@ def make_config(
         num_local_layers=num_local_layers,
         model_validation=model_validation,
         prefill_chunk_size=6,
-        huggingface_token=None
+        huggingface_token=None,
+        api_keys=[]
     )
 
 

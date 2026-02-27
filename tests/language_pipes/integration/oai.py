@@ -18,7 +18,7 @@ from language_pipes.util.chat import ChatMessage, ChatRole
 
 MODEL = "Qwen/Qwen3-0.6B"
 
-def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: Optional[int] = None, bootstrap_port: Optional[int] = None):
+def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: Optional[int] = None, bootstrap_ports: List[int] = []):
     args = ["serve", 
         "--node-id", node_id, 
         "--layer-models", f"id={MODEL},device=cpu,memory={max_memory}", 
@@ -31,8 +31,9 @@ def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: Option
     if oai_port is not None:
         args.extend(["--openai-port", str(oai_port)])
     
-    if bootstrap_port is not None:
-        args.extend(["--bootstrap-address", "localhost", "--bootstrap-port", str(bootstrap_port)])
+    if len(bootstrap_ports) > 0:
+        args.append("--bootstrap-addresses")
+        args.extend([f"localhost:{port}" for port in bootstrap_ports])
 
     return main(args)
 
@@ -145,7 +146,7 @@ class OpenAITests(unittest.TestCase):
     def test_double_node(self):
         start_node("node-1", 0.5, 5000, 8000)
         time.sleep(5)
-        start_node("node-2", 1, 5001, None, 5000)
+        start_node("node-2", 1, 5001, None, [5000])
         time.sleep(5)
         
         res = oai_complete(8000, [
@@ -155,6 +156,20 @@ class OpenAITests(unittest.TestCase):
         
         print("\"" + res.choices[0].message.content + "\"")
         self.assertTrue(len(res.choices) > 0)
+
+    def test_double_bootstrap(self):
+        start_node("node-1", 0.5, 5000, 8000)
+        time.sleep(5)
+        start_node("node-2", 1, 5001, None, [6000, 5000])
+        time.sleep(5)
+        
+        res = oai_complete(8000, [
+            ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),
+            ChatMessage(ChatRole.USER, "Hello, how are you?")
+        ])
+        
+        print("\"" + res.choices[0].message.content + "\"")
+        self.assertTrue(len(res.choices) > 0)    
 
     def test_double_long(self):
         start_node("node-1", 1.5, 5000, 8000)

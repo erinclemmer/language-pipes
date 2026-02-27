@@ -13,7 +13,7 @@ from language_pipes.commands.edit import edit_config
 from language_pipes.commands.view import view_config
 from language_pipes.lp import LanguagePipes
 from language_pipes.util.user_prompts import prompt, prompt_number_choice, select_config, get_config_files, show_banner
-from language_pipes.util import sanitize_file_name
+from language_pipes.util import sanitize_file_name, parse_bootstrap_args
 
 def check_latest_version() -> Optional[str]:
     res = requests.get('https://raw.githubusercontent.com/erinclemmer/language-pipes/refs/heads/main/pyproject.toml')
@@ -45,12 +45,7 @@ def start_server(app_dir: str, config_path: str):
             "aes_key": data.get("network_key", None),
             "whitelist_ips": data.get("whitelist_ips", []),
             "whitelist_node_ids": data.get("whitelist_node_ids", []),
-            "bootstrap_nodes": [
-                {
-                    "address": data["bootstrap_address"],
-                    "port": data["bootstrap_port"]
-                }
-            ] if data.get("bootstrap_address") is not None else []
+            "bootstrap_nodes": parse_bootstrap_args(data.get("bootstrap_addresses", None))
         }))
         
         LanguagePipes(config, router)

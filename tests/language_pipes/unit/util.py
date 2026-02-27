@@ -5,8 +5,8 @@ from language_pipes.pipes.pipe import Pipe
 from language_pipes.config import LpConfig
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_data import JobData
-from language_pipes.jobs.job_processor import JobContext, JobProcessor, JobState
-from language_pipes.util.enums import ComputeStep, JobStatus
+from language_pipes.jobs.job_processor import JobContext, JobProcessor
+from language_pipes.util.enums import ComputeStep
 
 class FakeLogger:
     def __init__(self):
@@ -91,12 +91,13 @@ def make_config(node_id="node-a", prefill_chunk_size=2):
         oai_port=None,
         node_id=node_id,
         layer_models=[],
-        end_models=None,
+        end_models=[],
         max_pipes=1,
         model_validation=False,
         prefill_chunk_size=prefill_chunk_size,
         num_local_layers=0,
-        huggingface_token=None
+        huggingface_token=None,
+        api_keys=[]
     )
 
 def mock_complete(a):

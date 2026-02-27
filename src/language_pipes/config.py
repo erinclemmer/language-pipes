@@ -13,8 +13,9 @@ def get_env_config() -> Dict[str, Optional[str]]:
         "node_id": os.getenv("LP_NODE_ID"),
         "peer_port": os.getenv("LP_PEER_PORT"),
         "network_ip": os.getenv("LP_NETWORK_IP"),
-        "bootstrap_address": os.getenv("LP_BOOTSTRAP_ADDRESS"),
-        "bootstrap_port": os.getenv("LP_BOOTSTRAP_PORT"),
+        "bootstrap_addresses": os.getenv("LP_BOOTSTRAP_ADDRESSES"),
+        "bootstrap_address": os.getenv("LP_BOOTSTRAP_ADDRESS"), # TODO deprecate
+        "bootstrap_port": os.getenv("LP_BOOTSTRAP_PORT"), # TODO deprecate
         "network_key": os.getenv("LP_NETWORK_KEY"),
         "whitelist_ips": os.getenv("LP_WHITELIST_IPS"),
         "whitelist_node_ids": os.getenv("LP_WHITELIST_NODE_IDS"),
@@ -55,6 +56,7 @@ def apply_env_overrides(data: Dict[str, Any], cli_args: Optional[Dict[str, Any]]
         "peer_port": precedence("peer_port"),
         "network_ip": precedence("network_ip"),
         "end_models": precedence("end_models"),
+        "bootstrap_addresses": precedence("bootstrap_addresses"),
         "bootstrap_address": precedence("bootstrap_address"),
         "bootstrap_port": precedence("bootstrap_port"),
         "network_key": precedence("network_key"),
