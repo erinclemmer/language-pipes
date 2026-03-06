@@ -3,37 +3,39 @@ import sys
 from typing import Tuple, Optional, List
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.kb_utils import read_key, PressedKey
-from language_pipes.tui.screen_utils import print_pos, move_cursor
+from language_pipes.tui.screen_utils import move_cursor
 
 def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int]) -> Optional[str]:
     txt.value += "|> "
     label_id = window.add_text(txt, pos)
     window.paint()
-    start_idx = window.position[0] + pos[0] + len(txt.value)
+    start_idx = pos[0] + len(txt.value)
     cursor_idx = start_idx
-    buffer = ""
-    print_pos(pos[1], cursor_idx, '')
+    buffer_id = window.add_text(TermText(""), (cursor_idx, pos[1]))
+    buffer = window.get_text(buffer_id)
+    move_cursor(pos[1], window.position[0] + cursor_idx)
 
     def done():
-        clear_buffer_id = window.add_text(TermText(" " * len(buffer)), (start_idx, pos[1]))
         window.remove_txt(label_id)
-        window.remove_txt(clear_buffer_id)
+        window.remove_txt(buffer_id)
         window.paint()
 
     while True:
         ch = sys.stdin.read(1)
         if ch.isnumeric() or ch.isalpha() or ch == "_" or ch == "-":
-            print_pos(pos[1], cursor_idx, ch)
-            buffer += ch
+            window.update_text(buffer_id, TermText(buffer.text.value + ch))
             cursor_idx += 1
+            window.paint()
+            move_cursor(pos[1], window.position[0] + cursor_idx)
         elif ch == "\x7f" and cursor_idx > start_idx: # Backspace
             cursor_idx -= 1
-            buffer = buffer[:-1]
-            print_pos(pos[1], cursor_idx, ' ')
-            move_cursor(pos[1], cursor_idx)
+            window.update_text(buffer_id, TermText(buffer.text.value[:-1]))
+            window.paint()
+            move_cursor(pos[1], window.position[0] + cursor_idx)
         elif ch == "\n": # Accept input [Enter]
+            res = buffer.text.value
             done()
-            return buffer
+            return res
         elif ch == "\x1b": # Escape
             done()
             return None
