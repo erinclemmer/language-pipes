@@ -60,7 +60,10 @@ class TuiGrid:
             return
         if pos[0] < 0 or pos[1] < 0:
             return
-        self.grid[pos[0]][pos[1]].set_value(tt)
+        try:
+            self.grid[pos[0]][pos[1]].set_value(tt)
+        except IndexError:
+            pass
 
     def paint(self):
         for row in self.grid:
@@ -141,8 +144,8 @@ class TuiWindow(TuiGrid):
         whitespace_obj = TuiText(-1, whitespace_v, txt.position)
         for clear_v, rel_pos in whitespace_obj.get_cells():
             self.set_cell((
-                self.position[0] + rel_pos[0],
-                self.position[1] + rel_pos[1]
+                rel_pos[0],
+                rel_pos[1]
             ), clear_v)
 
     def remove_txt(self, id: int):
@@ -172,6 +175,6 @@ class TuiWindow(TuiGrid):
         for obj in self.text_objects:
             for v, rel_pos in obj.get_cells():
                     self.set_cell((
-                        self.position[0] + rel_pos[0],
-                        self.position[1] + rel_pos[1]
+                        rel_pos[0],
+                        rel_pos[1]
                     ), v)

@@ -10,13 +10,12 @@ def initialize_tui():
     entered_alt_screen = False
 
     term_size = get_terminal_size(fallback=(80, 24))
-    window = TuiWindow((term_size.columns, term_size.lines), (0, 0))
-
+    
     try:
         fd_in, old_in_attrs = enable_vt_mode()
         entered_alt_screen = True
 
-        main_menu(window, (term_size.columns, term_size.lines))
+        main_menu((term_size.columns, term_size.lines))
     finally:
         if entered_alt_screen:
             exit_vt_mode()

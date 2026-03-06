@@ -1,16 +1,17 @@
+import os
 import toml
 from time import sleep
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.kb_utils import key_available, read_key, PressedKey
-from language_pipes.tui.prompt import prompt
+from language_pipes.tui.prompt import prompt, select_option
 from language_pipes.util.config import get_config_files, default_config_dir
 
-def load_libraries(window: TuiWindow, banner_x: int):
-    pipe_id = window.add_text(TermText(""), (banner_x + 20, 10))
-    loading_id = window.add_text(TermText(""), (banner_x + 20, 12))
+def load_libraries(window: TuiWindow):
+    pipe_id = window.add_text(TermText(""), (20, 10))
+    loading_id = window.add_text(TermText(""), (20, 12))
     num_total_segments = 40
     def paint_loader(i):
         pipe_v: str = "|>" + ("=" * i) + (" " * (num_total_segments - i)) + "<|"
@@ -43,66 +44,42 @@ def load_libraries(window: TuiWindow, banner_x: int):
 def new_config(window: TuiWindow, left_bound: int) -> Optional[str]:
     return prompt(TermText("Configuration Name"), window, (left_bound + 2, 10))
 
+def prompt_node_id(window: TuiWindow, left_bound: int):
+    return prompt(TermText("Node ID"), window, (left_bound, 10))
+
+def select_node_id(window: TuiWindow, left_bound: int, credentials: List[str]):
+    cred_text_ids = []
+    for i, c in enumerate(credentials):
+        cred_text_ids.append(window.add_text(TermText(c), (left_bound, 6 + (i * 2))))
+
 def handle_file_load(window: TuiWindow, left_bound: int, config_file: Path):
+    window.remove_all()
+    window.paint()
     with open(config_file, 'r') as f:
         data = toml.load(f)
-    
+    cred_dir = default_config_dir() + "/" + "credentials"
+    node_id = data.get("node_id", None)
+    if len(os.listdir(cred_dir)) == 0:
+        node_id = prompt_node_id(window, left_bound)
+        if node_id is None:
+            return None
 
-
-def main_menu(window: TuiWindow, termsize: Tuple[int, int]):
+def main_menu(termsize: Tuple[int, int]):
     with open('src/language_pipes/tui/banner.txt', 'r') as f:
         banner_text = f.read()
 
     left_bound = int((termsize[0] / 2.0) - 40.0)
-    window.add_text(TermText(banner_text), (left_bound, 0))
-    window.add_text(TermText("Version X.X.X"), (left_bound, 7))
-    load_libraries(window, left_bound)
-
-    new_config_txt = TermText("New Configuration")
-
-    has_config_files = len(get_config_files(default_config_dir() + "/configs")) > 0
-    load_config_txt = TermText("Load Configuration") if has_config_files else None
-
-    help_text = TermText("[Arrow Keys]: Navigate, [Enter]: Accept Selection")
-    
-    def build_options():
-        l_cursor_id = window.add_text(TermText("|>"), (left_bound + 20, 10))
-        r_cursor_id = window.add_text(TermText("<|"), (left_bound + 42, 10))
-        new_config_id = window.add_text(new_config_txt, (left_bound + 23, 10))
-        load_config_id = None
-        if load_config_txt is not None:
-            load_config_id = window.add_text(load_config_txt, (left_bound + 23, 12))
-        
-        help_text_id = window.add_text(help_text, (left_bound + 10, 14 if has_config_files else 12))
-        
-        return l_cursor_id, r_cursor_id, new_config_id, load_config_id, help_text_id
-    
-    l_cursor_id, r_cursor_id, new_config_id, load_config_id, help_text_id = build_options()
-    
+    window = TuiWindow(termsize, (left_bound, 0))
+    window.add_text(TermText(banner_text), (0, 0))
+    window.add_text(TermText("Version X.X.X"), (0, 7))
     window.paint()
-    cursor = False
-    while True:
-        if key_available():
-            key = read_key()
-            if key is None:
-                continue
-            if key == PressedKey.ArrowUp or key == PressedKey.ArrowDown:
-                cursor = not cursor
-            if key == PressedKey.Enter:
-                if not cursor:
-                    window.remove_txt(l_cursor_id)
-                    window.remove_txt(r_cursor_id)
-                    window.remove_txt(new_config_id)
-                    window.remove_txt(help_text_id)
-                    if load_config_id is not None:
-                        window.remove_txt(load_config_id)
-                    config_name = new_config(window, left_bound)
-                    if config_name is None:
-                        l_cursor_id, r_cursor_id, new_config_id, load_config_id, help_text_id = build_options()
-                    else:
-                        config_path = Path(default_config_dir() + "/" + config_name + ".toml")
-                        config_path.touch()
-            window.update_text(l_cursor_id, v=None, pos=(left_bound + 20, 12 if cursor else 10))
-            window.update_text(r_cursor_id, v=None, pos=(left_bound + 42, 12 if cursor else 10))
-            window.paint()
-        sleep(0.02)
+    load_libraries(window)
+
+    main_menu_options = ["New Configuration", "Exit"]
+    if len(get_config_files(default_config_dir() + "/configs")) > 0:
+        main_menu_options.append("Load Configuration")
+
+    res = select_option((left_bound + 10, 10), main_menu_options)
+    if res is None or res == "Exit":
+        exit()
+
