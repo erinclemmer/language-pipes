@@ -9,10 +9,16 @@ def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int]) -> Optional[s
     txt.value += "|> "
     label_id = window.add_text(txt, pos)
     window.paint()
-    start_idx = pos[0] + len(txt.value)
+    start_idx = window.position[0] + pos[0] + len(txt.value)
     cursor_idx = start_idx
     buffer = ""
     print_pos(pos[1], cursor_idx, '')
+
+    def done():
+        clear_buffer_id = window.add_text(TermText(" " * len(buffer)), (start_idx, pos[1]))
+        window.remove_txt(label_id)
+        window.remove_txt(clear_buffer_id)
+        window.paint()
 
     while True:
         ch = sys.stdin.read(1)
@@ -22,15 +28,14 @@ def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int]) -> Optional[s
             cursor_idx += 1
         elif ch == "\x7f" and cursor_idx > start_idx: # Backspace
             cursor_idx -= 1
-            buffer[:-1]
+            buffer = buffer[:-1]
             print_pos(pos[1], cursor_idx, ' ')
             move_cursor(pos[1], cursor_idx)
         elif ch == "\n": # Accept input [Enter]
+            done()
             return buffer
         elif ch == "\x1b": # Escape
-            window.add_text(TermText(" "  * len(buffer)), (start_idx, pos[1]))
-            window.remove_txt(label_id)
-            window.paint()
+            done()
             return None
 
 def select_option( 
