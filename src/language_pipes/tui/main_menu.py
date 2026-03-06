@@ -1,5 +1,7 @@
+import toml
 from time import sleep
-from typing import Tuple
+from pathlib import Path
+from typing import Tuple, Optional
 
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.kb_utils import key_available, read_key, PressedKey
@@ -38,11 +40,14 @@ def load_libraries(window: TuiWindow, banner_x: int):
     window.remove_txt(loading_id)
     window.paint()
 
-def new_config(window: TuiWindow, left_bound: int) -> bool:
-    res = prompt(TermText("Configuration Name"), window, (left_bound + 2, 10))
-    if res is None:
-        return False
-    return True
+def new_config(window: TuiWindow, left_bound: int) -> Optional[str]:
+    return prompt(TermText("Configuration Name"), window, (left_bound + 2, 10))
+
+def handle_file_load(window: TuiWindow, left_bound: int, config_file: Path):
+    with open(config_file, 'r') as f:
+        data = toml.load(f)
+    
+
 
 def main_menu(window: TuiWindow, termsize: Tuple[int, int]):
     with open('src/language_pipes/tui/banner.txt', 'r') as f:
@@ -91,10 +96,12 @@ def main_menu(window: TuiWindow, termsize: Tuple[int, int]):
                     window.remove_txt(help_text_id)
                     if load_config_id is not None:
                         window.remove_txt(load_config_id)
-                    if not new_config(window, left_bound):
+                    config_name = new_config(window, left_bound)
+                    if config_name is None:
                         l_cursor_id, r_cursor_id, new_config_id, load_config_id, help_text_id = build_options()
                     else:
-                        return
+                        config_path = Path(default_config_dir() + "/" + config_name + ".toml")
+                        config_path.touch()
             window.update_text(l_cursor_id, v=None, pos=(left_bound + 20, 12 if cursor else 10))
             window.update_text(r_cursor_id, v=None, pos=(left_bound + 42, 12 if cursor else 10))
             window.paint()
