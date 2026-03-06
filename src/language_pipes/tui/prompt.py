@@ -1,5 +1,5 @@
 import sys
-from time import sleep
+
 from typing import Tuple, Optional
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.kb_utils import key_available, read_key, PressedKey
@@ -13,6 +13,7 @@ def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int]) -> Optional[s
     cursor_idx = start_idx
     buffer = ""
     print_pos(pos[1], cursor_idx, '')
+
     while True:
         ch = sys.stdin.read(1)
         if ch.isnumeric() or ch.isalpha() or ch == "_" or ch == "-":
@@ -31,4 +32,3 @@ def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int]) -> Optional[s
             window.remove_txt(label_id)
             window.paint()
             return None
-        sleep(0.1)
