@@ -12,6 +12,7 @@ class PressedKey(Enum):
     ArrowDown = "ArrowDown"
     Enter = "Enter"
     Escape = "Escape"
+    Delete = "Delete"
 
 def read_key() -> Optional[PressedKey]:
     ch = sys.stdin.read(1)
@@ -23,6 +24,9 @@ def read_key() -> Optional[PressedKey]:
             return PressedKey.ArrowUp
         if key == "[B":
             return PressedKey.ArrowDown
+        if key == "[3":
+            return PressedKey.Delete
+
     if ch == "\x1b":
         return PressedKey.Escape
 

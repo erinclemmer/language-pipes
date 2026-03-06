@@ -42,28 +42,37 @@ def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int]) -> Optional[s
 
 def select_option( 
         pos: Tuple[int, int],
-        options: List[str]
-    ) -> Optional[str]:
+        options: List[str],
+        msg: Optional[TermText] = None,
+        allow_delete: bool = False
+    ) -> Optional[Tuple[str, int]]:
     max_len = max([len(o) for o in options])
-    help_text = "[Arrow Keys]: Navigate, [Enter]: Accept Selection"
-    width = max(max_len + 6, len(help_text))
-    window = TuiWindow((width, len(options) * 2 + 3), pos)
+    help_text = "[Arrows]: Navigate, [Enter]: Accept, [Esc]: Back"
+    if allow_delete:
+        help_text += ", [Delete] Delete"
+    width = max(max_len + 6, len(help_text), len(msg.value) if msg is not None else 0)
+    window = TuiWindow((width, len(options) * 2 + 5), pos)
 
     mid_point = width / 2
     option_ids = []
 
+    top_bound = 0
+    if msg is not None:
+        window.add_text(msg, (int(mid_point - len(msg.value) / 2), 0))
+        top_bound += 2
+
     for i, opt in enumerate(options):
         l_bound = mid_point - (len(opt) / 2)
-        option_ids.append(window.add_text(TermText(opt), (int(l_bound), (i * 2))))
+        option_ids.append(window.add_text(TermText(opt), (int(l_bound), top_bound + (i * 2))))
 
     window.add_text(TermText(help_text), (
         0, 
-        (len(options) * 2) + 2
+        top_bound + (len(options) * 2) + 2
     ))
 
     first_opt = window.get_text(option_ids[0])
-    l_cursor_id = window.add_text(TermText("|>"), (first_opt.position[0] - 3, 0))
-    r_cursor_id = window.add_text(TermText("<|"), (first_opt.position[0] + len(first_opt.text.value) + 1, 0))
+    l_cursor_id = window.add_text(TermText("|>"), (first_opt.position[0] - 3, top_bound))
+    r_cursor_id = window.add_text(TermText("<|"), (first_opt.position[0] + len(first_opt.text.value) + 1, top_bound))
     
     window.paint()
     selection_idx = 0
@@ -90,19 +99,30 @@ def select_option(
         if key == PressedKey.Enter:
             window.remove_all()
             window.paint()
-            return options[selection_idx]
+            return options[selection_idx], 0
+
+        if key == PressedKey.Delete and allow_delete:
+            window.remove_all()
+            window.paint()
+            return options[selection_idx], 1
 
         if update:
             opt = window.get_text(option_ids[selection_idx])
             level = selection_idx * 2
             window.update_text(l_cursor_id, None, (
                 opt.position[0] - 3,
-                level
+                top_bound + level
             ))
             window.update_text(r_cursor_id, None, (
                 opt.position[0] + len(opt.text.value) + 1,
-                level
+                top_bound + level
             ))
             window.paint()
 
-
+def prompt_bool(msg: TermText, pos: Tuple[int, int]) -> Optional[bool]:
+    res = select_option(
+        pos, ["Yes", "No"], msg
+    )
+    if res is None:
+        return None
+    return res[0] == "Yes"

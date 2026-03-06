@@ -1,12 +1,13 @@
 import os
 import toml
+from threading import Thread
 from time import sleep
 from pathlib import Path
 from typing import Tuple, Optional, List
 
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.kb_utils import key_available, read_key, PressedKey
-from language_pipes.tui.prompt import prompt, select_option
+from language_pipes.tui.prompt import prompt, select_option, prompt_bool
 from language_pipes.util.config import get_config_files, default_config_dir, default_model_dir
 
 def load_libraries(window: TuiWindow):
@@ -45,7 +46,14 @@ def new_config(window: TuiWindow) -> Optional[str]:
     return prompt(TermText("Configuration Name"), window, (2, 10))
 
 def prompt_node_id(window: TuiWindow):
-    return prompt(TermText("Node ID"), window, (2, 10))
+    cred_dir = Path(default_config_dir(), "credentials")
+    credentials = os.listdir(cred_dir)
+    if len(credentials) == 0:
+        node_id = prompt(TermText("Node ID"), window, (2, 10))
+        if node_id is None or node_id == '':
+            return None
+        return node_id
+    res = select_option((0, 0), credentials)
 
 def select_node_id(window: TuiWindow, left_bound: int, credentials: List[str]):
     cred_text_ids = []
@@ -55,12 +63,12 @@ def select_node_id(window: TuiWindow, left_bound: int, credentials: List[str]):
 def handle_file_load(window: TuiWindow, config_file: Path):
     with open(config_file, 'r') as f:
         data = toml.load(f)
-    cred_dir = Path(default_config_dir(), "credentials")
     node_id = data.get("node_id", None)
-    if len(os.listdir(cred_dir)) == 0:
-        node_id = prompt_node_id(window)
-        if node_id is None:
-            return None
+    if node_id is None:
+        data["node_id"] = prompt_node_id(window)
+        with open(config_file, 'w') as f:
+            toml.dump(data, f)
+    
 
 def main_menu(termsize: Tuple[int, int]):
     with open('src/language_pipes/tui/banner.txt', 'r') as f:
@@ -99,15 +107,39 @@ def main_menu(termsize: Tuple[int, int]):
     if res is None or res == "Exit":
         exit()
 
-    if res == "New Configuration":
+    cmd = res[0]
+
+    def restart():
+        window.remove_all()
+        window.paint()
+        t = Thread(target=main_menu, args=(termsize, ))
+        t.start()
+        t.join()
+
+    if cmd == "New Configuration":
         config_file = new_config(window)
         if config_file is None or config_file == '':
-            window.remove_all()
-            window.paint()
-            main_menu(termsize)
+            restart()
             return
         config_path = Path(default_config_dir(), "configs", config_file + ".toml")
         config_path.touch()
-        # with open(config_path, 'w', encoding='utf-8') as f:
-        #     toml.dump({ }, f)
-        handle_file_load(window, config_path)
+        res = handle_file_load(window, config_path)
+        if res is None:
+            return restart()
+        
+    if cmd == "Load Configuration":
+        configs = get_config_files(str(Path(default_config_dir(), "configs")))
+        res = select_option((left_bound + 2, 9), configs, TermText("Select Configuration"), True)
+        if res is None:
+            return restart()
+        config_file, cmd = res
+        config_path = Path(default_config_dir(), "configs", config_file + ".toml")
+        if cmd == 0:
+            res = handle_file_load(window, config_path)
+            if res is None:
+                return restart()
+        if cmd == 1:
+            res = prompt_bool(TermText(f"Delete {config_file}?"), (left_bound + 2, 9))
+            if res:
+                os.remove(str(config_path))
+            return restart()
