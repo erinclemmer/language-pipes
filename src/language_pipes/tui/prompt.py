@@ -1,9 +1,9 @@
 import sys
 from time import sleep
 from typing import Tuple, Optional
-from tui import TuiWindow, TermText
-from kb_utils import key_available, read_key, PressedKey
-from screen_utils import print_pos, move_cursor
+from language_pipes.tui.tui import TuiWindow, TermText
+from language_pipes.tui.kb_utils import key_available, read_key, PressedKey
+from language_pipes.tui.screen_utils import print_pos, move_cursor
 
 def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int]) -> Optional[str]:
     txt.value += "|> "

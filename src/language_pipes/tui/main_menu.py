@@ -1,8 +1,10 @@
+import os
 from time import sleep
 from typing import Tuple
-from tui import TuiWindow, TermText
-from kb_utils import key_available, read_key, PressedKey
-from prompt import prompt
+
+from language_pipes.tui.tui import TuiWindow, TermText
+from language_pipes.tui.kb_utils import key_available, read_key, PressedKey
+from language_pipes.tui.prompt import prompt
 
 def load_libraries(window: TuiWindow, banner_x: int):
     pipe_id = window.add_text(TermText(""), (banner_x + 20, 10))
@@ -43,7 +45,7 @@ def new_config(window: TuiWindow, left_bound: int) -> bool:
     return True
 
 def main_menu(window: TuiWindow, termsize: Tuple[int, int]):
-    with open('banner.txt', 'r') as f:
+    with open('src/language_pipes/tui/banner.txt', 'r') as f:
         banner_text = f.read()
 
     left_bound = int((termsize[0] / 2.0) - 40.0)

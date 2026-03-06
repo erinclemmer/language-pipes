@@ -85,6 +85,9 @@ class OpenAITests(unittest.TestCase):
     def test_cli(self):
         main([])
 
+    def test_tui(self):
+        main(["tui"])
+
     def test_single_node(self):
         start_node("node-1", 6, 5000, 8000)
         res = oai_complete(8000, [

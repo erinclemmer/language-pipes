@@ -10,6 +10,7 @@ from language_pipes.commands.initialize import interactive_init  # noqa: E402
 from language_pipes.commands.start import start_wizard  # noqa: E402
 
 from language_pipes.lp import LanguagePipes  # noqa: E402
+from language_pipes.tui import initialize_tui
 
 VERSION = "1.2.0"
 
@@ -22,6 +23,9 @@ def build_parser():
     parser.add_argument("-v", "--version", action="version", version=VERSION)
 
     subparsers = parser.add_subparsers(dest="command")
+
+    # TUI
+    subparsers.add_parser("tui", help="Start Language Pipes in TUI mode")
 
     #Upgrade
     subparsers.add_parser("upgrade", help="Upgrade Language Pipes package")
@@ -117,6 +121,8 @@ def main(argv = None):
         print(f"✓ Network key saved to '{args.output}'")
     elif args.command == "init":
         interactive_init(args.output)
+    elif args.command == "tui":
+        initialize_tui()
     elif args.command == "start":
         try:
             return start_wizard(VERSION)

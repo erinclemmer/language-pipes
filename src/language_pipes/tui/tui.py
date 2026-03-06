@@ -1,5 +1,5 @@
 from typing import List, Tuple, Optional
-from screen_utils import print_pos
+from language_pipes.tui.screen_utils import print_pos
 
 class TermText:
     value: str
