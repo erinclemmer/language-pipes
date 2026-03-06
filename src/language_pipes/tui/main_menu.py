@@ -57,6 +57,8 @@ def main_menu(window: TuiWindow, termsize: Tuple[int, int]):
 
     has_config_files = len(get_config_files(default_config_dir() + "/configs")) > 0
     load_config_txt = TermText("Load Configuration") if has_config_files else None
+
+    help_text = TermText("[Arrow Keys]: Navigate, [Enter]: Accept Selection")
     
     def build_options():
         l_cursor_id = window.add_text(TermText("|>"), (left_bound + 20, 10))
@@ -65,9 +67,12 @@ def main_menu(window: TuiWindow, termsize: Tuple[int, int]):
         load_config_id = None
         if load_config_txt is not None:
             load_config_id = window.add_text(load_config_txt, (left_bound + 23, 12))
-        return l_cursor_id, r_cursor_id, new_config_id, load_config_id
+        
+        help_text_id = window.add_text(help_text, (left_bound + 10, 14 if has_config_files else 12))
+        
+        return l_cursor_id, r_cursor_id, new_config_id, load_config_id, help_text_id
     
-    l_cursor_id, r_cursor_id, new_config_id, load_config_id = build_options()
+    l_cursor_id, r_cursor_id, new_config_id, load_config_id, help_text_id = build_options()
     
     window.paint()
     cursor = False
@@ -83,10 +88,11 @@ def main_menu(window: TuiWindow, termsize: Tuple[int, int]):
                     window.remove_txt(l_cursor_id)
                     window.remove_txt(r_cursor_id)
                     window.remove_txt(new_config_id)
+                    window.remove_txt(help_text_id)
                     if load_config_id is not None:
                         window.remove_txt(load_config_id)
                     if not new_config(window, left_bound):
-                        l_cursor_id, r_cursor_id, new_config_id, load_config_id = build_options()
+                        l_cursor_id, r_cursor_id, new_config_id, load_config_id, help_text_id = build_options()
                     else:
                         return
             window.update_text(l_cursor_id, v=None, pos=(left_bound + 20, 12 if cursor else 10))
