@@ -14,22 +14,21 @@ def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int]) -> Optional[s
     buffer = ""
     print_pos(pos[1], cursor_idx, '')
     while True:
-        if key_available():
-            ch = sys.stdin.read(1)
-            if ch.isalpha():
-                print_pos(pos[1], cursor_idx, ch)
-                buffer += ch
-                cursor_idx += 1
-            if ch == "\x7f" and cursor_idx > start_idx:
-                cursor_idx -= 1
-                buffer[:-1]
-                print_pos(pos[1], cursor_idx, ' ')
-                move_cursor(pos[1], cursor_idx)
-            if ch == "\n":
-                return buffer
-            if ch == "\x1b":
-                window.add_text(TermText(" "  * len(buffer)), (start_idx, pos[1]))
-                window.remove_txt(label_id)
-                window.paint()
-                return None
+        ch = sys.stdin.read(1)
+        if ch.isnumeric() or ch.isalpha() or ch == "_" or ch == "-":
+            print_pos(pos[1], cursor_idx, ch)
+            buffer += ch
+            cursor_idx += 1
+        elif ch == "\x7f" and cursor_idx > start_idx: # Backspace
+            cursor_idx -= 1
+            buffer[:-1]
+            print_pos(pos[1], cursor_idx, ' ')
+            move_cursor(pos[1], cursor_idx)
+        elif ch == "\n": # Accept input [Enter]
+            return buffer
+        elif ch == "\x1b": # Escape
+            window.add_text(TermText(" "  * len(buffer)), (start_idx, pos[1]))
+            window.remove_txt(label_id)
+            window.paint()
+            return None
         sleep(0.1)

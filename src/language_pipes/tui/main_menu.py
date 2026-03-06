@@ -1,10 +1,10 @@
-import os
 from time import sleep
 from typing import Tuple
 
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.kb_utils import key_available, read_key, PressedKey
 from language_pipes.tui.prompt import prompt
+from language_pipes.util.config import get_config_files, default_config_dir
 
 def load_libraries(window: TuiWindow, banner_x: int):
     pipe_id = window.add_text(TermText(""), (banner_x + 20, 10))
@@ -54,13 +54,17 @@ def main_menu(window: TuiWindow, termsize: Tuple[int, int]):
     load_libraries(window, left_bound)
 
     new_config_txt = TermText("New Configuration")
-    load_config_txt = TermText("Load Configuration")
+
+    has_config_files = len(get_config_files(default_config_dir() + "/configs")) > 0
+    load_config_txt = TermText("Load Configuration") if has_config_files else None
     
     def build_options():
         l_cursor_id = window.add_text(TermText("|>"), (left_bound + 20, 10))
         r_cursor_id = window.add_text(TermText("<|"), (left_bound + 42, 10))
         new_config_id = window.add_text(new_config_txt, (left_bound + 23, 10))
-        load_config_id = window.add_text(load_config_txt, (left_bound + 23, 12))
+        load_config_id = None
+        if load_config_txt is not None:
+            load_config_id = window.add_text(load_config_txt, (left_bound + 23, 12))
         return l_cursor_id, r_cursor_id, new_config_id, load_config_id
     
     l_cursor_id, r_cursor_id, new_config_id, load_config_id = build_options()
@@ -79,7 +83,8 @@ def main_menu(window: TuiWindow, termsize: Tuple[int, int]):
                     window.remove_txt(l_cursor_id)
                     window.remove_txt(r_cursor_id)
                     window.remove_txt(new_config_id)
-                    window.remove_txt(load_config_id)
+                    if load_config_id is not None:
+                        window.remove_txt(load_config_id)
                     if not new_config(window, left_bound):
                         l_cursor_id, r_cursor_id, new_config_id, load_config_id = build_options()
                     else:
