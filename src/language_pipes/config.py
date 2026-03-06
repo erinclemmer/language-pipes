@@ -1,7 +1,7 @@
 import os
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
-from pathlib import Path
+from language_pipes.util.config import default_config_dir, default_model_dir
 
 
 def get_env_config() -> Dict[str, Optional[str]]:
@@ -127,14 +127,6 @@ def parse_layer_models(layer_models: str | List[str] | Dict[str, Any] | List[Dic
             result.append(m)
     
     return result
-
-def default_config_dir() -> str:
-    return str(Path.home() / ".config" / "language_pipes")
-
-
-def default_model_dir() -> str:
-    return str(Path.home() / ".cache" / "language_pipes" / "models")
-
 
 @dataclass
 class LayerModel:

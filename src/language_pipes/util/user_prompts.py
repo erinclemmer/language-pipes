@@ -3,6 +3,7 @@ import torch
 from pathlib import Path
 
 from language_pipes.config import default_model_dir
+from language_pipes.util.config import get_config_files
 
 def prompt(message: str, default=None, required=False) -> str | None:
     """Prompt user for input with optional default value."""
@@ -171,10 +172,6 @@ def prompt_model_id(message: str, required=False) -> str | None:
     else:
         # No local models available, prompt for custom ID directly
         return prompt(message, required=required)
-
-
-def get_config_files(config_dir: str):
-    return [f.replace(".toml", "") for f in os.listdir(config_dir)]
 
 def select_config(app_dir: str) -> str | None:
     config_dir = str(Path(app_dir) / "configs")

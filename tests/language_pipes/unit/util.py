@@ -96,7 +96,8 @@ def make_config(node_id="node-a", prefill_chunk_size=2):
         model_validation=False,
         prefill_chunk_size=prefill_chunk_size,
         num_local_layers=0,
-        huggingface_token=None
+        huggingface_token=None,
+        api_keys=[]
     )
 
 def mock_complete(a):

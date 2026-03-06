@@ -7,7 +7,8 @@ from typing import Optional
 
 from language_pipes.distributed_state_network import DSNodeServer, DSNodeConfig
 
-from language_pipes.config import LpConfig, default_config_dir, default_model_dir, apply_env_overrides
+from language_pipes.config import LpConfig, apply_env_overrides
+from language_pipes.config import default_model_dir, default_config_dir
 from language_pipes.commands.initialize import interactive_init
 from language_pipes.commands.edit import edit_config
 from language_pipes.commands.view import view_config
