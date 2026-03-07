@@ -5,12 +5,6 @@ from typing import Optional
 from enum import Enum
 
 def key_available(timeout: float = 0.0):
-    """
-    Return True when stdin has bytes ready to read at the fd level.
-
-    Note: using the raw file descriptor avoids text-buffering surprises from
-    `sys.stdin` wrappers when parsing multi-byte escape sequences.
-    """
     rlist, _, _ = select.select([sys.stdin.fileno()], [], [], timeout)
     return bool(rlist)
 

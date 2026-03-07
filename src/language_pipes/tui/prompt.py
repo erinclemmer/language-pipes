@@ -32,7 +32,7 @@ def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int]) -> Optional[s
             window.update_text(buffer_id, TermText(buffer.text.value[:-1]))
             window.paint()
             move_cursor(pos[1], window.position[0] + cursor_idx)
-        elif ch == "\n": # Accept input [Enter]
+        elif ch == "\n" or ch == "\r": # Accept input [Enter]
             res = buffer.text.value
             done()
             return res

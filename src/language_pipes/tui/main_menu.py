@@ -1,16 +1,23 @@
 import os
 import toml
+import shutil
 from threading import Thread
 from time import sleep
 from pathlib import Path
 from typing import Tuple, Optional, List
 
 from language_pipes.tui.tui import TuiWindow, TermText
-from language_pipes.tui.kb_utils import key_available, read_key, PressedKey
+from language_pipes.distributed_state_network.util.key_manager import CredentialManager
 from language_pipes.tui.prompt import prompt, select_option, prompt_bool
 from language_pipes.util.config import get_config_files, default_config_dir, default_model_dir
 
+libraries_loaded = False
+
 def load_libraries(window: TuiWindow):
+    global libraries_loaded
+    if libraries_loaded:
+        return
+    libraries_loaded = True
     pipe_id = window.add_text(TermText(""), (20, 10))
     loading_id = window.add_text(TermText(""), (20, 12))
     num_total_segments = 40
@@ -45,30 +52,56 @@ def load_libraries(window: TuiWindow):
 def new_config(window: TuiWindow) -> Optional[str]:
     return prompt(TermText("Configuration Name"), window, (2, 10))
 
-def prompt_node_id(window: TuiWindow):
+def prompt_node_id(window: TuiWindow, left_bound: int):
+    window.remove_all()
+    window.paint()
     cred_dir = Path(default_config_dir(), "credentials")
     credentials = os.listdir(cred_dir)
     if len(credentials) == 0:
-        node_id = prompt(TermText("Node ID"), window, (2, 10))
+        node_id = prompt(TermText("Node ID"), window, (2, 0))
         if node_id is None or node_id == '':
             return None
+        cred_manager = CredentialManager(str(cred_dir), node_id)
+        cred_manager.generate_keys()
         return node_id
-    res = select_option((0, 0), credentials)
+    credentials.append("New Node ID")
+    res = select_option((left_bound, 0), credentials, TermText("Select Node ID"), True)
+    if res is None:
+        return None
+    cred, cmd = res
+    if cmd == 1:
+        if cred == "New Node ID":
+            return None
+        res = prompt_bool(TermText(f"Delete {cred} credentials"), (left_bound, 0))
+        if res is None:
+            return None
+        if res:
+            shutil.rmtree(str(cred_dir / cred))
+        return None
+    
+    if cred == "New Node ID":
+        node_id = prompt(TermText("Node ID"), window, (left_bound, 0))
+        if node_id is None or node_id == '':
+            return None
+        cred_manager = CredentialManager(str(cred_dir), node_id)
+        cred_manager.generate_keys()
+        return node_id
+    else:
+        return cred
 
 def select_node_id(window: TuiWindow, left_bound: int, credentials: List[str]):
     cred_text_ids = []
     for i, c in enumerate(credentials):
         cred_text_ids.append(window.add_text(TermText(c), (left_bound, 6 + (i * 2))))
 
-def handle_file_load(window: TuiWindow, config_file: Path):
+def handle_file_load(window: TuiWindow, left_bound: int, config_file: Path):
     with open(config_file, 'r') as f:
         data = toml.load(f)
     node_id = data.get("node_id", None)
     if node_id is None:
-        data["node_id"] = prompt_node_id(window)
+        data["node_id"] = prompt_node_id(window, left_bound)
         with open(config_file, 'w') as f:
             toml.dump(data, f)
-    
 
 def main_menu(termsize: Tuple[int, int]):
     with open('src/language_pipes/tui/banner.txt', 'r') as f:
@@ -123,7 +156,7 @@ def main_menu(termsize: Tuple[int, int]):
             return
         config_path = Path(default_config_dir(), "configs", config_file + ".toml")
         config_path.touch()
-        res = handle_file_load(window, config_path)
+        res = handle_file_load(window, left_bound, config_path)
         if res is None:
             return restart()
         
@@ -137,11 +170,11 @@ def main_menu(termsize: Tuple[int, int]):
         config_file, cmd = res
         config_path = Path(default_config_dir(), "configs", config_file + ".toml")
         if cmd == 0:
-            res = handle_file_load(window, config_path)
+            res = handle_file_load(window, left_bound, config_path)
             if res is None:
                 return restart()
         if cmd == 1:
-            res = prompt_bool(TermText(f"Delete {config_file}?"), (left_bound + 2, 9))
+            res = prompt_bool(TermText(f"Delete {config_file}?"), (left_bound + 2, 0))
             if res:
                 os.remove(str(config_path))
             return restart()
