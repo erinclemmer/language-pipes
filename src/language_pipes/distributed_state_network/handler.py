@@ -1,6 +1,8 @@
 import sys
+import socket
 import threading
 import logging
+from dataclasses import replace
 from typing import Callable, List, Optional
 from flask import Flask, request, Response
 from language_pipes.distributed_state_network.dsnode import DSNode
@@ -23,6 +25,7 @@ MSG_DATA = 5
 
 class DSNodeServer:
     config: DSNodeConfig
+    network_ip: Optional[str]
     running: bool
     app: Flask
     node: DSNode
@@ -35,7 +38,9 @@ class DSNodeServer:
         update_callback: Optional[Callable] = None,
         receive_callback: Optional[Callable] = None
     ):
-        self.config = config
+        detected_ip = self._detect_local_ip() or config.network_ip
+        self.network_ip = detected_ip
+        self.config = replace(config, network_ip=detected_ip) if config.network_ip != detected_ip else config
         self.running = False
         self.thread = None
         
@@ -44,10 +49,31 @@ class DSNodeServer:
         self.app.logger.setLevel(logging.ERROR)  # Reduce Flask's logging noise
         
         # Create DSNode
-        self.node = DSNode(config, VERSION, disconnect_callback, update_callback, receive_callback)
+        self.node = DSNode(self.config, VERSION, disconnect_callback, update_callback, receive_callback)
         
         # Set up Flask routes
         self._setup_routes()
+
+    def _detect_local_ip(self) -> Optional[str]:
+        """Best-effort local network IP detection."""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                # No traffic is sent, but this lets the OS select the outbound interface.
+                s.connect(("8.8.8.8", 80))
+                ip = s.getsockname()[0]
+                if ip and not ip.startswith("127."):
+                    return ip
+        except Exception:
+            pass
+
+        try:
+            ip = socket.gethostbyname(socket.gethostname())
+            if ip and not ip.startswith("127."):
+                return ip
+        except Exception:
+            pass
+
+        return None
 
     def _setup_routes(self):
         """Set up Flask routes for each message type"""
