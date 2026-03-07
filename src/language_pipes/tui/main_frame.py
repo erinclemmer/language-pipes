@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from language_pipes.tui.top_nav import TopNav
 from language_pipes.tui.side_nav import SideNav
@@ -32,8 +32,10 @@ class MainFrame:
     confirm_choice_idx: int
     content_bg_id: int
     content_area_size: Tuple[int, int]
+    providers: Optional[object]
+    view_state_by_section: Dict[Tuple[str, str], Dict[str, Any]]
 
-    def __init__(self, size: Tuple[int, int], pos: Tuple[int, int]):
+    def __init__(self, size: Tuple[int, int], pos: Tuple[int, int], providers: Optional[object] = None):
         self.window = TuiWindow(size, pos)
         self.active_top_idx = 0
         self.focus_depth = 0
@@ -47,6 +49,8 @@ class MainFrame:
         self.content_cursor_idx = 0
         self.confirm_escape_open = False
         self.confirm_choice_idx = 2
+        self.providers = providers
+        self.view_state_by_section = {}
 
         self._init_layout(size, pos)
         self._render_all()
@@ -228,6 +232,372 @@ class MainFrame:
             ),
         )
 
+    def _active_view_key(self) -> Tuple[str, str]:
+        return self._active_tab(), self._active_side_option()
+
+    def _view_state(self, state: str, summary: str, details: List[str], hint: str, level: str) -> Dict[str, Any]:
+        normalized_details = [str(line) for line in details if str(line).strip() != ""]
+        return {
+            "state": state,
+            "summary": summary,
+            "details": normalized_details,
+            "hint": hint,
+            "level": level,
+        }
+
+    def _placeholder_view_state(self) -> Dict[str, Any]:
+        summary, hint, level = self._section_placeholder()
+        return self._view_state(
+            "placeholder",
+            summary,
+            [],
+            hint,
+            level,
+        )
+
+    def _error_view_state(self, summary: str, hint: str) -> Dict[str, Any]:
+        return self._view_state("error", summary, [], hint, "error")
+
+    def _empty_view_state(self, summary: str, hint: str) -> Dict[str, Any]:
+        return self._view_state("empty", summary, [], hint, "info")
+
+    def _get_provider(self, name: str) -> Optional[Callable[..., Any]]:
+        if self.providers is None:
+            return None
+        if isinstance(self.providers, dict):
+            provider = self.providers.get(name)
+            return provider if callable(provider) else None
+
+        provider = getattr(self.providers, name, None)
+        return provider if callable(provider) else None
+
+    def _section_provider_spec(self) -> Tuple[Optional[str], Dict[str, Any], Callable[[str, str, Any], Dict[str, Any]]]:
+        tab = self._active_tab()
+        section = self._active_side_option()
+
+        if tab == "Network" and section == "Status":
+            return "get_network_status", {}, self._format_network
+        if tab == "Network" and section == "Peers":
+            return "list_peers", {}, self._format_network
+
+        if tab == "Models":
+            return "list_models", {}, self._format_models
+
+        if tab == "Pipes":
+            return "get_pipe_health", {}, self._format_pipes
+
+        if tab == "Jobs":
+            state_map = {
+                "Queue": "queued",
+                "History": "completed",
+                "Stats": None,
+            }
+            return "list_jobs", {"state": state_map.get(section)}, self._format_jobs
+
+        if tab == "Activity":
+            level_map = {
+                "Logs": "info",
+                "Events": "event",
+                "Metrics": "metrics",
+            }
+            return "list_activity", {"level": level_map.get(section)}, self._format_activity
+
+        return None, {}, self._format_unknown
+
+    def _dict_preview(self, payload: Dict[str, Any], limit: int = 5) -> List[str]:
+        preview: List[str] = []
+        for idx, key in enumerate(payload.keys()):
+            if idx >= limit:
+                break
+            preview.append(f"- {key}: {payload[key]}")
+        if len(payload) > limit:
+            preview.append(f"- ... ({len(payload) - limit} more)")
+        return preview
+
+    def _item_name(self, item: Dict[str, Any], fallback_idx: int) -> str:
+        for key in ("name", "id", "model", "peer", "route", "event"):
+            value = item.get(key)
+            if value:
+                return str(value)
+        return f"item-{fallback_idx + 1}"
+
+    def _format_network(self, tab: str, section: str, payload: Any) -> Dict[str, Any]:
+        if section == "Status":
+            if not isinstance(payload, dict):
+                return self._error_view_state(
+                    "Malformed network status payload.",
+                    "Next: Confirm get_network_status returns a dict, then press r.",
+                )
+            if len(payload) == 0:
+                return self._empty_view_state(
+                    "No network status data yet.",
+                    "Next: Start networking components and press r to refresh.",
+                )
+
+            health = payload.get("status") or payload.get("state") or payload.get("health") or "unknown"
+            details = self._dict_preview(payload)
+            return self._view_state(
+                "ok",
+                f"Network health: {health}",
+                details,
+                "Next: Use Network -> Peers for connected node details.",
+                "info",
+            )
+
+        if section == "Peers":
+            if not isinstance(payload, list):
+                return self._error_view_state(
+                    "Malformed peers payload.",
+                    "Next: Confirm list_peers returns a list of dict items, then press r.",
+                )
+            if len(payload) == 0:
+                return self._empty_view_state(
+                    "No peers connected yet.",
+                    "Next: Check bootstrap connectivity and press r.",
+                )
+
+            lines: List[str] = []
+            for i, peer in enumerate(payload[:5]):
+                if isinstance(peer, dict):
+                    name = self._item_name(peer, i)
+                    addr = peer.get("address") or peer.get("host") or "unknown"
+                    state = peer.get("state") or peer.get("status") or "unknown"
+                    lines.append(f"- {name} @ {addr} ({state})")
+                else:
+                    lines.append(f"- {peer}")
+
+            if len(payload) > 5:
+                lines.append(f"- ... ({len(payload) - 5} more peers)")
+
+            return self._view_state(
+                "ok",
+                f"Connected peers: {len(payload)}",
+                lines,
+                "Next: Press r to re-check discovery/connectivity.",
+                "info",
+            )
+
+        return self._format_unknown(tab, section, payload)
+
+    def _format_models(self, _: str, section: str, payload: Any) -> Dict[str, Any]:
+        if not isinstance(payload, list):
+            return self._error_view_state(
+                "Malformed models payload.",
+                "Next: Confirm list_models returns a list of dict items, then press r.",
+            )
+        if len(payload) == 0:
+            return self._empty_view_state(
+                "No model data available.",
+                "Next: Ensure model manager is initialized and press r.",
+            )
+
+        lines: List[str] = []
+        for i, model in enumerate(payload[:6]):
+            if isinstance(model, dict):
+                name = self._item_name(model, i)
+                state = model.get("status")
+                if section == "Cache":
+                    cache_size = model.get("cache_size") or model.get("cache")
+                    if cache_size is not None:
+                        lines.append(f"- {name}: cache={cache_size}")
+                    else:
+                        lines.append(f"- {name}: cache info unavailable")
+                elif state is not None:
+                    lines.append(f"- {name}: {state}")
+                else:
+                    lines.append(f"- {name}")
+            else:
+                lines.append(f"- {model}")
+
+        if len(payload) > 6:
+            lines.append(f"- ... ({len(payload) - 6} more models)")
+
+        section_label = {
+            "Installed": "Installed models",
+            "Download": "Model download candidates",
+            "Cache": "Model cache summary",
+        }.get(section, "Model summary")
+
+        return self._view_state(
+            "ok",
+            f"{section_label}: {len(payload)}",
+            lines,
+            "Next: Press r to refresh model inventory.",
+            "info",
+        )
+
+    def _format_pipes(self, _: str, section: str, payload: Any) -> Dict[str, Any]:
+        if not isinstance(payload, dict):
+            return self._error_view_state(
+                "Malformed pipe health payload.",
+                "Next: Confirm get_pipe_health returns a dict, then press r.",
+            )
+        if len(payload) == 0:
+            return self._empty_view_state(
+                "No pipe health data yet.",
+                "Next: Start routing/services and press r.",
+            )
+
+        summary_health = payload.get("health") or payload.get("status") or payload.get("state") or "unknown"
+        details = self._dict_preview(payload)
+        return self._view_state(
+            "ok",
+            f"{section} health: {summary_health}",
+            details,
+            "Next: Verify route configuration if health is degraded.",
+            "info",
+        )
+
+    def _format_jobs(self, _: str, section: str, payload: Any) -> Dict[str, Any]:
+        if not isinstance(payload, list):
+            return self._error_view_state(
+                "Malformed jobs payload.",
+                "Next: Confirm list_jobs returns a list of dict items, then press r.",
+            )
+        if len(payload) == 0:
+            return self._empty_view_state(
+                "No job data in this view.",
+                "Next: Run workloads and press r.",
+            )
+
+        if section == "Stats":
+            by_state: Dict[str, int] = {}
+            for item in payload:
+                if isinstance(item, dict):
+                    state = str(item.get("state") or "unknown")
+                else:
+                    state = "unknown"
+                by_state[state] = by_state.get(state, 0) + 1
+            lines = [f"- {state}: {count}" for state, count in sorted(by_state.items())]
+            return self._view_state(
+                "ok",
+                f"Tracked jobs: {len(payload)}",
+                lines,
+                "Next: Use Queue/History sections for item-level detail.",
+                "info",
+            )
+
+        lines: List[str] = []
+        for i, job in enumerate(payload[:6]):
+            if isinstance(job, dict):
+                job_id = self._item_name(job, i)
+                state = job.get("state") or "unknown"
+                progress = job.get("progress")
+                if progress is None:
+                    lines.append(f"- {job_id} ({state})")
+                else:
+                    lines.append(f"- {job_id} ({state}, {progress})")
+            else:
+                lines.append(f"- {job}")
+        if len(payload) > 6:
+            lines.append(f"- ... ({len(payload) - 6} more jobs)")
+
+        return self._view_state(
+            "ok",
+            f"{section} jobs: {len(payload)}",
+            lines,
+            "Next: Press r to sync the latest job state.",
+            "info",
+        )
+
+    def _format_activity(self, _: str, section: str, payload: Any) -> Dict[str, Any]:
+        if not isinstance(payload, list):
+            return self._error_view_state(
+                "Malformed activity payload.",
+                "Next: Confirm list_activity returns a list, then press r.",
+            )
+        if len(payload) == 0:
+            return self._empty_view_state(
+                "No activity captured yet.",
+                "Next: Trigger workload/network activity and press r.",
+            )
+
+        lines: List[str] = []
+        for i, item in enumerate(payload[:6]):
+            if isinstance(item, dict):
+                name = self._item_name(item, i)
+                level = item.get("level") or item.get("type") or "info"
+                message = item.get("message") or item.get("summary")
+                if message:
+                    lines.append(f"- [{level}] {name}: {message}")
+                else:
+                    lines.append(f"- [{level}] {name}")
+            else:
+                lines.append(f"- {item}")
+
+        if len(payload) > 6:
+            lines.append(f"- ... ({len(payload) - 6} more events)")
+
+        return self._view_state(
+            "ok",
+            f"{section} entries: {len(payload)}",
+            lines,
+            "Next: Press r to pull the latest activity snapshot.",
+            "info",
+        )
+
+    def _format_unknown(self, tab: str, section: str, _: Any) -> Dict[str, Any]:
+        return self._view_state(
+            "placeholder",
+            f"No provider mapping for {tab} -> {section}.",
+            [],
+            "Next: Select another section or wire a provider for this view.",
+            "warning",
+        )
+
+    def _load_active_view_data(self, update_status: bool, force: bool) -> Dict[str, Any]:
+        tab, section = self._active_view_key()
+        view_key = (tab, section)
+
+        if not force and view_key in self.view_state_by_section:
+            return self.view_state_by_section[view_key]
+
+        provider_name, kwargs, formatter = self._section_provider_spec()
+        if provider_name is None:
+            view_state = self._placeholder_view_state()
+            self.view_state_by_section[view_key] = view_state
+            if update_status:
+                self._set_status(
+                    f"No provider mapping for {tab} -> {section}; showing guidance",
+                    "info",
+                )
+            return view_state
+
+        provider = self._get_provider(provider_name)
+        if provider is None:
+            view_state = self._placeholder_view_state()
+            self.view_state_by_section[view_key] = view_state
+            if update_status:
+                self._set_status(
+                    f"Provider '{provider_name}' unavailable for {tab} -> {section}; showing guidance",
+                    "info",
+                )
+            return view_state
+
+        try:
+            provider_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+            payload = provider(**provider_kwargs)
+            view_state = formatter(tab, section, payload)
+        except Exception as ex:
+            view_state = self._error_view_state(
+                f"Provider call failed for {tab} -> {section}: {ex}",
+                "Next: Verify provider connectivity/configuration, then press r.",
+            )
+
+        self.view_state_by_section[view_key] = view_state
+
+        if update_status:
+            if view_state["state"] == "ok":
+                self._set_status(f"Refreshed {tab} -> {section}", "info")
+            elif view_state["state"] == "empty":
+                self._set_status(f"No data for {tab} -> {section} yet", "info")
+            elif view_state["state"] == "error":
+                self._set_status(f"Refresh failed for {tab} -> {section}; check provider", "error")
+            else:
+                self._set_status(f"Showing guidance for {tab} -> {section}", "info")
+
+        return view_state
+
     def _render_content(self):
         self.window.update_text(self.content_bg_id, TermText(self._content_blank_block()))
 
@@ -237,17 +607,43 @@ class MainFrame:
 
         tab = self._active_tab()
         section = self._active_side_option()
-        state_summary, next_action, level = self._section_placeholder()
+        view_state = self._load_active_view_data(update_status=False, force=False)
+        state_summary = str(view_state.get("summary", "No summary available."))
+        next_action = str(view_state.get("hint", "Next: Press r to refresh."))
+        level = str(view_state.get("level", "info"))
+        details = view_state.get("details", [])
+
+        detail_lines: List[str] = []
+        if isinstance(details, list) and len(details) > 0:
+            detail_lines.extend([str(line) for line in details])
+
         selection_hint = f"Selection index: {self.content_cursor_idx + 1}"
-        content = "\n".join([
+        state_label = str(view_state.get("state", "placeholder")).upper()
+
+        content_parts = [
             f"View: {tab}",
             f"Section: {section}",
             "",
-            f"State ({level.upper()}): {state_summary}",
+            f"State ({state_label}/{level.upper()}): {state_summary}",
+        ]
+
+        if len(detail_lines) > 0:
+            content_parts.extend([
+                "",
+                "Details:",
+                *detail_lines,
+            ])
+
+        content_parts.extend([
+            "",
             f"Next Action: {next_action}",
             "",
             selection_hint,
             f"Focus depth: {self.focus_depth} (0=top, 1=side, 2=content)",
+        ])
+
+        content = "\n".join([
+            *content_parts,
         ])
         self.window.update_text(self.content_id, TermText(content))
 
@@ -277,7 +673,7 @@ class MainFrame:
         )
 
     def _refresh_current_view(self):
-        self._set_status("Refreshed (placeholder view)", "info")
+        self._load_active_view_data(update_status=True, force=True)
 
     def _confirm_prev(self):
         options = self._confirm_options()
