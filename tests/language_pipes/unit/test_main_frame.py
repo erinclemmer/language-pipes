@@ -83,6 +83,13 @@ class MainFrameDispatchTests(unittest.TestCase):
         self.assertEqual(self.frame.status_message, "Refreshed (placeholder view)")
         self.assertEqual(self.frame.status_level, "info")
 
+    def test_q_opens_confirmation_instead_of_immediate_exit(self):
+        self.frame._handle_key(PressedKey.Alpha, "q")
+
+        self.assertTrue(self.frame.confirm_escape_open)
+        self.assertTrue(self.frame.running)
+        self.assertFalse(self.frame.exit_tui)
+
     def test_side_selection_retained_per_top_tab(self):
         self.frame.focus_depth = 1
 

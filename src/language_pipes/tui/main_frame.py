@@ -165,6 +165,8 @@ class MainFrame:
     content_cursor_idx: int
     confirm_escape_open: bool
     confirm_choice_idx: int
+    content_bg_id: int
+    content_area_size: Tuple[int, int]
 
     def __init__(self, size: Tuple[int, int], pos: Tuple[int, int]):
         self.window = TuiWindow(size, pos)
@@ -189,6 +191,11 @@ class MainFrame:
         self.window.add_text(TermText("|\n" * (size[1] - 5)), (15, 3))
         self.window.add_text(TermText("_" * (size[0] - 2)), (1, size[1] - 3))
 
+        self.content_area_size = (max(1, size[0] - 19), max(1, size[1] - 7))
+        self.content_bg_id = self.window.add_text(
+            TermText(self._content_blank_block()),
+            (17, 4),
+        )
         self.content_id = self.window.add_text(TermText(""), (17, 4))
         self.footer_id = self.window.add_text(TermText(""), (2, size[1] - 2))
 
@@ -357,6 +364,8 @@ class MainFrame:
         )
 
     def _render_content(self):
+        self.window.update_text(self.content_bg_id, TermText(self._content_blank_block()))
+
         if self.confirm_escape_open:
             self.window.update_text(self.content_id, TermText(self._render_confirm_prompt()))
             return
@@ -376,6 +385,10 @@ class MainFrame:
             f"Focus depth: {self.focus_depth} (0=top, 1=side, 2=content)",
         ])
         self.window.update_text(self.content_id, TermText(content))
+
+    def _content_blank_block(self) -> str:
+        width, height = self.content_area_size
+        return "\n".join([" " * width for _ in range(height)])
 
     def _sync_navigation(self):
         active_options = self._active_side_options()
@@ -438,6 +451,11 @@ class MainFrame:
             self.confirm_escape_open = False
             self._set_status("Exit canceled", "info")
 
+    def _open_exit_confirm(self):
+        self.confirm_escape_open = True
+        self.confirm_choice_idx = 2
+        self._set_status("Choose: Return to menu, Exit TUI, or Cancel", "warning")
+
     def _render_all(self):
         self._sync_navigation()
         self._render_content()
@@ -453,8 +471,7 @@ class MainFrame:
             return
 
         if key == PressedKey.Alpha and ch.lower() == "q":
-            self.running = False
-            self.exit_tui = True
+            self._open_exit_confirm()
             return
 
         if key == PressedKey.Alpha and ch.lower() == "r":
@@ -467,9 +484,7 @@ class MainFrame:
                 if self.focus_depth < 2:
                     self.content_cursor_idx = 0
             else:
-                self.confirm_escape_open = True
-                self.confirm_choice_idx = 2
-                self._set_status("Choose: Return to menu, Exit TUI, or Cancel", "warning")
+                self._open_exit_confirm()
             return
 
         if key == PressedKey.Enter:
