@@ -207,7 +207,8 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
             }]
         save_data(data)
 
-    MainFrame((80, termsize[1]), (left_bound, 0))        
+    frame = MainFrame((80, termsize[1]), (left_bound, 0))
+    frame.run()
 
 def main_menu(termsize: Tuple[int, int]):
     with open('src/language_pipes/tui/banner.txt', 'r') as f:
