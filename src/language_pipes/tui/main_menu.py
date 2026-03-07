@@ -140,17 +140,23 @@ class TextField:
         self.value = res
         return res
 
-def handle_join_network(window: TuiWindow, create: bool) -> Optional[Dict]:
+def handle_join_network(window: TuiWindow, create: bool, config: Dict) -> Optional[Dict]:
     current_step = 0
     window.add_text(TermText("_" * 78), (1, 0))
     window.add_text(TermText("Create Network" if create else "Join Network"), (35, 2))
-    username_field = TextField(window, "         username", (1, 4))
-    password_field = TextField(window, "         password", (1, 5))
+    username_field = TextField(window, "         username", (1, 4), config.get("node_id", ""))
+    password_field = TextField(window, "         password", (1, 5), config.get("aes_key", ""))
     bootstrap_addr_field = None
     bootstrap_port_field = None
     if not create:
-        bootstrap_addr_field = TextField(window, "bootstrap address", (1, 6))
-        bootstrap_port_field = TextField(window, "   bootstrap port", (1, 7))
+        nodes = config.get("bootstrap_nodes", [])
+        bootstrap_addr = ""
+        bootstrap_port = ""
+        if len(nodes) > 0:
+            bootstrap_addr = nodes[0].get("address", "")
+            bootstrap_port = nodes[0].get("port", "")
+        bootstrap_addr_field = TextField(window, "bootstrap address", (1, 6), bootstrap_addr)
+        bootstrap_port_field = TextField(window, "   bootstrap port", (1, 7), bootstrap_port)
     window.add_text(TermText("|\n" * (7 if create else 9)), (0, 1))
     window.add_text(TermText("|\n" * (7 if create else 9)), (79, 1))
     window.add_text(TermText("_" * 78), (1, 7 if create else 9))
@@ -213,7 +219,7 @@ def handle_file_load(window: TuiWindow, left_bound: int, config_file: Path):
         if res is None:
             return
         cmd, _ = res
-        res = handle_join_network(window, cmd == "Create Network")
+        res = handle_join_network(window, cmd == "Create Network", data)
         if res is None:
             return
         data["node_id"] = res["username"]
