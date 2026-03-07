@@ -1,144 +1,9 @@
 from typing import Dict, List, Tuple
 
-from language_pipes.tui.kb_utils import PressedKey, read_key
+from language_pipes.tui.top_nav import TopNav
+from language_pipes.tui.side_nav import SideNav
 from language_pipes.tui.tui import TuiWindow, TermText
-
-
-class SideNav:
-    window: TuiWindow
-    focused_idx: int
-    is_focused: bool
-    options: List[str]
-    option_ids: List[int]
-    l_cursor_id: int
-    r_cursor_id: int
-
-    def __init__(
-            self,
-            size: Tuple[int, int],
-            pos: Tuple[int, int],
-            options: List[str]
-        ):
-        self.window = TuiWindow(size, pos)
-        self.options = []
-        self.option_ids = []
-        self.focused_idx = 0
-        self.is_focused = False
-
-        self.l_cursor_id = self.window.add_text(TermText(" "), (0, 0))
-        self.r_cursor_id = self.window.add_text(TermText(" "), (self.window.size[0] - 1, 0))
-
-        self.set_options(options)
-        self.window.paint()
-
-    def _cursor_y(self) -> int:
-        return self.focused_idx * 2
-
-    def _update_cursor(self):
-        if len(self.options) == 0:
-            self.window.update_text(self.l_cursor_id, TermText(" "))
-            self.window.update_text(self.r_cursor_id, TermText(" "))
-            return
-
-        cursor_char = ">" if self.is_focused else " "
-        self.window.update_text(self.l_cursor_id, TermText(cursor_char), (0, self._cursor_y()))
-        self.window.update_text(self.r_cursor_id, TermText("<" if self.is_focused else " "), (self.window.size[0] - 1, self._cursor_y()))
-
-    def _update_option_styles(self):
-        for i, option_id in enumerate(self.option_ids):
-            self.window.update_text(
-                option_id,
-                TermText(
-                    self.options[i],
-                    fg=51 if i == self.focused_idx else None,
-                    bold=(i == self.focused_idx)
-                )
-            )
-        self._update_cursor()
-
-    def move_next(self):
-        if len(self.options) == 0:
-            return
-        self.focused_idx = (self.focused_idx + 1) % len(self.options)
-        self._update_option_styles()
-
-    def move_prev(self):
-        if len(self.options) == 0:
-            return
-        self.focused_idx = (self.focused_idx - 1) % len(self.options)
-        self._update_option_styles()
-
-    def set_focus(self, is_focused: bool):
-        self.is_focused = is_focused
-        self._update_option_styles()
-
-    def set_options(self, options: List[str]):
-        for option_id in self.option_ids:
-            self.window.remove_txt(option_id)
-
-        self.options = options
-        self.option_ids = []
-        self.focused_idx = min(self.focused_idx, len(options) - 1) if len(options) > 0 else 0
-
-        for i, opt in enumerate(options):
-            self.option_ids.append(self.window.add_text(TermText(opt), (2, i * 2)))
-
-        self._update_option_styles()
-
-
-class TopNav:
-    def __init__(self, size: Tuple[int, int], pos: Tuple[int, int], headers: List[str]):
-        self.window = TuiWindow(size, pos)
-        self.headers = headers
-        self.header_ids: List[int] = []
-        self.header_positions: List[int] = []
-        self.is_focused = True
-
-        for i, h in enumerate(self.headers):
-            header_x = 5 + i * 15
-            self.header_positions.append(header_x)
-            self.header_ids.append(self.window.add_text(TermText(h), (header_x, 0)))
-
-        self.focused_idx = 0
-        self.l_cursor_id = self.window.add_text(TermText("["), (3, 0))
-        self.r_cursor_id = self.window.add_text(TermText("]"), (3, 0))
-
-        self._update_styles()
-
-    def _update_styles(self):
-        for i, header_id in enumerate(self.header_ids):
-            self.window.update_text(
-                header_id,
-                TermText(
-                    self.headers[i],
-                    fg=51 if i == self.focused_idx else None,
-                    bold=(self.is_focused and i == self.focused_idx),
-                ),
-            )
-
-        selected_x = self.header_positions[self.focused_idx]
-        selected_header = self.headers[self.focused_idx]
-        if self.is_focused:
-            self.window.update_text(self.l_cursor_id, TermText("["), (selected_x - 2, 0))
-            self.window.update_text(self.r_cursor_id, TermText("]"), (selected_x + len(selected_header), 0))
-        else:
-            self.window.update_text(self.l_cursor_id, TermText(" "), (selected_x - 2, 0))
-            self.window.update_text(self.r_cursor_id, TermText(" "), (selected_x + len(selected_header), 0))
-
-    def move_next(self):
-        self.focused_idx = (self.focused_idx + 1) % len(self.headers)
-        self._update_styles()
-
-    def move_prev(self):
-        self.focused_idx = (self.focused_idx - 1) % len(self.headers)
-        self._update_styles()
-
-    def set_focus(self, is_focused: bool):
-        self.is_focused = is_focused
-        self._update_styles()
-
-        self.window.paint()
-
+from language_pipes.tui.kb_utils import PressedKey, read_key
 
 class MainFrame:
     TOP_HEADERS = ["Network", "Models", "Pipes", "Jobs", "Activity"]
@@ -465,6 +330,15 @@ class MainFrame:
         self.top_nav.window.paint()
         self.side_nav.window.paint()
 
+    def _teardown_windows(self):
+        self.window.remove_all()
+        self.top_nav.window.remove_all()
+        self.side_nav.window.remove_all()
+
+        self.window.paint()
+        self.top_nav.window.paint()
+        self.side_nav.window.paint()
+
     def _handle_key(self, key: PressedKey, ch: str):
         if self.confirm_escape_open:
             self._handle_confirm_key(key)
@@ -542,5 +416,7 @@ class MainFrame:
             key, ch = read_key()
             self._handle_key(key, ch)
             self._render_all()
+
+        self._teardown_windows()
 
         return "exit" if self.exit_tui else "menu"

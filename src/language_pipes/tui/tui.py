@@ -165,7 +165,7 @@ class TuiWindow(TuiGrid):
         self.text_objects = [t for t in self.text_objects if t.id != id]
 
     def remove_all(self):
-        for txt in self.text_objects:
+        for txt in list(self.text_objects):
             self.remove_txt(txt.id)
 
     def update_text(self, id: int, v: Optional[TermText], pos: Optional[Tuple[int, int]] = None):
