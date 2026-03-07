@@ -4,7 +4,7 @@ from typing import Optional
 from enum import Enum
 
 def key_available():
-    rlist, _, _ = select.select([sys.stdin], [], [], 0)
+    rlist, _, _ = select.select([sys.stdin], [], [], 1)
     return bool(rlist)
 
 class PressedKey(Enum):
@@ -21,16 +21,17 @@ def read_key() -> Optional[PressedKey]:
     if ch == "\n":
         return PressedKey.Enter
     if ch == "\x1b":
-        key = sys.stdin.read(2)
-        if key == "[A":
-            return PressedKey.ArrowUp
-        elif key == "[B":
-            return PressedKey.ArrowDown
-        elif key == "[D":
-            return PressedKey.ArrowLeft
-        elif key == "[C":
-            return PressedKey.ArrowRight
-        elif key == "[3":
-            return PressedKey.Delete
+        if key_available():    
+            key = sys.stdin.read(2)
+            if key == "[A":
+                return PressedKey.ArrowUp
+            elif key == "[B":
+                return PressedKey.ArrowDown
+            elif key == "[D":
+                return PressedKey.ArrowLeft
+            elif key == "[C":
+                return PressedKey.ArrowRight
+            elif key == "[3":
+                return PressedKey.Delete
         else:
             return PressedKey.Escape

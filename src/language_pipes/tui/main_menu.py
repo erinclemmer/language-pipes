@@ -128,8 +128,10 @@ def main_menu(termsize: Tuple[int, int]):
             return restart()
         
     if cmd == "Load Configuration":
+        window.remove_all()
+        window.paint()
         configs = get_config_files(str(Path(default_config_dir(), "configs")))
-        res = select_option((left_bound + 2, 9), configs, TermText("Select Configuration"), True)
+        res = select_option((left_bound + 2, 0), configs, TermText("Select Configuration"), True)
         if res is None:
             return restart()
         config_file, cmd = res
