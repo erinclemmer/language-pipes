@@ -1,6 +1,7 @@
 import sys
 import termios
 import tty
+from enum import Enum
 from typing import Optional
 
 ESC = "\x1b["
@@ -38,6 +39,18 @@ def print_pos(row: int, col: int, s: str, fg: Optional[int] = None, bg: Optional
 
 def move_cursor(row: int, col: int):
     write(f"{ESC}{row + 1};{col + 1}H")
+
+class CursorTypes(Enum):
+    Default = 1
+    Blinking_Block = 1
+    Steady_Block = 2
+    Blinking_Underline = 3
+    Steady_Underline = 4
+    Blinking_Bar = 5
+    Steady_Bar = 6
+
+def change_cursor(t: CursorTypes):
+    write(f"\033[{t.value} q")
 
 def color(text, fg=None, bg=None, bold=False) -> str:
     codes = []

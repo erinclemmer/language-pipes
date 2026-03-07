@@ -114,86 +114,83 @@ def get_bootstrap_node(window: TuiWindow, pos: Tuple[int, int]) -> Optional[Tupl
     window.remove_txt(connect_id)
     return bootstrap_ip, bootstrap_port
 
+class TextField:
+    window_id: int
+    window: TuiWindow
+    field_name: str
+    position: Tuple[int, int]
+    value: str
+
+    def __init__(self, window: TuiWindow, field_name: str, pos: Tuple[int, int], initial: Optional[str] = None):
+        self.window = window
+        self.field_name = field_name
+        self.window_id = window.add_text(TermText(field_name + "|>"), pos)
+        self.position = pos
+        self.value = initial if initial is not None else ""
+
+    def edit(self) -> Optional[str]:
+        self.window.hide_txt(self.window_id)
+        self.window.paint()
+        res = prompt(TermText(self.field_name), self.window, self.position, self.value)
+        self.window.show_txt(self.window_id)
+        if res is None:
+            return None
+        self.window.update_text(self.window_id, TermText(self.field_name + "|> " + res))
+        self.window.paint()
+        self.value = res
+        return res
+
 def handle_join_network(window: TuiWindow, create: bool) -> Optional[Dict]:
     current_step = 0
     window.add_text(TermText("Create Network" if create else "Join Network"), (10, 0))
-    username_id = window.add_text(TermText("         username|>"), (0, 2))
-    password_id = window.add_text(TermText("         password|>"), (0, 3))
-    bootstrap_address_id = None
-    bootstrap_port_id = None
+    username_field = TextField(window, "         username", (0, 2))
+    password_field = TextField(window, "         password", (0, 3))
+    bootstrap_addr_field = None
+    bootstrap_port_field = None
     if not create:
-        bootstrap_address_id = window.add_text(TermText("bootstrap address|>"), (0, 4))
-        bootstrap_port_id = window.add_text(TermText("   bootstrap port|>"), (0, 5))
+        bootstrap_addr_field = TextField(window, "bootstrap address", (0, 4))
+        bootstrap_port_field = TextField(window, "   bootstrap port", (0, 5))
     window.paint()
-    username_buf = ""
-    password_buf = ""
-    bootstrap_addr_buf = ""
-    bootstrap_port_buf = ""
-
-    def get_pwd_str():
-        return "".join(["#" for _ in range(0, len(password_buf))])
 
     while True:
         if current_step == 0:
-            window.hide_txt(username_id)
-            window.paint()
-            res = prompt(TermText("         username"), window, (0, 2), username_buf)
+            res = username_field.edit()
             if res is None:
                 return None
-            username_buf = res
             current_step += 1
-            window.show_txt(username_id)
-            window.update_text(username_id, TermText(f"         username|> {username_buf}"))
         elif current_step == 1:
-            window.hide_txt(password_id)
-            window.paint()
-            res = prompt(TermText("         password"), window, (0, 3), password_buf)
+            res = password_field.edit()
             if res is None:
                 current_step -= 1
-                window.show_txt(password_id)
-                window.update_text(password_id, TermText(f"         password|> {get_pwd_str()}"))
                 continue
-            password_buf = res
             current_step += 1
-            window.show_txt(password_id)
-            window.update_text(password_id, TermText(f"         password|> {get_pwd_str()}"))
             if create:
+                window.remove_all()
+                window.paint()
                 return {
-                    "username": username_buf,
-                    "password": password_buf,
+                    "username": username_field.value,
+                    "password": password_field.value,
                     "bootstrap_addr": None,
                     "bootstrap_port": None
                 }
-        elif current_step == 2 and bootstrap_address_id is not None:
-            window.hide_txt(bootstrap_address_id)
-            window.paint()
-            res = prompt(TermText("bootstrap address"), window, (0, 4), bootstrap_addr_buf)
+        elif current_step == 2 and bootstrap_addr_field is not None:
+            res = bootstrap_addr_field.edit()
             if res is None:
                 current_step -= 1
-                window.show_txt(bootstrap_address_id)
-                window.update_text(bootstrap_address_id, TermText(f"bootstrap address|> {bootstrap_addr_buf}"))
                 continue
-            bootstrap_addr_buf = res
             current_step += 1
-            window.show_txt(bootstrap_address_id)
-            window.update_text(bootstrap_address_id, TermText(f"bootstrap address|> {bootstrap_addr_buf}"))
-        elif current_step == 3 and bootstrap_port_id is not None:
-            window.hide_txt(bootstrap_port_id)
-            window.paint()
-            res = prompt(TermText("   bootstrap port"), window, (0, 5), bootstrap_port_buf)
+        elif current_step == 3 and bootstrap_port_field is not None and bootstrap_addr_field is not None:
+            res = bootstrap_port_field.edit()
             if res is None:
                 current_step -= 1
-                window.show_txt(bootstrap_port_id)
-                window.update_text(bootstrap_port_id, TermText(f"   bootstrap port|> {bootstrap_port_buf}"))
                 continue
-            bootstrap_port_buf = res
             window.remove_all()
             window.paint()
             return {
-                "username": username_buf,
-                "password": password_buf,
-                "bootstrap_addr": bootstrap_addr_buf,
-                "bootstrap_port": bootstrap_port_buf
+                "username": username_field.value,
+                "password": password_field.value,
+                "bootstrap_addr": bootstrap_addr_field.value,
+                "bootstrap_port": bootstrap_port_field.value
             }
 
 def handle_file_load(window: TuiWindow, left_bound: int, config_file: Path):

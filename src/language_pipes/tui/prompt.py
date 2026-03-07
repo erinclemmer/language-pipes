@@ -3,42 +3,59 @@ import sys
 from typing import Tuple, Optional, List
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.kb_utils import read_key, PressedKey
-from language_pipes.tui.screen_utils import move_cursor
+from language_pipes.tui.screen_utils import move_cursor, change_cursor, CursorTypes
 
 def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int], initial: str = "") -> Optional[str]:
+    change_cursor(CursorTypes.Blinking_Bar)
     txt.value += "|> "
     label_id = window.add_text(txt, pos)
-    window.paint()
     start_idx = pos[0] + len(txt.value)
-    cursor_idx = start_idx + len(initial)
-    buffer_id = window.add_text(TermText(initial), (cursor_idx, pos[1]))
+    cursor_idx = len(initial)
+    buffer_id = window.add_text(TermText(initial), (start_idx, pos[1]))
     buffer = window.get_text(buffer_id)
-    move_cursor(pos[1], window.position[0] + cursor_idx)
+    window.paint()
+    move_cursor(pos[1], window.position[0] + start_idx + cursor_idx)
 
     def done():
         window.remove_txt(label_id)
         window.remove_txt(buffer_id)
         window.paint()
+        change_cursor(CursorTypes.Default)
 
-    accepted_chars = ["_", "-", "."]
+    def update_cursor():
+        move_cursor(pos[1], window.position[0] + start_idx + cursor_idx)
 
     while True:
-        ch = sys.stdin.read(1)
-        if ch.isnumeric() or ch.isalpha() or ch in accepted_chars:
-            window.update_text(buffer_id, TermText(buffer.text.value + ch))
+        key, ch = read_key()
+        if key == PressedKey.Alpha:
+            window.update_text(buffer_id, TermText(buffer.text.value[:cursor_idx] + ch + buffer.text.value[cursor_idx:]))
             cursor_idx += 1
             window.paint()
-            move_cursor(pos[1], window.position[0] + cursor_idx)
-        elif ch == "\x7f" and cursor_idx > start_idx: # Backspace
+            update_cursor()
+        elif key == PressedKey.ArrowLeft:
             cursor_idx -= 1
-            window.update_text(buffer_id, TermText(buffer.text.value[:-1]))
+            if cursor_idx < 0:
+                cursor_idx = 0
+            update_cursor()
+        elif key == PressedKey.ArrowRight:
+            cursor_idx += 1
+            if cursor_idx > len(buffer.text.value):
+                cursor_idx = len(buffer.text.value)
+            update_cursor()
+        elif key == PressedKey.Backspace and cursor_idx > 0: # Backspace
+            cursor_idx -= 1
+            window.update_text(buffer_id, TermText(buffer.text.value[:cursor_idx] + buffer.text.value[cursor_idx + 1:]))
             window.paint()
-            move_cursor(pos[1], window.position[0] + cursor_idx)
-        elif ch == "\n" or ch == "\r": # Accept input [Enter]
+            update_cursor()
+        elif key == PressedKey.Delete and cursor_idx < len(buffer.text.value):
+            window.update_text(buffer_id, TermText(buffer.text.value[:cursor_idx] + buffer.text.value[cursor_idx + 1:]))
+            window.paint()
+            update_cursor()
+        elif key == PressedKey.Enter: # Accept input [Enter]
             res = buffer.text.value
             done()
             return res
-        elif ch == "\x1b": # Escape
+        elif key == PressedKey.Escape: # Escape
             done()
             return None
 
@@ -79,7 +96,7 @@ def select_option(
     window.paint()
     selection_idx = 0
     while True:
-        key = read_key()
+        key, _ = read_key()
         update = False
     
         if key == PressedKey.ArrowUp:
