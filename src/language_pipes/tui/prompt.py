@@ -5,13 +5,13 @@ from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.kb_utils import read_key, PressedKey
 from language_pipes.tui.screen_utils import move_cursor
 
-def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int]) -> Optional[str]:
+def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int], initial: str = "") -> Optional[str]:
     txt.value += "|> "
     label_id = window.add_text(txt, pos)
     window.paint()
     start_idx = pos[0] + len(txt.value)
-    cursor_idx = start_idx
-    buffer_id = window.add_text(TermText(""), (cursor_idx, pos[1]))
+    cursor_idx = start_idx + len(initial)
+    buffer_id = window.add_text(TermText(initial), (cursor_idx, pos[1]))
     buffer = window.get_text(buffer_id)
     move_cursor(pos[1], window.position[0] + cursor_idx)
 

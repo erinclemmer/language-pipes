@@ -4,7 +4,7 @@ import shutil
 from threading import Thread
 from time import sleep
 from pathlib import Path
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Dict
 
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.distributed_state_network.util.key_manager import CredentialManager
@@ -114,64 +114,115 @@ def get_bootstrap_node(window: TuiWindow, pos: Tuple[int, int]) -> Optional[Tupl
     window.remove_txt(connect_id)
     return bootstrap_ip, bootstrap_port
 
+def handle_join_network(window: TuiWindow, create: bool) -> Optional[Dict]:
+    current_step = 0
+    window.add_text(TermText("Create Network" if create else "Join Network"), (10, 0))
+    username_id = window.add_text(TermText("         username|>"), (0, 2))
+    password_id = window.add_text(TermText("         password|>"), (0, 3))
+    bootstrap_address_id = None
+    bootstrap_port_id = None
+    if not create:
+        bootstrap_address_id = window.add_text(TermText("bootstrap address|>"), (0, 4))
+        bootstrap_port_id = window.add_text(TermText("   bootstrap port|>"), (0, 5))
+    window.paint()
+    username_buf = ""
+    password_buf = ""
+    bootstrap_addr_buf = ""
+    bootstrap_port_buf = ""
+
+    def get_pwd_str():
+        return "".join(["#" for _ in range(0, len(password_buf))])
+
+    while True:
+        if current_step == 0:
+            window.hide_txt(username_id)
+            window.paint()
+            res = prompt(TermText("         username"), window, (0, 2), username_buf)
+            if res is None:
+                return None
+            username_buf = res
+            current_step += 1
+            window.show_txt(username_id)
+            window.update_text(username_id, TermText(f"         username|> {username_buf}"))
+        elif current_step == 1:
+            window.hide_txt(password_id)
+            window.paint()
+            res = prompt(TermText("         password"), window, (0, 3), password_buf)
+            if res is None:
+                current_step -= 1
+                window.show_txt(password_id)
+                window.update_text(password_id, TermText(f"         password|> {get_pwd_str()}"))
+                continue
+            password_buf = res
+            current_step += 1
+            window.show_txt(password_id)
+            window.update_text(password_id, TermText(f"         password|> {get_pwd_str()}"))
+            if create:
+                return {
+                    "username": username_buf,
+                    "password": password_buf,
+                    "bootstrap_addr": None,
+                    "bootstrap_port": None
+                }
+        elif current_step == 2 and bootstrap_address_id is not None:
+            window.hide_txt(bootstrap_address_id)
+            window.paint()
+            res = prompt(TermText("bootstrap address"), window, (0, 4), bootstrap_addr_buf)
+            if res is None:
+                current_step -= 1
+                window.show_txt(bootstrap_address_id)
+                window.update_text(bootstrap_address_id, TermText(f"bootstrap address|> {bootstrap_addr_buf}"))
+                continue
+            bootstrap_addr_buf = res
+            current_step += 1
+            window.show_txt(bootstrap_address_id)
+            window.update_text(bootstrap_address_id, TermText(f"bootstrap address|> {bootstrap_addr_buf}"))
+        elif current_step == 3 and bootstrap_port_id is not None:
+            window.hide_txt(bootstrap_port_id)
+            window.paint()
+            res = prompt(TermText("   bootstrap port"), window, (0, 5), bootstrap_port_buf)
+            if res is None:
+                current_step -= 1
+                window.show_txt(bootstrap_port_id)
+                window.update_text(bootstrap_port_id, TermText(f"   bootstrap port|> {bootstrap_port_buf}"))
+                continue
+            bootstrap_port_buf = res
+            window.remove_all()
+            window.paint()
+            return {
+                "username": username_buf,
+                "password": password_buf,
+                "bootstrap_addr": bootstrap_addr_buf,
+                "bootstrap_port": bootstrap_port_buf
+            }
+
 def handle_file_load(window: TuiWindow, left_bound: int, config_file: Path):
+    window.remove_all()
+    window.paint()
     with open(config_file, 'r') as f:
         data = toml.load(f)
     node_id = data.get("node_id", None)
-    window.add_text(TermText("Initializing:"), (0, 0))
 
     def save_data(d):
         with open(config_file, 'w') as f:
             toml.dump(d, f)
 
     if node_id is None:
-        node_id = prompt_node_id(window, left_bound)
-        if node_id is None:
-            return
-        data["node_id"] = node_id
-        save_data(data)
-        
-    node_id = data.get("node_id")
-    node_id_id = window.add_text(TermText(f"Node ID: {node_id}"), (0, 2))
-    window.paint()
-    network_ip = data.get("network_ip", None)
-
-    if network_ip is None:
-        res = prompt(TermText("Network IP"), window, (0, 4))
-        if res is None:
-            return
-        network_ip = res
-        data["network_ip"] = network_ip
-        save_data(data)
-    
-    network_ip_id = window.add_text(TermText(f"Network IP: {network_ip}"), (0, 3))
-    window.paint()
-    
-    bootstrap_nodes = data.get("bootstrap_nodes", [])
-    if bootstrap_nodes is not None and len(bootstrap_nodes) == 0:
-        res = select_option((left_bound, 5), ["Join Network", "Create Network"])
+        res = select_option((left_bound, 0), ["Create Network", "Join Network"], TermText("Select an option"))
         if res is None:
             return
         cmd, _ = res
-        if cmd == "Join Network":
-            res = get_bootstrap_node(window, (0, 5))
-            if res is None:
-                return
-            bootstrap_ip, bootstrap_port = res
-            bootstrap_nodes = [{
-                "address": bootstrap_ip,
-                "port": bootstrap_port
+        res = handle_join_network(window, cmd == "Create Network")
+        if res is None:
+            return
+        data["node_id"] = res["username"]
+        data["aes_key"] = res["password"]
+        if res["bootstrap_addr"] is not None:
+            data["bootstrap_nodes"] = [{
+                "address": res["bootstrap_addr"],
+                "port": res["bootstrap_port"]
             }]
-        elif cmd == "Create Network":
-            bootstrap_nodes = None
-
-        data["bootstrap_nodes"] = bootstrap_nodes
         save_data(data)
-    
-    if bootstrap_nodes is not None and len(bootstrap_nodes) > 0:
-        addr = bootstrap_nodes[0]["address"]
-        prt = bootstrap_nodes[0]["port"]
-        window.add_text(TermText(f"Connect to: {addr}:{prt}"), (0, 4))
 
     prompt(TermText("TEST"), window, (0, 10))
 

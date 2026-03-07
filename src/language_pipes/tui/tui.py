@@ -76,6 +76,7 @@ class TuiGrid:
 
 class TuiText:
     id: int
+    hidden: bool
     text: TermText
     size: Tuple[int, int]
     position: Tuple[int, int]
@@ -86,6 +87,7 @@ class TuiText:
             raise Exception("TuiText must use TermText")
         self.text = v
         self.position = pos
+        self.hidden = False
         self._update_size()
         
     def _update_size(self):
@@ -148,6 +150,16 @@ class TuiWindow(TuiGrid):
                 rel_pos[1]
             ), clear_v)
 
+    def hide_txt(self, id: int):
+        txt = self.get_text(id)
+        txt.hidden = True
+        self.clear_text(id)
+
+    def show_txt(self, id: int):
+        txt = self.get_text(id)
+        txt.hidden = False
+        self._update_grid()
+
     def remove_txt(self, id: int):
         self.clear_text(id)
         self.text_objects = [t for t in self.text_objects if t.id != id]
@@ -173,6 +185,8 @@ class TuiWindow(TuiGrid):
     
     def _update_grid(self):
         for obj in self.text_objects:
+            if obj.hidden:
+                continue
             for v, rel_pos in obj.get_cells():
                     self.set_cell((
                         rel_pos[0],
