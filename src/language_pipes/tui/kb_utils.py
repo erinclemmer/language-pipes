@@ -1,10 +1,17 @@
 import sys
+import os
 import select
 from typing import Optional
 from enum import Enum
 
-def key_available():
-    rlist, _, _ = select.select([sys.stdin], [], [], 1)
+def key_available(timeout: float = 0.0):
+    """
+    Return True when stdin has bytes ready to read at the fd level.
+
+    Note: using the raw file descriptor avoids text-buffering surprises from
+    `sys.stdin` wrappers when parsing multi-byte escape sequences.
+    """
+    rlist, _, _ = select.select([sys.stdin.fileno()], [], [], timeout)
     return bool(rlist)
 
 class PressedKey(Enum):
@@ -16,22 +23,39 @@ class PressedKey(Enum):
     Escape = "Escape"
     Delete = "Delete"
 
+
+def _read_byte() -> str:
+    data = os.read(sys.stdin.fileno(), 1)
+    return data.decode("utf-8", errors="ignore") if data else ""
+
 def read_key() -> Optional[PressedKey]:
-    ch = sys.stdin.read(1)
-    if ch == "\n":
+    ch = _read_byte()
+    if ch == "\n" or ch == "\r":
         return PressedKey.Enter
     if ch == "\x1b":
-        if key_available():    
-            key = sys.stdin.read(2)
-            if key == "[A":
-                return PressedKey.ArrowUp
-            elif key == "[B":
-                return PressedKey.ArrowDown
-            elif key == "[D":
-                return PressedKey.ArrowLeft
-            elif key == "[C":
-                return PressedKey.ArrowRight
-            elif key == "[3":
-                return PressedKey.Delete
-        else:
+        # Distinguish bare Escape from escape sequences (arrows/delete/etc.)
+        # by waiting briefly for continuation bytes.
+        if not key_available(0.02):
             return PressedKey.Escape
+
+        seq = ""
+        # Read a short sequence like "[A" or "[3~".
+        while key_available(0.001) and len(seq) < 8:
+            seq += _read_byte()
+            # Common final bytes for CSI key sequences.
+            if seq and (seq[-1].isalpha() or seq[-1] == "~"):
+                break
+
+        if seq == "[A":
+            return PressedKey.ArrowUp
+        if seq == "[B":
+            return PressedKey.ArrowDown
+        if seq == "[D":
+            return PressedKey.ArrowLeft
+        if seq == "[C":
+            return PressedKey.ArrowRight
+        if seq == "[3~":
+            return PressedKey.Delete
+
+        # Fallback: unknown escape sequence acts as Escape.
+        return PressedKey.Escape
