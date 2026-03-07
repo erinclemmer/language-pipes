@@ -208,7 +208,10 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         save_data(data)
 
     frame = MainFrame((80, termsize[1]), (left_bound, 0))
-    frame.run()
+    action = frame.run()
+    if action == "exit":
+        return "exit"
+    return None
 
 def main_menu(termsize: Tuple[int, int]):
     with open('src/language_pipes/tui/banner.txt', 'r') as f:
@@ -264,6 +267,8 @@ def main_menu(termsize: Tuple[int, int]):
         config_path = Path(default_config_dir(), "configs", config_file + ".toml")
         config_path.touch()
         res = handle_file_load(window, left_bound, termsize, config_path)
+        if res == "exit":
+            exit()
         if res is None:
             return restart()
         
@@ -278,6 +283,8 @@ def main_menu(termsize: Tuple[int, int]):
         config_path = Path(default_config_dir(), "configs", config_file + ".toml")
         if cmd == 0:
             res = handle_file_load(window, left_bound, termsize, config_path)
+            if res == "exit":
+                exit()
             if res is None:
                 return restart()
         if cmd == 1:
