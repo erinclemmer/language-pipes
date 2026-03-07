@@ -94,14 +94,90 @@ def select_node_id(window: TuiWindow, left_bound: int, credentials: List[str]):
     for i, c in enumerate(credentials):
         cred_text_ids.append(window.add_text(TermText(c), (left_bound, 6 + (i * 2))))
 
+def get_bootstrap_node(window: TuiWindow, pos: Tuple[int, int]) -> Optional[Tuple[str, int]]:
+    res = prompt(TermText("Connect to IP Address"), window, pos)
+    if res is None:
+        return None
+    
+    bootstrap_ip = res
+    connect_id = window.add_text(TermText(f"Connect to: {res}"), pos)
+    window.paint()
+    res = prompt(TermText("Connect to Port"), window, (pos[0], pos[1] + 1))
+    if res is None:
+        return None
+    
+    bootstrap_port = res
+    try:
+        bootstrap_port = int(bootstrap_port)
+    except ValueError:
+        return None
+    window.remove_txt(connect_id)
+    return bootstrap_ip, bootstrap_port
+
 def handle_file_load(window: TuiWindow, left_bound: int, config_file: Path):
     with open(config_file, 'r') as f:
         data = toml.load(f)
     node_id = data.get("node_id", None)
-    if node_id is None:
-        data["node_id"] = prompt_node_id(window, left_bound)
+    window.add_text(TermText("Initializing:"), (0, 0))
+
+    def save_data(d):
         with open(config_file, 'w') as f:
-            toml.dump(data, f)
+            toml.dump(d, f)
+
+    if node_id is None:
+        node_id = prompt_node_id(window, left_bound)
+        if node_id is None:
+            return
+        data["node_id"] = node_id
+        save_data(data)
+        
+    node_id = data.get("node_id")
+    node_id_id = window.add_text(TermText(f"Node ID: {node_id}"), (0, 2))
+    window.paint()
+    network_ip = data.get("network_ip", None)
+
+    if network_ip is None:
+        res = prompt(TermText("Network IP"), window, (0, 4))
+        if res is None:
+            return
+        network_ip = res
+        data["network_ip"] = network_ip
+        save_data(data)
+    
+    network_ip_id = window.add_text(TermText(f"Network IP: {network_ip}"), (0, 3))
+    window.paint()
+    
+    bootstrap_nodes = data.get("bootstrap_nodes", [])
+    if bootstrap_nodes is not None and len(bootstrap_nodes) == 0:
+        res = select_option((left_bound, 5), ["Join Network", "Create Network"])
+        if res is None:
+            return
+        cmd, _ = res
+        if cmd == "Join Network":
+            res = get_bootstrap_node(window, (0, 5))
+            if res is None:
+                return
+            bootstrap_ip, bootstrap_port = res
+            bootstrap_nodes = [{
+                "address": bootstrap_ip,
+                "port": bootstrap_port
+            }]
+        elif cmd == "Create Network":
+            bootstrap_nodes = None
+
+        data["bootstrap_nodes"] = bootstrap_nodes
+        save_data(data)
+    
+    if bootstrap_nodes is not None and len(bootstrap_nodes) > 0:
+        addr = bootstrap_nodes[0]["address"]
+        prt = bootstrap_nodes[0]["port"]
+        window.add_text(TermText(f"Connect to: {addr}:{prt}"), (0, 4))
+
+    prompt(TermText("TEST"), window, (0, 10))
+
+    # aes_key = data.get("aes_key", None)
+    # if aes_key is None:
+            
 
 def main_menu(termsize: Tuple[int, int]):
     with open('src/language_pipes/tui/banner.txt', 'r') as f:

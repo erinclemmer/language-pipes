@@ -20,9 +20,11 @@ def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int]) -> Optional[s
         window.remove_txt(buffer_id)
         window.paint()
 
+    accepted_chars = ["_", "-", "."]
+
     while True:
         ch = sys.stdin.read(1)
-        if ch.isnumeric() or ch.isalpha() or ch == "_" or ch == "-":
+        if ch.isnumeric() or ch.isalpha() or ch in accepted_chars:
             window.update_text(buffer_id, TermText(buffer.text.value + ch))
             cursor_idx += 1
             window.paint()
