@@ -5,92 +5,143 @@ This plan defines the implementation phase after Phase 2 UX stabilization. It is
 - `plans/mainframe_tui_design_and_implementation_plan.md`
 - `plans/phase2.md`
 
-Phase 2 delivered safer navigation, status/footer behavior, refresh hooks, and actionable placeholders. Phase 3 now focuses on replacing placeholder-only content with **live provider-backed summaries** while preserving the interaction model.
+Phase 2 delivered safer navigation, status/footer behavior, refresh hooks, and actionable placeholders. Phase 3 focused on replacing placeholder-only content with **live provider-backed summaries** while preserving the interaction model.
 
 ---
 
-## Phase 3 Objective
+## Architecture (as of Phase 3 completion)
 
-Integrate provider callables into `MainFrame` so each top-level domain can render current operational state without coupling the TUI directly to backend internals.
+The original monolithic `MainFrame` class has been refactored into four focused modules. `MainFrame` itself is now a thin coordinator that owns layout, rendering, and the run loop; all domain concerns live in the classes below.
 
-Primary outcomes:
+### `src/language_pipes/tui/nav_state.py` — `NavState`
 
-1. Provider injection contract in `MainFrame`
-2. Provider-backed content rendering per tab/section
-3. Resilient refresh/error handling and status reporting
-4. Predictable fallback behavior when providers are missing/unavailable
-5. Lightweight tests for provider dispatch and failure paths
+Owns all navigation cursor state:
 
----
+- `focus_depth` (0 = top-nav, 1 = side-nav, 2 = content pane)
+- `active_top_idx` / `side_idx_by_tab` / `content_cursor_idx`
+- Derived helpers: `active_tab()`, `active_side_option()`, `active_view_key()`
+- Mutations: `tab_next/prev`, `side_next/prev` (takes `SideNav` to sync widget), `focus_deeper/shallower`, `content_cursor_down/up`
 
-## In Scope (Phase 3)
+### `src/language_pipes/tui/confirm_dialog.py` — `ConfirmDialog`
 
-### 1) Provider interface + injection
-Introduce optional provider callables in `MainFrame` (constructor arg or structured dict/object), using the design-plan targets:
+Owns the exit-confirmation overlay:
 
-- `get_network_status() -> dict`
-- `list_peers() -> list[dict]`
-- `list_models() -> list[dict]`
-- `get_pipe_health() -> dict`
-- `list_jobs(state: str | None = None) -> list[dict]`
-- `list_activity(level: str | None = None) -> list[dict]`
+- `is_open`, `choice_idx`
+- `open()` / `close()`
+- `render() -> str` – produces the prompt text
+- `handle_key(key) -> str` – returns an action token (`"prev"`, `"next"`, `"confirm"`, `"cancel"`, `"nop"`)
 
-If a provider is not supplied, render the existing placeholder guidance and set an informational status when refreshed.
+### `src/language_pipes/tui/content_loader.py` — `ContentLoader`
 
-**Why:** Keeps MainFrame modular and ready for incremental backend integration.
+Owns provider resolution, data fetching, and the per-section view-state cache:
 
-### 2) Section-to-provider rendering map
-Replace static placeholder-only content with provider-backed summaries for sections where data exists.
+- Constructor accepts an optional `providers` dict or object
+- `load(tab, section, *, update_status, force) -> dict` – returns a view-state dict, using the cache unless `force=True`
+- `invalidate(tab, section)` / `invalidate_all()`
+- After each load, `last_status_message` / `last_status_level` reflect the outcome for the caller to surface
+- Falls back to `PLACEHOLDERS` guidance when no provider is available
 
-Suggested mapping:
+### `src/language_pipes/tui/view_state.py` — pure formatting functions
 
-- **Network / Status** → `get_network_status`
-- **Network / Peers** → `list_peers`
-- **Models** sections → `list_models` (filtered presentation per section)
-- **Pipes** sections → `get_pipe_health`
-- **Jobs** sections → `list_jobs(state=...)`
-- **Activity** sections → `list_activity(level=...)`
+Stateless module; no class required:
 
-Keep output concise and line-oriented (state summary first, then key metrics/list preview).
+- `build_view_state(state, summary, details, hint, level) -> dict`
+- `error_view_state(summary, hint)` / `empty_view_state(summary, hint)`
+- Per-domain formatters: `format_network`, `format_models`, `format_pipes`, `format_jobs`, `format_activity`, `format_unknown`
+- `section_provider_spec(tab, section) -> (provider_name, kwargs, formatter)` – single source of truth for the section → provider mapping
 
-**Why:** Converts the frame into a real monitoring console without redesigning navigation.
+### `src/language_pipes/tui/main_frame.py` — `MainFrame` (coordinator)
 
-### 3) Refresh and load behavior
-Enhance `_refresh_current_view()` to:
+Responsibilities retained in `MainFrame`:
 
-- invoke the relevant provider for current tab/section
-- update cached view data
-- set success/info status on completion
-- catch exceptions and set error/warning status with next-step guidance
-
-Refresh should remain explicit (`r`) and deterministic.
-
-**Why:** Operators need a reliable action rhythm and clear feedback when data calls fail.
-
-### 4) Error/empty-state normalization
-For provider-backed sections, normalize rendering states:
-
-- **ok:** show summary + key values
-- **empty:** explicit "no data yet" + action hint
-- **error:** clear failure message + likely recovery step (refresh/reconfigure/check connectivity)
-
-Continue using Phase 2’s actionable tone.
-
-**Why:** Ensures operational clarity under both normal and degraded conditions.
-
-### 5) Lightweight tests for data dispatch
-Add unit tests to verify:
-
-- correct provider function is used by active tab/section
-- refresh updates status on success
-- provider exceptions map to non-crashing error statuses
-- missing providers preserve placeholder fallback behavior
-
-**Why:** Protects against regressions as live wiring expands.
+- Window/layout construction (`_init_layout`)
+- Rendering (`_render_all`, `_render_content`, `_render_footer`, `_sync_navigation`)
+- Input dispatch (`_handle_key`, `_handle_confirm_key`)
+- Status string management (`_set_status`, `_clear_status`)
+- Run loop (`run`)
+- Backward-compatible `@property` shims so existing tests continue to access `focus_depth`, `active_top_idx`, `side_idx_by_tab`, `confirm_escape_open`, `confirm_choice_idx`, `content_cursor_idx`, `view_state_by_section` directly on the frame
 
 ---
 
-## Out of Scope (Defer to Later Phases)
+## Provider Interface
+
+Providers are injected at `MainFrame(size, pos, providers=...)` construction time. `providers` may be a `dict` of callables or any object with matching method names.
+
+| Provider name        | Signature                                  | Used by                          |
+|----------------------|--------------------------------------------|----------------------------------|
+| `get_network_status` | `() -> dict`                               | Network / Status                 |
+| `list_peers`         | `() -> list[dict]`                         | Network / Peers                  |
+| `list_models`        | `() -> list[dict]`                         | Models / Installed, Download, Cache |
+| `get_pipe_health`    | `() -> dict`                               | Pipes / Overview, Routes, Configure |
+| `list_jobs`          | `(state: str | None = None) -> list[dict]` | Jobs / Queue, History, Stats     |
+| `list_activity`      | `(level: str | None = None) -> list[dict]` | Activity / Logs, Events, Metrics |
+
+If a provider is absent or raises an exception, `ContentLoader` falls back to placeholder guidance and sets an appropriate status level without crashing the frame.
+
+---
+
+## Rendering States
+
+Each view-state dict produced by `ContentLoader` / `view_state.py` carries a `state` field:
+
+| State         | Meaning                                      |
+|---------------|----------------------------------------------|
+| `ok`          | Provider returned usable data                |
+| `empty`       | Provider returned an empty collection        |
+| `error`       | Provider raised an exception or returned malformed data |
+| `placeholder` | No provider mapped or provider unavailable   |
+
+---
+
+## Refresh Behavior
+
+- `r` key → `MainFrame._refresh_current_view()` → `ContentLoader.load(..., force=True, update_status=True)`
+- On success: status shows `"Refreshed {tab} -> {section}"`
+- On empty: status shows `"No data for {tab} -> {section} yet"`
+- On error: status shows `"Refresh failed for {tab} -> {section}; check provider"` at `error` level
+- On missing provider: status shows `"Provider '{name}' unavailable for {tab} -> {section}; showing guidance"`
+
+---
+
+## Test Coverage
+
+`tests/language_pipes/unit/test_main_frame.py` covers:
+
+- Focus depth transitions (Enter / Escape)
+- Root-escape confirmation dialog (open, navigate, confirm, cancel)
+- `q` key opens confirmation instead of immediate exit
+- Per-tab side-selection retention across tab switches
+- Refresh dispatches to the correct provider with correct kwargs
+- Provider exception → non-crashing error status
+- Missing provider → placeholder fallback
+
+All 13 tests pass.
+
+---
+
+## Files Changed in Phase 3
+
+New:
+- `src/language_pipes/tui/nav_state.py`
+- `src/language_pipes/tui/confirm_dialog.py`
+- `src/language_pipes/tui/content_loader.py`
+- `src/language_pipes/tui/view_state.py`
+
+Modified:
+- `src/language_pipes/tui/main_frame.py` (refactored to use the four new modules)
+
+Unchanged:
+- `src/language_pipes/tui/top_nav.py`
+- `src/language_pipes/tui/side_nav.py`
+- `src/language_pipes/tui/tui.py`
+- `src/language_pipes/tui/placeholders.py`
+- `src/language_pipes/tui/kb_utils.py`
+- `src/language_pipes/tui/main_menu.py`
+- `tests/language_pipes/unit/test_main_frame.py`
+
+---
+
+## Out of Scope (Deferred to Later Phases)
 
 - Full edit/configuration forms and persistence workflows (Phase 4)
 - Background auto-refresh threading/timers
@@ -100,89 +151,11 @@ Add unit tests to verify:
 
 ---
 
-## Proposed Implementation Steps
-
-### Step 1: Extend `MainFrame` constructor for providers
-Add optional provider registry parameter and internal defaults.
-
-**Done when:** `MainFrame` can run with or without external providers.
-
-### Step 2: Add provider dispatch helpers
-Create helper(s) to resolve current section -> provider call + view formatter.
-
-**Done when:** provider lookup is centralized and not duplicated in key handling.
-
-### Step 3: Implement section formatters
-Add compact formatter methods for each top domain (network/models/pipes/jobs/activity).
-
-**Done when:** live data renders cleanly in existing content pane boundaries.
-
-### Step 4: Wire refresh + initial load behavior
-Update `_refresh_current_view()` and selected render flow to load/refresh provider data safely.
-
-**Done when:** `r` performs provider call paths and status reflects success/failure.
-
-### Step 5: Harden fallback/error handling
-Ensure missing provider, empty payload, malformed payload, and raised exceptions all render actionable outcomes.
-
-**Done when:** no provider path can crash the frame loop.
-
-### Step 6: Add targeted unit tests
-Add/extend tests in `tests/language_pipes/unit/` for provider dispatch and refresh status behavior.
-
-**Done when:** section-provider routing and error handling are regression-protected.
-
----
-
-## Files Expected to Change
-
-Primary:
-- `src/language_pipes/tui/main_frame.py`
-
-Possible supporting updates:
-- `src/language_pipes/tui/main_menu.py` (if provider objects are passed during frame construction)
-- `tests/language_pipes/unit/test_main_frame.py` (or related new unit files)
-
----
-
-## Acceptance Criteria (Phase 3)
-
-All should be true:
-
-1. `MainFrame` accepts optional provider callables without breaking current flow.
-2. Each top domain has at least one section showing live provider-backed summary output.
-3. `r` triggers provider refresh for the active view and sets meaningful status.
-4. Missing providers gracefully fall back to actionable placeholder messaging.
-5. Provider errors do not crash the frame and produce clear error status + next step.
-6. Lightweight unit coverage exists for provider dispatch, refresh success, and refresh failure.
-
----
-
-## Manual Validation Checklist
-
-1. Launch TUI and enter MainFrame with no providers; confirm fallback placeholders still work.
-2. Inject mock providers and verify each tab/section shows live summary content.
-3. Press `r` across top/side/content focus depths and verify refresh feedback.
-4. Simulate provider exception; confirm frame remains responsive and status indicates recovery action.
-5. Navigate tabs/sections after repeated refreshes and confirm selection/focus behavior remains stable.
-6. Exit via root confirmation and confirm lifecycle handoff behavior is unchanged.
-
----
-
-## Phase 3 Time Budget (Suggested 120–210 min)
-
-- 30 min: provider contract + constructor/state integration
-- 35 min: section dispatch + formatter pass
-- 25 min: refresh/error/fallback hardening
-- 30–90 min: unit tests + manual validation
-
----
-
 ## Next Phase Preview (Phase 4)
 
 After Phase 3 data visibility is stable, implement edit workflows and persistence UX:
 
 - Network configure editing flow
 - Model assignment/edit actions
-- save/apply confirmation patterns
-- validation messaging and guardrails for disruptive changes
+- Save/apply confirmation patterns
+- Validation messaging and guardrails for disruptive changes
