@@ -142,14 +142,18 @@ class TextField:
 
 def handle_join_network(window: TuiWindow, create: bool) -> Optional[Dict]:
     current_step = 0
-    window.add_text(TermText("Create Network" if create else "Join Network"), (10, 0))
-    username_field = TextField(window, "         username", (0, 2))
-    password_field = TextField(window, "         password", (0, 3))
+    window.add_text(TermText("_" * 78), (1, 0))
+    window.add_text(TermText("Create Network" if create else "Join Network"), (35, 2))
+    username_field = TextField(window, "         username", (1, 4))
+    password_field = TextField(window, "         password", (1, 5))
     bootstrap_addr_field = None
     bootstrap_port_field = None
     if not create:
-        bootstrap_addr_field = TextField(window, "bootstrap address", (0, 4))
-        bootstrap_port_field = TextField(window, "   bootstrap port", (0, 5))
+        bootstrap_addr_field = TextField(window, "bootstrap address", (1, 6))
+        bootstrap_port_field = TextField(window, "   bootstrap port", (1, 7))
+    window.add_text(TermText("|\n" * (7 if create else 9)), (0, 1))
+    window.add_text(TermText("|\n" * (7 if create else 9)), (79, 1))
+    window.add_text(TermText("_" * 78), (1, 7 if create else 9))
     window.paint()
 
     while True:
