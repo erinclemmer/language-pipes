@@ -10,6 +10,8 @@ from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.distributed_state_network.util.key_manager import CredentialManager
 from language_pipes.tui.prompt import prompt, select_option, prompt_bool
 from language_pipes.util.config import get_config_files, default_config_dir, default_model_dir
+from language_pipes.tui.text_field import TextField
+from language_pipes.tui.main_frame import MainFrame
 
 libraries_loaded = False
 
@@ -114,32 +116,6 @@ def get_bootstrap_node(window: TuiWindow, pos: Tuple[int, int]) -> Optional[Tupl
     window.remove_txt(connect_id)
     return bootstrap_ip, bootstrap_port
 
-class TextField:
-    window_id: int
-    window: TuiWindow
-    field_name: str
-    position: Tuple[int, int]
-    value: str
-
-    def __init__(self, window: TuiWindow, field_name: str, pos: Tuple[int, int], initial: Optional[str] = None):
-        self.window = window
-        self.field_name = field_name
-        self.window_id = window.add_text(TermText(field_name + "|>"), pos)
-        self.position = pos
-        self.value = initial if initial is not None else ""
-
-    def edit(self) -> Optional[str]:
-        self.window.hide_txt(self.window_id)
-        self.window.paint()
-        res = prompt(TermText(self.field_name), self.window, self.position, self.value)
-        self.window.show_txt(self.window_id)
-        if res is None:
-            return None
-        self.window.update_text(self.window_id, TermText(self.field_name + "|> " + res))
-        self.window.paint()
-        self.value = res
-        return res
-
 def handle_join_network(window: TuiWindow, create: bool, config: Dict) -> Optional[Dict]:
     current_step = 0
     window.add_text(TermText("_" * 78), (1, 0))
@@ -203,7 +179,7 @@ def handle_join_network(window: TuiWindow, create: bool, config: Dict) -> Option
                 "bootstrap_port": bootstrap_port_field.value
             }
 
-def handle_file_load(window: TuiWindow, left_bound: int, config_file: Path):
+def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, int], config_file: Path):
     window.remove_all()
     window.paint()
     with open(config_file, 'r') as f:
@@ -231,11 +207,7 @@ def handle_file_load(window: TuiWindow, left_bound: int, config_file: Path):
             }]
         save_data(data)
 
-    prompt(TermText("TEST"), window, (0, 10))
-
-    # aes_key = data.get("aes_key", None)
-    # if aes_key is None:
-            
+    MainFrame((80, termsize[1]), (left_bound, 0))        
 
 def main_menu(termsize: Tuple[int, int]):
     with open('src/language_pipes/tui/banner.txt', 'r') as f:
@@ -290,7 +262,7 @@ def main_menu(termsize: Tuple[int, int]):
             return
         config_path = Path(default_config_dir(), "configs", config_file + ".toml")
         config_path.touch()
-        res = handle_file_load(window, left_bound, config_path)
+        res = handle_file_load(window, left_bound, termsize, config_path)
         if res is None:
             return restart()
         
@@ -304,7 +276,7 @@ def main_menu(termsize: Tuple[int, int]):
         config_file, cmd = res
         config_path = Path(default_config_dir(), "configs", config_file + ".toml")
         if cmd == 0:
-            res = handle_file_load(window, left_bound, config_path)
+            res = handle_file_load(window, left_bound, termsize, config_path)
             if res is None:
                 return restart()
         if cmd == 1:
