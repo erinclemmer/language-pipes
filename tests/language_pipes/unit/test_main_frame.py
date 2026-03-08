@@ -162,6 +162,29 @@ class MainFrameProviderWiringTests(unittest.TestCase):
         providers["list_activity"].assert_called_once_with(level="event")
         self.assertEqual(frame.status_message, "Refreshed Activity -> Events")
 
+    def test_refresh_dispatches_network_config_provider_for_configure_section(self):
+        providers = {
+            "get_network_config": Mock(
+                return_value={
+                    "node_id": "node-a",
+                    "network_key": "secret",
+                    "bootstrap_address": "127.0.0.1",
+                    "bootstrap_port": 7000,
+                }
+            ),
+        }
+        frame = self._new_frame(providers)
+        frame.active_top_idx = frame.TOP_HEADERS.index("Network")
+        frame.side_idx_by_tab["Network"] = 2
+
+        frame._refresh_current_view()
+
+        providers["get_network_config"].assert_called_once_with()
+        self.assertEqual(frame.status_message, "Refreshed Network -> Configure")
+        view_state = frame.view_state_by_section[("Network", "Configure")]
+        self.assertEqual(view_state["state"], "ok")
+        self.assertIn("Network configuration loaded", view_state["summary"])
+
     def test_refresh_provider_exception_sets_error_status_without_crash(self):
         providers = {
             "get_network_status": Mock(side_effect=RuntimeError("network offline")),
