@@ -2,7 +2,7 @@
 NavState: tracks which tab and side-nav section is currently active.
 """
 from typing import Dict, List
-from language_pipes.tui.side_nav import SideNav
+from language_pipes.tui.components.side_nav import SideNav
 
 class NavState:
     """

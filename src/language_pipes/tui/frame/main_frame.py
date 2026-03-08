@@ -1,14 +1,14 @@
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from language_pipes.tui.top_nav import TopNav
-from language_pipes.tui.side_nav import SideNav
+from language_pipes.tui.components.top_nav import TopNav
+from language_pipes.tui.components.side_nav import SideNav
 from language_pipes.tui.tui import TuiWindow, TermText
-from language_pipes.tui.kb_utils import PressedKey, read_key
-from language_pipes.tui.nav_state import NavState
-from language_pipes.tui.confirm_dialog import ConfirmDialog
+from language_pipes.tui.util.kb_utils import PressedKey, read_key
+from language_pipes.tui.frame.nav_state import NavState
+from language_pipes.tui.components.confirm_dialog import ConfirmDialog
 from language_pipes.tui.content_loader import ContentLoader
-from language_pipes.tui.edit_confirm_dialog import EditConfirmDialog
-from language_pipes.tui import view_state as vs
+from language_pipes.tui.components.edit_confirm_dialog import EditConfirmDialog
+from language_pipes.tui.frame import view_state as vs
 
 
 class MainFrame:

@@ -8,10 +8,10 @@ from typing import Tuple, Optional, List, Dict
 
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.distributed_state_network.util.key_manager import CredentialManager
-from language_pipes.tui.prompt import prompt, select_option, prompt_bool
+from language_pipes.tui.util.prompt import prompt, select_option, prompt_bool
 from language_pipes.util.config import get_config_files, default_config_dir, default_model_dir
-from language_pipes.tui.text_field import TextField
-from language_pipes.tui.main_frame import MainFrame
+from language_pipes.tui.components.text_field import TextField
+from language_pipes.tui.frame.main_frame import MainFrame
 
 libraries_loaded = False
 

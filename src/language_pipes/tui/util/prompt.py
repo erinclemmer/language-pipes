@@ -2,8 +2,8 @@ import sys
 
 from typing import Tuple, Optional, List
 from language_pipes.tui.tui import TuiWindow, TermText
-from language_pipes.tui.kb_utils import read_key, PressedKey
-from language_pipes.tui.screen_utils import move_cursor, change_cursor, CursorTypes
+from language_pipes.tui.util.kb_utils import read_key, PressedKey
+from language_pipes.tui.util.screen_utils import move_cursor, change_cursor, CursorTypes
 
 def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int], initial: str = "") -> Optional[str]:
     change_cursor(CursorTypes.Blinking_Bar)

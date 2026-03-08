@@ -1,6 +1,6 @@
 
 from typing import Tuple, Optional
-from language_pipes.tui.prompt import prompt
+from language_pipes.tui.util.prompt import prompt
 from language_pipes.tui.tui import TuiWindow, TermText
 
 class TextField:

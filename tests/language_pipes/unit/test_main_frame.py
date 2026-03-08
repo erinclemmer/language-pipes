@@ -5,8 +5,8 @@ from unittest.mock import patch, Mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
-from language_pipes.tui.main_frame import MainFrame
-from language_pipes.tui.kb_utils import PressedKey
+from language_pipes.tui.frame.main_frame import MainFrame
+from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.tui import TuiGrid
 
 

@@ -1,6 +1,6 @@
 from shutil import get_terminal_size
 
-from language_pipes.tui.screen_utils import enable_vt_mode, restore_mode, exit_vt_mode
+from language_pipes.tui.util.screen_utils import enable_vt_mode, restore_mode, exit_vt_mode
 from language_pipes.tui.tui import TuiWindow
 from language_pipes.tui.main_menu import main_menu
 

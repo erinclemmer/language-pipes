@@ -3,7 +3,7 @@ EditConfirmDialog: reusable Apply/Discard/Cancel confirmation overlay.
 """
 from typing import List
 
-from language_pipes.tui.kb_utils import PressedKey
+from language_pipes.tui.util.kb_utils import PressedKey
 
 
 class EditConfirmDialog:

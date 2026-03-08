@@ -3,8 +3,8 @@ ContentLoader: resolves and caches view-state data for each (tab, section) pair.
 """
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from language_pipes.tui.placeholders import PLACEHOLDERS
-from language_pipes.tui import view_state as vs
+from language_pipes.tui.frame.placeholders import PLACEHOLDERS
+from language_pipes.tui.frame import view_state as vs
 
 
 class ContentLoader:

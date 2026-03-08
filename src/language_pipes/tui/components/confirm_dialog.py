@@ -3,7 +3,7 @@ ConfirmDialog: manages the exit-confirmation overlay state and rendering.
 """
 from typing import List
 
-from language_pipes.tui.kb_utils import PressedKey
+from language_pipes.tui.util.kb_utils import PressedKey
 
 
 class ConfirmDialog:
