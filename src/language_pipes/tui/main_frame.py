@@ -528,21 +528,21 @@ class MainFrame:
         self._pending_discard = on_discard
         self.edit_confirm.open(message)
 
-    def _resolve_edit_confirm_choice(self) -> None:
+    def _resolve_edit_confirm_choice(self) -> bool:
         choice = self.edit_confirm.selected_option()
         self.edit_confirm.close()
 
         if choice == "Apply":
             if self._pending_apply is None:
                 self._set_status("No apply action configured", "error")
-                return
+                return False
             try:
                 self._pending_apply()
                 self._pending_apply = None
                 self._pending_discard = None
             except Exception as ex:
                 self._set_status(f"Apply failed: {ex}", "error")
-            return
+            return True
 
         if choice == "Discard":
             if self._pending_discard is not None:
@@ -551,17 +551,20 @@ class MainFrame:
                 self._set_status("Discarded pending changes", "info")
             self._pending_apply = None
             self._pending_discard = None
-            return
+            return True
 
         self._set_status("Edit confirmation canceled", "info")
+        return False
 
-    def _handle_edit_confirm_key(self, key: PressedKey) -> None:
+    def _handle_edit_confirm_key(self, key: PressedKey) -> bool:
         action = self.edit_confirm.handle_key(key)
         if action == "confirm":
-            self._resolve_edit_confirm_choice()
+            return self._resolve_edit_confirm_choice()
         elif action == "cancel":
             self.edit_confirm.close()
             self._set_status("Edit confirmation canceled", "info")
+            return False
+        return False
 
     def _validate_current_field(self) -> bool:
         if not self.edit_fields:
@@ -573,7 +576,7 @@ class MainFrame:
         error: Optional[str] = None
 
         if self.edit_form_name == "network_config":
-            if field_name in ("node_id", "network_key", "bootstrap_address") and raw == "":
+            if field_name in ("node_id") and raw == "":
                 error = f"{field_name} is required"
             elif field_name == "bootstrap_port":
                 try:
@@ -751,7 +754,8 @@ class MainFrame:
             return
 
         if self.edit_confirm.is_open:
-            self._handle_edit_confirm_key(key)
+            if self._handle_edit_confirm_key(key):
+                self.nav.focus_shallower()
             return
 
         if self.edit_mode:
