@@ -22,14 +22,14 @@ PLACEHOLDERS = {
             "Next: Use CLI model commands now; this panel will show provider data in Phase 3.",
             "info",
         ),
-        "Download": (
-            "Download workflow placeholder only.",
-            "Next: Pre-stage model assets, then return here for guided actions in Phase 4.",
+        "Assignments": (
+            "Model assignment editor is waiting for provider data.",
+            "Next: Wire list_models/save_model_assignments providers, then press Enter to edit.",
             "warning",
         ),
-        "Cache": (
-            "Cache usage and eviction stats unavailable.",
-            "Next: Run refresh after provider wiring to inspect cache health.",
+        "Validation": (
+            "Validation mode control is waiting for provider wiring.",
+            "Next: Provide get_validation_mode/set_validation_mode and press Enter to toggle.",
             "info",
         ),
     },

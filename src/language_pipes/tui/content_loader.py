@@ -103,6 +103,34 @@ class ContentLoader:
     def invalidate_all(self) -> None:
         self._cache.clear()
 
+    def provider_available(self, name: str) -> bool:
+        return self._get_provider(name) is not None
+
+    def call_provider(self, name: str, **kwargs) -> Any:
+        provider = self._get_provider(name)
+        if provider is None:
+            raise LookupError(f"Provider '{name}' unavailable")
+        call_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        return provider(**call_kwargs)
+
+    def get_network_config(self) -> Dict[str, Any]:
+        payload = self.call_provider("get_network_config")
+        if not isinstance(payload, dict):
+            raise ValueError("get_network_config must return a dict")
+        return payload
+
+    def save_network_config(self, data: Dict[str, Any]) -> None:
+        self.call_provider("save_network_config", data=data)
+        self.invalidate("Network", "Configure")
+
+    def save_model_assignments(self, data: Dict[str, Any]) -> None:
+        self.call_provider("save_model_assignments", data=data)
+        self.invalidate("Models", "Assignments")
+
+    def set_validation_mode(self, enabled: bool) -> None:
+        self.call_provider("set_validation_mode", enabled=enabled)
+        self.invalidate("Models", "Validation")
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

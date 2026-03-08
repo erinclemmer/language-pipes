@@ -29,6 +29,33 @@ def empty_view_state(summary: str, hint: str) -> Dict[str, Any]:
     return build_view_state("empty", summary, [], hint, "info")
 
 
+def form_view_state(
+    fields: List[Dict[str, Any]],
+    hint: str,
+    level: str,
+) -> Dict[str, Any]:
+    normalized_fields: List[Dict[str, Any]] = []
+    for field in fields:
+        name = str(field.get("name", ""))
+        value = field.get("value", "")
+        error = field.get("error")
+        normalized_fields.append(
+            {
+                "name": name,
+                "value": "" if value is None else str(value),
+                "error": None if error in (None, "") else str(error),
+            }
+        )
+    return {
+        "state": "form",
+        "summary": "Edit form active.",
+        "fields": normalized_fields,
+        "details": [],
+        "hint": hint,
+        "level": level,
+    }
+
+
 def _dict_preview(payload: Dict[str, Any], limit: int = 5) -> List[str]:
     preview: List[str] = []
     for idx, key in enumerate(payload.keys()):
@@ -104,6 +131,21 @@ def format_network(tab: str, section: str, payload: Any) -> Dict[str, Any]:
 
 
 def format_models(_: str, section: str, payload: Any) -> Dict[str, Any]:
+    if section == "Validation":
+        if not isinstance(payload, bool):
+            return error_view_state(
+                "Malformed validation mode payload.",
+                "Next: Confirm get_validation_mode returns a bool, then press r.",
+            )
+        mode = "enabled" if payload else "disabled"
+        return build_view_state(
+            "ok",
+            f"Model validation is {mode}.",
+            [],
+            "Next: Press Enter in content focus to toggle validation mode.",
+            "info",
+        )
+
     if not isinstance(payload, list):
         return error_view_state(
             "Malformed models payload.",
@@ -133,10 +175,32 @@ def format_models(_: str, section: str, payload: Any) -> Dict[str, Any]:
             lines.append(f"- {model}")
     if len(payload) > 6:
         lines.append(f"- ... ({len(payload) - 6} more models)")
+    if section == "Assignments":
+        layer_count = 0
+        end_model_id = ""
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            assignments = item.get("layer_assignments")
+            if isinstance(assignments, list):
+                layer_count = len(assignments)
+            if item.get("end_model_id"):
+                end_model_id = str(item.get("end_model_id"))
+        details = [f"- Layer assignments: {layer_count}"]
+        if end_model_id:
+            details.append(f"- End model: {end_model_id}")
+        return build_view_state(
+            "ok",
+            "Model assignment summary loaded.",
+            details,
+            "Next: Press Enter in content focus to edit assignments.",
+            "info",
+        )
+
     section_label = {
         "Installed": "Installed models",
-        "Download": "Model download candidates",
-        "Cache": "Model cache summary",
+        "Assignments": "Model assignment candidates",
+        "Validation": "Validation mode",
     }.get(section, "Model summary")
     return build_view_state(
         "ok",
@@ -276,6 +340,8 @@ def section_provider_spec(
         return "list_peers", {}, format_network
 
     if tab == "Models":
+        if section == "Validation":
+            return "get_validation_mode", {}, format_models
         return "list_models", {}, format_models
 
     if tab == "Pipes":

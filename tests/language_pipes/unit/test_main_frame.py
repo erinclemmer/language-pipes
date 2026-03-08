@@ -190,5 +190,172 @@ class MainFrameProviderWiringTests(unittest.TestCase):
         self.assertIn("Installed model inventory is not loaded yet", view_state["summary"])
 
 
+class MainFrameEditWorkflowTests(unittest.TestCase):
+    def setUp(self):
+        self.paint_patch = patch.object(TuiGrid, "paint", return_value=None)
+        self.paint_patch.start()
+
+    def tearDown(self):
+        self.paint_patch.stop()
+
+    def _new_frame(self, providers):
+        frame = MainFrame((80, 24), (0, 0), providers=providers)
+        frame.running = True
+        for provider in providers.values():
+            if hasattr(provider, "reset_mock"):
+                provider.reset_mock()
+        return frame
+
+    def _choose_apply(self, frame):
+        frame._handle_key(PressedKey.ArrowUp, "")
+        frame._handle_key(PressedKey.ArrowUp, "")
+        frame._handle_key(PressedKey.Enter, "\n")
+
+    def _choose_discard(self, frame):
+        frame._handle_key(PressedKey.ArrowUp, "")
+        frame._handle_key(PressedKey.Enter, "\n")
+
+    def test_enter_depth2_on_network_configure_opens_edit_form(self):
+        providers = {
+            "get_network_config": Mock(
+                return_value={
+                    "node_id": "node-a",
+                    "network_key": "secret",
+                    "bootstrap_address": "127.0.0.1",
+                    "bootstrap_port": 7000,
+                }
+            ),
+            "save_network_config": Mock(return_value=None),
+        }
+        frame = self._new_frame(providers)
+        frame.side_idx_by_tab["Network"] = 2
+        frame.focus_depth = 2
+
+        frame._handle_key(PressedKey.Enter, "\n")
+
+        self.assertTrue(frame.edit_mode)
+        self.assertEqual(frame.edit_form_name, "network_config")
+        self.assertEqual(frame.edit_fields[0]["value"], "node-a")
+
+    def test_network_field_validation_produces_form_error_state(self):
+        providers = {
+            "get_network_config": Mock(
+                return_value={
+                    "node_id": "",
+                    "network_key": "k",
+                    "bootstrap_address": "127.0.0.1",
+                    "bootstrap_port": 7000,
+                }
+            ),
+            "save_network_config": Mock(return_value=None),
+        }
+        frame = self._new_frame(providers)
+        frame.side_idx_by_tab["Network"] = 2
+        frame.focus_depth = 2
+        frame._handle_key(PressedKey.Enter, "\n")
+
+        frame._handle_key(PressedKey.Enter, "\n")
+
+        self.assertTrue(frame.edit_mode)
+        form_state = frame._active_form_view_state()
+        self.assertEqual(form_state["state"], "form")
+        self.assertEqual(form_state["fields"][0]["error"], "node_id is required")
+        self.assertEqual(frame.status_level, "error")
+
+    def test_network_save_provider_called_with_payload_on_apply(self):
+        providers = {
+            "get_network_config": Mock(
+                return_value={
+                    "node_id": "node-a",
+                    "network_key": "secret",
+                    "bootstrap_address": "127.0.0.1",
+                    "bootstrap_port": 7000,
+                }
+            ),
+            "save_network_config": Mock(return_value=None),
+        }
+        frame = self._new_frame(providers)
+        frame.side_idx_by_tab["Network"] = 2
+        frame.focus_depth = 2
+        frame._handle_key(PressedKey.Enter, "\n")
+
+        frame._handle_key(PressedKey.Enter, "\n")
+        frame._handle_key(PressedKey.Enter, "\n")
+        frame._handle_key(PressedKey.Enter, "\n")
+        frame._handle_key(PressedKey.Enter, "\n")
+        self.assertTrue(frame.edit_confirm.is_open)
+
+        self._choose_apply(frame)
+
+        providers["save_network_config"].assert_called_once_with(
+            data={
+                "node_id": "node-a",
+                "network_key": "secret",
+                "aes_key": "secret",
+                "bootstrap_address": "127.0.0.1",
+                "bootstrap_port": 7000,
+            }
+        )
+        self.assertFalse(frame.edit_mode)
+        self.assertEqual(frame.status_message, "Saved Network -> Configure")
+
+    def test_discard_from_edit_confirmation_restores_read_only_mode(self):
+        providers = {
+            "get_network_config": Mock(
+                return_value={
+                    "node_id": "node-a",
+                    "network_key": "secret",
+                    "bootstrap_address": "127.0.0.1",
+                    "bootstrap_port": 7000,
+                }
+            ),
+            "save_network_config": Mock(return_value=None),
+        }
+        frame = self._new_frame(providers)
+        frame.side_idx_by_tab["Network"] = 2
+        frame.focus_depth = 2
+        frame._handle_key(PressedKey.Enter, "\n")
+
+        frame._handle_key(PressedKey.Enter, "\n")
+        frame._handle_key(PressedKey.Enter, "\n")
+        frame._handle_key(PressedKey.Enter, "\n")
+        frame._handle_key(PressedKey.Enter, "\n")
+        self.assertTrue(frame.edit_confirm.is_open)
+
+        self._choose_discard(frame)
+
+        self.assertFalse(frame.edit_mode)
+        self.assertFalse(frame.edit_confirm.is_open)
+        self.assertEqual(frame.status_message, "Discarded edits")
+        providers["save_network_config"].assert_not_called()
+
+    def test_network_save_failure_sets_error_status_without_crash(self):
+        providers = {
+            "get_network_config": Mock(
+                return_value={
+                    "node_id": "node-a",
+                    "network_key": "secret",
+                    "bootstrap_address": "127.0.0.1",
+                    "bootstrap_port": 7000,
+                }
+            ),
+            "save_network_config": Mock(side_effect=RuntimeError("disk full")),
+        }
+        frame = self._new_frame(providers)
+        frame.side_idx_by_tab["Network"] = 2
+        frame.focus_depth = 2
+        frame._handle_key(PressedKey.Enter, "\n")
+
+        frame._handle_key(PressedKey.Enter, "\n")
+        frame._handle_key(PressedKey.Enter, "\n")
+        frame._handle_key(PressedKey.Enter, "\n")
+        frame._handle_key(PressedKey.Enter, "\n")
+        self._choose_apply(frame)
+
+        self.assertTrue(frame.edit_mode)
+        self.assertEqual(frame.status_level, "error")
+        self.assertIn("Apply failed", frame.status_message)
+
+
 if __name__ == "__main__":
     unittest.main()
