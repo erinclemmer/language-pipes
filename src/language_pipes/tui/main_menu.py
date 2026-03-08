@@ -217,13 +217,45 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
             "bootstrap_port": data.get("bootstrap_port", ""),
         }
 
-    def save_model_assignments(data):
-        pass
+    def list_models():
+        with open(config_file, 'r') as f:
+            cfg = toml.load(f)
+        layer_models = cfg.get("layer_models", [])
+        end_models = cfg.get("end_models", [])
+        layer_assignments = []
+        for i, m in enumerate(layer_models):
+            if isinstance(m, dict):
+                layer_assignments.append({"layer_idx": i, "model_id": m.get("id", "")})
+            else:
+                layer_assignments.append({"layer_idx": i, "model_id": str(m)})
+        end_model_id = end_models[0] if end_models else ""
+        return [
+            {
+                "id": "assignments",
+                "layer_assignments": layer_assignments,
+                "end_model_id": end_model_id,
+            }
+        ]
+
+    def save_model_assignments(data=None, **kw):
+        payload = data if data is not None else kw
+        with open(config_file, 'r') as f:
+            cfg = toml.load(f)
+        layer_assignments = payload.get("layer_assignments", [])
+        end_model_id = payload.get("end_model_id", "")
+        cfg["layer_models"] = [
+            {"id": a["model_id"], "device": "cpu", "max_memory": 4}
+            for a in layer_assignments
+            if isinstance(a, dict) and a.get("model_id")
+        ]
+        cfg["end_models"] = [end_model_id] if end_model_id else []
+        save_data(cfg)
 
     providers = {
         "get_network_config": get_network_config,
         "save_network_config": save_data,
-        "save_model_assignments": save_model_assignments
+        "list_models": list_models,
+        "save_model_assignments": save_model_assignments,
     }
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)
     action = frame.run()
