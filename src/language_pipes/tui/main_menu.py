@@ -186,9 +186,9 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         data = toml.load(f)
     node_id = data.get("node_id", None)
 
-    def save_data(d):
+    def save_data(data):
         with open(config_file, 'w') as f:
-            toml.dump(d, f)
+            toml.dump(data, f)
 
     if node_id is None:
         res = select_option((left_bound, 0), ["Create Network", "Join Network"], TermText("Select an option"))
@@ -207,7 +207,25 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
             }]
         save_data(data)
 
-    frame = MainFrame((80, termsize[1]), (left_bound, 0))
+    def get_network_config():
+        with open(config_file, 'r') as f:
+            data = toml.load(f)
+        return {
+            "node_id": data.get("node_id", ""),
+            "network_key": data.get("network_key") or data.get("aes_key", ""),
+            "bootstrap_address": data.get("bootstrap_address", ""),
+            "bootstrap_port": data.get("bootstrap_port", ""),
+        }
+
+    def save_model_assignments(data):
+        pass
+
+    providers = {
+        "get_network_config": get_network_config,
+        "save_network_config": save_data,
+        "save_model_assignments": save_model_assignments
+    }
+    frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)
     action = frame.run()
     if action == "exit":
         return "exit"
