@@ -690,6 +690,7 @@ class MainFrame:
     def _handle_edit_mode_key(self, key: PressedKey, ch: str) -> None:
         if key == PressedKey.Escape:
             self._discard_form()
+            self.nav.focus_shallower()
             return
         if key == PressedKey.ArrowUp:
             self.edit_field_idx = max(0, self.edit_field_idx - 1)
@@ -773,9 +774,10 @@ class MainFrame:
             return
 
         if key == PressedKey.Enter:
-            if self.nav.focus_depth < 2:
+            if self.nav.focus_depth < 1:
                 self.nav.focus_deeper()
             else:
+                self.nav.focus_deeper()
                 self._activate_selection()
             return
 
