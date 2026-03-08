@@ -53,7 +53,13 @@ class MainFrame:
         self._installed_model_ids: List[str] = []
 
         self._init_layout(size, pos)
+        self._init_view()
         self._render_all()
+
+    def _init_view(self):
+        self.nav.set_tab("Network")
+        self.nav.set_side_nav(self.side_nav, "Configure")
+        self._activate_selection()
 
     # ------------------------------------------------------------------
     # Compatibility shims – tests access these attributes directly

@@ -2,7 +2,7 @@
 NavState: tracks which tab and side-nav section is currently active.
 """
 from typing import Dict, List
-
+from language_pipes.tui.side_nav import SideNav
 
 class NavState:
     """
@@ -71,15 +71,30 @@ class NavState:
         self.active_top_idx = (self.active_top_idx - 1) % len(self.TOP_HEADERS)
         self.content_cursor_idx = 0
 
-    def side_next(self, side_nav) -> None:
+    def set_tab(self, tab_name: str):
+        if tab_name not in self.TOP_HEADERS:
+            return
+        self.active_top_idx = self.TOP_HEADERS.index(tab_name)
+        self.focus_depth = 1
+
+    def side_next(self, side_nav: SideNav) -> None:
         side_nav.move_next()
         self.side_idx_by_tab[self.active_tab()] = side_nav.focused_idx
         self.content_cursor_idx = 0
 
-    def side_prev(self, side_nav) -> None:
+    def side_prev(self, side_nav: SideNav) -> None:
         side_nav.move_prev()
         self.side_idx_by_tab[self.active_tab()] = side_nav.focused_idx
         self.content_cursor_idx = 0
+
+    def set_side_nav(self, side_nav: SideNav, name: str):
+        if name not in side_nav.options:
+            return
+        idx = side_nav.options.index(name)
+        side_nav.focused_idx = idx
+        self.side_idx_by_tab[self.active_tab()] = idx
+        self.content_cursor_idx = 0
+        self.focus_depth = 2
 
     def focus_deeper(self) -> None:
         self.focus_depth = min(self.focus_depth + 1, 2)

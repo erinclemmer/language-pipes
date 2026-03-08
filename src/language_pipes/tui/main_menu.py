@@ -121,7 +121,7 @@ def handle_join_network(window: TuiWindow, create: bool, config: Dict) -> Option
     window.add_text(TermText("_" * 78), (1, 0))
     window.add_text(TermText("Create Network" if create else "Join Network"), (35, 2))
     username_field = TextField(window, "         username", (1, 4), config.get("node_id", ""))
-    password_field = TextField(window, "         password", (1, 5), config.get("aes_key", ""))
+    password_field = TextField(window, " network password", (1, 5), config.get("aes_key", ""))
     bootstrap_addr_field = None
     bootstrap_port_field = None
     if not create:
@@ -182,30 +182,10 @@ def handle_join_network(window: TuiWindow, create: bool, config: Dict) -> Option
 def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, int], config_file: Path):
     window.remove_all()
     window.paint()
-    with open(config_file, 'r') as f:
-        data = toml.load(f)
-    node_id = data.get("node_id", None)
 
     def save_data(data):
         with open(config_file, 'w') as f:
             toml.dump(data, f)
-
-    if node_id is None:
-        res = select_option((left_bound, 0), ["Create Network", "Join Network"], TermText("Select an option"))
-        if res is None:
-            return
-        cmd, _ = res
-        res = handle_join_network(window, cmd == "Create Network", data)
-        if res is None:
-            return
-        data["node_id"] = res["username"]
-        data["aes_key"] = res["password"]
-        if res["bootstrap_addr"] is not None:
-            data["bootstrap_nodes"] = [{
-                "address": res["bootstrap_addr"],
-                "port": res["bootstrap_port"]
-            }]
-        save_data(data)
 
     def get_network_config():
         with open(config_file, 'r') as f:
@@ -316,7 +296,7 @@ def main_menu(termsize: Tuple[int, int]):
             return
         config_path = Path(default_config_dir(), "configs", config_file + ".toml")
         config_path.touch()
-        res = handle_file_load(window, left_bound, termsize, config_path)
+        res = handle_file_load(window, left_bound + 10, termsize, config_path)
         if res == "exit":
             exit()
         if res is None:
