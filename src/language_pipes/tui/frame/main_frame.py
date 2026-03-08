@@ -1,14 +1,13 @@
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from language_pipes.tui.components.top_nav import TopNav
-from language_pipes.tui.components.side_nav import SideNav
-from language_pipes.tui.tui import TuiWindow, TermText
+from language_pipes.tui.frame.layout import FrameLayout
+from language_pipes.tui.tui import TuiWindow
 from language_pipes.tui.util.kb_utils import PressedKey, read_key
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.components.confirm_dialog import ConfirmDialog
 from language_pipes.tui.content_loader import ContentLoader
+from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.components.edit_confirm_dialog import EditConfirmDialog
-from language_pipes.tui.frame import view_state as vs
 
 
 class MainFrame:
@@ -36,305 +35,32 @@ class MainFrame:
         self.nav = NavState(self.TOP_HEADERS, self.SIDE_OPTIONS_BY_TAB)
         self.confirm = ConfirmDialog()
         self.edit_confirm = EditConfirmDialog()
+        self.state = FrameState()
+        self.layout = FrameLayout(self.window, self.nav, self.loader, self.confirm, self.edit_confirm, self.state)
         self.loader = ContentLoader(providers)
 
-        self.running = False
-        self.exit_tui = False
-        self.status_message = ""
-        self.status_level = "info"
-
-        self.edit_mode = False
-        self.edit_form_name = ""
-        self.edit_fields: List[Dict[str, Any]] = []
-        self.edit_field_idx = 0
         self._pending_apply: Optional[Callable[[], None]] = None
         self._pending_discard: Optional[Callable[[], None]] = None
         self._validation_mode_enabled = False
         self._installed_model_ids: List[str] = []
 
-        self._init_layout(size, pos)
+        self.layout._init_layout(size, pos)
         self._init_view()
-        self._render_all()
+        self.layout._render_all()
 
     def _init_view(self):
         self.nav.set_tab("Network")
-        self.nav.set_side_nav(self.side_nav, "Configure")
+        self.nav.set_side_nav(self.layout.side_nav, "Configure")
         self._activate_selection()
 
-    # ------------------------------------------------------------------
-    # Compatibility shims – tests access these attributes directly
-    # ------------------------------------------------------------------
-
-    @property
-    def focus_depth(self) -> int:
-        return self.nav.focus_depth
-
-    @focus_depth.setter
-    def focus_depth(self, value: int) -> None:
-        self.nav.focus_depth = value
-
-    @property
-    def active_top_idx(self) -> int:
-        return self.nav.active_top_idx
-
-    @active_top_idx.setter
-    def active_top_idx(self, value: int) -> None:
-        self.nav.active_top_idx = value
-
-    @property
-    def side_idx_by_tab(self) -> Dict[str, int]:
-        return self.nav.side_idx_by_tab
-
-    @property
-    def confirm_escape_open(self) -> bool:
-        return self.confirm.is_open
-
-    @confirm_escape_open.setter
-    def confirm_escape_open(self, value: bool) -> None:
-        self.confirm.is_open = value
-
-    @property
-    def confirm_choice_idx(self) -> int:
-        return self.confirm.choice_idx
-
-    @confirm_choice_idx.setter
-    def confirm_choice_idx(self, value: int) -> None:
-        self.confirm.choice_idx = value
-
-    @property
-    def content_cursor_idx(self) -> int:
-        return self.nav.content_cursor_idx
-
-    @content_cursor_idx.setter
-    def content_cursor_idx(self, value: int) -> None:
-        self.nav.content_cursor_idx = value
-
-    @property
-    def view_state_by_section(self) -> Dict[Tuple[str, str], Dict[str, Any]]:
-        # Expose the loader's internal cache for test assertions.
-        return self.loader._cache
-
-    # ------------------------------------------------------------------
-    # Layout
-    # ------------------------------------------------------------------
-
-    def _init_layout(self, size: Tuple[int, int], pos: Tuple[int, int]):
-        self.window.add_text(TermText("_" * (size[0] - 2)), (1, 2))
-        self.window.add_text(TermText("|\n" * (size[1] - 5)), (15, 3))
-        self.window.add_text(TermText("_" * (size[0] - 2)), (1, size[1] - 3))
-
-        self.content_area_size = (max(1, size[0] - 19), max(1, size[1] - 7))
-        self.content_bg_id = self.window.add_text(
-            TermText(self._content_blank_block()),
-            (17, 4),
-        )
-        self.content_id = self.window.add_text(TermText(""), (17, 4))
-        self.footer_id = self.window.add_text(TermText(""), (2, size[1] - 2))
-
-        self.top_nav = TopNav((80, 1), (pos[0], pos[1] + 1), self.TOP_HEADERS)
-        self.side_nav = SideNav(
-            (13, size[1] - 5),
-            (pos[0] + 1, pos[1] + 4),
-            self.nav.active_side_options(),
-        )
-
-    def _content_blank_block(self) -> str:
-        width, height = self.content_area_size
-        return "\n".join([" " * width for _ in range(height)])
-
-    # ------------------------------------------------------------------
-    # Status helpers
-    # ------------------------------------------------------------------
-
-    def _set_status(self, message: str, level: str = "info"):
-        self.status_message = message
-        self.status_level = level
-
-    def _clear_status(self):
-        self.status_message = ""
-        self.status_level = "info"
-
-    # ------------------------------------------------------------------
-    # Navigation helpers (thin wrappers kept for internal use)
-    # ------------------------------------------------------------------
-
-    def _active_tab(self) -> str:
-        return self.nav.active_tab()
-
-    def _active_side_option(self) -> str:
-        return self.nav.active_side_option()
-
-    # ------------------------------------------------------------------
-    # Footer
-    # ------------------------------------------------------------------
-
-    def _footer_text(self) -> str:
-        if self.confirm.is_open:
-            return "Confirm Exit: Arrows U/D or L/R to choose   Enter: Confirm   Esc: Cancel"
-        if self.edit_confirm.is_open:
-            return "Confirm Edit: Arrows U/D or L/R to choose   Enter: Confirm   Esc: Cancel"
-        if self.edit_mode:
-            return "Edit Form: Type to edit field   Arrows U/D: Switch field   Enter: Next/Confirm   Esc: Discard"
-        if self.nav.focus_depth == 0:
-            return "Arrows L/R: Switch Tab   Enter: Side Nav   Esc: Back/Quit Options   q: Exit"
-        if self.nav.focus_depth == 1:
-            return "Arrows U/D: Switch Section   Enter: Content   Esc: Top Tabs   q: Exit"
-        return "Arrows U/D: Navigate Placeholder   Enter: Activate   r: Refresh   Esc: Back   q: Exit"
-
-    def _status_text(self) -> str:
-        if self.status_message == "":
-            return ""
-        return f"[{self.status_level.upper()}] {self.status_message}"
-
-    # ------------------------------------------------------------------
-    # Data loading
-    # ------------------------------------------------------------------
-
-    def _load_active_view_data(self, update_status: bool, force: bool) -> Dict[str, Any]:
-        tab, section = self.nav.active_view_key()
-        result = self.loader.load(tab, section, update_status=update_status, force=force)
-        if update_status and self.loader.last_status_message:
-            self._set_status(self.loader.last_status_message, self.loader.last_status_level)
-        return result
-
-    def _refresh_current_view(self):
-        self._load_active_view_data(update_status=True, force=True)
-
-    # ------------------------------------------------------------------
-    # Rendering
-    # ------------------------------------------------------------------
-
-    def _sync_navigation(self):
-        active_options = self.nav.active_side_options()
-        self.side_nav.focused_idx = (
-            min(self.nav.active_side_idx(), len(active_options) - 1)
-            if active_options
-            else 0
-        )
-        self.side_nav.set_options(active_options)
-
-        self.top_nav.focused_idx = self.nav.active_top_idx
-        interactive_overlay_open = self.confirm.is_open or self.edit_confirm.is_open or self.edit_mode
-        self.top_nav.set_focus(self.nav.focus_depth == 0 and not interactive_overlay_open)
-        self.side_nav.set_focus(self.nav.focus_depth == 1 and not interactive_overlay_open)
-
-    def _render_content(self):
-        self.window.update_text(self.content_bg_id, TermText(self._content_blank_block()))
-
-        if self.confirm.is_open:
-            self.window.update_text(self.content_id, TermText(self.confirm.render()))
-            return
-
-        if self.edit_confirm.is_open:
-            self.window.update_text(self.content_id, TermText(self.edit_confirm.render()))
-            return
-
-        if self.edit_mode:
-            self._render_form_content()
-            return
-
-        tab = self._active_tab()
-        section = self._active_side_option()
-        view_state = self._load_active_view_data(update_status=False, force=False)
-
-        state_summary = str(view_state.get("summary", "No summary available."))
-        next_action = str(view_state.get("hint", "Next: Press r to refresh."))
-        level = str(view_state.get("level", "info"))
-        details = view_state.get("details", [])
-
-        detail_lines: List[str] = []
-        if isinstance(details, list) and details:
-            detail_lines.extend([str(line) for line in details])
-
-        selection_hint = f"Selection index: {self.nav.content_cursor_idx + 1}"
-        state_label = str(view_state.get("state", "placeholder")).upper()
-
-        content_parts = [
-            f"{tab} / {section} ({state_summary})",
-            "",
-            f"State ({state_label}/{level.upper()}): {state_summary}",
-        ]
-
-        if detail_lines:
-            content_parts.extend(["", "Details:", *detail_lines])
-
-        content_parts.extend([
-            "",
-            f"Next Action: {next_action}",
-            "",
-            selection_hint,
-            f"Focus depth: {self.nav.focus_depth} (0=top, 1=side, 2=content)",
-        ])
-
-        self.window.update_text(self.content_id, TermText("\n".join(content_parts)))
-
-    def _render_form_content(self) -> None:
-        tab = self._active_tab()
-        section = self._active_side_option()
-        view_state = self._active_form_view_state()
-        fields = view_state.get("fields", [])
-        hint = str(view_state.get("hint", "Complete fields, then confirm."))
-
-        lines = [
-            f"{tab} / {section}",
-            "",
-            "Fields:",
-        ]
-
-        for idx, field in enumerate(fields):
-            cursor = ">" if idx == self.edit_field_idx else " "
-            name = str(field.get("name", "field"))
-            value = str(field.get("value", ""))
-            error = field.get("error")
-            lines.append(f"{cursor} {name}: {value}")
-            if error:
-                lines.append(f"    ! {error}")
-
-        lines.extend([
-            "",
-            f"Next Action: {hint}",
-            "",
-            "Tip: Enter validates current field and advances.",
-        ])
-
-        self.window.update_text(self.content_id, TermText("\n".join(lines)))
-
-    def _render_footer(self):
-        footer_base = self._footer_text()
-        status = self._status_text()
-        footer_text = footer_base if status == "" else f"{footer_base}   |   {status}"
-        self.window.update_text(self.footer_id, TermText(footer_text))
-
-    def _render_all(self):
-        self._sync_navigation()
-        self._render_content()
-        self._render_footer()
-
-        self.window.paint()
-        self.top_nav.window.paint()
-        self.side_nav.window.paint()
-
-    def _teardown_windows(self):
-        self.window.remove_all()
-        self.top_nav.window.remove_all()
-        self.side_nav.window.remove_all()
-
-        self.window.paint()
-        self.top_nav.window.paint()
-        self.side_nav.window.paint()
-
-    # ------------------------------------------------------------------
-    # Input handling
-    # ------------------------------------------------------------------
-
     def _activate_selection(self):
-        tab = self._active_tab()
-        section = self._active_side_option()
+        tab = self.nav.active_tab()
+        section = self.nav.active_side_option()
         if self._is_editable_section(tab, section):
             self._enter_edit_mode(tab, section)
             return
 
-        self._set_status(f"Activated {tab} -> {section} (placeholder action)", "info")
+        self.state.set_status(f"Activated {tab} -> {section} (placeholder action)", "info")
 
     def _is_editable_section(self, tab: str, section: str) -> bool:
         return (tab, section) in {
@@ -353,7 +79,7 @@ class MainFrame:
         if tab == "Models" and section == "Validation":
             self._toggle_validation_mode()
             return
-        self._set_status(f"Edit not available for {tab} -> {section}", "info")
+        self.state.set_status(f"Edit not available for {tab} -> {section}", "info")
 
     def _exit_edit_mode(self) -> None:
         self.edit_mode = False
@@ -365,16 +91,16 @@ class MainFrame:
 
     def _start_network_form(self) -> None:
         if not self.loader.provider_available("get_network_config"):
-            self._set_status("Provider 'get_network_config' unavailable; edit disabled", "info")
+            self.state.set_status("Provider 'get_network_config' unavailable; edit disabled", "info")
             return
         if not self.loader.provider_available("save_network_config"):
-            self._set_status("Provider 'save_network_config' unavailable; edit disabled", "info")
+            self.state.set_status("Provider 'save_network_config' unavailable; edit disabled", "info")
             return
 
         try:
             cfg = self.loader.get_network_config()
         except Exception as ex:
-            self._set_status(f"Failed to load network config: {ex}", "error")
+            self.state.set_status(f"Failed to load network config: {ex}", "error")
             return
 
         net_key = cfg.get("network_key")
@@ -394,14 +120,14 @@ class MainFrame:
         ]
         self.edit_field_idx = 0
         self.edit_mode = True
-        self._set_status("Editing Network -> Configure", "info")
+        self.state.set_status("Editing Network -> Configure", "info")
 
     def _start_model_assignments_form(self) -> None:
         if not self.loader.provider_available("list_models"):
-            self._set_status("Provider 'list_models' unavailable; edit disabled", "info")
+            self.state.set_status("Provider 'list_models' unavailable; edit disabled", "info")
             return
         if not self.loader.provider_available("save_model_assignments"):
-            self._set_status("Provider 'save_model_assignments' unavailable; edit disabled", "info")
+            self.state.set_status("Provider 'save_model_assignments' unavailable; edit disabled", "info")
             return
 
         try:
@@ -409,7 +135,7 @@ class MainFrame:
             if not isinstance(model_payload, list):
                 raise ValueError("list_models must return a list")
         except Exception as ex:
-            self._set_status(f"Failed to load model assignments: {ex}", "error")
+            self.state.set_status(f"Failed to load model assignments: {ex}", "error")
             return
 
         self._installed_model_ids = self._extract_model_ids(model_payload)
@@ -446,11 +172,11 @@ class MainFrame:
         ]
         self.edit_field_idx = 0
         self.edit_mode = True
-        self._set_status("Editing Models -> Assignments", "info")
+        self.state.set_status("Editing Models -> Assignments", "info")
 
     def _toggle_validation_mode(self) -> None:
         if not self.loader.provider_available("set_validation_mode"):
-            self._set_status("Provider 'set_validation_mode' unavailable; toggle disabled", "info")
+            self.state.set_status("Provider 'set_validation_mode' unavailable; toggle disabled", "info")
             return
 
         current = self._read_validation_mode()
@@ -462,14 +188,14 @@ class MainFrame:
                 on_apply=self._apply_validation_mode,
                 on_discard=None,
             )
-            self._set_status("Confirm disable for Models -> Validation", "warning")
+            self.state.set_status("Confirm disable for Models -> Validation", "warning")
             return
 
         try:
             self.loader.set_validation_mode(True)
-            self._set_status("Validation mode enabled", "info")
+            self.state.set_status("Validation mode enabled", "info")
         except Exception as ex:
-            self._set_status(f"Failed to set validation mode: {ex}", "error")
+            self.state.set_status(f"Failed to set validation mode: {ex}", "error")
 
     def _read_validation_mode(self) -> bool:
         try:
@@ -486,7 +212,7 @@ class MainFrame:
     def _apply_validation_mode(self) -> None:
         self.loader.set_validation_mode(self._validation_mode_enabled)
         status = "enabled" if self._validation_mode_enabled else "disabled"
-        self._set_status(f"Validation mode {status}", "info")
+        self.state.set_status(f"Validation mode {status}", "info")
 
     def _extract_model_ids(self, models: List[Any]) -> List[str]:
         model_ids: List[str] = []
@@ -499,25 +225,7 @@ class MainFrame:
                 if text not in model_ids:
                     model_ids.append(text)
         return model_ids
-
-    def _active_form_view_state(self) -> Dict[str, Any]:
-        fields: List[Dict[str, Any]] = []
-        for field in self.edit_fields:
-            value = str(field.get("value", ""))
-            if field.get("masked"):
-                value = "*" * len(value) if value else ""
-            fields.append(
-                {
-                    "name": field.get("name", ""),
-                    "value": value,
-                    "error": field.get("error"),
-                }
-            )
-
-        hint = "Complete fields and press Enter on the last field to confirm."
-        if self.edit_form_name == "model_assignments":
-            hint = "Format layer assignments as layer:model (comma separated), then confirm."
-        return vs.form_view_state(fields, hint, "info")
+    
 
     def _open_edit_confirm(
         self,
@@ -536,26 +244,26 @@ class MainFrame:
 
         if choice == "Apply":
             if self._pending_apply is None:
-                self._set_status("No apply action configured", "error")
+                self.state.set_status("No apply action configured", "error")
                 return False
             try:
                 self._pending_apply()
                 self._pending_apply = None
                 self._pending_discard = None
             except Exception as ex:
-                self._set_status(f"Apply failed: {ex}", "error")
+                self.state.set_status(f"Apply failed: {ex}", "error")
             return True
 
         if choice == "Discard":
             if self._pending_discard is not None:
                 self._pending_discard()
             else:
-                self._set_status("Discarded pending changes", "info")
+                self.state.set_status("Discarded pending changes", "info")
             self._pending_apply = None
             self._pending_discard = None
             return True
 
-        self._set_status("Edit confirmation canceled", "info")
+        self.state.set_status("Edit confirmation canceled", "info")
         return False
 
     def _handle_edit_confirm_key(self, key: PressedKey) -> bool:
@@ -564,7 +272,7 @@ class MainFrame:
             return self._resolve_edit_confirm_choice()
         elif action == "cancel":
             self.edit_confirm.close()
-            self._set_status("Edit confirmation canceled", "info")
+            self.state.set_status("Edit confirmation canceled", "info")
             return False
         return False
 
@@ -651,12 +359,12 @@ class MainFrame:
 
     def _on_form_enter(self) -> None:
         if not self._validate_current_field():
-            self._set_status("Fix validation error before continuing", "error")
+            self.state.set_status("Fix validation error before continuing", "error")
             return
 
         if self.edit_field_idx < len(self.edit_fields) - 1:
             self.edit_field_idx += 1
-            self._set_status("Field accepted", "info")
+            self.state.set_status("Field accepted", "info")
             return
 
         if self.edit_form_name == "network_config":
@@ -665,7 +373,7 @@ class MainFrame:
             def apply_network() -> None:
                 self.loader.save_network_config(payload)
                 self._exit_edit_mode()
-                self._set_status("Saved Network -> Configure", "info")
+                self.state.set_status("Saved Network -> Configure", "info")
 
             self._open_edit_confirm(
                 "Apply changes? Network reconnect may take a few seconds.",
@@ -680,7 +388,7 @@ class MainFrame:
             def apply_assignments() -> None:
                 self.loader.save_model_assignments(payload)
                 self._exit_edit_mode()
-                self._set_status("Saved Models -> Assignments", "info")
+                self.state.set_status("Saved Models -> Assignments", "info")
 
             self._open_edit_confirm(
                 "Apply model assignment changes?",
@@ -690,7 +398,7 @@ class MainFrame:
 
     def _discard_form(self) -> None:
         self._exit_edit_mode()
-        self._set_status("Discarded edits", "info")
+        self.state.set_status("Discarded edits", "info")
 
     def _handle_edit_mode_key(self, key: PressedKey, ch: str) -> None:
         if key == PressedKey.Escape:
@@ -725,7 +433,7 @@ class MainFrame:
 
     def _open_exit_confirm(self):
         self.confirm.open()
-        self._set_status("Choose: Return to menu, Exit TUI, or Cancel", "warning")
+        self.state.set_status("Choose: Return to menu, Exit TUI, or Cancel", "warning")
 
     def _resolve_confirm_choice(self):
         choice = self.confirm.selected_option()
@@ -740,7 +448,7 @@ class MainFrame:
             self.running = False
             return
 
-        self._set_status("Exit canceled", "info")
+        self.state.set_status("Exit canceled", "info")
 
     def _handle_confirm_key(self, key: PressedKey):
         action = self.confirm.handle_key(key)
@@ -748,7 +456,7 @@ class MainFrame:
             self._resolve_confirm_choice()
         elif action == "cancel":
             self.confirm.close()
-            self._set_status("Exit canceled", "info")
+            self.state.set_status("Exit canceled", "info")
 
     def _handle_key(self, key: PressedKey, ch: str):
         if self.confirm.is_open:
@@ -769,7 +477,7 @@ class MainFrame:
             return
 
         if key == PressedKey.Alpha and ch.lower() == "r":
-            self._refresh_current_view()
+            self.layout._refresh_current_view()
             return
 
         if key == PressedKey.Escape:
@@ -790,30 +498,30 @@ class MainFrame:
         if self.nav.focus_depth == 0:
             if key == PressedKey.ArrowRight:
                 self.nav.tab_next()
-                self._clear_status()
+                self.state.clear_status()
             elif key == PressedKey.ArrowLeft:
                 self.nav.tab_prev()
-                self._clear_status()
+                self.state.clear_status()
             return
 
         if self.nav.focus_depth == 1:
             if key == PressedKey.ArrowDown:
-                self.nav.side_next(self.side_nav)
-                self._clear_status()
+                self.nav.side_next(self.layout.side_nav)
+                self.state.clear_status()
             elif key == PressedKey.ArrowUp:
-                self.nav.side_prev(self.side_nav)
-                self._clear_status()
+                self.nav.side_prev(self.layout.side_nav)
+                self.state.clear_status()
             return
 
         if self.nav.focus_depth == 2:
             if key == PressedKey.ArrowDown:
                 self.nav.content_cursor_down()
-                self._set_status("Moved selection cursor (placeholder content)", "info")
+                self.state.set_status("Moved selection cursor (placeholder content)", "info")
             elif key == PressedKey.ArrowUp:
                 self.nav.content_cursor_up()
-                self._set_status("Moved selection cursor (placeholder content)", "info")
+                self.state.set_status("Moved selection cursor (placeholder content)", "info")
             elif key in (PressedKey.ArrowLeft, PressedKey.ArrowRight):
-                self._set_status("No horizontal action in placeholder content", "info")
+                self.state.set_status("No horizontal action in placeholder content", "info")
 
     # ------------------------------------------------------------------
     # Run loop
@@ -822,11 +530,11 @@ class MainFrame:
     def run(self) -> str:
         self.running = True
         self.exit_tui = False
-        self._render_all()
+        self.layout._render_all()
         while self.running:
             key, ch = read_key()
             self._handle_key(key, ch)
-            self._render_all()
+            self.layout._render_all()
 
-        self._teardown_windows()
+        self.layout._teardown_windows()
         return "exit" if self.exit_tui else "menu"
