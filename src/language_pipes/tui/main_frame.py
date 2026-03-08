@@ -250,8 +250,7 @@ class MainFrame:
         state_label = str(view_state.get("state", "placeholder")).upper()
 
         content_parts = [
-            f"View: {tab}",
-            f"Section: {section}",
+            f"{tab} / {section} ({state_summary})",
             "",
             f"State ({state_label}/{level.upper()}): {state_summary}",
         ]
@@ -277,10 +276,7 @@ class MainFrame:
         hint = str(view_state.get("hint", "Complete fields, then confirm."))
 
         lines = [
-            f"View: {tab}",
-            f"Section: {section}",
-            "",
-            f"State (FORM/{str(view_state.get('level', 'info')).upper()}): Edit form active.",
+            f"{tab} / {section}",
             "",
             "Fields:",
         ]
