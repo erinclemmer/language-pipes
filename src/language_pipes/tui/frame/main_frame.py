@@ -1,14 +1,13 @@
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from language_pipes.tui.frame.layout import FrameLayout
 from language_pipes.tui.tui import TuiWindow
-from language_pipes.tui.util.kb_utils import PressedKey, read_key
 from language_pipes.tui.frame.nav_state import NavState
-from language_pipes.tui.components.confirm_dialog import ConfirmDialog
-from language_pipes.tui.content_loader import ContentLoader
+from language_pipes.tui.frame.layout import FrameLayout
 from language_pipes.tui.frame.frame_state import FrameState
+from language_pipes.tui.util.kb_utils import PressedKey, read_key
+from language_pipes.tui.components.confirm_dialog import ConfirmDialog
+from language_pipes.tui.content_loader import ContentLoader, ProviderCall
 from language_pipes.tui.components.edit_confirm_dialog import EditConfirmDialog
-
 
 class MainFrame:
     TOP_HEADERS = ["Network", "Models", "Pipes", "Jobs", "Activity"]
@@ -19,10 +18,6 @@ class MainFrame:
         "Jobs": ["Queue", "History", "Stats"],
         "Activity": ["Logs", "Events", "Metrics"],
     }
-
-    # ------------------------------------------------------------------
-    # Construction
-    # ------------------------------------------------------------------
 
     def __init__(
         self,
@@ -36,13 +31,8 @@ class MainFrame:
         self.confirm = ConfirmDialog()
         self.edit_confirm = EditConfirmDialog()
         self.state = FrameState()
-        self.layout = FrameLayout(self.window, self.nav, self.loader, self.confirm, self.edit_confirm, self.state)
         self.loader = ContentLoader(providers)
-
-        self._pending_apply: Optional[Callable[[], None]] = None
-        self._pending_discard: Optional[Callable[[], None]] = None
-        self._validation_mode_enabled = False
-        self._installed_model_ids: List[str] = []
+        self.layout = FrameLayout(self.window, self.nav, self.loader, self.confirm, self.edit_confirm, self.state)
 
         self.layout._init_layout(size, pos)
         self._init_view()
@@ -56,44 +46,16 @@ class MainFrame:
     def _activate_selection(self):
         tab = self.nav.active_tab()
         section = self.nav.active_side_option()
-        if self._is_editable_section(tab, section):
-            self._enter_edit_mode(tab, section)
-            return
-
-        self.state.set_status(f"Activated {tab} -> {section} (placeholder action)", "info")
-
-    def _is_editable_section(self, tab: str, section: str) -> bool:
-        return (tab, section) in {
-            ("Network", "Configure"),
-            ("Models", "Assignments"),
-            ("Models", "Validation"),
-        }
-
-    def _enter_edit_mode(self, tab: str, section: str) -> None:
         if tab == "Network" and section == "Configure":
             self._start_network_form()
-            return
-        if tab == "Models" and section == "Assignments":
+        elif tab == "Models" and section == "Assignments":
             self._start_model_assignments_form()
-            return
-        if tab == "Models" and section == "Validation":
-            self._toggle_validation_mode()
-            return
-        self.state.set_status(f"Edit not available for {tab} -> {section}", "info")
-
-    def _exit_edit_mode(self) -> None:
-        self.edit_mode = False
-        self.edit_form_name = ""
-        self.edit_fields = []
-        self.edit_field_idx = 0
-        self._pending_apply = None
-        self._pending_discard = None
 
     def _start_network_form(self) -> None:
-        if not self.loader.provider_available("get_network_config"):
+        if not self.loader.provider_available(ProviderCall.get_network_config):
             self.state.set_status("Provider 'get_network_config' unavailable; edit disabled", "info")
             return
-        if not self.loader.provider_available("save_network_config"):
+        if not self.loader.provider_available(ProviderCall.save_network_config):
             self.state.set_status("Provider 'save_network_config' unavailable; edit disabled", "info")
             return
 
@@ -103,168 +65,49 @@ class MainFrame:
             self.state.set_status(f"Failed to load network config: {ex}", "error")
             return
 
-        net_key = cfg.get("network_key")
-        if net_key is None:
-            net_key = cfg.get("aes_key", "")
+        bootstrap_address = cfg.bootstrap_nodes[0].address if len(cfg.bootstrap_nodes) > 0 else ""
+        bootstrap_port = str(cfg.bootstrap_nodes[0].port) if len(cfg.bootstrap_nodes) > 0 else ""
 
-        self.edit_form_name = "network_config"
-        self.edit_fields = [
-            {"name": "node_id", "value": str(cfg.get("node_id", "")), "error": None},
-            {"name": "network_key", "value": str(net_key), "error": None, "masked": True},
-            {
-                "name": "bootstrap_address",
-                "value": str(cfg.get("bootstrap_address", "")),
-                "error": None,
-            },
-            {"name": "bootstrap_port", "value": str(cfg.get("bootstrap_port", "")), "error": None},
-        ]
-        self.edit_field_idx = 0
-        self.edit_mode = True
+        self.state.start_edit_mode(
+            form_name="network_config",
+            edit_fields=[
+                {"name": "node_id", "value": str(cfg.node_id), "error": None},
+                {"name": "network_key", "value": str(cfg.aes_key), "error": None, "masked": True},
+                {
+                    "name": "bootstrap_address",
+                    "value": bootstrap_address,
+                    "error": None,
+                },
+                {"name": "bootstrap_port", "value": str(bootstrap_port), "error": None},
+            ]
+        )
+        
         self.state.set_status("Editing Network -> Configure", "info")
 
     def _start_model_assignments_form(self) -> None:
-        if not self.loader.provider_available("list_models"):
+        if not self.loader.provider_available(ProviderCall.list_models):
             self.state.set_status("Provider 'list_models' unavailable; edit disabled", "info")
             return
-        if not self.loader.provider_available("save_model_assignments"):
+        if not self.loader.provider_available(ProviderCall.save_model_assignments):
             self.state.set_status("Provider 'save_model_assignments' unavailable; edit disabled", "info")
             return
 
         try:
-            model_payload = self.loader.call_provider("list_models")
+            model_payload = self.loader.call_provider(ProviderCall.list_models)
             if not isinstance(model_payload, list):
                 raise ValueError("list_models must return a list")
         except Exception as ex:
             self.state.set_status(f"Failed to load model assignments: {ex}", "error")
             return
 
-        self._installed_model_ids = self._extract_model_ids(model_payload)
+        # TODO
 
-        current_layers: List[Dict[str, Any]] = []
-        end_model_id = ""
-        for item in model_payload:
-            if not isinstance(item, dict):
-                continue
-            if isinstance(item.get("layer_assignments"), list):
-                current_layers = item.get("layer_assignments") or []
-            if item.get("end_model_id"):
-                end_model_id = str(item.get("end_model_id"))
-
-        formatted_layers: List[str] = []
-        for assignment in current_layers:
-            if not isinstance(assignment, dict):
-                continue
-            layer_value = assignment.get("layer_idx")
-            model_value = assignment.get("model_id")
-            if layer_value is None or not model_value:
-                continue
-            try:
-                layer_idx = int(layer_value)
-            except Exception:
-                continue
-            formatted_layers.append(f"{layer_idx}:{str(model_value)}")
-        layer_str = ",".join(formatted_layers)
-
-        self.edit_form_name = "model_assignments"
-        self.edit_fields = [
-            {"name": "layer_assignments", "value": layer_str, "error": None},
-            {"name": "end_model_id", "value": end_model_id, "error": None},
-        ]
-        self.edit_field_idx = 0
-        self.edit_mode = True
         self.state.set_status("Editing Models -> Assignments", "info")
 
-    def _toggle_validation_mode(self) -> None:
-        if not self.loader.provider_available("set_validation_mode"):
-            self.state.set_status("Provider 'set_validation_mode' unavailable; toggle disabled", "info")
-            return
-
-        current = self._read_validation_mode()
-        target = not current
-        self._validation_mode_enabled = target
-        if not target:
-            self._open_edit_confirm(
-                "Disable validation mode? This reduces safety checks.",
-                on_apply=self._apply_validation_mode,
-                on_discard=None,
-            )
-            self.state.set_status("Confirm disable for Models -> Validation", "warning")
-            return
-
-        try:
-            self.loader.set_validation_mode(True)
-            self.state.set_status("Validation mode enabled", "info")
-        except Exception as ex:
-            self.state.set_status(f"Failed to set validation mode: {ex}", "error")
-
-    def _read_validation_mode(self) -> bool:
-        try:
-            if self.loader.provider_available("get_validation_mode"):
-                value = self.loader.call_provider("get_validation_mode")
-                return bool(value)
-            if self.loader.provider_available("get_network_config"):
-                cfg = self.loader.get_network_config()
-                return bool(cfg.get("model_validation", False))
-        except Exception:
-            return False
-        return False
-
-    def _apply_validation_mode(self) -> None:
-        self.loader.set_validation_mode(self._validation_mode_enabled)
-        status = "enabled" if self._validation_mode_enabled else "disabled"
-        self.state.set_status(f"Validation mode {status}", "info")
-
-    def _extract_model_ids(self, models: List[Any]) -> List[str]:
-        model_ids: List[str] = []
-        for item in models:
-            if not isinstance(item, dict):
-                continue
-            candidate = item.get("model_id") or item.get("id") or item.get("name")
-            if candidate is not None:
-                text = str(candidate)
-                if text not in model_ids:
-                    model_ids.append(text)
-        return model_ids
-    
-
-    def _open_edit_confirm(
-        self,
-        message: str,
-        *,
-        on_apply: Callable[[], None],
-        on_discard: Optional[Callable[[], None]],
-    ) -> None:
-        self._pending_apply = on_apply
-        self._pending_discard = on_discard
-        self.edit_confirm.open(message)
-
     def _resolve_edit_confirm_choice(self) -> bool:
-        choice = self.edit_confirm.selected_option()
-        self.edit_confirm.close()
-
-        if choice == "Apply":
-            if self._pending_apply is None:
-                self.state.set_status("No apply action configured", "error")
-                return False
-            try:
-                self._pending_apply()
-                self._pending_apply = None
-                self._pending_discard = None
-            except Exception as ex:
-                self.state.set_status(f"Apply failed: {ex}", "error")
-            return True
-
-        if choice == "Discard":
-            if self._pending_discard is not None:
-                self._pending_discard()
-            else:
-                self.state.set_status("Discarded pending changes", "info")
-            self._pending_apply = None
-            self._pending_discard = None
-            return True
-
-        self.state.set_status("Edit confirmation canceled", "info")
-        return False
+        res, msg, lvl = self.edit_confirm.resolve()
+        self.state.set_status(msg, lvl)
+        return res
 
     def _handle_edit_confirm_key(self, key: PressedKey) -> bool:
         action = self.edit_confirm.handle_key(key)
@@ -522,10 +365,6 @@ class MainFrame:
                 self.state.set_status("Moved selection cursor (placeholder content)", "info")
             elif key in (PressedKey.ArrowLeft, PressedKey.ArrowRight):
                 self.state.set_status("No horizontal action in placeholder content", "info")
-
-    # ------------------------------------------------------------------
-    # Run loop
-    # ------------------------------------------------------------------
 
     def run(self) -> str:
         self.running = True

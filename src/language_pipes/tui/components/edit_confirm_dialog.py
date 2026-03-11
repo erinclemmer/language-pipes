@@ -1,7 +1,4 @@
-"""
-EditConfirmDialog: reusable Apply/Discard/Cancel confirmation overlay.
-"""
-from typing import List
+from typing import List, Callable, Optional, Tuple
 
 from language_pipes.tui.util.kb_utils import PressedKey
 
@@ -12,16 +9,46 @@ class EditConfirmDialog:
     is_open: bool
     choice_idx: int
     message: str
+    on_apply: Optional[Callable]
+    on_discard: Optional[Callable]
 
     def __init__(self) -> None:
         self.is_open = False
         self.choice_idx = 2  # default "Cancel"
         self.message = "Apply these changes?"
 
-    def open(self, message: str) -> None:
+    def open(self, message: str, on_apply: Callable, on_discard: Optional[Callable]) -> None:
         self.is_open = True
         self.choice_idx = 2
         self.message = message
+        self.on_apply = on_apply
+        self.on_discard = on_discard
+
+    def resolve(self) -> Tuple[bool, str, str]:
+        choice = self.selected_option()
+        self.close()
+
+        if choice == "Apply":
+            if self._pending_apply is None:
+                return False, "No apply action configured", "error"
+            try:
+                self._pending_apply()
+                self._pending_apply = None
+                self._pending_discard = None
+            except Exception as ex:
+                return False, f"Apply failed: {ex}", "error"
+
+        if choice == "Discard":
+            status = ""
+            if self._pending_discard is not None:
+                self._pending_discard()
+            else:
+                status = "Discarded pending changes"
+            self._pending_apply = None
+            self._pending_discard = None
+            return True, status, "info"
+
+        return False, "Edit confirmation canceled", "info"
 
     def close(self) -> None:
         self.is_open = False
