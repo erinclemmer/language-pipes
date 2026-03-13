@@ -109,3 +109,24 @@ class NetworkForm:
         self._pending_apply = on_apply
         self._pending_discard = on_discard
         self.confirm.open(message, on_apply, on_discard)
+
+    def validate_current_field(self) -> Optional[str]:
+        res = self.editor.get_current_field()
+        if res is None:
+            return "Not currently editing a form"
+        
+        error = None
+        field_name, raw = res
+        
+        if field_name in ("node_id") and raw == "":
+            error = f"{field_name} is required"
+        
+        elif field_name == "bootstrap_port":
+            try:
+                value = int(raw)
+                if value < 1 or value > 65535:
+                    error = "bootstrap_port must be 1-65535"
+            except Exception:
+                error = "bootstrap_port must be an integer"
+        
+        return error

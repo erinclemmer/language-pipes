@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional, Callable, Tuple
 
 class Editor:
     edit_mode: bool
@@ -39,25 +39,11 @@ class Editor:
     def set_discard(self, pending_discard: Optional[Callable]):
         self._pending_discard = pending_discard
 
-    def _validate_current_field(self) -> bool:
+    def get_current_field(self) -> Optional[Tuple[str, str]]:
         if not self.edit_fields:
-            return False
+            return None
 
         field = self.edit_fields[self.edit_field_idx]
         field_name = str(field.get("name", ""))
         raw = str(field.get("value", "")).strip()
-        error: Optional[str] = None
-
-        if self.edit_form_name == "network_config":
-            if field_name in ("node_id") and raw == "":
-                error = f"{field_name} is required"
-            elif field_name == "bootstrap_port":
-                try:
-                    value = int(raw)
-                    if value < 1 or value > 65535:
-                        error = "bootstrap_port must be 1-65535"
-                except Exception:
-                    error = "bootstrap_port must be an integer"
-
-        field["error"] = error
-        return error is None
+        return field_name, raw
