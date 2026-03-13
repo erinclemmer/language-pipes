@@ -110,6 +110,7 @@ class NetworkForm:
         self._pending_discard = on_discard
         self.confirm.open(message, on_apply, on_discard)
 
+    # Returns string on error
     def validate_current_field(self) -> Optional[str]:
         res = self.editor.get_current_field()
         if res is None:
