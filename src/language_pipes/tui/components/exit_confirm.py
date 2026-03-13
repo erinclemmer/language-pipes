@@ -45,16 +45,6 @@ class ExitConfirm:
         return "\n".join(lines)
 
     def handle_key(self, key: PressedKey) -> str:
-        """
-        Process a key press while the dialog is open.
-
-        Returns one of:
-          "prev"   – moved selection up
-          "next"   – moved selection down
-          "confirm"– user pressed Enter; caller should read selected_option()
-          "cancel" – user pressed Escape
-          "nop"    – key had no effect
-        """
         if key in (PressedKey.ArrowUp, PressedKey.ArrowLeft):
             self.move_prev()
             return "prev"

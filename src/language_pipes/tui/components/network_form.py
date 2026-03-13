@@ -1,27 +1,30 @@
-from typing import Dict, Any
+from typing import Callable, Optional
 
 from language_pipes.tui.frame.editor import Editor
+from language_pipes.util.config import default_config_dir
+from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.content_loader import ContentLoader, ProviderCall
-from language_pipes.tui.components.exit_confirm import ExitConfirm
+from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 
 class NetworkForm:
     editor: Editor
+    confirm: Confirm
     state: FrameState
     loader: ContentLoader
-    edit_confirm: ExitConfirm
 
     def __init__(
             self, 
             loader: ContentLoader, 
             state: FrameState, 
             editor: Editor, 
-            edit_confirm: ExitConfirm
+            confirm: Confirm
         ):
         self.state = state
         self.loader = loader
         self.editor = editor
-        self.edit_confirm = ExitConfirm
+        self.confirm = confirm
 
     def start(self) -> None:
         if not self.loader.provider_available(ProviderCall.get_network_config):
@@ -56,24 +59,53 @@ class NetworkForm:
         
         self.state.set_status("Editing Network -> Configure", "info")
 
-    def _build_network_payload(self) -> Dict[str, Any]:
+    def _build_payload(self) -> DSNodeConfig:
         values = {str(f.get("name")): str(f.get("value", "")).strip() for f in self.editor.edit_fields}
-        return {
+        
+        data = {
             "node_id": values.get("node_id", ""),
-            "network_key": values.get("network_key", ""),
             "aes_key": values.get("network_key", ""),
             "bootstrap_address": values.get("bootstrap_address", ""),
             "bootstrap_port": int(values.get("bootstrap_port", "0")),
         }
 
+        return DSNodeConfig(
+            node_id=data["node_id"],
+            aes_key=data["aes_key"],
+            credential_dir=default_config_dir() + "/credentials",
+            port=5000,
+            network_ip="",
+            whitelist_ips=[],
+            whitelist_node_ids=[],
+            bootstrap_nodes=[
+                Endpoint(data["bootstrap_address"], data["bootstrap_port"])
+            ] if data["bootstrap_address"] != "" else []
+        )
+
     def submit(self):
+        payload = self._build_payload()
         def apply_network() -> None:
             self.loader.save_network_config(payload)
-            self._exit_edit_mode()
+            self.editor.exit_edit_mode()
             self.state.set_status("Saved Network -> Configure", "info")
+
+        def discard_network():
+            self.state.set_status("Discarded edits", "info")
+            self.editor.discard_form()
 
         self._open_edit_confirm(
             "Apply changes? Network reconnect may take a few seconds.",
             on_apply=apply_network,
-            on_discard=self._discard_form,
+            on_discard=discard_network,
         )
+
+    def _open_edit_confirm(
+        self,
+        message: str,
+        *,
+        on_apply: Callable[[], None],
+        on_discard: Optional[Callable[[], None]],
+    ) -> None:
+        self._pending_apply = on_apply
+        self._pending_discard = on_discard
+        self.confirm.open(message, on_apply, on_discard)

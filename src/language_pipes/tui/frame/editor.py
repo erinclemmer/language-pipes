@@ -1,11 +1,6 @@
 from typing import List, Dict, Any, Optional, Callable
 
-from language_pipes.tui.content_loader import ContentLoader
-from language_pipes.tui.frame.frame_state import FrameState
-
 class Editor:
-    state: FrameState
-    loader: ContentLoader
     edit_mode: bool
     edit_form_name: str
     edit_field_idx: int
@@ -13,9 +8,7 @@ class Editor:
     _pending_apply: Optional[Callable[[], None]]
     _pending_discard: Optional[Callable[[], None]]
 
-    def __init__(self, state: FrameState, loader: ContentLoader):
-        self.state = state
-        self.content_loader = loader
+    def __init__(self):
         self.edit_field_idx = 0
         self.edit_mode = False
         self.edit_form_name = ""
@@ -23,13 +16,16 @@ class Editor:
         self._pending_apply = None
         self._pending_discard = None
 
-    def _exit_edit_mode(self) -> None:
+    def exit_edit_mode(self) -> None:
         self.edit_mode = False
         self.edit_form_name = ""
         self.edit_fields = []
         self.edit_field_idx = 0
         self._pending_apply = None
         self._pending_discard = None
+
+    def discard_form(self) -> None:
+        self.exit_edit_mode()
 
     def start_edit_mode(self, form_name: str, edit_fields: List[Dict]):
         self.edit_field_idx = 0
@@ -65,40 +61,3 @@ class Editor:
 
         field["error"] = error
         return error is None
-    
-    def on_form_enter(self, payload: Dict[str, Any]) -> None:
-        if not self._validate_current_field():
-            self.state.set_status("Fix validation error before continuing", "error")
-            return
-
-        if self.edit_field_idx < len(self.edit_fields) - 1:
-            self.edit_field_idx += 1
-            self.state.set_status("Field accepted", "info")
-            return
-
-        if self.edit_form_name == "network_config":
-            def apply_network() -> None:
-                self.loader.save_network_config(payload)
-                self._exit_edit_mode()
-                self.state.set_status("Saved Network -> Configure", "info")
-
-            self._open_edit_confirm(
-                "Apply changes? Network reconnect may take a few seconds.",
-                on_apply=apply_network,
-                on_discard=self._discard_form,
-            )
-            return
-
-        if self.edit_form_name == "model_assignments":
-            payload = self._build_assignments_payload()
-
-            def apply_assignments() -> None:
-                self.loader.save_model_assignments(payload)
-                self._exit_edit_mode()
-                self.state.set_status("Saved Models -> Assignments", "info")
-
-            self._open_edit_confirm(
-                "Apply model assignment changes?",
-                on_apply=apply_assignments,
-                on_discard=self._discard_form,
-            )
