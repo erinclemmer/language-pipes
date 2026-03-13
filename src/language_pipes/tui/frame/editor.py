@@ -47,3 +47,9 @@ class Editor:
         field_name = str(field.get("name", ""))
         raw = str(field.get("value", "")).strip()
         return field_name, raw
+    
+    def prev_field(self):
+        self.edit_field_idx = max(0, self.edit_field_idx - 1)
+
+    def next_field(self):
+        self.edit_field_idx = min(len(self.edit_fields) - 1, self.edit_field_idx + 1)

@@ -5,6 +5,7 @@ from language_pipes.tui.components.top_nav import TopNav
 from language_pipes.tui.components.side_nav import SideNav
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.content_loader import ContentLoader
+from language_pipes.tui.frame.editor import Editor
 from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
@@ -12,6 +13,8 @@ from language_pipes.tui.frame.frame_state import FrameState
 class FrameLayout:
     content_id: int
     footer_id: int
+
+    editor: Editor
     top_nav: TopNav
     side_nav: SideNav
     nav_state: NavState
@@ -25,17 +28,19 @@ class FrameLayout:
             self, 
             window: TuiWindow, 
             nav: NavState, 
+            editor: Editor,
             loader: ContentLoader, 
-            confirm: ExitConfirm,
+            exit_confirm: ExitConfirm,
             edit_confirm: Confirm,
             state: FrameState
         ):
         self.nav_state = nav
         self.window = window
         self.loader = loader
-        self.exit_confirm = confirm
+        self.exit_confirm = exit_confirm
         self.edit_confirm = edit_confirm
         self.state = state
+        self.editor = editor
 
     def _init_layout(self, size: Tuple[int, int], pos: Tuple[int, int]):
         self.window.add_text(TermText("_" * (size[0] - 2)), (1, 2))
@@ -67,7 +72,7 @@ class FrameLayout:
         self.side_nav.set_options(active_options)
 
         self.top_nav.focused_idx = self.nav_state.active_top_idx
-        interactive_overlay_open = self.exit_confirm.is_open or self.edit_confirm.is_open or self.state.edit_mode
+        interactive_overlay_open = self.exit_confirm.is_open or self.edit_confirm.is_open or self.editor.edit_mode
         self.top_nav.set_focus(self.nav_state.focus_depth == 0 and not interactive_overlay_open)
         self.side_nav.set_focus(self.nav_state.focus_depth == 1 and not interactive_overlay_open)
 
@@ -96,7 +101,7 @@ class FrameLayout:
             self.window.update_text(self.content_id, TermText(self.edit_confirm.render()))
             return
 
-        if self.state.edit_mode:
+        if self.editor.edit_mode:
             self._render_form_content()
             return
 
@@ -149,7 +154,7 @@ class FrameLayout:
         ]
 
         for idx, field in enumerate(fields):
-            cursor = ">" if idx == self.state.edit_field_idx else " "
+            cursor = ">" if idx == self.editor.edit_field_idx else " "
             name = str(field.get("name", "field"))
             value = str(field.get("value", ""))
             error = field.get("error")
@@ -192,7 +197,7 @@ class FrameLayout:
 
     def _active_form_view_state(self) -> Dict[str, Any]:
         fields: List[Dict[str, Any]] = []
-        for field in self.state.edit_fields:
+        for field in self.editor.edit_fields:
             value = str(field.get("value", ""))
             if field.get("masked"):
                 value = "*" * len(value) if value else ""
@@ -205,17 +210,16 @@ class FrameLayout:
             )
 
         hint = "Complete fields and press Enter on the last field to confirm."
-        if self.state.edit_form_name == "model_assignments":
+        if self.editor.edit_form_name == "model_assignments":
             hint = "Format layer assignments as layer:model (comma separated), then confirm."
         return vs.form_view_state(fields, hint, "info")
-
 
     def _footer_text(self) -> str:
         if self.exit_confirm.is_open:
             return "Confirm Exit: Arrows U/D or L/R to choose   Enter: Confirm   Esc: Cancel"
         if self.edit_confirm.is_open:
             return "Confirm Edit: Arrows U/D or L/R to choose   Enter: Confirm   Esc: Cancel"
-        if self.state.edit_mode:
+        if self.editor.edit_mode:
             return "Edit Form: Type to edit field   Arrows U/D: Switch field   Enter: Next/Confirm   Esc: Discard"
         if self.nav_state.focus_depth == 0:
             return "Arrows L/R: Switch Tab   Enter: Side Nav   Esc: Back/Quit Options   q: Exit"

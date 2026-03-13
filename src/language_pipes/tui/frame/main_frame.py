@@ -8,8 +8,8 @@ from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.util.kb_utils import PressedKey, read_key
 from language_pipes.tui.components.network_form import NetworkForm
 from language_pipes.tui.components.exit_confirm import ExitConfirm
-from language_pipes.tui.content_loader import ContentLoader, ProviderCall
-from language_pipes.tui.components.exit_confirm import ExitConfirm
+from language_pipes.tui.components.confirm import Confirm
+from language_pipes.tui.content_loader import ContentLoader
 
 class MainFrame:
     TOP_HEADERS = ["Network", "Models", "Pipes", "Jobs", "Activity"]
@@ -31,12 +31,12 @@ class MainFrame:
 
         self.editor = Editor()
         self.state = FrameState()
-        self.confirm = ExitConfirm()
+        self.exit_confirm = ExitConfirm()
         self.loader = ContentLoader(providers)
-        self.edit_confirm = ExitConfirm()
+        self.confirm = Confirm()
         self.nav = NavState(self.TOP_HEADERS, self.SIDE_OPTIONS_BY_TAB)
-        self.network_form = NetworkForm(self.loader, self.state, self.editor)
-        self.layout = FrameLayout(self.window, self.nav, self.loader, self.confirm, self.edit_confirm, self.state)
+        self.network_form = NetworkForm(self.loader, self.state, self.editor, self.confirm)
+        self.layout = FrameLayout(self.window, self.nav, self.editor, self.loader, self.exit_confirm, self.confirm, self.state)
 
         self.layout._init_layout(size, pos)
         self._init_view()
@@ -53,24 +53,8 @@ class MainFrame:
         if tab == "Network" and section == "Configure":
             self.network_form.start()
 
-    def _resolve_edit_confirm_choice(self) -> bool:
-        res, msg, lvl = self.edit_confirm.resolve()
-        self.state.set_status(msg, lvl)
-        return res
-
-    def _handle_edit_confirm_key(self, key: PressedKey) -> bool:
-        action = self.edit_confirm.handle_key(key)
-        if action == "confirm":
-            return self._resolve_edit_confirm_choice()
-        elif action == "cancel":
-            self.edit_confirm.close()
-            self.state.set_status("Edit confirmation canceled", "info")
-            return False
-        return False
-    
-
     def _discard_form(self) -> None:
-        self._exit_edit_mode()
+        self.editor.exit_edit_mode()
         self.state.set_status("Discarded edits", "info")
 
     def _handle_edit_mode_key(self, key: PressedKey, ch: str) -> None:
@@ -79,19 +63,21 @@ class MainFrame:
             self.nav.focus_shallower()
             return
         if key == PressedKey.ArrowUp:
-            self.edit_field_idx = max(0, self.edit_field_idx - 1)
+            self.editor.prev_field()
             return
         if key == PressedKey.ArrowDown:
-            self.edit_field_idx = min(len(self.edit_fields) - 1, self.edit_field_idx + 1)
+            self.editor.next_field()
             return
         if key == PressedKey.Enter:
-            self._on_form_enter()
+            self.editor.next_field()
             return
-        if not self.edit_fields:
+        
+        if not self.editor.edit_fields:
             return
 
-        field = self.edit_fields[self.edit_field_idx]
+        field = self.editor.edit_fields[self.editor.edit_field_idx]
         value = str(field.get("value", ""))
+
         if key == PressedKey.Alpha:
             field["value"] = value + ch
             field["error"] = None
@@ -105,7 +91,7 @@ class MainFrame:
             field["error"] = None
 
     def _open_exit_confirm(self):
-        self.confirm.open()
+        self.exit_confirm.open()
         self.state.set_status("Choose: Return to menu, Exit TUI, or Cancel", "warning")
 
     def _resolve_confirm_choice(self):
@@ -113,12 +99,12 @@ class MainFrame:
         self.confirm.close()
 
         if choice == "Return to menu":
-            self.exit_tui = False
-            self.running = False
+            self.state.exit_tui = False
+            self.state.running = False
             return
         if choice == "Exit TUI":
-            self.exit_tui = True
-            self.running = False
+            self.state.exit_tui = True
+            self.state.running = False
             return
 
         self.state.set_status("Exit canceled", "info")
@@ -136,12 +122,12 @@ class MainFrame:
             self._handle_confirm_key(key)
             return
 
-        if self.edit_confirm.is_open:
-            if self._handle_edit_confirm_key(key):
+        if self.confirm.is_open:
+            if self._handle_confirm_key(key):
                 self.nav.focus_shallower()
             return
 
-        if self.edit_mode:
+        if self.editor.edit_mode:
             self._handle_edit_mode_key(key, ch)
             return
 

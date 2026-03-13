@@ -2,6 +2,7 @@
 ViewState helpers: building and formatting view-state dicts for each section.
 """
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from language_pipes.tui.frame.provider_calls import ProviderCall
 
 
 def build_view_state(
@@ -355,3 +356,17 @@ def format_unknown(tab: str, section: str, _: Any) -> Dict[str, Any]:
         "warning",
     )
 
+# Maps (tab, section) -> (provider_name, kwargs, formatter)
+_FORMATTER_TYPE = Callable[[str, str, Any], Dict[str, Any]]
+
+def section_provider_spec(
+    tab: str, section: str
+) -> Tuple[Optional[ProviderCall], Dict[str, Any], _FORMATTER_TYPE]:
+    if tab == "Network" and section == "Status":
+        return ProviderCall.get_network_status, {}, format_network
+    if tab == "Network" and section == "Peers":
+        return ProviderCall.list_peers, {}, format_network
+    if tab == "Network" and section == "Configure":
+        return ProviderCall.get_network_config, {}, format_network
+
+    return None, {}, format_unknown
