@@ -3,7 +3,7 @@ from typing import List, Callable, Optional, Tuple
 from language_pipes.tui.util.kb_utils import PressedKey
 
 
-class EditConfirmDialog:
+class Confirm:
     OPTIONS: List[str] = ["Apply", "Discard", "Cancel"]
 
     is_open: bool

@@ -22,7 +22,7 @@ Owns all navigation cursor state:
 - Derived helpers: `active_tab()`, `active_side_option()`, `active_view_key()`
 - Mutations: `tab_next/prev`, `side_next/prev` (takes `SideNav` to sync widget), `focus_deeper/shallower`, `content_cursor_down/up`
 
-### `src/language_pipes/tui/confirm_dialog.py` — `ConfirmDialog`
+### `src/language_pipes/tui/confirm_dialog.py` — `ExitConfirm`
 
 Owns the exit-confirmation overlay:
 

@@ -1,12 +1,9 @@
-"""
-ConfirmDialog: manages the exit-confirmation overlay state and rendering.
-"""
 from typing import List
 
 from language_pipes.tui.util.kb_utils import PressedKey
 
 
-class ConfirmDialog:
+class ExitConfirm:
     OPTIONS: List[str] = ["Return to menu", "Exit TUI", "Cancel"]
 
     is_open: bool

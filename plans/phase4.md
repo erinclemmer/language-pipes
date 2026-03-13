@@ -5,7 +5,7 @@ This plan defines the implementation phase after Phase 3 provider data wiring. I
 - `plans/mainframe_tui_design_and_implementation_plan.md`
 - `plans/phase3.md`
 
-Phase 3 delivered live provider-backed summaries, resilient refresh/error handling, and the `NavState` / `ConfirmDialog` / `ContentLoader` / `view_state` architecture. Phase 4 now focuses on **edit workflows and persistence** so operators can configure and manage the node from within the TUI.
+Phase 3 delivered live provider-backed summaries, resilient refresh/error handling, and the `NavState` / `ExitConfirm` / `ContentLoader` / `view_state` architecture. Phase 4 now focuses on **edit workflows and persistence** so operators can configure and manage the node from within the TUI.
 
 ---
 
@@ -30,7 +30,7 @@ Phase 4 builds on the Phase 3 module split. The relevant extension points are:
 | Module | Role in Phase 4 |
 |---|---|
 | `NavState` | Unchanged; focus depth 2 now enters an edit sub-mode |
-| `ConfirmDialog` | Reused for save/apply and destructive-action confirmations |
+| `ExitConfirm` | Reused for save/apply and destructive-action confirmations |
 | `ContentLoader` | Extended with write-back methods alongside existing read methods |
 | `view_state.py` | New `form_view_state` helper for rendering field-level validation errors |
 | `MainFrame` | Gains `_enter_edit_mode()` / `_exit_edit_mode()` and routes `Enter` at depth 2 to the active form |
@@ -52,7 +52,7 @@ Behavior:
 
 - Pre-populate fields from the current config file (via a `get_network_config() -> dict` provider)
 - Validate each field on `Enter`; show inline error in the content pane if invalid
-- On final field confirmation, show a `ConfirmDialog`-style prompt: `"Apply changes? Network reconnect may take a few seconds."`
+- On final field confirmation, show a `ExitConfirm`-style prompt: `"Apply changes? Network reconnect may take a few seconds."`
 - On confirm: call a `save_network_config(data: dict)` provider; set success/error status
 - On cancel: discard edits and return to read-only view
 
@@ -87,7 +87,7 @@ Behavior:
 
 ### 4) Save/apply confirmation pattern
 
-Introduce a reusable `EditConfirmDialog` (or extend `ConfirmDialog`) with options:
+Introduce a reusable `Confirm` (or extend `ExitConfirm`) with options:
 
 - `"Apply"` / `"Discard"` / `"Cancel"`
 
@@ -157,7 +157,7 @@ Extend the stateless formatting module with a `form` state type and field-level 
 
 **Done when:** `_render_content()` can display a field list with inline error annotations.
 
-### Step 2: Add `EditConfirmDialog` (or extend `ConfirmDialog`)
+### Step 2: Add `Confirm` (or extend `ExitConfirm`)
 
 Reusable `Apply / Discard / Cancel` overlay, consistent with the existing exit-confirm pattern.
 
@@ -235,7 +235,7 @@ All should be true:
 
 ## Phase 4 Time Budget (Suggested 150–240 min)
 
-- 20 min: `form_view_state` + `EditConfirmDialog`
+- 20 min: `form_view_state` + `Confirm`
 - 40 min: `Network / Configure` form
 - 40 min: `Models / Assignments` form
 - 20 min: `Models / Validation` toggle

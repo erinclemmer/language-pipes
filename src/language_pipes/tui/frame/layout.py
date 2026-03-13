@@ -5,8 +5,8 @@ from language_pipes.tui.components.top_nav import TopNav
 from language_pipes.tui.components.side_nav import SideNav
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.content_loader import ContentLoader
-from language_pipes.tui.components.confirm_dialog import ConfirmDialog
-from language_pipes.tui.components.edit_confirm_dialog import EditConfirmDialog
+from language_pipes.tui.components.exit_confirm import ExitConfirm
+from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 
 class FrameLayout:
@@ -16,8 +16,8 @@ class FrameLayout:
     side_nav: SideNav
     nav_state: NavState
     loader: ContentLoader
-    confirm: ConfirmDialog
-    edit_confirm: EditConfirmDialog
+    exit_confirm: ExitConfirm
+    edit_confirm: Confirm
     state: FrameState
     window: TuiWindow
 
@@ -26,14 +26,14 @@ class FrameLayout:
             window: TuiWindow, 
             nav: NavState, 
             loader: ContentLoader, 
-            confirm: ConfirmDialog,
-            edit_confirm: EditConfirmDialog,
+            confirm: ExitConfirm,
+            edit_confirm: Confirm,
             state: FrameState
         ):
         self.nav_state = nav
         self.window = window
         self.loader = loader
-        self.confirm = confirm
+        self.exit_confirm = confirm
         self.edit_confirm = edit_confirm
         self.state = state
 
@@ -67,7 +67,7 @@ class FrameLayout:
         self.side_nav.set_options(active_options)
 
         self.top_nav.focused_idx = self.nav_state.active_top_idx
-        interactive_overlay_open = self.confirm.is_open or self.edit_confirm.is_open or self.state.edit_mode
+        interactive_overlay_open = self.exit_confirm.is_open or self.edit_confirm.is_open or self.state.edit_mode
         self.top_nav.set_focus(self.nav_state.focus_depth == 0 and not interactive_overlay_open)
         self.side_nav.set_focus(self.nav_state.focus_depth == 1 and not interactive_overlay_open)
 
@@ -88,8 +88,8 @@ class FrameLayout:
     def _render_content(self):
         self.window.update_text(self.content_bg_id, TermText(self._content_blank_block()))
 
-        if self.confirm.is_open:
-            self.window.update_text(self.content_id, TermText(self.confirm.render()))
+        if self.exit_confirm.is_open:
+            self.window.update_text(self.content_id, TermText(self.exit_confirm.render()))
             return
 
         if self.edit_confirm.is_open:
@@ -211,7 +211,7 @@ class FrameLayout:
 
 
     def _footer_text(self) -> str:
-        if self.confirm.is_open:
+        if self.exit_confirm.is_open:
             return "Confirm Exit: Arrows U/D or L/R to choose   Enter: Confirm   Esc: Cancel"
         if self.edit_confirm.is_open:
             return "Confirm Edit: Arrows U/D or L/R to choose   Enter: Confirm   Esc: Cancel"

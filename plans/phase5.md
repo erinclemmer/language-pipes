@@ -20,7 +20,7 @@ The TUI now supports both read-side provider summaries and targeted edit workflo
   - `0`: top tabs
   - `1`: side sections
   - `2`: content
-- Exit flow uses `ConfirmDialog` (`Return to menu` / `Exit TUI` / `Cancel`)
+- Exit flow uses `ExitConfirm` (`Return to menu` / `Exit TUI` / `Cancel`)
 - Footer/status behavior remains consistent and non-crashing
 
 ### 2) Provider-backed read views (Phase 3 baseline retained)
@@ -40,7 +40,7 @@ Fallback behavior for missing providers is still placeholder-first and safe.
 The frame now includes explicit edit-mode state and confirmation flow:
 
 - `edit_mode` field editing state in `MainFrame`
-- `EditConfirmDialog` with `Apply / Discard / Cancel`
+- `Confirm` with `Apply / Discard / Cancel`
 - Inline field-level validation surfaced through `form_view_state(...)`
 
 This gives a consistent save/apply UX without disrupting existing exit confirmation UX.
@@ -59,7 +59,7 @@ This gives a consistent save/apply UX without disrupting existing exit confirmat
   - required text fields
   - `bootstrap_port` must be integer in `1..65535`
 - Save flow:
-  - confirm with `EditConfirmDialog`
+  - confirm with `Confirm`
   - apply calls `save_network_config(data=...)`
   - discard exits edit mode without saving
 
@@ -74,7 +74,7 @@ This gives a consistent save/apply UX without disrupting existing exit confirmat
   - duplicate/negative/non-int layer checks
   - model ID existence check against installed IDs
 - Save flow:
-  - confirm with `EditConfirmDialog`
+  - confirm with `Confirm`
   - apply calls `save_model_assignments(data=...)`
 
 #### Models / Validation
@@ -128,7 +128,7 @@ Primary outcomes:
 ### Step 2: Add `Pipes` operational actions
 
 - Implement safe action flows for route-level operations
-- Reuse `EditConfirmDialog` for destructive actions
+- Reuse `Confirm` for destructive actions
 
 ### Step 3: Add `Activity` write actions
 
