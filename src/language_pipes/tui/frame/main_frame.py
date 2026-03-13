@@ -1,13 +1,15 @@
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from language_pipes.tui.tui import TuiWindow
+from language_pipes.tui.frame.editor import Editor
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.frame.layout import FrameLayout
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.util.kb_utils import PressedKey, read_key
-from language_pipes.tui.components.confirm_dialog import ConfirmDialog
+from language_pipes.tui.components.network_form import NetworkForm
+from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.content_loader import ContentLoader, ProviderCall
-from language_pipes.tui.components.edit_confirm_dialog import EditConfirmDialog
+from language_pipes.tui.components.exit_confirm import ExitConfirm
 
 class MainFrame:
     TOP_HEADERS = ["Network", "Models", "Pipes", "Jobs", "Activity"]
@@ -27,11 +29,13 @@ class MainFrame:
     ):
         self.window = TuiWindow(size, pos)
 
-        self.nav = NavState(self.TOP_HEADERS, self.SIDE_OPTIONS_BY_TAB)
-        self.confirm = ConfirmDialog()
-        self.edit_confirm = EditConfirmDialog()
+        self.editor = Editor()
         self.state = FrameState()
+        self.confirm = ExitConfirm()
         self.loader = ContentLoader(providers)
+        self.edit_confirm = ExitConfirm()
+        self.nav = NavState(self.TOP_HEADERS, self.SIDE_OPTIONS_BY_TAB)
+        self.network_form = NetworkForm(self.loader, self.state, self.editor)
         self.layout = FrameLayout(self.window, self.nav, self.loader, self.confirm, self.edit_confirm, self.state)
 
         self.layout._init_layout(size, pos)
@@ -47,62 +51,7 @@ class MainFrame:
         tab = self.nav.active_tab()
         section = self.nav.active_side_option()
         if tab == "Network" and section == "Configure":
-            self._start_network_form()
-        elif tab == "Models" and section == "Assignments":
-            self._start_model_assignments_form()
-
-    def _start_network_form(self) -> None:
-        if not self.loader.provider_available(ProviderCall.get_network_config):
-            self.state.set_status("Provider 'get_network_config' unavailable; edit disabled", "info")
-            return
-        if not self.loader.provider_available(ProviderCall.save_network_config):
-            self.state.set_status("Provider 'save_network_config' unavailable; edit disabled", "info")
-            return
-
-        try:
-            cfg = self.loader.get_network_config()
-        except Exception as ex:
-            self.state.set_status(f"Failed to load network config: {ex}", "error")
-            return
-
-        bootstrap_address = cfg.bootstrap_nodes[0].address if len(cfg.bootstrap_nodes) > 0 else ""
-        bootstrap_port = str(cfg.bootstrap_nodes[0].port) if len(cfg.bootstrap_nodes) > 0 else ""
-
-        self.state.start_edit_mode(
-            form_name="network_config",
-            edit_fields=[
-                {"name": "node_id", "value": str(cfg.node_id), "error": None},
-                {"name": "network_key", "value": str(cfg.aes_key), "error": None, "masked": True},
-                {
-                    "name": "bootstrap_address",
-                    "value": bootstrap_address,
-                    "error": None,
-                },
-                {"name": "bootstrap_port", "value": str(bootstrap_port), "error": None},
-            ]
-        )
-        
-        self.state.set_status("Editing Network -> Configure", "info")
-
-    def _start_model_assignments_form(self) -> None:
-        if not self.loader.provider_available(ProviderCall.list_models):
-            self.state.set_status("Provider 'list_models' unavailable; edit disabled", "info")
-            return
-        if not self.loader.provider_available(ProviderCall.save_model_assignments):
-            self.state.set_status("Provider 'save_model_assignments' unavailable; edit disabled", "info")
-            return
-
-        try:
-            model_payload = self.loader.call_provider(ProviderCall.list_models)
-            if not isinstance(model_payload, list):
-                raise ValueError("list_models must return a list")
-        except Exception as ex:
-            self.state.set_status(f"Failed to load model assignments: {ex}", "error")
-            return
-
-        # TODO
-
-        self.state.set_status("Editing Models -> Assignments", "info")
+            self.network_form.start()
 
     def _resolve_edit_confirm_choice(self) -> bool:
         res, msg, lvl = self.edit_confirm.resolve()
@@ -118,126 +67,7 @@ class MainFrame:
             self.state.set_status("Edit confirmation canceled", "info")
             return False
         return False
-
-    def _validate_current_field(self) -> bool:
-        if not self.edit_fields:
-            return False
-
-        field = self.edit_fields[self.edit_field_idx]
-        field_name = str(field.get("name", ""))
-        raw = str(field.get("value", "")).strip()
-        error: Optional[str] = None
-
-        if self.edit_form_name == "network_config":
-            if field_name in ("node_id") and raw == "":
-                error = f"{field_name} is required"
-            elif field_name == "bootstrap_port":
-                try:
-                    value = int(raw)
-                    if value < 1 or value > 65535:
-                        error = "bootstrap_port must be 1-65535"
-                except Exception:
-                    error = "bootstrap_port must be an integer"
-
-        if self.edit_form_name == "model_assignments":
-            if field_name == "layer_assignments":
-                _, parse_error = self._parse_layer_assignments(raw)
-                error = parse_error
-            elif field_name == "end_model_id":
-                if raw == "":
-                    error = "end_model_id is required"
-                elif self._installed_model_ids and raw not in self._installed_model_ids:
-                    error = "end_model_id must be one of installed model IDs"
-
-        field["error"] = error
-        return error is None
-
-    def _parse_layer_assignments(self, text: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
-        text = text.strip()
-        if text == "":
-            return [], None
-
-        entries = [chunk.strip() for chunk in text.split(",") if chunk.strip() != ""]
-        parsed: List[Dict[str, Any]] = []
-        seen_layers = set()
-        for entry in entries:
-            if ":" not in entry:
-                return [], "Assignments must be formatted as layer:model"
-            layer_txt, model_id = entry.split(":", 1)
-            layer_txt = layer_txt.strip()
-            model_id = model_id.strip()
-            if layer_txt == "" or model_id == "":
-                return [], "Assignments must include both layer and model_id"
-            try:
-                layer_idx = int(layer_txt)
-            except Exception:
-                return [], "Layer index must be an integer"
-            if layer_idx < 0:
-                return [], "Layer index must be non-negative"
-            if layer_idx in seen_layers:
-                return [], "Layer index cannot appear more than once"
-            seen_layers.add(layer_idx)
-            if self._installed_model_ids and model_id not in self._installed_model_ids:
-                return [], f"Unknown model_id '{model_id}'"
-            parsed.append({"layer_idx": layer_idx, "model_id": model_id})
-        return parsed, None
-
-    def _build_network_payload(self) -> Dict[str, Any]:
-        values = {str(f.get("name")): str(f.get("value", "")).strip() for f in self.edit_fields}
-        return {
-            "node_id": values.get("node_id", ""),
-            "network_key": values.get("network_key", ""),
-            "aes_key": values.get("network_key", ""),
-            "bootstrap_address": values.get("bootstrap_address", ""),
-            "bootstrap_port": int(values.get("bootstrap_port", "0")),
-        }
-
-    def _build_assignments_payload(self) -> Dict[str, Any]:
-        values = {str(f.get("name")): str(f.get("value", "")).strip() for f in self.edit_fields}
-        layer_assignments, _ = self._parse_layer_assignments(values.get("layer_assignments", ""))
-        return {
-            "layer_assignments": layer_assignments,
-            "end_model_id": values.get("end_model_id", ""),
-        }
-
-    def _on_form_enter(self) -> None:
-        if not self._validate_current_field():
-            self.state.set_status("Fix validation error before continuing", "error")
-            return
-
-        if self.edit_field_idx < len(self.edit_fields) - 1:
-            self.edit_field_idx += 1
-            self.state.set_status("Field accepted", "info")
-            return
-
-        if self.edit_form_name == "network_config":
-            payload = self._build_network_payload()
-
-            def apply_network() -> None:
-                self.loader.save_network_config(payload)
-                self._exit_edit_mode()
-                self.state.set_status("Saved Network -> Configure", "info")
-
-            self._open_edit_confirm(
-                "Apply changes? Network reconnect may take a few seconds.",
-                on_apply=apply_network,
-                on_discard=self._discard_form,
-            )
-            return
-
-        if self.edit_form_name == "model_assignments":
-            payload = self._build_assignments_payload()
-
-            def apply_assignments() -> None:
-                self.loader.save_model_assignments(payload)
-                self._exit_edit_mode()
-                self.state.set_status("Saved Models -> Assignments", "info")
-
-            self._open_edit_confirm(
-                "Apply model assignment changes?",
-                on_apply=apply_assignments,
-                on_discard=self._discard_form,
-            )
+    
 
     def _discard_form(self) -> None:
         self._exit_edit_mode()
