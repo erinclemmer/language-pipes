@@ -60,6 +60,10 @@ class NodeIdEditor:
             self.exit_editor()
 
         if self.registering_node_id:
+            if self.new_node_id == "":
+                discard_choice()
+                return
+            
             def save_node_id():
                 config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
                 config.node_id = self.new_node_id
@@ -98,11 +102,13 @@ class NodeIdEditor:
             if len(self.node_ids) > 0:
                 lines.append("Registered Node IDs:")
                 for i, node_id in enumerate(self.node_ids):
-                    cursor_txt = " >" if i == self.select_idx else "  "
-                    lines.append(f"{cursor_txt}{node_id}")
+                    l_cursor = "|>" if i == self.select_idx else "  "
+                    r_cursor = "<|" if i == self.select_idx else "  "
+                    lines.append(f" {l_cursor} {node_id} {r_cursor}")
                 lines.append("")
-            cursor_txt = " >" if self.select_idx == len(self.node_ids) else "  "
-            lines.append(f"{cursor_txt}Register new node id")
+            l_cursor = "|>" if self.select_idx == len(self.node_ids) else "  "
+            r_cursor = "<|" if self.select_idx == len(self.node_ids) else "  "
+            lines.append(f" {l_cursor} Register new node id {r_cursor}")
 
         return lines
 

@@ -148,7 +148,8 @@ class FrameKeyHandler:
             self.editor.next_field()
         elif key == PressedKey.Enter:
             self.editor.on_enter()
-            self.state.set_status(f"Editing {self.editor.edit_fields[self.editor.edit_field_idx]}")
+            field_name = self.editor.edit_fields[self.editor.edit_field_idx]["name"]
+            self.state.set_status(f"Editing {field_name}")
         elif key == PressedKey.Backspace:
             self.editor.on_backspace()
         elif key == PressedKey.Alpha:

@@ -160,11 +160,12 @@ class FrameLayout:
         else:
             lines.append("Edit Network Configuration:")
             for idx, field in enumerate(fields):
-                cursor = ">" if idx == self.editor.edit_field_idx else " "
+                l_cursor = "|>" if idx == self.editor.edit_field_idx else "  "
+                r_cursor = "<|" if idx == self.editor.edit_field_idx else "  "
                 name = str(field.get("name", "field"))
                 value = str(field.get("value", ""))
                 error = field.get("error")
-                lines.append(f"{cursor} {name}: {value}")
+                lines.append(f" {l_cursor} {name}: {value} {r_cursor}")
                 if error:
                     lines.append(f"    ! {error}")
 
