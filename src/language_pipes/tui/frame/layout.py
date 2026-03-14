@@ -53,9 +53,9 @@ class FrameLayout:
             TermText(self._content_blank_block()),
             (17, 4),
         )
-        self.content_id = self.window.add_text(TermText(""), (17, 4))
+        self.content_id = self.window.add_text(TermText(""), (17, 5))
         self.footer_id = self.window.add_text(TermText(""), (2, size[1] - 2))
-        self.status_id = self.window.add_text(TermText(""), (17, 4))
+        self.status_id = self.window.add_text(TermText(""), (17, size[1] - 4))
 
         self.top_nav = TopNav((80, 1), (pos[0], pos[1] + 1), self.nav_state.TOP_HEADERS)
         self.side_nav = SideNav(
