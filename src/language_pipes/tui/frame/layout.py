@@ -10,6 +10,7 @@ from language_pipes.tui.frame.editor import Editor
 from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
+from language_pipes.tui.frame.tips import TIPS
 
 class FrameLayout:
     content_id: int
@@ -147,12 +148,11 @@ class FrameLayout:
         section = self.nav_state.active_side_option()
         view_state = self._active_form_view_state()
         fields = view_state.get("fields", [])
-        hint = str(view_state.get("hint", "Complete fields, then confirm."))
 
         lines = [
             f"{tab} / {section}",
             "",
-            "Fields:",
+            "Edit Network Configuration:",
         ]
 
         for idx, field in enumerate(fields):
@@ -164,11 +164,14 @@ class FrameLayout:
             if error:
                 lines.append(f"    ! {error}")
 
+        tip = ""
+        res = self.editor.get_current_field()
+        if res is not None and res[0] in TIPS["network"]["configure"]:
+            tip = TIPS["network"]["configure"][res[0]]
+
         lines.extend([
             "",
-            f"Next Action: {hint}",
-            "",
-            "Tip: Enter validates current field and advances.",
+            tip
         ])
 
         self.window.update_text(self.content_id, TermText("\n".join(lines)))
