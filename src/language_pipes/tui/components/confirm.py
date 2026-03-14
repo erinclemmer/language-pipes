@@ -4,7 +4,7 @@ from language_pipes.tui.util.kb_utils import PressedKey
 
 
 class Confirm:
-    OPTIONS: List[str] = ["Apply", "Discard", "Cancel"]
+    OPTIONS: List[str] = ["Apply", "Discard"]
 
     is_open: bool
     choice_idx: int
@@ -14,12 +14,12 @@ class Confirm:
 
     def __init__(self) -> None:
         self.is_open = False
-        self.choice_idx = 2  # default "Cancel"
+        self.choice_idx = 1  # default "Cancel"
         self.message = "Apply these changes?"
 
     def open(self, message: str, on_apply: Callable, on_discard: Optional[Callable]) -> None:
         self.is_open = True
-        self.choice_idx = 2
+        self.choice_idx = 1
         self.message = message
         self.on_apply = on_apply
         self.on_discard = on_discard
@@ -91,8 +91,6 @@ class Confirm:
                 return "confirm"
             elif self.choice_idx == 1:
                 return "discard"
-            elif self.choice_idx == 2:
-                return "cancel"
         if key == PressedKey.Escape:
-            return "cancel"
+            return "discard"
         return "nop"

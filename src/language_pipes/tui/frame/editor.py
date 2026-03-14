@@ -22,6 +22,7 @@ class Editor:
         self._pending_discard = None
 
     def exit_edit_mode(self) -> None:
+        self.field_editor_visible = False
         self.edit_mode = False
         self.edit_form_name = ""
         self.edit_fields = []
@@ -30,6 +31,9 @@ class Editor:
         self._pending_discard = None
 
     def discard_form(self) -> None:
+        self.field_editor_visible = False
+        if self.form is not None:
+            self.form.exit_field_editor()
         self.exit_edit_mode()
 
     def start_edit_mode(self, form_name: str, edit_fields: List[Dict], form: Any):
@@ -41,6 +45,8 @@ class Editor:
 
     def change_field_editor(self, v: bool):
         self.field_editor_visible = v
+        if not v:
+            self.form.exit_field_editor()
 
     def set_apply(self, pending_apply: Optional[Callable]):
         self._pending_apply = pending_apply

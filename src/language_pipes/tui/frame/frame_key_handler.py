@@ -48,9 +48,9 @@ class FrameKeyHandler:
             self.state.set_status("Choice confirmed")
             if self.confirm.on_apply is not None:
                 self.confirm.on_apply()
-        elif action == "cancel":
+        elif action == "discard":
             self.confirm.close()
-            self.state.set_status("Exit canceled", "info")
+            self.state.set_status("Changes discarded")
             if self.confirm.on_discard is not None:
                 self.confirm.on_discard()
 
@@ -137,8 +137,11 @@ class FrameKeyHandler:
 
     def _handle_edit_mode_key(self, key: PressedKey, ch: str) -> None:
         if key == PressedKey.Escape:
-            self._discard_form()
-            self.nav.focus_shallower()
+            if self.editor.field_editor_visible:
+                self.editor.change_field_editor(False)
+            else:
+                self._discard_form()
+                self.nav.focus_shallower()
         elif key == PressedKey.ArrowUp:
             self.editor.prev_field()
         elif key == PressedKey.ArrowDown:

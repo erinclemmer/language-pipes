@@ -14,9 +14,11 @@ class NodeIdEditor:
     confirm: Confirm
     loader: ContentLoader
     select_idx: int
+    exit_editor: Callable
 
-    def __init__(self, loader: ContentLoader, confirm: Confirm):
+    def __init__(self, loader: ContentLoader, confirm: Confirm, exit_editor: Callable):
         self.select_idx = 0
+        self.exit_editor = exit_editor
         self.confirm = confirm
         self.loader = loader
         self.node_ids = []
@@ -25,6 +27,7 @@ class NodeIdEditor:
         self.selected_node_id = None
 
     def restart(self):
+        self.registering_node_id = False
         self.select_idx = 0
         self.node_ids = []
 
@@ -50,12 +53,21 @@ class NodeIdEditor:
         if self.select_idx < 0:
             self.select_idx = len(self.node_ids)
 
-    def on_confirm(self):
-        self.selected_node_id = self.new_node_id
-
     def on_enter(self):
+        def discard_choice():
+            self.restart()
+            self.confirm.close()
+            self.exit_editor()
+
         if self.registering_node_id:
-            self.confirm.open(f"Register \"{self.new_node_id}\"?", self.on_confirm, None)
+            def save_node_id():
+                config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+                config.node_id = self.new_node_id
+                self.loader.call_provider(ProviderCall.save_new_node_id, self.new_node_id)
+                self.loader.call_provider(ProviderCall.save_network_config, config)
+                self.confirm.close()
+                self.exit_editor()
+            self.confirm.open(f"Register \"{self.new_node_id}\"?", save_node_id, discard_choice)
             return
 
         if self.select_idx == len(self.node_ids):
@@ -66,7 +78,9 @@ class NodeIdEditor:
                 config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
                 config.node_id = selected_node_id
                 self.loader.call_provider(ProviderCall.save_network_config, config)
-            self.confirm.open(f"Use \"{selected_node_id}\"?", use_node_id, None)
+                self.confirm.close()
+                self.exit_editor()
+            self.confirm.open(f"Use \"{selected_node_id}\"?", use_node_id, discard_choice)
 
     def on_char(self, ch: str):
         self.new_node_id += ch
@@ -109,7 +123,12 @@ class NetworkForm:
         self.loader = loader
         self.editor = editor
         self.confirm = confirm
-        self.node_id_editor = NodeIdEditor(loader, confirm)
+        self.node_id_editor = NodeIdEditor(loader, confirm, self.exit_field_editor)
+
+    def exit_field_editor(self):
+        self.editor.field_editor_visible = False
+        self.node_id_editor.restart()
+        self.start()
 
     def start(self) -> None:
         if not self.loader.provider_available(ProviderCall.get_network_config):
