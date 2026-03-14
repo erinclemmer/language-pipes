@@ -27,7 +27,7 @@ class TopNav:
                 header_id,
                 TermText(
                     self.headers[i],
-                    fg=51 if i == self.focused_idx else None,
+                    fg=36 if i == self.focused_idx else None,
                     bold=(self.is_focused and i == self.focused_idx),
                 ),
             )

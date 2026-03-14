@@ -54,6 +54,7 @@ class FrameLayout:
         )
         self.content_id = self.window.add_text(TermText(""), (17, 4))
         self.footer_id = self.window.add_text(TermText(""), (2, size[1] - 2))
+        self.status_id = self.window.add_text(TermText(""), (17, 4))
 
         self.top_nav = TopNav((80, 1), (pos[0], pos[1] + 1), self.nav_state.TOP_HEADERS)
         self.side_nav = SideNav(
@@ -172,13 +173,23 @@ class FrameLayout:
         self.window.update_text(self.content_id, TermText("\n".join(lines)))
 
     def _render_footer(self):
-        footer_base = self._footer_text()
-        status = self._status_text()
-        footer_text = footer_base if status == "" else f"{footer_base}   |   {status}"
-        self.window.update_text(self.footer_id, TermText(footer_text))
+        self.window.update_text(self.footer_id, TermText(self._footer_text()))
+
+    def _render_status(self):
+        msg = self.state.status_message
+        lvl = self.state.status_level.upper()
+        color = 30
+        if lvl == "INFO":
+            color = 30
+        if lvl == "WARNING":
+            color = 33
+        if lvl == "ERROR":
+            color = 33
+        self.window.update_text(self.status_id, TermText(f"[{lvl}] {msg}", color))
 
     def _render_all(self):
         self._sync_navigation()
+        self._render_status()
         self._render_content()
         self._render_footer()
 
@@ -227,7 +238,3 @@ class FrameLayout:
             return "Arrows U/D: Switch Section   Enter: Content   Esc: Top Tabs   q: Exit"
         return "Arrows U/D: Navigate Placeholder   Enter: Activate   r: Refresh   Esc: Back   q: Exit"
 
-    def _status_text(self) -> str:
-        if self.state.status_message == "":
-            return ""
-        return f"[{self.state.status_level.upper()}] {self.state.status_message}"

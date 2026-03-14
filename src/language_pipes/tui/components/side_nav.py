@@ -48,7 +48,7 @@ class SideNav:
                 option_id,
                 TermText(
                     self.options[i],
-                    fg=51 if i == self.focused_idx else None,
+                    fg=36 if i == self.focused_idx else None,
                     bold=(i == self.focused_idx)
                 )
             )

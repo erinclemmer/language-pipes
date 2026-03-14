@@ -28,10 +28,10 @@ class NetworkForm:
 
     def start(self) -> None:
         if not self.loader.provider_available(ProviderCall.get_network_config):
-            self.state.set_status("Provider 'get_network_config' unavailable; edit disabled", "info")
+            self.state.set_status("Provider 'get_network_config' unavailable; edit disabled", "error")
             return
         if not self.loader.provider_available(ProviderCall.save_network_config):
-            self.state.set_status("Provider 'save_network_config' unavailable; edit disabled", "info")
+            self.state.set_status("Provider 'save_network_config' unavailable; edit disabled", "error")
             return
 
         try:

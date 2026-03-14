@@ -52,22 +52,22 @@ class CursorTypes(Enum):
 def change_cursor(t: CursorTypes):
     write(f"\033[{t.value} q")
 
-def color(text, fg=None, bg=None, bold=False) -> str:
+def color(text: str, fg=None, bg=None, bold=False) -> str:
     codes = []
     if bold:
         codes.append("1")
 
-    # Foreground
+    # Foreground (4-bit SGR codes: 30-37, 90-97)
     if isinstance(fg, int):
-        codes.append(f"38;5;{fg}")
+        codes.append(str(fg))
 
-    # Background
+    # Background (4-bit SGR codes: 40-47, 100-107)
     if isinstance(bg, int):
-        codes.append(f"48;5;{bg}")
-    
+        codes.append(str(bg))
+
     if len(codes) == 0:
         return text
 
-    prefix = f"\033[{';'.join(codes)}m" if codes else ""
+    prefix = f"\033[{';'.join(codes)}m"
     reset = "\033[0m"
     return f"{prefix}{text}{reset}"
