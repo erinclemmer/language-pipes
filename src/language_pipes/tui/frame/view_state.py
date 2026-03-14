@@ -3,6 +3,7 @@ ViewState helpers: building and formatting view-state dicts for each section.
 """
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from language_pipes.tui.frame.provider_calls import ProviderCall
+from language_pipes.tui.components.network_form import NetworkForm
 
 
 def build_view_state(
@@ -129,26 +130,12 @@ def format_network(tab: str, section: str, payload: Any) -> Dict[str, Any]:
         )
 
     if section == "Configure":
-        if not isinstance(payload, dict):
+        details = NetworkForm.show_preview(payload)
+        if details is None:
             return error_view_state(
                 "Malformed network config payload.",
                 "Next: Confirm get_network_config returns a dict, then press r.",
             )
-
-        key_value = payload.get("network_key")
-        if key_value in (None, ""):
-            key_value = payload.get("aes_key", "")
-
-        key_text = ""
-        if key_value not in (None, ""):
-            key_text = "*" * len(str(key_value))
-
-        details = [
-            f"- node_id: {payload.get('node_id', '')}",
-            f"- network_key: {key_text}",
-            f"- bootstrap_address: {payload.get('bootstrap_address', '')}",
-            f"- bootstrap_port: {payload.get('bootstrap_port', '')}",
-        ]
         return build_view_state(
             "ok",
             "Network configuration loaded.",

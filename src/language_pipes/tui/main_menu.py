@@ -8,6 +8,7 @@ from typing import Tuple, Optional, List, Dict
 
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.distributed_state_network.util.key_manager import CredentialManager
+from language_pipes.tui.content_provider import ContentProvider
 from language_pipes.tui.util.prompt import prompt, select_option, prompt_bool
 from language_pipes.util.config import get_config_files, default_config_dir, default_model_dir
 from language_pipes.tui.components.text_field import TextField
@@ -188,16 +189,6 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         with open(config_file, 'w') as f:
             toml.dump(data, f)
 
-    def get_network_config():
-        with open(config_file, 'r') as f:
-            data = toml.load(f)
-        return {
-            "node_id": data.get("node_id", ""),
-            "network_key": data.get("network_key") or data.get("aes_key", ""),
-            "bootstrap_address": data.get("bootstrap_address", ""),
-            "bootstrap_port": data.get("bootstrap_port", ""),
-        }
-
     def list_models():
         with open(config_file, 'r') as f:
             cfg = toml.load(f)
@@ -233,7 +224,7 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         save_data(cfg)
 
     providers = {
-        ProviderCall.get_network_config: get_network_config,
+        ProviderCall.get_network_config: lambda: ContentProvider.get_network_config(config_file),
         ProviderCall.save_model_assignments: save_data,
         ProviderCall.list_models: list_models,
         ProviderCall.save_model_assignments: save_model_assignments,

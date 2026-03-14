@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from typing import Callable, Optional, List
 
 from language_pipes.tui.frame.editor import Editor
 from language_pipes.util.config import default_config_dir
@@ -131,3 +131,25 @@ class NetworkForm:
                 error = "bootstrap_port must be an integer"
         
         return error
+    
+    @staticmethod
+    def show_preview(payload: DSNodeConfig) -> Optional[List[str]]:
+        if not isinstance(payload, DSNodeConfig):
+            return None
+
+        key_text = ""
+        if payload.aes_key not in (None, ""):
+            key_text = "*" * len(str(payload.aes_key))
+
+        details = [
+            f"- node_id: {payload.node_id}",
+            f"- network_key: {key_text}"
+        ]
+
+        if len(payload.bootstrap_nodes) > 0:
+            details.extend([
+                f"- bootstrap_address: {payload.bootstrap_nodes[0].address}",
+                f"- bootstrap_port: {payload.bootstrap_nodes[0].port}",
+            ])
+
+        return details
