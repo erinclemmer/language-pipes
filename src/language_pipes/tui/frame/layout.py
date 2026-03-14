@@ -1,6 +1,7 @@
 from typing import Tuple, List, Dict, Any
 from language_pipes.tui.frame import view_state as vs
 from language_pipes.tui.tui import TermText, TuiWindow
+from language_pipes.tui.util.screen_utils import Color
 from language_pipes.tui.components.top_nav import TopNav
 from language_pipes.tui.components.side_nav import SideNav
 from language_pipes.tui.frame.nav_state import NavState
@@ -178,14 +179,14 @@ class FrameLayout:
     def _render_status(self):
         msg = self.state.status_message
         lvl = self.state.status_level.upper()
-        color = 30
+        fg = Color.Black
         if lvl == "INFO":
-            color = 30
+            fg = Color.Black
         if lvl == "WARNING":
-            color = 33
+            fg = Color.BrightYellow
         if lvl == "ERROR":
-            color = 33
-        self.window.update_text(self.status_id, TermText(f"[{lvl}] {msg}", color))
+            fg = Color.BrightRed
+        self.window.update_text(self.status_id, TermText(f"[{lvl}] {msg}", fg))
 
     def _render_all(self):
         self._sync_navigation()

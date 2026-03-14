@@ -1,6 +1,7 @@
 from typing import Dict, List, Tuple
 
 from language_pipes.tui.tui import TuiWindow, TermText
+from language_pipes.tui.util.screen_utils import Color
 
 class SideNav:
     window: TuiWindow
@@ -48,7 +49,7 @@ class SideNav:
                 option_id,
                 TermText(
                     self.options[i],
-                    fg=36 if i == self.focused_idx else None,
+                    fg=Color.Cyan if i == self.focused_idx else None,
                     bold=(i == self.focused_idx)
                 )
             )

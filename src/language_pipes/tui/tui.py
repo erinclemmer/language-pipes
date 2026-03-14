@@ -1,13 +1,13 @@
 from typing import List, Tuple, Optional
-from language_pipes.tui.util.screen_utils import print_pos
+from language_pipes.tui.util.screen_utils import print_pos, Color, BgColor
 
 class TermText:
     value: str
-    fg: Optional[int]
-    bg: Optional[int]
+    fg: Optional[Color]
+    bg: Optional[BgColor]
     bold: bool
 
-    def __init__(self, v: str, fg: Optional[int] = None, bg: Optional[int] = None, bold: bool = False):
+    def __init__(self, v: str, fg: Optional[Color] = None, bg: Optional[BgColor] = None, bold: bool = False):
         self.value = v
         self.fg = fg
         self.bg = bg

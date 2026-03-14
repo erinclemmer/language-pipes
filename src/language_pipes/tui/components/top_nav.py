@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 from language_pipes.tui.tui import TuiWindow, TermText
+from language_pipes.tui.util.screen_utils import Color
 
 class TopNav:
     def __init__(self, size: Tuple[int, int], pos: Tuple[int, int], headers: List[str]):
@@ -27,7 +28,7 @@ class TopNav:
                 header_id,
                 TermText(
                     self.headers[i],
-                    fg=36 if i == self.focused_idx else None,
+                    fg=Color.Cyan if i == self.focused_idx else None,
                     bold=(self.is_focused and i == self.focused_idx),
                 ),
             )
