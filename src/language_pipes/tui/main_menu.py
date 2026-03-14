@@ -12,6 +12,7 @@ from language_pipes.tui.util.prompt import prompt, select_option, prompt_bool
 from language_pipes.util.config import get_config_files, default_config_dir, default_model_dir
 from language_pipes.tui.components.text_field import TextField
 from language_pipes.tui.frame.main_frame import MainFrame
+from language_pipes.tui.frame.provider_calls import ProviderCall
 
 libraries_loaded = False
 
@@ -232,10 +233,10 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         save_data(cfg)
 
     providers = {
-        "get_network_config": get_network_config,
-        "save_network_config": save_data,
-        "list_models": list_models,
-        "save_model_assignments": save_model_assignments,
+        ProviderCall.get_network_config: get_network_config,
+        ProviderCall.save_model_assignments: save_data,
+        ProviderCall.list_models: list_models,
+        ProviderCall.save_model_assignments: save_model_assignments,
     }
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)
     action = frame.run()

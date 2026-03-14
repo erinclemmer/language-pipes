@@ -122,7 +122,7 @@ class FrameLayout:
         state_label = str(view_state.get("state", "placeholder")).upper()
 
         content_parts = [
-            f"{tab} / {section} ({state_summary})",
+            f"{tab} / {section}",
             "",
             f"State ({state_label}/{level.upper()}): {state_summary}",
         ]
