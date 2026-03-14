@@ -1,17 +1,6 @@
 import toml
 import argparse
 
-from language_pipes.distributed_state_network import DSNodeConfig, DSNodeServer  # noqa: E402
-
-from language_pipes.config import LpConfig, apply_env_overrides  # noqa: E402
-from language_pipes.util.aes import save_new_aes_key  # noqa: E402
-
-from language_pipes.commands.initialize import interactive_init  # noqa: E402
-from language_pipes.commands.start import start_wizard  # noqa: E402
-
-from language_pipes.lp import LanguagePipes  # noqa: E402
-from language_pipes.tui import initialize_tui
-
 VERSION = "1.2.0"
 
 def build_parser():
@@ -93,6 +82,7 @@ def apply_overrides(data, args):
         "model_dir": args.model_dir,
     }
 
+    from language_pipes.config import apply_env_overrides  # noqa: E402
     config = apply_env_overrides(data, cli_args)
 
     if config["node_id"] is None:
@@ -116,15 +106,19 @@ def main(argv = None):
         args.key = "network.key"
 
     if args.command == "keygen":
+        from language_pipes.util.aes import save_new_aes_key  # noqa: E402
         key = save_new_aes_key(args.output)
         print(f"✓ Network key generated: {key}")
         print(f"✓ Network key saved to '{args.output}'")
     elif args.command == "init":
+        from language_pipes.commands.initialize import interactive_init  # noqa: E402
         interactive_init(args.output)
     elif args.command == "tui":
+        from language_pipes.tui import initialize_tui
         initialize_tui()
     elif args.command == "start":
         try:
+            from language_pipes.commands.start import start_wizard  # noqa: E402
             return start_wizard(VERSION)
         except KeyboardInterrupt:
             exit()
@@ -135,10 +129,12 @@ def main(argv = None):
                 data = toml.load(f)
         data = apply_overrides(data, args)
         
+        from language_pipes.config import LpConfig
         config = LpConfig.from_dict(data)
 
         print(config.to_string())
 
+        from language_pipes.distributed_state_network import DSNodeConfig, DSNodeServer  # noqa: E402
         router_config = DSNodeConfig.from_dict({
             "node_id": data["node_id"],
             "port": data.get("peer_port", 5000),
@@ -157,7 +153,8 @@ def main(argv = None):
         print(router_config.to_string())
 
         router = DSNodeServer.start(router_config)
-
+        
+        from language_pipes.lp import LanguagePipes  # noqa: E402
         app = LanguagePipes(config, router)
         return app
     else:

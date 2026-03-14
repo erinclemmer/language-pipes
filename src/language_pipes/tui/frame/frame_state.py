@@ -23,3 +23,7 @@ class FrameState:
     def clear_status(self):
         self.status_message = ""
         self.status_level = "info"
+
+    def startup(self):
+        self.running = True
+        self.exit_tui = False

@@ -102,8 +102,8 @@ class MainFrame:
         self.state.set_status("Choose: Return to menu, Exit TUI, or Cancel", "warning")
 
     def _resolve_confirm_choice(self):
-        choice = self.confirm.selected_option()
-        self.confirm.close()
+        choice = self.exit_confirm.selected_option()
+        self.exit_confirm.close()
 
         if choice == "Return to menu":
             self.state.exit_tui = False
@@ -125,8 +125,10 @@ class MainFrame:
             self.state.set_status("Exit canceled", "info")
 
     def _handle_key(self, key: PressedKey, ch: str):
-        if self.confirm.is_open:
-            self._handle_confirm_key(key)
+        if self.exit_confirm.is_open:
+            res = self.exit_confirm.handle_key(key)
+            if res == "confirm" or res == "cancel":
+                self._resolve_confirm_choice()
             return
 
         if self.confirm.is_open:
@@ -190,13 +192,12 @@ class MainFrame:
                 self.state.set_status("No horizontal action in placeholder content", "info")
 
     def run(self) -> str:
-        self.running = True
-        self.exit_tui = False
+        self.state.startup()
         self.layout._render_all()
-        while self.running:
+        while self.state.running:
             key, ch = read_key()
             self._handle_key(key, ch)
             self.layout._render_all()
 
         self.layout._teardown_windows()
-        return "exit" if self.exit_tui else "menu"
+        return "exit" if self.state.exit_tui else "menu"
