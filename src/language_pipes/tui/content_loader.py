@@ -105,32 +105,14 @@ class ContentLoader:
     def provider_available(self, name: ProviderCall) -> bool:
         return self._get_provider(name) is not None
 
-    def call_provider(self, name: ProviderCall, **kwargs) -> Any:
+    def call_provider(self, name: ProviderCall, data: Any = None) -> Any:
         provider = self._get_provider(name)
         if provider is None:
             raise LookupError(f"Provider '{name}' unavailable")
-        call_kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        return provider(**call_kwargs)
-
-    def get_network_config(self) -> DSNodeConfig:
-        payload = self.call_provider(ProviderCall.get_network_config)
-        if not isinstance(payload, DSNodeConfig):
-            raise ValueError("get_network_config must return a DSNodeConfig")
-        return payload
-
-    def save_network_config(self, data: DSNodeConfig):
-        self.call_provider(ProviderCall.save_network_config, data=data)
-        self.invalidate("Network", "Configure")
-
-    def list_models(self) -> List[LayerModel]:
-        payload = self.call_provider(ProviderCall.list_models)
-        if not isinstance(payload, List):
-            raise ValueError("get_network_config must return a List of LayerModel")
-        return payload
-
-    def save_model_assignments(self, data: List[LayerModel]):
-        self.call_provider(ProviderCall.save_model_assignments, data=data)
-        self.invalidate("Models", "Assignments")
+        if data is None:
+            return provider()
+        else:
+            return provider(data)
 
     def _get_provider(self, name: ProviderCall) -> Optional[Callable[..., Any]]:
         if self.providers is None:

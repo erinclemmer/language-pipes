@@ -63,7 +63,9 @@ class NodeIdEditor:
         else:
             selected_node_id = self.node_ids[self.select_idx]
             def use_node_id():
-                self.selected_node_id = selected_node_id
+                config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+                config.node_id = selected_node_id
+                self.loader.call_provider(ProviderCall.save_network_config, config)
             self.confirm.open(f"Use \"{selected_node_id}\"?", use_node_id, None)
 
     def on_char(self, ch: str):
@@ -118,7 +120,7 @@ class NetworkForm:
             return
 
         try:
-            cfg = self.loader.get_network_config()
+            cfg = self.loader.call_provider(ProviderCall.get_network_config)
         except Exception as ex:
             self.state.set_status(f"Failed to load network config: {ex}", "error")
             return
@@ -186,7 +188,7 @@ class NetworkForm:
     def submit(self):
         payload = self._build_payload()
         def apply_network() -> None:
-            self.loader.save_network_config(payload)
+            self.loader.call_provider(ProviderCall.save_network_config, payload)
             self.editor.exit_edit_mode()
             self.state.set_status("Saved Network -> Configure", "info")
 

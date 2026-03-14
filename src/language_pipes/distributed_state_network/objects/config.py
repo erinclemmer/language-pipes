@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class DSNodeConfig:
     node_id: str
     credential_dir: str
