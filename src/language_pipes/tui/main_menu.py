@@ -1,17 +1,13 @@
 import os
-import toml
-import shutil
-from threading import Thread
 from time import sleep
 from pathlib import Path
-from typing import Tuple, Optional, List, Dict
+from threading import Thread
+from typing import Tuple, Optional
 
 from language_pipes.tui.tui import TuiWindow, TermText
-from language_pipes.distributed_state_network.util.key_manager import CredentialManager
 from language_pipes.tui.content_provider import ContentProvider
 from language_pipes.tui.util.prompt import prompt, select_option, prompt_bool
 from language_pipes.util.config import get_config_files, default_config_dir, default_model_dir
-from language_pipes.tui.components.text_field import TextField
 from language_pipes.tui.frame.main_frame import MainFrame
 from language_pipes.tui.frame.provider_calls import ProviderCall
 
@@ -56,180 +52,18 @@ def load_libraries(window: TuiWindow):
 def new_config(window: TuiWindow) -> Optional[str]:
     return prompt(TermText("Configuration Name"), window, (2, 10))
 
-def prompt_node_id(window: TuiWindow, left_bound: int):
-    window.remove_all()
-    window.paint()
-    cred_dir = Path(default_config_dir(), "credentials")
-    credentials = os.listdir(cred_dir)
-    if len(credentials) == 0:
-        node_id = prompt(TermText("Node ID"), window, (2, 0))
-        if node_id is None or node_id == '':
-            return None
-        cred_manager = CredentialManager(str(cred_dir), node_id)
-        cred_manager.generate_keys()
-        return node_id
-    credentials.append("New Node ID")
-    res = select_option((left_bound, 0), credentials, TermText("Select Node ID"), True)
-    if res is None:
-        return None
-    cred, cmd = res
-    if cmd == 1:
-        if cred == "New Node ID":
-            return None
-        res = prompt_bool(TermText(f"Delete {cred} credentials"), (left_bound, 0))
-        if res is None:
-            return None
-        if res:
-            shutil.rmtree(str(cred_dir / cred))
-        return None
-    
-    if cred == "New Node ID":
-        node_id = prompt(TermText("Node ID"), window, (left_bound, 0))
-        if node_id is None or node_id == '':
-            return None
-        cred_manager = CredentialManager(str(cred_dir), node_id)
-        cred_manager.generate_keys()
-        return node_id
-    else:
-        return cred
-
-def select_node_id(window: TuiWindow, left_bound: int, credentials: List[str]):
-    cred_text_ids = []
-    for i, c in enumerate(credentials):
-        cred_text_ids.append(window.add_text(TermText(c), (left_bound, 6 + (i * 2))))
-
-def get_bootstrap_node(window: TuiWindow, pos: Tuple[int, int]) -> Optional[Tuple[str, int]]:
-    res = prompt(TermText("Connect to IP Address"), window, pos)
-    if res is None:
-        return None
-    
-    bootstrap_ip = res
-    connect_id = window.add_text(TermText(f"Connect to: {res}"), pos)
-    window.paint()
-    res = prompt(TermText("Connect to Port"), window, (pos[0], pos[1] + 1))
-    if res is None:
-        return None
-    
-    bootstrap_port = res
-    try:
-        bootstrap_port = int(bootstrap_port)
-    except ValueError:
-        return None
-    window.remove_txt(connect_id)
-    return bootstrap_ip, bootstrap_port
-
-def handle_join_network(window: TuiWindow, create: bool, config: Dict) -> Optional[Dict]:
-    current_step = 0
-    window.add_text(TermText("_" * 78), (1, 0))
-    window.add_text(TermText("Create Network" if create else "Join Network"), (35, 2))
-    username_field = TextField(window, "         username", (1, 4), config.get("node_id", ""))
-    password_field = TextField(window, " network password", (1, 5), config.get("aes_key", ""))
-    bootstrap_addr_field = None
-    bootstrap_port_field = None
-    if not create:
-        nodes = config.get("bootstrap_nodes", [])
-        bootstrap_addr = ""
-        bootstrap_port = ""
-        if len(nodes) > 0:
-            bootstrap_addr = nodes[0].get("address", "")
-            bootstrap_port = nodes[0].get("port", "")
-        bootstrap_addr_field = TextField(window, "bootstrap address", (1, 6), bootstrap_addr)
-        bootstrap_port_field = TextField(window, "   bootstrap port", (1, 7), bootstrap_port)
-    window.add_text(TermText("|\n" * (7 if create else 9)), (0, 1))
-    window.add_text(TermText("|\n" * (7 if create else 9)), (79, 1))
-    window.add_text(TermText("_" * 78), (1, 7 if create else 9))
-    window.paint()
-
-    while True:
-        if current_step == 0:
-            res = username_field.edit()
-            if res is None:
-                return None
-            current_step += 1
-        elif current_step == 1:
-            res = password_field.edit()
-            if res is None:
-                current_step -= 1
-                continue
-            current_step += 1
-            if create:
-                window.remove_all()
-                window.paint()
-                return {
-                    "username": username_field.value,
-                    "password": password_field.value,
-                    "bootstrap_addr": None,
-                    "bootstrap_port": None
-                }
-        elif current_step == 2 and bootstrap_addr_field is not None:
-            res = bootstrap_addr_field.edit()
-            if res is None:
-                current_step -= 1
-                continue
-            current_step += 1
-        elif current_step == 3 and bootstrap_port_field is not None and bootstrap_addr_field is not None:
-            res = bootstrap_port_field.edit()
-            if res is None:
-                current_step -= 1
-                continue
-            window.remove_all()
-            window.paint()
-            return {
-                "username": username_field.value,
-                "password": password_field.value,
-                "bootstrap_addr": bootstrap_addr_field.value,
-                "bootstrap_port": bootstrap_port_field.value
-            }
-
 def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, int], config_file: Path):
     window.remove_all()
     window.paint()
 
-    def save_data(data):
-        with open(config_file, 'w') as f:
-            toml.dump(data, f)
-
-    def list_models():
-        with open(config_file, 'r') as f:
-            cfg = toml.load(f)
-        layer_models = cfg.get("layer_models", [])
-        end_models = cfg.get("end_models", [])
-        layer_assignments = []
-        for i, m in enumerate(layer_models):
-            if isinstance(m, dict):
-                layer_assignments.append({"layer_idx": i, "model_id": m.get("id", "")})
-            else:
-                layer_assignments.append({"layer_idx": i, "model_id": str(m)})
-        end_model_id = end_models[0] if end_models else ""
-        return [
-            {
-                "id": "assignments",
-                "layer_assignments": layer_assignments,
-                "end_model_id": end_model_id,
-            }
-        ]
-
-    def save_model_assignments(data=None, **kw):
-        payload = data if data is not None else kw
-        with open(config_file, 'r') as f:
-            cfg = toml.load(f)
-        layer_assignments = payload.get("layer_assignments", [])
-        end_model_id = payload.get("end_model_id", "")
-        cfg["layer_models"] = [
-            {"id": a["model_id"], "device": "cpu", "max_memory": 4}
-            for a in layer_assignments
-            if isinstance(a, dict) and a.get("model_id")
-        ]
-        cfg["end_models"] = [end_model_id] if end_model_id else []
-        save_data(cfg)
-
     providers = {
         ProviderCall.get_network_config: lambda: ContentProvider.get_network_config(config_file),
         ProviderCall.save_network_config: lambda data: ContentProvider.save_network_config(config_file, data),
-        ProviderCall.save_model_assignments: save_data,
-        ProviderCall.list_models: list_models,
-        ProviderCall.save_model_assignments: save_model_assignments,
+        ProviderCall.get_registered_node_ids: ContentProvider.get_registered_node_ids,
+        ProviderCall.delete_node_id: ContentProvider.delete_node_id,
+        ProviderCall.save_new_node_id: ContentProvider.save_new_node_id
     }
+
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)
     action = frame.run()
     if action == "exit":

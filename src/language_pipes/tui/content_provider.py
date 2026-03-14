@@ -1,8 +1,12 @@
 import os
 import toml
+import shutil
+from typing import List
 from pathlib import Path
+
 from language_pipes.util.config import default_config_dir
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.distributed_state_network.util.key_manager import CredentialManager
 
 class ContentProvider:
     @staticmethod
@@ -34,3 +38,23 @@ class ContentProvider:
             }]
         with open(save_file, 'w', encoding='utf-8') as f:
             toml.dump(data, f)
+
+    @staticmethod
+    def get_registered_node_ids() -> List[str]:
+        cred_dir = default_config_dir() + "/credentials"
+        if not os.path.exists(cred_dir):
+            return []
+        return os.listdir(cred_dir)
+    
+    @staticmethod
+    def delete_node_id(node_id: str):
+        cred_dir = default_config_dir() + "/credentials"
+        path = cred_dir + "/" + node_id
+        if os.path.exists(path):
+            shutil.rmtree(path)
+
+    @staticmethod
+    def save_new_node_id(node_id: str):
+        cred_dir = default_config_dir() + "/credentials"
+        cred_manager = CredentialManager(cred_dir, node_id)
+        cred_manager.generate_keys()
