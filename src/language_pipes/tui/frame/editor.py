@@ -81,6 +81,10 @@ class Editor:
         else:
             self.change_field_editor(True)
 
+    def on_delete(self):
+        if self.field_editor_visible:
+            self.form.on_key(PressedKey.Delete)
+
     def on_backspace(self):
         if self.field_editor_visible:
             self.form.on_key(PressedKey.Backspace)

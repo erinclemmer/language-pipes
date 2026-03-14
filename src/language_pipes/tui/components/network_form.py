@@ -42,6 +42,8 @@ class NodeIdEditor:
             self.on_backspace()
         elif key == PressedKey.Alpha:
             self.on_char(ch)
+        elif key == PressedKey.Delete:
+            self.on_delete()
 
     def on_next(self):
         self.select_idx += 1
@@ -91,6 +93,22 @@ class NodeIdEditor:
 
     def on_backspace(self):
         self.new_node_id = self.new_node_id[:-1]
+
+    def on_delete(self):
+        selected_node_id = self.node_ids[self.select_idx]
+        def on_apply():
+            self.loader.call_provider(ProviderCall.delete_node_id, selected_node_id)
+            self.restart()
+
+        def on_discard():
+            pass
+        self.confirm.open(f"Unregister \"{selected_node_id}\"", on_apply, on_discard)
+
+    def get_footer(self):
+        if self.registering_node_id:
+            return "[A-Z0-9]: Type node ID   Backspace: delete char   Esc: Discard"
+        else:
+            return "Arrows: Switch   Enter: Select   Esc: Discard   Delete: Unregister"
 
     def get_lines(self):
         lines = []
@@ -156,8 +174,8 @@ class NetworkForm:
         self.editor.start_edit_mode(
             form_name="network_config",
             edit_fields=[
-                {"name": "node_id", "value": str(cfg.node_id), "error": None},
-                {"name": "network_key", "value": str(cfg.aes_key), "error": None, "masked": True},
+                {"name": "node_id", "label": "Node ID", "value": str(cfg.node_id), "error": None},
+                {"name": "network_key", "label": "Netwok Key", "value": str(cfg.aes_key), "error": None, "masked": True},
                 {
                     "name": "bootstrap_address",
                     "value": bootstrap_address,
@@ -169,6 +187,15 @@ class NetworkForm:
         )
         
         self.state.set_status("Editing Network -> Configure", "info")
+
+    def get_footer(self) -> str:
+        res = self.editor.get_current_field()
+        if res is None: 
+            return ""
+        current_field, _ = res
+        if current_field == "node_id":
+            return self.node_id_editor.get_footer()
+        return ""
 
     def get_editor_lines(self) -> List[str]:
         res = self.editor.get_current_field()

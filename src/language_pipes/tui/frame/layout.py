@@ -236,11 +236,14 @@ class FrameLayout:
 
     def _footer_text(self) -> str:
         if self.exit_confirm.is_open:
-            return "Confirm Exit: Arrows U/D or L/R to choose   Enter: Confirm   Esc: Cancel"
+            return "Confirm Exit: Arrows U/D to choose   Enter: Confirm   Esc: Cancel"
         if self.edit_confirm.is_open:
-            return "Confirm Edit: Arrows U/D or L/R to choose   Enter: Confirm   Esc: Cancel"
+            return "Confirm Edit: Arrows U/D to choose   Enter: Confirm   Esc: Cancel"
         if self.editor.edit_mode:
-            return "Edit Form: Type to edit field   Arrows U/D: Switch field   Enter: Next/Confirm   Esc: Discard"
+            if self.editor.field_editor_visible:
+                return self.editor.form.get_footer()
+            else:
+                return "Arrows U/D: Switch field   Enter: Next   Esc: Discard"
         if self.nav_state.focus_depth == 0:
             return "Arrows L/R: Switch Tab   Enter: Side Nav   Esc: Back/Quit Options   q: Exit"
         if self.nav_state.focus_depth == 1:
