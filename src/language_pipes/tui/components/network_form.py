@@ -54,10 +54,18 @@ class NetworkForm:
                     "error": None,
                 },
                 {"name": "bootstrap_port", "value": str(bootstrap_port), "error": None},
-            ]
+            ],
+            form=self
         )
         
         self.state.set_status("Editing Network -> Configure", "info")
+
+    def get_editor_lines(self) -> List[str]:
+        # TODO
+        current_field = self.editor.get_current_field()
+        if current_field == "node_id":
+            pass
+        return []
 
     def _build_payload(self) -> DSNodeConfig:
         values = {str(f.get("name")): str(f.get("value", "")).strip() for f in self.editor.edit_fields}
@@ -132,6 +140,9 @@ class NetworkForm:
         
         return error
     
+    def on_press_enter(self):
+        pass
+
     @staticmethod
     def show_preview(payload: DSNodeConfig) -> Optional[List[str]]:
         if not isinstance(payload, DSNodeConfig):

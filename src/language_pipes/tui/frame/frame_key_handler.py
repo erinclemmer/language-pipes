@@ -142,14 +142,7 @@ class FrameKeyHandler:
             self.editor.next_field()
             return
         if key == PressedKey.Enter:
-            if self.editor.edit_form_name == "network_config":
-                res = self.network_form.validate_current_field()
-                if res is None:
-                    # TODO if last field then submit the form
-                    self.editor.next_field()
-                else:
-                    self.state.set_status(res, "error")
-
+            self.editor.change_field_editor(True)
             return
         
         if not self.editor.edit_fields:
