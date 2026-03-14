@@ -1,3 +1,4 @@
+import os
 import toml
 from pathlib import Path
 from language_pipes.util.config import default_config_dir
@@ -20,5 +21,16 @@ class ContentProvider:
         )
     
     @staticmethod
-    def save_network_config():
-        pass # TODO
+    def save_network_config(save_file: Path, config: DSNodeConfig):
+        data = { }
+        if os.path.exists(save_file):
+            data = toml.loads(save_file.read_text())
+        data["node_id"] = config.node_id
+        data["aes_key"] = config.aes_key
+        if len(config.bootstrap_nodes) > 0:
+            data["bootstrap_nodes"] = [{
+                "address": config.bootstrap_nodes[0].address,
+                "port": config.bootstrap_nodes[0].port
+            }]
+        with open(save_file, 'w', encoding='utf-8') as f:
+            toml.dump(data, f)

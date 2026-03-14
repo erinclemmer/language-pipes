@@ -225,6 +225,7 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
 
     providers = {
         ProviderCall.get_network_config: lambda: ContentProvider.get_network_config(config_file),
+        ProviderCall.save_network_config: lambda data: ContentProvider.save_network_config(config_file, data),
         ProviderCall.save_model_assignments: save_data,
         ProviderCall.list_models: list_models,
         ProviderCall.save_model_assignments: save_model_assignments,
