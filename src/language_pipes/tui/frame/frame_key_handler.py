@@ -44,10 +44,15 @@ class FrameKeyHandler:
     def _handle_confirm_key(self, key: PressedKey):
         action = self.confirm.handle_key(key)
         if action == "confirm":
-            self._resolve_exit_choice()
+            self.confirm.close()
+            self.state.set_status("Choice confirmed")
+            if self.confirm.on_apply is not None:
+                self.confirm.on_apply()
         elif action == "cancel":
             self.confirm.close()
             self.state.set_status("Exit canceled", "info")
+            if self.confirm.on_discard is not None:
+                self.confirm.on_discard()
 
     def _open_exit_confirm(self):
         self.exit_confirm.open()
@@ -134,31 +139,13 @@ class FrameKeyHandler:
         if key == PressedKey.Escape:
             self._discard_form()
             self.nav.focus_shallower()
-            return
-        if key == PressedKey.ArrowUp:
+        elif key == PressedKey.ArrowUp:
             self.editor.prev_field()
-            return
-        if key == PressedKey.ArrowDown:
+        elif key == PressedKey.ArrowDown:
             self.editor.next_field()
-            return
-        if key == PressedKey.Enter:
-            self.editor.change_field_editor(True)
-            return
-        
-        if not self.editor.edit_fields:
-            return
-
-        field = self.editor.edit_fields[self.editor.edit_field_idx]
-        value = str(field.get("value", ""))
-
-        if key == PressedKey.Alpha:
-            field["value"] = value + ch
-            field["error"] = None
-            return
-        if key == PressedKey.Backspace:
-            field["value"] = value[:-1]
-            field["error"] = None
-            return
-        if key == PressedKey.Delete:
-            field["value"] = ""
-            field["error"] = None
+        elif key == PressedKey.Enter:
+            self.editor.on_enter()
+        elif key == PressedKey.Backspace:
+            self.editor.on_backspace()
+        elif key == PressedKey.Alpha:
+            self.editor.on_alpha(ch)

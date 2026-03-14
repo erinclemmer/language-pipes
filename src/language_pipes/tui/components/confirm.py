@@ -87,7 +87,12 @@ class Confirm:
             self.move_next()
             return "next"
         if key == PressedKey.Enter:
-            return "confirm"
+            if self.choice_idx == 0:
+                return "confirm"
+            elif self.choice_idx == 1:
+                return "discard"
+            elif self.choice_idx == 2:
+                return "cancel"
         if key == PressedKey.Escape:
             return "cancel"
         return "nop"

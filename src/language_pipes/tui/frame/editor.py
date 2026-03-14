@@ -1,5 +1,7 @@
 from typing import List, Dict, Any, Optional, Callable, Tuple
 
+from language_pipes.tui.util.kb_utils import PressedKey
+
 class Editor:
     edit_mode: bool
     edit_form_name: str
@@ -56,7 +58,27 @@ class Editor:
         return field_name, raw
     
     def prev_field(self):
-        self.edit_field_idx = max(0, self.edit_field_idx - 1)
+        if self.field_editor_visible:
+            self.form.on_key(PressedKey.ArrowUp)
+        else:
+            self.edit_field_idx = max(0, self.edit_field_idx - 1)
 
     def next_field(self):
-        self.edit_field_idx = min(len(self.edit_fields) - 1, self.edit_field_idx + 1)
+        if self.field_editor_visible:
+            self.form.on_key(PressedKey.ArrowDown)
+        else:
+            self.edit_field_idx = min(len(self.edit_fields) - 1, self.edit_field_idx + 1)
+
+    def on_enter(self):
+        if self.field_editor_visible:
+            self.form.on_key(PressedKey.Enter)
+        else:
+            self.change_field_editor(True)
+
+    def on_backspace(self):
+        if self.field_editor_visible:
+            self.form.on_key(PressedKey.Backspace)
+
+    def on_alpha(self, ch: str):
+        if self.field_editor_visible:
+            self.form.on_key(PressedKey.Alpha, ch)

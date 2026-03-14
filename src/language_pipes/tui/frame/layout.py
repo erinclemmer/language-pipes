@@ -152,13 +152,13 @@ class FrameLayout:
         lines = [
             f"{tab} / {section}",
             "",
-            "Edit Network Configuration:",
         ]
 
-        if self.editor.change_field_editor:
+        if self.editor.field_editor_visible:
             if tab == "Network" and section == "Configure":
                 lines.extend(self.editor.form.get_editor_lines())
         else:
+            lines.append("Edit Network Configuration:")
             for idx, field in enumerate(fields):
                 cursor = ">" if idx == self.editor.edit_field_idx else " "
                 name = str(field.get("name", "field"))

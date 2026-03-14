@@ -1,12 +1,94 @@
 from typing import Callable, Optional, List
 
 from language_pipes.tui.frame.editor import Editor
+from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.util.config import default_config_dir
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.content_loader import ContentLoader, ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
+
+class NodeIdEditor:
+    node_ids: List[str]
+    confirm: Confirm
+    loader: ContentLoader
+    select_idx: int
+
+    def __init__(self, loader: ContentLoader, confirm: Confirm):
+        self.select_idx = 0
+        self.confirm = confirm
+        self.loader = loader
+        self.node_ids = []
+        self.registering_node_id = False
+        self.new_node_id = ""
+        self.selected_node_id = None
+
+    def restart(self):
+        self.select_idx = 0
+        self.node_ids = []
+
+    def on_key(self, key: PressedKey, ch: str):
+        if key == PressedKey.ArrowUp:
+            self.on_prev()
+        elif key == PressedKey.ArrowDown:
+            self.on_next()
+        elif key == PressedKey.Enter:
+            self.on_enter()
+        elif key == PressedKey.Backspace:
+            self.on_backspace()
+        elif key == PressedKey.Alpha:
+            self.on_char(ch)
+
+    def on_next(self):
+        self.select_idx += 1
+        if self.select_idx > len(self.node_ids):
+            self.select_idx = 0
+
+    def on_prev(self):
+        self.select_idx -= 1
+        if self.select_idx < 0:
+            self.select_idx = len(self.node_ids)
+
+    def on_confirm(self):
+        self.selected_node_id = self.new_node_id
+
+    def on_enter(self):
+        if self.registering_node_id:
+            self.confirm.open(f"Register \"{self.new_node_id}\"?", self.on_confirm, None)
+            return
+
+        if self.select_idx == len(self.node_ids):
+            self.registering_node_id = True
+        else:
+            selected_node_id = self.node_ids[self.select_idx]
+            def use_node_id():
+                self.selected_node_id = selected_node_id
+            self.confirm.open(f"Use \"{selected_node_id}\"?", use_node_id, None)
+
+    def on_char(self, ch: str):
+        self.new_node_id += ch
+
+    def on_backspace(self):
+        self.new_node_id = self.new_node_id[:-1]
+
+    def get_lines(self):
+        lines = []
+
+        if self.registering_node_id:
+            lines.append(f"New Node ID: {self.new_node_id}")
+        else:
+            self.node_ids: List[str] = self.loader.call_provider(ProviderCall.get_registered_node_ids)
+            if len(self.node_ids) > 0:
+                lines.append("Registered Node IDs:")
+                for i, node_id in enumerate(self.node_ids):
+                    cursor_txt = " >" if i == self.select_idx else "  "
+                    lines.append(f"{cursor_txt}{node_id}")
+                lines.append("")
+            cursor_txt = " >" if self.select_idx == len(self.node_ids) else "  "
+            lines.append(f"{cursor_txt}Register new node id")
+
+        return lines
 
 class NetworkForm:
     editor: Editor
@@ -25,6 +107,7 @@ class NetworkForm:
         self.loader = loader
         self.editor = editor
         self.confirm = confirm
+        self.node_id_editor = NodeIdEditor(loader, confirm)
 
     def start(self) -> None:
         if not self.loader.provider_available(ProviderCall.get_network_config):
@@ -61,11 +144,21 @@ class NetworkForm:
         self.state.set_status("Editing Network -> Configure", "info")
 
     def get_editor_lines(self) -> List[str]:
-        # TODO
-        current_field = self.editor.get_current_field()
+        res = self.editor.get_current_field()
+        if res is None: 
+            return []
+        current_field, _ = res
         if current_field == "node_id":
-            pass
+            return self.node_id_editor.get_lines()
         return []
+
+    def on_key(self, key: PressedKey, ch: str = ""):
+        res = self.editor.get_current_field()
+        if res is None:
+            return
+        current_field, _ = res
+        if current_field == "node_id":
+            return self.node_id_editor.on_key(key, ch)
 
     def _build_payload(self) -> DSNodeConfig:
         values = {str(f.get("name")): str(f.get("value", "")).strip() for f in self.editor.edit_fields}
