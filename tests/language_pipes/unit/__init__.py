@@ -15,6 +15,9 @@ def load_tests(loader, tests, pattern):
     package_dir = os.path.dirname(__file__)
     suite = loader.discover(start_dir=package_dir, pattern='test_*.py')
     suite.addTests(loader.discover(start_dir=package_dir + "/job_processor", pattern='test_*.py')._tests)
+    suite.addTests(loader.discover(start_dir=package_dir + "/main_frame", pattern='test_*.py')._tests)
+    suite.addTests(loader.discover(start_dir=package_dir + "/main_frame/components", pattern='test_*.py')._tests)
+    suite.addTests(loader.discover(start_dir=package_dir + "/main_frame/frame", pattern='test_*.py')._tests)
     return suite
 
 
