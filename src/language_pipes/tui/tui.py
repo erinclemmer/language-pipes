@@ -1,3 +1,4 @@
+from time import time
 from typing import List, Tuple, Optional
 from language_pipes.tui.util.screen_utils import print_pos, Color, BgColor
 
@@ -121,13 +122,20 @@ class TuiText:
 
 class TuiWindow(TuiGrid):
     _current_id: int
+    render_start_time: Optional[float]
+    render_time_id: int
     text_objects: List[TuiText]
 
     def __init__(self, size: Tuple[int, int], pos: Tuple[int, int]):
         super().__init__(size, pos)
         self._current_id = 0
         self.text_objects = []
+        self.render_start_time = None
+        self.render_time_id = self.add_text(TermText(""), (0, 0))
     
+    def paint(self):
+        self.render_start_time = time()
+
     def get_text(self, id: int) -> TuiText:
         objs = [o for o in self.text_objects if o.id == id]
         if len(objs) == 0:
