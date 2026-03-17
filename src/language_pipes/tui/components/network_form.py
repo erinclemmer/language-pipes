@@ -10,22 +10,25 @@ from language_pipes.tui.content_loader import ContentLoader, ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 
-# Options: Generate new key, show existing key, delete existing key
 class NetworkKeyEditor:
     confirm: Confirm
     loader: ContentLoader
     exit_editor: Callable
 
+    max_idx: int
     select_idx: int
 
     def __init__(self, loader: ContentLoader, confirm: Confirm, exit_editor: Callable):
         self.loader = loader
         self.confirm = confirm
         self.exit_editor = exit_editor
-        self.select_idx = 0
+        self.restart()
 
     def restart(self):
         self.select_idx = 0
+        config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+        self.network_key = config.aes_key
+        self.max_idx = 2 if self.network_key is not None and self.network_key != '' else 0
 
     def get_footer(self):
         return "Arrows: Navigate"
@@ -45,8 +48,8 @@ class NetworkKeyEditor:
     
     def on_next(self):
         self.select_idx += 1
-        if self.select_idx > 2:
-            self.select_idx = 2
+        if self.select_idx > self.max_idx:
+            self.select_idx = self.max_idx
 
     def on_enter(self):
         pass
@@ -58,8 +61,9 @@ class NetworkKeyEditor:
             r_cursor = "<|" if idx == self.select_idx else "  "
             lines.append(f" {l_cursor} {option} {r_cursor}")
         add_option("Generate New Key", 0)
-        add_option("Show Existing Key", 1)
-        add_option("Delete Existing Key", 2)
+        if self.max_idx > 0:
+            add_option("Show Existing Key", 1)
+            add_option("Delete Existing Key", 2)
         lines.append("")
         return lines
 
@@ -82,6 +86,10 @@ class NetworkForm:
         self.confirm = confirm
         self.node_id_editor = NodeIdEditor(loader, confirm, self.exit_field_editor)
         self.network_key_editor = NetworkKeyEditor(loader, confirm, self.exit_field_editor)
+
+    def enter_field_editor(self):
+        self.node_id_editor.restart()
+        self.network_key_editor.restart()
 
     def exit_field_editor(self):
         self.editor.field_editor_visible = False
