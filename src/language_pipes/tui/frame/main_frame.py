@@ -56,8 +56,8 @@ class MainFrame:
         self.layout._render_all()
         while self.state.running:
             key, ch = read_key()
-            self.key_handler.handle_key(key, ch)
             start_time = time()
+            self.key_handler.handle_key(key, ch)
             self.layout._render_all()
             self.window.update_text(self.render_time_id, TermText(f"Render: {(time() - start_time) * 1000:.0f}ms"))
             self.window.paint()
