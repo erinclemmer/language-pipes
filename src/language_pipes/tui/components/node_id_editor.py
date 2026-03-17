@@ -104,7 +104,7 @@ class NodeIdEditor:
 
     def get_footer(self):
         if self.registering_node_id:
-            return "[A-Z0-9]: Type node ID   Backspace: delete char   Esc: Discard"
+            return "[A-Z]: Type node ID   Backspace: delete char   Esc: Discard   Enter: Accept"
         else:
             return "Arrows: Switch   Enter: Select   Esc: Discard   Delete: Unregister"
 

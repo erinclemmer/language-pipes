@@ -31,7 +31,7 @@ class NetworkKeyEditor:
         self.max_idx = 2 if self.network_key is not None and self.network_key != '' else 0
 
     def get_footer(self):
-        return "Arrows: Navigate"
+        return "Arrows: Navigate   Enter: Confirm   Esc: Discard"
 
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.ArrowUp:
