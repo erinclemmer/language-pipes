@@ -1,6 +1,7 @@
+from time import time
 from typing import Dict, List, Optional, Tuple
 
-from language_pipes.tui.tui import TuiWindow
+from language_pipes.tui.tui import TermText, TuiWindow
 from language_pipes.tui.frame.editor import Editor
 from language_pipes.tui.util.kb_utils import read_key
 from language_pipes.tui.frame.nav_state import NavState
@@ -40,6 +41,7 @@ class MainFrame:
         self.layout = FrameLayout(self.window, self.nav, self.editor, self.loader, self.exit_confirm, self.confirm, self.state)
         self.key_handler = FrameKeyHandler(self.layout, self.network_form)
 
+        self.render_time_id = self.window.add_text(TermText(""), (0, 0))
         self.layout._init_layout(size, pos)
         self._init_view()
         self.layout._render_all()
@@ -55,7 +57,10 @@ class MainFrame:
         while self.state.running:
             key, ch = read_key()
             self.key_handler.handle_key(key, ch)
+            start_time = time()
             self.layout._render_all()
+            self.window.update_text(self.render_time_id, TermText(f"Render: {(time() - start_time) * 1000:.0f}ms"))
+            self.window.paint()
 
         self.layout._teardown_windows()
         return "exit" if self.state.exit_tui else "menu"
