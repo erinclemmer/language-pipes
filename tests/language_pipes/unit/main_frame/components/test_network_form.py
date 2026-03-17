@@ -130,3 +130,67 @@ class TestNetworkFormOverlay(unittest.TestCase):
         self.assertEqual(frame.editor.edit_field_idx, 0)
         _simulate_keys(frame, [(PressedKey.ArrowUp, "")])
         self.assertEqual(frame.editor.edit_field_idx, 0)
+
+    def test_node_id_editor_text_blank_after_escape_and_reenter(self):
+        """Typing in the node-id editor, pressing Escape to return to the form,
+        then re-entering the node-id editor should show a blank new_node_id."""
+        from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+        from language_pipes.tui.frame.provider_calls import ProviderCall
+
+        fake_config = DSNodeConfig(
+            node_id="test-node",
+            credential_dir="/tmp/creds",
+            port=5000,
+            network_ip="",
+            aes_key="",
+            whitelist_ips=[],
+            whitelist_node_ids=[],
+            bootstrap_nodes=[],
+        )
+
+        providers = {
+            ProviderCall.get_network_config: lambda: fake_config,
+            ProviderCall.save_network_config: lambda cfg: None,
+            ProviderCall.get_registered_node_ids: lambda: [],
+        }
+
+        frame = _make_main_frame(providers=providers)
+        self.assertTrue(frame.editor.edit_mode)
+        self.assertEqual(frame.editor.edit_field_idx, 0)  # node_id field
+
+        # Enter the node_id field editor
+        _simulate_keys(frame, [(PressedKey.Enter, "")])
+        self.assertTrue(frame.editor.field_editor_visible)
+
+        # Select "Register new node id" (already selected at idx 0 with no existing ids)
+        _simulate_keys(frame, [(PressedKey.Enter, "")])
+        node_id_editor = frame.network_form.node_id_editor
+        self.assertTrue(node_id_editor.registering_node_id)
+
+        # Type some characters
+        _simulate_keys(frame, [
+            (PressedKey.Alpha, "m"),
+            (PressedKey.Alpha, "y"),
+            (PressedKey.Alpha, "n"),
+            (PressedKey.Alpha, "o"),
+            (PressedKey.Alpha, "d"),
+            (PressedKey.Alpha, "e"),
+        ])
+        self.assertEqual(node_id_editor.new_node_id, "mynode")
+
+        # Press Escape to back out to the form
+        _simulate_keys(frame, [(PressedKey.Escape, "")])
+        # After escape, exit_field_editor -> restart() -> start() re-enters edit mode
+        self.assertTrue(frame.editor.edit_mode)
+        self.assertFalse(frame.editor.field_editor_visible)
+
+        # Re-enter the node_id field editor
+        _simulate_keys(frame, [(PressedKey.Enter, "")])
+        self.assertTrue(frame.editor.field_editor_visible)
+
+        # Select "Register new node id" again
+        _simulate_keys(frame, [(PressedKey.Enter, "")])
+        self.assertTrue(node_id_editor.registering_node_id)
+
+        # The text should be blank
+        self.assertEqual(node_id_editor.new_node_id, "")

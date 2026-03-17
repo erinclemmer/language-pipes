@@ -27,9 +27,10 @@ class NodeIdEditor:
         self.selected_node_id = None
 
     def restart(self):
-        self.registering_node_id = False
-        self.select_idx = 0
+        self.new_node_id = ""
         self.node_ids = []
+        self.select_idx = 0
+        self.registering_node_id = False
 
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.ArrowUp:
