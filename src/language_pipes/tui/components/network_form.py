@@ -65,7 +65,8 @@ class NetworkKeyEditor:
             self.confirm.open(
                 "Generate a new network key?",
                 on_apply=self.generate_key,
-                on_discard=self.exit_editor
+                on_discard=self.exit_editor,
+                confirm_msg="New network key generated"
             )
             self.exit_editor()
             return
@@ -244,7 +245,7 @@ class NetworkForm:
         message: str,
         *,
         on_apply: Callable[[], None],
-        on_discard: Optional[Callable[[], None]],
+        on_discard: Callable[[], None],
     ) -> None:
         self._pending_apply = on_apply
         self._pending_discard = on_discard
