@@ -9,6 +9,8 @@ from language_pipes.util.config import default_config_dir
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.distributed_state_network.util.key_manager import CredentialManager
 
+AES_KEY_LEN = 32
+
 class ContentProvider:
     @staticmethod
     def get_network_config(config_file: Path) -> DSNodeConfig:
@@ -63,3 +65,11 @@ class ContentProvider:
     @staticmethod
     def generate_aes_key() -> str:
         return generate_aes_key().hex()
+
+    @staticmethod
+    def validate_aes_key(key: str) -> bool:
+        try:
+            bts = bytes.fromhex(key)
+            return len(bts) == AES_KEY_LEN
+        except Exception as e:
+            return False

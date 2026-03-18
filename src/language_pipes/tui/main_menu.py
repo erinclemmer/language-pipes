@@ -62,8 +62,8 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         ProviderCall.get_registered_node_ids: ContentProvider.get_registered_node_ids,
         ProviderCall.delete_node_id: ContentProvider.delete_node_id,
         ProviderCall.save_new_node_id: ContentProvider.save_new_node_id,
-        ProviderCall.generate_aes_key: ContentProvider.generate_aes_key
-
+        ProviderCall.generate_aes_key: ContentProvider.generate_aes_key,
+        ProviderCall.validate_aes_key: ContentProvider.validate_aes_key
     }
 
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)

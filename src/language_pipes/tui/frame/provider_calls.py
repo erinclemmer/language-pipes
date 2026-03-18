@@ -9,6 +9,7 @@ class ProviderCall(Enum):
     save_new_node_id = "save_new_node_id"
 
     generate_aes_key = "generate_aes_key"
+    validate_aes_key = "validate_aes_key"
 
     save_network_config = "save_network_config"
     list_models = "list_models"

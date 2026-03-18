@@ -13,15 +13,17 @@ from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 
 class NetworkKeyEditorState(Enum):
     LIST = 0
-    GENERATE = 1
-    SHOW = 2
-    DELETE = 3
-
+    INPUT = 1
+    GENERATE = 2
+    SHOW = 3
+    DELETE = 4
+    
 class NetworkKeyEditor:
     confirm: Confirm
     loader: ContentLoader
     exit_editor: Callable
 
+    key_input: str
     max_idx: int
     select_idx: int
     state: NetworkKeyEditorState
@@ -37,7 +39,9 @@ class NetworkKeyEditor:
         self.state = NetworkKeyEditorState.LIST
         config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
         self.network_key = config.aes_key
-        self.max_idx = 2 if self.network_key is not None and self.network_key != '' else 0
+        self.key_input = ""
+        self.key_valid = False
+        self.max_idx = 3 if self.network_key is not None and self.network_key != '' else 1
 
     def get_footer(self):
         return "Arrows: Navigate   Enter: Confirm   Esc: Discard"
@@ -49,6 +53,21 @@ class NetworkKeyEditor:
             self.on_next()
         elif key == PressedKey.Enter:
             self.on_enter()
+        elif key == PressedKey.Alpha:
+            self.on_char(ch)
+        elif key == PressedKey.Backspace:
+            self.on_backspace()
+
+    def on_backspace(self):
+        if self.state != NetworkKeyEditorState.INPUT:
+            return
+        self.key_input = self.key_input[:-1]
+
+    def on_char(self, ch: str):
+        if self.state != NetworkKeyEditorState.INPUT:
+            return
+        self.key_input += ch
+        self.key_valid = self.loader.call_provider(ProviderCall.validate_aes_key, self.key_input)
 
     def on_prev(self):
         self.select_idx -= 1
@@ -62,19 +81,40 @@ class NetworkKeyEditor:
 
     def on_enter(self):
         if self.select_idx == 0:
+            if self.state == NetworkKeyEditorState.LIST:
+                self.state = NetworkKeyEditorState.INPUT
+            elif self.state == NetworkKeyEditorState.INPUT:
+                if self.key_valid:
+                    self.confirm.open(
+                        f"Save this network key?\n{self.key_input[:32]}\n{self.key_input[32:]}",
+                        on_apply=self.save_key_input,
+                        on_discard=self.exit_editor,
+                        confirm_msg=f"Saved network key!\n{self.key_input[:32]}\n{self.key_input[32:]}"
+                    )
+        elif self.select_idx == 1:
             self.confirm.open(
                 "Generate a new network key?",
                 on_apply=self.generate_key,
                 on_discard=self.exit_editor,
                 confirm_msg="New network key generated"
             )
-            self.exit_editor()
-            return
+        elif self.select_idx == 2:
+            if self.state == NetworkKeyEditorState.LIST:
+                self.state = NetworkKeyEditorState.SHOW
+            elif self.state == NetworkKeyEditorState.SHOW:
+                self.exit_editor()
 
     def generate_key(self):
         config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
         config.aes_key = self.loader.call_provider(ProviderCall.generate_aes_key)
         self.loader.call_provider(ProviderCall.save_network_config, config)
+        self.exit_editor()
+
+    def save_key_input(self):
+        config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+        config.aes_key = self.key_input
+        self.loader.call_provider(ProviderCall.save_network_config, config)
+        self.exit_editor()
 
     def get_list_lines(self) -> List[str]:
         lines = ["Editing Network Key"]
@@ -82,26 +122,51 @@ class NetworkKeyEditor:
             l_cursor = "|>" if idx == self.select_idx else "  "
             r_cursor = "<|" if idx == self.select_idx else "  "
             lines.append(f" {l_cursor} {option} {r_cursor}")
-        add_option("Generate New Key", 0)
-        if self.max_idx > 0:
-            add_option("Show Existing Key", 1)
-            add_option("Delete Existing Key", 2)
+        add_option("Enter Key", 0)
+        add_option("Generate New Key", 1)
+        if self.max_idx > 1:
+            add_option("Show Existing Key", 2)
+            add_option("Delete Existing Key", 3)
         lines.append("")
         return lines
     
-    def get_generate_lines(self) -> List[str]:
+    def get_input_lines(self) -> List[str]:
+        key = self.key_input[-40:] if len(self.key_input) > 40 else self.key_input
         lines = [
+            "Enter AES hex key",
+            "",
+            f"Key: {key}",
+            f"Length: {len(self.key_input)}",
             ""
         ]
 
-        
+        if self.key_valid:
+            lines.append("Valid Key!")
+        else:
+            lines.append("Invalid key: must be a valid aes key hex string")
+
+        return lines
+
+    def get_show_lines(self) -> List[str]:
+        key = ""
+        if self.network_key is not None:
+            key = self.network_key
+        lines = [
+            "Network Key",
+            "",
+            key[:32],
+            key[32:]
+        ]
+
         return lines
 
     def get_lines(self) -> List[str]:
         if self.state == NetworkKeyEditorState.LIST:
             return self.get_list_lines()
-        if self.state == NetworkKeyEditorState.GENERATE:
-            return self.get_generate_lines()
+        if self.state == NetworkKeyEditorState.INPUT:
+            return self.get_input_lines()
+        if self.state == NetworkKeyEditorState.SHOW:
+            return self.get_show_lines()
         return []
 
 class NetworkForm:
