@@ -2,9 +2,8 @@ from typing import List, Callable, Optional, Tuple
 
 from language_pipes.tui.util.kb_utils import PressedKey
 
-
 class Confirm:
-    OPTIONS: List[str] = ["Apply", "Discard"]
+    OPTIONS: List[str] = ["Confirm", "Cancel"]
 
     is_open: bool
     choice_idx: int

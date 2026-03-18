@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Callable, Optional, List
 
 from language_pipes.tui.frame.editor import Editor
@@ -10,6 +11,12 @@ from language_pipes.tui.content_loader import ContentLoader, ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 
+class NetworkKeyEditorState(Enum):
+    LIST = 0
+    GENERATE = 1
+    SHOW = 2
+    DELETE = 3
+
 class NetworkKeyEditor:
     confirm: Confirm
     loader: ContentLoader
@@ -17,6 +24,7 @@ class NetworkKeyEditor:
 
     max_idx: int
     select_idx: int
+    state: NetworkKeyEditorState
 
     def __init__(self, loader: ContentLoader, confirm: Confirm, exit_editor: Callable):
         self.loader = loader
@@ -26,6 +34,7 @@ class NetworkKeyEditor:
 
     def restart(self):
         self.select_idx = 0
+        self.state = NetworkKeyEditorState.LIST
         config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
         self.network_key = config.aes_key
         self.max_idx = 2 if self.network_key is not None and self.network_key != '' else 0
@@ -52,9 +61,21 @@ class NetworkKeyEditor:
             self.select_idx = self.max_idx
 
     def on_enter(self):
-        pass
+        if self.select_idx == 0:
+            self.confirm.open(
+                "Generate a new network key?",
+                on_apply=self.generate_key,
+                on_discard=self.exit_editor
+            )
+            self.exit_editor()
+            return
 
-    def get_lines(self) -> List[str]:
+    def generate_key(self):
+        config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+        config.aes_key = self.loader.call_provider(ProviderCall.generate_aes_key)
+        self.loader.call_provider(ProviderCall.save_network_config, config)
+
+    def get_list_lines(self) -> List[str]:
         lines = ["Editing Network Key"]
         def add_option(option: str, idx: int):
             l_cursor = "|>" if idx == self.select_idx else "  "
@@ -66,6 +87,21 @@ class NetworkKeyEditor:
             add_option("Delete Existing Key", 2)
         lines.append("")
         return lines
+    
+    def get_generate_lines(self) -> List[str]:
+        lines = [
+            ""
+        ]
+
+        
+        return lines
+
+    def get_lines(self) -> List[str]:
+        if self.state == NetworkKeyEditorState.LIST:
+            return self.get_list_lines()
+        if self.state == NetworkKeyEditorState.GENERATE:
+            return self.get_generate_lines()
+        return []
 
 class NetworkForm:
     editor: Editor
@@ -118,7 +154,7 @@ class NetworkForm:
             form_name="network_config",
             edit_fields=[
                 {"name": "node_id", "label": "Node ID", "value": str(cfg.node_id), "error": None},
-                {"name": "network_key", "label": "Netwok Key", "value": str(cfg.aes_key), "error": None, "masked": True},
+                {"name": "network_key", "label": "Netwok Key", "value": str(cfg.aes_key)[:10], "error": None, "masked": True},
                 {
                     "name": "bootstrap_address",
                     "value": bootstrap_address,

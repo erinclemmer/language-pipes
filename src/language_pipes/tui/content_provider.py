@@ -4,6 +4,7 @@ import shutil
 from typing import List
 from pathlib import Path
 
+from language_pipes.util.aes import generate_aes_key
 from language_pipes.util.config import default_config_dir
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.distributed_state_network.util.key_manager import CredentialManager
@@ -58,3 +59,7 @@ class ContentProvider:
         cred_dir = default_config_dir() + "/credentials"
         cred_manager = CredentialManager(cred_dir, node_id)
         cred_manager.generate_keys()
+
+    @staticmethod
+    def generate_aes_key() -> str:
+        return generate_aes_key().hex()
