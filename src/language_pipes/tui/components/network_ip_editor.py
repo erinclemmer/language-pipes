@@ -1,4 +1,4 @@
-from typing import Callable, List
+from typing import Callable
 
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm

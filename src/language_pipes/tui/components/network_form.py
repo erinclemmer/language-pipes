@@ -85,7 +85,9 @@ class NetworkForm:
             ],
             form=self
         )
-        
+        self.set_status()
+    
+    def set_status(self):
         self.state.set_status("Editing Network -> Configure", "info")
 
     def get_footer(self) -> str:

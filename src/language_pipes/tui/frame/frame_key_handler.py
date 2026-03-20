@@ -136,6 +136,7 @@ class FrameKeyHandler:
             if self.editor.field_editor_visible:
                 if self.editor.form.back():
                     self.editor.change_field_editor(False)
+                    self.editor.form.set_status()
             else:
                 self._discard_form()
                 self.nav.focus_shallower()
