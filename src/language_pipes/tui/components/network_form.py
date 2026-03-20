@@ -10,6 +10,7 @@ from language_pipes.tui.content_loader import ContentLoader, ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 from language_pipes.tui.components.network_key_editor import NetworkKeyEditor
+from language_pipes.tui.components.network_ip_editor import NetworkIpEditor
 
 class NetworkForm:
     editor: Editor
@@ -30,21 +31,29 @@ class NetworkForm:
         self.confirm = confirm
         self.node_id_editor = NodeIdEditor(loader, confirm, self.exit_field_editor)
         self.network_key_editor = NetworkKeyEditor(loader, confirm, self.exit_field_editor)
+        self.network_ip_editor = NetworkIpEditor(loader, confirm, self.exit_field_editor)
 
     def restart_field_editors(self):
         self.node_id_editor.restart()
         self.network_key_editor.restart()
 
-    def back(self) -> bool:
+    def get_current_field_editor(self):
         res = self.editor.get_current_field()
         if res is None: 
-            return True
+            return None
         current_field, _ = res
         if current_field == "node_id":
-            return self.node_id_editor.back()
+            return self.node_id_editor
         if current_field == "network_key":
-            return self.network_key_editor.back()
-        return True
+            return self.network_key_editor
+        if current_field == "network IP":
+            return self.network_ip_editor
+
+    def back(self) -> bool:
+        res = self.get_current_field_editor()
+        if res is None: 
+            return True
+        return res.back()
 
     def exit_field_editor(self):
         self.editor.field_editor_visible = False
@@ -78,76 +87,22 @@ class NetworkForm:
         self.state.set_status("Editing Network -> Configure", "info")
 
     def get_footer(self) -> str:
-        res = self.editor.get_current_field()
+        res = self.get_current_field_editor()
         if res is None: 
             return ""
-        current_field, _ = res
-        if current_field == "node_id":
-            return self.node_id_editor.get_footer()
-        if current_field == "network_key":
-            return self.network_key_editor.get_footer()
-        return ""
+        return res.get_footer()
 
     def get_editor_lines(self) -> List[str]:
-        res = self.editor.get_current_field()
+        res = self.get_current_field_editor()
         if res is None: 
             return []
-        current_field, _ = res
-        if current_field == "node_id":
-            return self.node_id_editor.get_lines()
-        if current_field == "network_key":
-            return self.network_key_editor.get_lines()
-        return []
+        return res.get_lines()
 
     def on_key(self, key: PressedKey, ch: str = ""):
-        res = self.editor.get_current_field()
+        res = self.get_current_field_editor()
         if res is None:
             return
-        current_field, _ = res
-        if current_field == "node_id":
-            return self.node_id_editor.on_key(key, ch)
-        if current_field == "network_key":
-            return self.network_key_editor.on_key(key, ch)
-
-    def _build_payload(self) -> DSNodeConfig:
-        values = {str(f.get("name")): str(f.get("value", "")).strip() for f in self.editor.edit_fields}
-        
-        data = {
-            "node_id": values.get("node_id", ""),
-            "aes_key": values.get("network_key", ""),
-            "bootstrap_address": values.get("bootstrap_address", ""),
-            "bootstrap_port": int(values.get("bootstrap_port", "0")),
-        }
-
-        return DSNodeConfig(
-            node_id=data["node_id"],
-            aes_key=data["aes_key"],
-            credential_dir=default_config_dir() + "/credentials",
-            port=5000,
-            network_ip="",
-            whitelist_ips=[],
-            whitelist_node_ids=[],
-            bootstrap_nodes=[
-                Endpoint(data["bootstrap_address"], data["bootstrap_port"])
-            ] if data["bootstrap_address"] != "" else []
-        )
-
-    def submit(self):
-        payload = self._build_payload()
-        def apply_network() -> None:
-            self.loader.call_provider(ProviderCall.save_network_config, payload)
-            self.editor.exit_edit_mode()
-            self.state.set_status("Saved Network -> Configure", "info")
-
-        def discard_network():
-            self.state.set_status("Discarded edits", "info")
-            self.editor.discard_form()
-
-        self._open_edit_confirm(
-            "Apply changes? Network reconnect may take a few seconds.",
-            on_apply=apply_network,
-            on_discard=discard_network,
-        )
+        return res.on_key(key, ch)
 
     def _open_edit_confirm(
         self,
@@ -181,9 +136,6 @@ class NetworkForm:
                 error = "bootstrap_port must be an integer"
         
         return error
-    
-    def on_press_enter(self):
-        pass
 
     @staticmethod
     def show_preview(payload: DSNodeConfig) -> Optional[List[str]]:
