@@ -45,12 +45,10 @@ class FrameKeyHandler:
         action = self.confirm.handle_key(key)
         if action == "confirm":
             self.confirm.close()
-            self.state.set_status("Choice confirmed")
             if self.confirm.on_apply is not None:
                 self.confirm.on_apply()
         elif action == "discard":
             self.confirm.close()
-            self.state.set_status("Changes discarded")
             if self.confirm.on_discard is not None:
                 self.confirm.on_discard()
 

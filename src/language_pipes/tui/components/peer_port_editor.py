@@ -1,4 +1,4 @@
-from typing import Callable, List
+from typing import Callable
 
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
@@ -6,13 +6,13 @@ from language_pipes.tui.content_loader import ContentLoader, ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 
 
-class NetworkIpEditor:
+class PeerPortEditor:
     confirm: Confirm
     loader: ContentLoader
     exit_editor: Callable
 
-    network_ip: str
-    valid_address: bool
+    peer_port_str: str
+    valid_port: bool
 
     def __init__(self, loader: ContentLoader, confirm: Confirm, exit_editor: Callable):
         self.exit_editor = exit_editor
@@ -22,8 +22,8 @@ class NetworkIpEditor:
 
     def restart(self):
         config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
-        self.network_ip = config.network_ip if config.network_ip is not None else ""
-        self.validate_address()
+        self.peer_port_str = str(config.port)
+        self.validate_port()
 
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.Enter:
@@ -37,59 +37,55 @@ class NetworkIpEditor:
         return True
 
     def on_enter(self):
-        if self.valid_address:
+        if self.valid_port:
             self.confirm.open(
-                f"Set {self.network_ip} as node IP address?",
-                on_apply=self.save_address,
-                confirm_msg=f"Saved {self.network_ip} as node IP address",
+                f"Set {self.peer_port_str} as peer port?",
+                on_apply=self.save_port,
+                confirm_msg=f"Saved {self.peer_port_str} as peer port",
                 on_discard=self.restart
             )
 
-    def save_address(self):
+    def save_port(self):
         config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
-        config.network_ip = self.network_ip
+        config.port = int(self.peer_port_str)
         self.loader.call_provider(ProviderCall.save_network_config, config)
         self.exit_editor()
 
     def on_char(self, ch: str):
-        self.network_ip += ch
-        self.validate_address()
+        self.peer_port_str += ch
+        self.validate_port()
 
-    def validate_address(self):
-        parts = self.network_ip.split(".")
-        self.valid_address = True
-        if len(parts) < 4:
-            self.valid_address = False
-            return
-        for part in parts:
-            try:
-                num = int(part)
-                if num < 0 or num > 255:
-                    self.valid_address = False
-            except ValueError:
-                self.valid_address = False
+    def validate_port(self):
+        valid = True
+        try:
+            res = int(self.peer_port_str)
+            if res < 0 or res > 65535:
+                valid = False
+        except Exception:
+            valid = False
+        self.valid_port = valid
 
     def on_backspace(self):
-        self.network_ip = self.network_ip[:-1]
-        self.validate_address()
+        self.peer_port_str = self.peer_port_str[:-1]
+        self.validate_port()
 
     def get_footer(self):
-        return "[A-Z]: Type IP Address   Backspace: delete char   Esc: Discard   Enter: Accept"
+        return "[A-Z]: Type Port   Backspace: delete char   Esc: Discard   Enter: Accept"
 
     def get_lines(self):
         lines = [
-            "Type the IP address other nodes can reach this node on",
+            "Type an available TCP port",
             "",
-            f"IP Address|> {self.network_ip}|"
+            f"Peer Port|> {self.peer_port_str}|"
         ]
 
-        if self.valid_address:
+        if self.valid_port:
             lines.extend([
-                "", "Valid IP!"
+                "", "Valid Port"
             ])
         else:
             lines.extend([
-                "", "Invalid IP Address"
+                "", "Invalid Port"
             ])
         
         return lines

@@ -7,9 +7,9 @@ from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.components.node_id_editor import NodeIdEditor
 from language_pipes.tui.content_loader import ContentLoader, ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
-from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 from language_pipes.tui.components.network_key_editor import NetworkKeyEditor
 from language_pipes.tui.components.network_ip_editor import NetworkIpEditor
+from language_pipes.tui.components.peer_port_editor import PeerPortEditor
 
 class NetworkForm:
     editor: Editor
@@ -31,6 +31,7 @@ class NetworkForm:
         self.node_id_editor = NodeIdEditor(loader, confirm, self.exit_field_editor)
         self.network_key_editor = NetworkKeyEditor(loader, confirm, self.exit_field_editor)
         self.network_ip_editor = NetworkIpEditor(loader, confirm, self.exit_field_editor)
+        self.peer_port_editor = PeerPortEditor(loader, confirm, self.exit_field_editor)
 
     def restart_field_editors(self):
         self.node_id_editor.restart()
@@ -47,6 +48,8 @@ class NetworkForm:
             return self.network_key_editor
         if current_field == "network_ip":
             return self.network_ip_editor
+        if current_field == "peer_port":
+            return self.peer_port_editor
 
     def back(self) -> bool:
         res = self.get_current_field_editor()
@@ -77,7 +80,8 @@ class NetworkForm:
             edit_fields=[
                 {"name": "node_id", "label": "Node ID", "value": str(cfg.node_id), "error": None},
                 {"name": "network_key", "label": "Netwok Key", "value": key_label, "error": None, "masked": True},
-                {"name": "network_ip", "label": "IP Address", "value": cfg.network_ip, "error": None}
+                {"name": "network_ip", "label": "IP Address", "value": cfg.network_ip, "error": None},
+                {"name": "peer_port", "label": "Peer Port", "value": cfg.port, "error": None}
             ],
             form=self
         )
