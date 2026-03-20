@@ -4,6 +4,7 @@ from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.content_loader import ContentLoader, ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.tui.components.network_form.util import validate_address
 
 
 class NetworkIpEditor:
@@ -56,18 +57,7 @@ class NetworkIpEditor:
         self.validate_address()
 
     def validate_address(self):
-        parts = self.network_ip.split(".")
-        self.valid_address = True
-        if len(parts) < 4:
-            self.valid_address = False
-            return
-        for part in parts:
-            try:
-                num = int(part)
-                if num < 0 or num > 255:
-                    self.valid_address = False
-            except ValueError:
-                self.valid_address = False
+        self.valid_address = validate_address(self.network_ip)
 
     def on_backspace(self):
         self.network_ip = self.network_ip[:-1]

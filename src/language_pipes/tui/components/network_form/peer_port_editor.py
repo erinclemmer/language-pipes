@@ -4,7 +4,7 @@ from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.content_loader import ContentLoader, ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
-
+from language_pipes.tui.components.network_form.util import validate_port
 
 class PeerPortEditor:
     confirm: Confirm
@@ -56,14 +56,7 @@ class PeerPortEditor:
         self.validate_port()
 
     def validate_port(self):
-        valid = True
-        try:
-            res = int(self.peer_port_str)
-            if res < 0 or res > 65535:
-                valid = False
-        except Exception:
-            valid = False
-        self.valid_port = valid
+        self.valid_port = validate_port(self.peer_port_str)
 
     def on_backspace(self):
         self.peer_port_str = self.peer_port_str[:-1]

@@ -7,6 +7,7 @@ from pathlib import Path
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.util.config import default_config_dir
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 from language_pipes.distributed_state_network.util.key_manager import CredentialManager
 
 AES_KEY_LEN = 32
@@ -22,7 +23,7 @@ class ContentProvider:
             port=data.get("peer_port", 5000),
             network_ip=data.get("network_ip", ContentProvider.detect_network_ip()),
             aes_key=data.get("aes_key", None),
-            bootstrap_nodes=data.get("bootstrap_nodes", []),
+            bootstrap_nodes=[Endpoint(d["address"], int(d["port"])) for d in  data.get("bootstrap_nodes", [])],
             whitelist_ips=[],
             whitelist_node_ids=[]
         )
@@ -36,9 +37,9 @@ class ContentProvider:
         data["aes_key"] = config.aes_key
         if len(config.bootstrap_nodes) > 0:
             data["bootstrap_nodes"] = [{
-                "address": config.bootstrap_nodes[0].address,
-                "port": config.bootstrap_nodes[0].port
-            }]
+                "address": n.address,
+                "port": n.port
+            } for n in config.bootstrap_nodes]
         with open(save_file, 'w', encoding='utf-8') as f:
             toml.dump(data, f)
 

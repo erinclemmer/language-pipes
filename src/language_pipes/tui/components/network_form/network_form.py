@@ -10,6 +10,7 @@ from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.tui.components.network_form.network_key_editor import NetworkKeyEditor
 from language_pipes.tui.components.network_form.network_ip_editor import NetworkIpEditor
 from language_pipes.tui.components.network_form.peer_port_editor import PeerPortEditor
+from language_pipes.tui.components.network_form.bootstrap_nodes_editor import BootstrapNodesEditor
 
 class NetworkForm:
     editor: Editor
@@ -32,6 +33,7 @@ class NetworkForm:
         self.network_key_editor = NetworkKeyEditor(loader, confirm, self.exit_field_editor)
         self.network_ip_editor = NetworkIpEditor(loader, confirm, self.exit_field_editor)
         self.peer_port_editor = PeerPortEditor(loader, confirm, self.exit_field_editor)
+        self.bootstrap_nodes_editor = BootstrapNodesEditor(loader, confirm, self.exit_field_editor)
 
     def restart_field_editors(self):
         self.node_id_editor.restart()
@@ -50,6 +52,8 @@ class NetworkForm:
             return self.network_ip_editor
         if current_field == "peer_port":
             return self.peer_port_editor
+        if current_field == "bootstrap_nodes":
+            return self.bootstrap_nodes_editor
 
     def back(self) -> bool:
         res = self.get_current_field_editor()
