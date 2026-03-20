@@ -146,8 +146,6 @@ class FrameLayout:
     def _render_form_content(self) -> None:
         tab = self.nav_state.active_tab()
         section = self.nav_state.active_side_option()
-        view_state = self._active_form_view_state()
-        fields = view_state.get("fields", [])
 
         lines = [
             f"{tab} / {section}",
@@ -159,10 +157,10 @@ class FrameLayout:
                 lines.extend(self.editor.form.get_editor_lines())
         else:
             lines.append("Edit Network Configuration:")
-            for idx, field in enumerate(fields):
+            for idx, field in enumerate(self.editor.edit_fields):
                 l_cursor = "|>" if idx == self.editor.edit_field_idx else "  "
                 r_cursor = "<|" if idx == self.editor.edit_field_idx else "  "
-                name = str(field.get("name", "field"))
+                name = str(field.get("label", "field"))
                 value = str(field.get("value", ""))
                 error = field.get("error")
                 lines.append(f" {l_cursor} {name}: {value} {r_cursor}")

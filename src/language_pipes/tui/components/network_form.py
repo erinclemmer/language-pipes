@@ -56,21 +56,13 @@ class NetworkForm:
             self.state.set_status(f"Failed to load network config: {ex}", "error")
             return
 
-        bootstrap_address = cfg.bootstrap_nodes[0].address if len(cfg.bootstrap_nodes) > 0 else ""
-        bootstrap_port = str(cfg.bootstrap_nodes[0].port) if len(cfg.bootstrap_nodes) > 0 else ""
-
-        key_label = str(cfg.aes_key)[:10] if cfg.aes_key is not None else ""
+        key_label = "*" * 10 if cfg.aes_key is not None else ""
         self.editor.start_edit_mode(
             form_name="network_config",
             edit_fields=[
                 {"name": "node_id", "label": "Node ID", "value": str(cfg.node_id), "error": None},
                 {"name": "network_key", "label": "Netwok Key", "value": key_label, "error": None, "masked": True},
-                {
-                    "name": "bootstrap_address",
-                    "value": bootstrap_address,
-                    "error": None,
-                },
-                {"name": "bootstrap_port", "value": str(bootstrap_port), "error": None},
+                {"name": "network_ip", "label": "IP Address", "value": cfg.network_ip, "error": None}
             ],
             form=self
         )

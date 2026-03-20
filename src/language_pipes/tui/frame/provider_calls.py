@@ -11,6 +11,8 @@ class ProviderCall(Enum):
     generate_aes_key = "generate_aes_key"
     validate_aes_key = "validate_aes_key"
 
+    detect_network_ip = "detect_network_ip"
+
     save_network_config = "save_network_config"
     list_models = "list_models"
     list_peers = "list_peers"

@@ -20,7 +20,7 @@ class ContentProvider:
             node_id=data.get("node_id", ""),
             credential_dir=default_config_dir() + "/credentials",
             port=data.get("peer_port", 5000),
-            network_ip=data.get("network_ip", "127.0.0.1"),
+            network_ip=data.get("network_ip", ContentProvider.detect_network_ip()),
             aes_key=data.get("aes_key", None),
             bootstrap_nodes=data.get("bootstrap_nodes", []),
             whitelist_ips=[],
@@ -71,5 +71,15 @@ class ContentProvider:
         try:
             bts = bytes.fromhex(key)
             return len(bts) == AES_KEY_LEN
-        except Exception as e:
+        except Exception:
             return False
+        
+    @staticmethod
+    def detect_network_ip() -> str:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+        finally:
+            s.close()
