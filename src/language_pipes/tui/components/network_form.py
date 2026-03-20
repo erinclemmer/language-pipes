@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import Callable, Optional, List
 
 from language_pipes.tui.frame.editor import Editor
@@ -32,14 +31,23 @@ class NetworkForm:
         self.node_id_editor = NodeIdEditor(loader, confirm, self.exit_field_editor)
         self.network_key_editor = NetworkKeyEditor(loader, confirm, self.exit_field_editor)
 
-    def enter_field_editor(self):
+    def restart_field_editors(self):
         self.node_id_editor.restart()
         self.network_key_editor.restart()
 
+    def back(self) -> bool:
+        res = self.editor.get_current_field()
+        if res is None: 
+            return True
+        current_field, _ = res
+        if current_field == "node_id":
+            return self.node_id_editor.back()
+        if current_field == "network_key":
+            return self.network_key_editor.back()
+        return True
+
     def exit_field_editor(self):
         self.editor.field_editor_visible = False
-        self.node_id_editor.restart()
-        self.network_key_editor.restart()
         self.start()
 
     def start(self) -> None:

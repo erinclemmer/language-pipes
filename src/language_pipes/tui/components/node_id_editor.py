@@ -23,10 +23,11 @@ class NodeIdEditor:
         self.new_node_id = ""
         self.selected_node_id = None
 
-    def restart(self):
+    def restart(self, reset_select: bool = True):
+        if reset_select:
+            self.select_idx = 0
         self.new_node_id = ""
         self.node_ids = []
-        self.select_idx = 0
         self.registering_node_id = False
 
     def on_key(self, key: PressedKey, ch: str):
@@ -53,11 +54,15 @@ class NodeIdEditor:
         if self.select_idx < 0:
             self.select_idx = len(self.node_ids)
 
+    def back(self) -> bool:
+        registering = self.registering_node_id
+        self.restart(False)
+        return not registering
+
     def on_enter(self):
         def discard_choice():
             self.restart()
             self.confirm.close()
-            self.exit_editor()
 
         if self.registering_node_id:
             if self.new_node_id == "":

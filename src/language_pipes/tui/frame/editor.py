@@ -46,7 +46,7 @@ class Editor:
     def change_field_editor(self, v: bool):
         self.field_editor_visible = v
         if v:
-            self.form.enter_field_editor()
+            self.form.restart_field_editors()
         else:
             self.form.exit_field_editor()
 

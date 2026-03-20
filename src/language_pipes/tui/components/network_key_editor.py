@@ -29,14 +29,20 @@ class NetworkKeyEditor:
         self.exit_editor = exit_editor
         self.restart()
 
-    def restart(self):
-        self.select_idx = 0
+    def restart(self, reset_select: bool = True):
+        if reset_select:
+            self.select_idx = 0
         self.state = NetworkKeyEditorState.LIST
         config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
         self.network_key = config.aes_key
         self.key_input = ""
         self.key_valid = False
         self.max_idx = 3 if self.network_key is not None and self.network_key != '' else 1
+
+    def back(self) -> bool:
+        exit_field_editor = self.state == NetworkKeyEditorState.LIST
+        self.restart(False)
+        return exit_field_editor
 
     def get_footer(self):
         return "Arrows U/D: Change choice   Enter: Confirm   Esc: Back"
@@ -83,14 +89,14 @@ class NetworkKeyEditor:
                     self.confirm.open(
                         f"Save this network key?\n{self.key_input[:32]}\n{self.key_input[32:]}",
                         on_apply=self.save_key_input,
-                        on_discard=self.exit_editor,
+                        on_discard=self.back,
                         confirm_msg=f"Saved network key!\n{self.key_input[:32]}\n{self.key_input[32:]}"
                     )
         elif self.select_idx == 1:
             self.confirm.open(
                 "Generate a new network key?",
                 on_apply=self.generate_key,
-                on_discard=self.exit_editor,
+                on_discard=self.back,
                 confirm_msg="New network key generated"
             )
         elif self.select_idx == 2:
@@ -103,7 +109,7 @@ class NetworkKeyEditor:
                 "Delete the current network key?\n\nThis will open the network to all\nconnections unless a whitelist is set.",
                 on_apply=self.delete_key,
                 confirm_msg="Network key deleted",
-                on_discard=self.exit_editor
+                on_discard=self.back
             )
 
     def generate_key(self):

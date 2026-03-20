@@ -136,7 +136,8 @@ class FrameKeyHandler:
     def _handle_edit_mode_key(self, key: PressedKey, ch: str) -> None:
         if key == PressedKey.Escape:
             if self.editor.field_editor_visible:
-                self.editor.change_field_editor(False)
+                if self.editor.form.back():
+                    self.editor.change_field_editor(False)
             else:
                 self._discard_form()
                 self.nav.focus_shallower()
