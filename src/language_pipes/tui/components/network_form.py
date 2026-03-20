@@ -57,7 +57,6 @@ class NetworkForm:
 
     def exit_field_editor(self):
         self.editor.field_editor_visible = False
-        self.start()
 
     def start(self) -> None:
         if not self.loader.provider_available(ProviderCall.get_network_config):
