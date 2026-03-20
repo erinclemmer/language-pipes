@@ -3,7 +3,7 @@ ViewState helpers: building and formatting view-state dicts for each section.
 """
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from language_pipes.tui.frame.provider_calls import ProviderCall
-from language_pipes.tui.components.network_form import NetworkForm
+from language_pipes.tui.components.network_form.network_form import NetworkForm
 
 
 def build_view_state(

@@ -4,7 +4,7 @@ from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
-from language_pipes.tui.components.network_form import NetworkForm
+from language_pipes.tui.components.network_form.network_form import NetworkForm
 from language_pipes.tui.components.exit_confirm import ExitConfirm
 
 class FrameKeyHandler:

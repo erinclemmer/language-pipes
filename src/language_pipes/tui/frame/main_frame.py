@@ -9,7 +9,7 @@ from language_pipes.tui.frame.layout import FrameLayout
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.content_loader import ContentLoader
-from language_pipes.tui.components.network_form import NetworkForm
+from language_pipes.tui.components.network_form.network_form import NetworkForm
 from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.frame.frame_key_handler import FrameKeyHandler
 
