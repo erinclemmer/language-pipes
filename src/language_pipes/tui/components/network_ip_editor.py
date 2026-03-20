@@ -18,12 +18,13 @@ class NetworkIpEditor:
         self.exit_editor = exit_editor
         self.confirm = confirm
         self.loader = loader
-        self.network_ip = ""
-        self.valid_address = False
+        self.restart()
+        
 
     def restart(self):
         config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
         self.network_ip = config.network_ip if config.network_ip is not None else ""
+        self.valid_address = False
 
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.Enter:
@@ -41,7 +42,7 @@ class NetworkIpEditor:
             self.confirm.open(
                 f"Set {self.network_ip} as node IP address?",
                 on_apply=self.save_address,
-                confirm_msg=f"Set {self.network_ip} as node IP address",
+                confirm_msg=f"Saved {self.network_ip} as node IP address",
                 on_discard=self.restart
             )
 

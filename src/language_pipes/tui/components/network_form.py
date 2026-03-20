@@ -2,7 +2,6 @@ from typing import Callable, Optional, List
 
 from language_pipes.tui.frame.editor import Editor
 from language_pipes.tui.util.kb_utils import PressedKey
-from language_pipes.util.config import default_config_dir
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.components.node_id_editor import NodeIdEditor
@@ -46,7 +45,7 @@ class NetworkForm:
             return self.node_id_editor
         if current_field == "network_key":
             return self.network_key_editor
-        if current_field == "network IP":
+        if current_field == "network_ip":
             return self.network_ip_editor
 
     def back(self) -> bool:
