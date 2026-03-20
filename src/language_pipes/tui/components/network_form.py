@@ -103,6 +103,13 @@ class NetworkKeyEditor:
                 self.state = NetworkKeyEditorState.SHOW
             elif self.state == NetworkKeyEditorState.SHOW:
                 self.exit_editor()
+        elif self.select_idx == 3:
+            self.confirm.open(
+                "Delete the current network key?\n\nThis will open the network to all\nconnections unless a whitelist is set.",
+                on_apply=self.delete_key,
+                confirm_msg="Network key deleted",
+                on_discard=self.exit_editor
+            )
 
     def generate_key(self):
         config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
@@ -113,6 +120,12 @@ class NetworkKeyEditor:
     def save_key_input(self):
         config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
         config.aes_key = self.key_input
+        self.loader.call_provider(ProviderCall.save_network_config, config)
+        self.exit_editor()
+
+    def delete_key(self):
+        config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+        config.aes_key = None
         self.loader.call_provider(ProviderCall.save_network_config, config)
         self.exit_editor()
 
@@ -216,11 +229,12 @@ class NetworkForm:
         bootstrap_address = cfg.bootstrap_nodes[0].address if len(cfg.bootstrap_nodes) > 0 else ""
         bootstrap_port = str(cfg.bootstrap_nodes[0].port) if len(cfg.bootstrap_nodes) > 0 else ""
 
+        key_label = str(cfg.aes_key)[:10] if cfg.aes_key is not None else ""
         self.editor.start_edit_mode(
             form_name="network_config",
             edit_fields=[
                 {"name": "node_id", "label": "Node ID", "value": str(cfg.node_id), "error": None},
-                {"name": "network_key", "label": "Netwok Key", "value": str(cfg.aes_key)[:10], "error": None, "masked": True},
+                {"name": "network_key", "label": "Netwok Key", "value": key_label, "error": None, "masked": True},
                 {
                     "name": "bootstrap_address",
                     "value": bootstrap_address,

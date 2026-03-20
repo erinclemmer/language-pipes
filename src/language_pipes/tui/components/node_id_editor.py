@@ -112,7 +112,10 @@ class NodeIdEditor:
         lines = []
 
         if self.registering_node_id:
-            lines.append(f"New Node ID: {self.new_node_id}")
+            lines.extend([
+                "Type a node ID to register"
+                f"New Node ID: {self.new_node_id}"
+            ])
         else:
             self.node_ids: List[str] = self.loader.call_provider(ProviderCall.get_registered_node_ids)
             if len(self.node_ids) > 0:

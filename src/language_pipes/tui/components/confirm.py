@@ -74,20 +74,10 @@ class Confirm:
         return "\n".join(lines)
 
     def get_prompt_lines(self) -> str:
-        lines = [
-            "Confirm edit action",
-            "",
-            self.message,
-            "",
-            "Use arrows to choose an option, then press Enter:",
-        ]
+        lines = [self.message]
         for i, opt in enumerate(self.OPTIONS):
             cursor = ">" if i == self.choice_idx else " "
             lines.append(f"{cursor} {opt}")
-        lines.extend([
-            "",
-            "Esc: close confirmation   Enter: confirm choice",
-        ])
         return "\n".join(lines)
 
     def handle_key(self, key: PressedKey) -> str:

@@ -171,7 +171,7 @@ class FrameLayout:
 
         tip = ""
         res = self.editor.get_current_field()
-        if res is not None and res[0] in TIPS["network"]["configure"]:
+        if not self.editor.field_editor_visible and res is not None and res[0] in TIPS["network"]["configure"]:
             tip = TIPS["network"]["configure"][res[0]]
 
         lines.extend([
@@ -236,17 +236,17 @@ class FrameLayout:
 
     def _footer_text(self) -> str:
         if self.exit_confirm.is_open:
-            return "Confirm Exit: Arrows U/D to choose   Enter: Confirm   Esc: Cancel"
+            return "Arrows: Navigate   Enter: Select   Esc: Cancel"
         if self.edit_confirm.is_open:
-            return "Confirm Edit: Arrows U/D to choose   Enter: Confirm   Esc: Cancel"
+            return "Arrows: Navigate   Enter: Select   Esc: Cancel"
         if self.editor.edit_mode:
             if self.editor.field_editor_visible:
                 return self.editor.form.get_footer()
             else:
-                return "Arrows U/D: Switch field   Enter: Next   Esc: Discard"
+                return "Arrows: Navigate   Enter: Next   Esc: Back"
         if self.nav_state.focus_depth == 0:
             return "Arrows L/R: Switch Tab   Enter: Side Nav   Esc: Back/Quit Options   q: Exit"
         if self.nav_state.focus_depth == 1:
             return "Arrows U/D: Switch Section   Enter: Content   Esc: Top Tabs   q: Exit"
-        return "Arrows U/D: Navigate Placeholder   Enter: Activate   r: Refresh   Esc: Back   q: Exit"
+        return ""
 
