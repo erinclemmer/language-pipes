@@ -91,6 +91,7 @@ class FrameKeyHandler:
         if key == PressedKey.Escape:
             if self.nav.focus_depth > 0:
                 self.nav.focus_shallower()
+                self.state.set_status("Changing Tab")
             else:
                 self._open_exit_confirm()
             return
@@ -98,6 +99,7 @@ class FrameKeyHandler:
         if key == PressedKey.Enter:
             if self.nav.focus_depth < 1:
                 self.nav.focus_deeper()
+                self.state.set_status("Changing Section")
             else:
                 self.nav.focus_deeper()
                 self.activate_selection()
@@ -106,19 +108,15 @@ class FrameKeyHandler:
         if self.nav.focus_depth == 0:
             if key == PressedKey.ArrowRight:
                 self.nav.tab_next()
-                self.state.clear_status()
             elif key == PressedKey.ArrowLeft:
                 self.nav.tab_prev()
-                self.state.clear_status()
             return
 
         if self.nav.focus_depth == 1:
             if key == PressedKey.ArrowDown:
                 self.nav.side_next(self.layout.side_nav)
-                self.state.clear_status()
             elif key == PressedKey.ArrowUp:
                 self.nav.side_prev(self.layout.side_nav)
-                self.state.clear_status()
             return
 
         if self.nav.focus_depth == 2:
@@ -142,6 +140,7 @@ class FrameKeyHandler:
             else:
                 self._discard_form()
                 self.nav.focus_shallower()
+                self.state.set_status("Changing section")
         elif key == PressedKey.ArrowUp:
             self.editor.prev_field()
         elif key == PressedKey.ArrowDown:

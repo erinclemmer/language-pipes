@@ -71,7 +71,7 @@ class NodeIdEditor:
                 self.loader.call_provider(ProviderCall.save_network_config, config)
                 self.confirm.close()
                 self.exit_editor()
-            self.confirm.open(f"Register \"{self.new_node_id}\"?", save_node_id, discard_choice)
+            self.confirm.open(f"Register \"{self.new_node_id}\"?", save_node_id, discard_choice, f"Registered new keys for {self.new_node_id}\nand set to current node ID")
             return
 
         if self.select_idx == len(self.node_ids):
@@ -84,7 +84,7 @@ class NodeIdEditor:
                 self.loader.call_provider(ProviderCall.save_network_config, config)
                 self.confirm.close()
                 self.exit_editor()
-            self.confirm.open(f"Use \"{selected_node_id}\"?", use_node_id, discard_choice)
+            self.confirm.open(f"Use \"{selected_node_id}\"?", use_node_id, discard_choice, f"Set node ID to {selected_node_id}")
 
     def on_char(self, ch: str):
         self.new_node_id += ch
@@ -100,21 +100,22 @@ class NodeIdEditor:
 
         def on_discard():
             pass
-        self.confirm.open(f"Unregister \"{selected_node_id}\"", on_apply, on_discard)
+        self.confirm.open(f"Unregister \"{selected_node_id}\"", on_apply, on_discard, f"Deleted keys for {selected_node_id}")
 
     def get_footer(self):
         if self.registering_node_id:
             return "[A-Z]: Type node ID   Backspace: delete char   Esc: Discard   Enter: Accept"
         else:
-            return "Arrows: Switch   Enter: Select   Esc: Discard   Delete: Unregister"
+            return "Arrows U/D: Change choice   Enter: Select   Esc: Discard   Delete: Unregister"
 
     def get_lines(self):
         lines = []
 
         if self.registering_node_id:
             lines.extend([
-                "Type a node ID to register"
-                f"New Node ID: {self.new_node_id}"
+                "Type a new node ID then press Enter to save",
+                "",
+                f"New Node ID|> {self.new_node_id}|"
             ])
         else:
             self.node_ids: List[str] = self.loader.call_provider(ProviderCall.get_registered_node_ids)
