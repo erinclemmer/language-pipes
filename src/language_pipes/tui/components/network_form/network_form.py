@@ -81,7 +81,8 @@ class NetworkForm:
                 {"name": "node_id", "label": "Node ID", "value": str(cfg.node_id), "error": None},
                 {"name": "network_key", "label": "Netwok Key", "value": key_label, "error": None, "masked": True},
                 {"name": "network_ip", "label": "IP Address", "value": cfg.network_ip, "error": None},
-                {"name": "peer_port", "label": "Peer Port", "value": cfg.port, "error": None}
+                {"name": "peer_port", "label": "Peer Port", "value": cfg.port, "error": None},
+                {"name": "bootstrap_nodes", "label": "Bootstrap Nodes", "value": f"{len(cfg.bootstrap_nodes)} nodes"}
             ],
             form=self
         )
