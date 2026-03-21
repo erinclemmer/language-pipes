@@ -387,8 +387,6 @@ class DSNode:
         if not self.update_state(pkt):
             return b''
 
-        self.add_log(f"Received UPDATE from {pkt.node_id}", "INFO")
-
         if self.update_cb is not None:
             try:
                 self.update_cb()

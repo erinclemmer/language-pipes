@@ -87,7 +87,7 @@ class FrameKeyHandler:
         tab = self.nav.active_tab()
         section = self.nav.active_side_option()
         prop = (tab, section)
-        if prop in self.page_cbs:
+        if self.nav.focus_depth == 2 and prop in self.page_cbs and key != PressedKey.Escape:
             self.page_cbs[prop](key, self.layout.loader)
             return
 
