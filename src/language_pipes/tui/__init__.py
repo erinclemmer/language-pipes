@@ -16,6 +16,8 @@ def initialize_tui():
         entered_alt_screen = True
 
         main_menu((term_size.columns, term_size.lines))
+    except Exception as e:
+        print(e)
     finally:
         if entered_alt_screen:
             exit_vt_mode()

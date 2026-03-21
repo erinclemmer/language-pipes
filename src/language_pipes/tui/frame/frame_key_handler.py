@@ -1,3 +1,5 @@
+from typing import Tuple, Dict, Callable
+
 from language_pipes.tui.frame.editor import Editor
 from language_pipes.tui.frame.layout import FrameLayout
 from language_pipes.tui.util.kb_utils import PressedKey
@@ -6,6 +8,7 @@ from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.components.network_form.network_form import NetworkForm
 from language_pipes.tui.components.exit_confirm import ExitConfirm
+from language_pipes.tui.components.network_status import network_status_on_key
 
 class FrameKeyHandler:
     nav: NavState
@@ -15,6 +18,9 @@ class FrameKeyHandler:
     layout: FrameLayout
     network_form: NetworkForm
     exit_confirm: ExitConfirm
+    page_cbs: Dict[Tuple[str, str], Callable] = {
+        ("Network", "Status"): network_status_on_key
+    }
 
     def __init__(self, layout: FrameLayout, network_form: NetworkForm):
         self.state = layout.state
@@ -76,6 +82,13 @@ class FrameKeyHandler:
 
         if self.editor.edit_mode:
             self._handle_edit_mode_key(key, ch)
+            return
+        
+        tab = self.nav.active_tab()
+        section = self.nav.active_side_option()
+        prop = (tab, section)
+        if prop in self.page_cbs:
+            self.page_cbs[prop](key, self.layout.loader)
             return
 
         if key == PressedKey.Alpha and ch.lower() == "q":

@@ -56,9 +56,9 @@ class MainFrame:
         self.key_handler.activate_selection()
 
     def frame_render_thread(self):
-        self.layout._render_all()
-        sleep(0.1)
-        Thread(target=self.frame_render_thread, args=()).start()
+        while True:
+            self.layout._render_all()
+            sleep(0.1)
 
     def run(self) -> str:
         self.state.startup()

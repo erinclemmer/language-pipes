@@ -176,7 +176,7 @@ class TuiWindow(TuiGrid):
         except Exception:
             return
 
-        if v is not None and v.value == txtObj.text.value and pos is None:
+        if v is not None and v.value == txtObj.text.value and v.fg == txtObj.text.fg and pos is None:
             return
 
         self.clear_text(id)

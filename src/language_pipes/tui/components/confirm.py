@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Callable, Optional, Tuple
+from typing import List, Callable, Optional
 
 from language_pipes.tui.util.kb_utils import PressedKey
 

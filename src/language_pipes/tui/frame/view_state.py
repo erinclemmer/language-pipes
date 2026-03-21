@@ -86,10 +86,11 @@ def format_network(tab: str, section: str, payload: Any) -> Dict[str, Any]:
                 "[O] Server Running" if data.running else "[.] Server Starting",
                 f"{data.num_peers} peer(s) connected",
                 "",
-                " |> Stop Server <|", "", 
+                " |> Stop Server <|" if data.running else " |> Start Server <|",
+                "", 
                 "Logs:"
             ]
-            details.extend(data.logs[:-5] if len(data.logs) > 5 else data.logs)
+            details.extend(data.logs[-5:] if len(data.logs) > 5 else data.logs)
         return build_view_state(
             "ok",
             "Network:",
