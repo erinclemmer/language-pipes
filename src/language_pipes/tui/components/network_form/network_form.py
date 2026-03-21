@@ -1,4 +1,4 @@
-from typing import Callable, Optional, List
+from typing import Callable, Optional, List, Dict, Any
 
 from language_pipes.tui.frame.editor import Editor
 from language_pipes.tui.util.kb_utils import PressedKey
@@ -38,6 +38,9 @@ class NetworkForm:
     def restart_field_editors(self):
         self.node_id_editor.restart()
         self.network_key_editor.restart()
+        self.bootstrap_nodes_editor.restart()
+        self.network_ip_editor.restart()
+        self.peer_port_editor.restart()
 
     def get_current_field_editor(self):
         res = self.editor.get_current_field()
@@ -63,6 +66,7 @@ class NetworkForm:
 
     def exit_field_editor(self):
         self.editor.field_editor_visible = False
+        self.editor.edit_fields = self.get_edit_fields()
 
     def start(self) -> None:
         if not self.loader.provider_available(ProviderCall.get_network_config):
@@ -72,25 +76,32 @@ class NetworkForm:
             self.state.set_status("Provider 'save_network_config' unavailable; edit disabled", "error")
             return
 
+        
+        self.editor.start_edit_mode(
+            form_name="network_config",
+            edit_fields=self.get_edit_fields(),
+            form=self
+        )
+        res = self.get_current_field_editor()
+        if res is not None:
+            res.restart()
+        self.set_status()
+
+    def get_edit_fields(self) -> List[Dict[str, Optional[Any]]]:
         try:
             cfg = self.loader.call_provider(ProviderCall.get_network_config)
         except Exception as ex:
             self.state.set_status(f"Failed to load network config: {ex}", "error")
-            return
+            return []
 
         key_label = "*" * 10 if cfg.aes_key is not None else ""
-        self.editor.start_edit_mode(
-            form_name="network_config",
-            edit_fields=[
-                {"name": "node_id", "label": "Node ID", "value": str(cfg.node_id), "error": None},
-                {"name": "network_key", "label": "Netwok Key", "value": key_label, "error": None, "masked": True},
-                {"name": "network_ip", "label": "IP Address", "value": cfg.network_ip, "error": None},
-                {"name": "peer_port", "label": "Peer Port", "value": cfg.port, "error": None},
-                {"name": "bootstrap_nodes", "label": "Bootstrap Nodes", "value": f"{len(cfg.bootstrap_nodes)} nodes"}
-            ],
-            form=self
-        )
-        self.set_status()
+        return [
+            {"name": "node_id", "label": "Node ID", "value": str(cfg.node_id), "error": None},
+            {"name": "network_key", "label": "Netwok Key", "value": key_label, "error": None, "masked": True},
+            {"name": "network_ip", "label": "IP Address", "value": cfg.network_ip, "error": None},
+            {"name": "peer_port", "label": "Peer Port", "value": cfg.port, "error": None},
+            {"name": "bootstrap_nodes", "label": "Bootstrap Nodes", "value": f"{len(cfg.bootstrap_nodes)} node(s)"}
+        ]
     
     def set_status(self):
         self.state.set_status("Editing Network -> Configure", "info")

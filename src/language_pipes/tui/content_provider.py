@@ -35,11 +35,12 @@ class ContentProvider:
             data = toml.loads(save_file.read_text())
         data["node_id"] = config.node_id
         data["aes_key"] = config.aes_key
-        if len(config.bootstrap_nodes) > 0:
-            data["bootstrap_nodes"] = [{
-                "address": n.address,
-                "port": n.port
-            } for n in config.bootstrap_nodes]
+        data["network_ip"] = config.network_ip
+        data["peer_port"] = config.port
+        data["bootstrap_nodes"] = [{
+            "address": n.address,
+            "port": n.port
+        } for n in config.bootstrap_nodes]
         with open(save_file, 'w', encoding='utf-8') as f:
             toml.dump(data, f)
 

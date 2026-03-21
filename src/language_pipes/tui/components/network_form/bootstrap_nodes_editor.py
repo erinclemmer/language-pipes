@@ -79,8 +79,9 @@ class BootstrapNodesEditor:
 
     def back(self) -> bool:
         adding = self.adding_bootstrap_node
-        self.restart(False)
-        return not adding
+        if adding:
+            self.restart(False)
+        return not adding or len(self.bootstrap_nodes) == 0
 
     def on_enter(self):
         def discard_choice():
@@ -125,7 +126,7 @@ class BootstrapNodesEditor:
         selected_node = self.bootstrap_nodes[self.select_idx]
         def on_apply():
             config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
-            config.bootstrap_nodes = [n for i, n in enumerate(self.bootstrap_nodes) if i == self.select_idx]
+            config.bootstrap_nodes = [n for i, n in enumerate(self.bootstrap_nodes) if i != self.select_idx]
             self.loader.call_provider(ProviderCall.save_network_config, config)
             self.restart()
 
