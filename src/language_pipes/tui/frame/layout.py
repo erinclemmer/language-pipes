@@ -15,6 +15,7 @@ from language_pipes.tui.frame.tips import TIPS
 class FrameLayout:
     content_id: int
     footer_id: int
+    status_text: str
 
     editor: Editor
     top_nav: TopNav
@@ -43,6 +44,7 @@ class FrameLayout:
         self.edit_confirm = edit_confirm
         self.state = state
         self.editor = editor
+        self.status_text = ""
 
     def _init_layout(self, size: Tuple[int, int], pos: Tuple[int, int]):
         self.window.add_text(TermText("_" * (size[0] - 2)), (1, 2))
@@ -177,7 +179,10 @@ class FrameLayout:
             fg = Color.BrightYellow
         if lvl == "ERROR":
             fg = Color.BrightRed
-        self.window.update_text(self.status_id, TermText(f"[{lvl}] {msg}", fg))
+        status_text = f"[{lvl}] {msg}"
+        if self.status_text != status_text:
+            self.status_text = status_text
+            self.window.update_text(self.status_id, TermText(f"[{lvl}] {msg}", fg))
 
     def _render_all(self):
         self._sync_navigation()

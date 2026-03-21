@@ -28,7 +28,6 @@ class SideNav:
         self.r_cursor_id = self.window.add_text(TermText(" "), (self.window.size[0] - 1, 0))
 
         self.set_options(options)
-        self.window.paint()
 
     def _cursor_y(self) -> int:
         return self.focused_idx * 2
@@ -68,10 +67,16 @@ class SideNav:
         self._update_option_styles()
 
     def set_focus(self, is_focused: bool):
+        if is_focused == self.is_focused:
+            return
+        
         self.is_focused = is_focused
         self._update_option_styles()
 
     def set_options(self, options: List[str]):
+        if options == self.options:
+            return
+        
         for option_id in self.option_ids:
             self.window.remove_txt(option_id)
 

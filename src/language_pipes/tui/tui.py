@@ -173,6 +173,9 @@ class TuiWindow(TuiGrid):
             raise Exception("TuiWindow must use TermText")
         txtObj = self.get_text(id)
 
+        if v is not None and v.value == txtObj.text.value and pos is None:
+            return
+
         self.clear_text(id)
 
         if v is not None:

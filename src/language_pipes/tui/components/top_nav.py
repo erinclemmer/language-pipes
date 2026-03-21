@@ -51,7 +51,7 @@ class TopNav:
         self._update_styles()
 
     def set_focus(self, is_focused: bool):
+        if is_focused == self.is_focused:
+            return
         self.is_focused = is_focused
         self._update_styles()
-
-        self.window.paint()
