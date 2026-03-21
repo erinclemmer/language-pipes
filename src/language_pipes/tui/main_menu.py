@@ -56,6 +56,8 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
     window.remove_all()
     window.paint()
 
+    content_provider = ContentProvider()
+
     providers = {
         ProviderCall.get_network_config: lambda: ContentProvider.get_network_config(config_file),
         ProviderCall.save_network_config: lambda data: ContentProvider.save_network_config(config_file, data),
@@ -64,7 +66,8 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         ProviderCall.save_new_node_id: ContentProvider.save_new_node_id,
         ProviderCall.generate_aes_key: ContentProvider.generate_aes_key,
         ProviderCall.validate_aes_key: ContentProvider.validate_aes_key,
-        ProviderCall.detect_network_ip: ContentProvider.detect_network_ip
+        ProviderCall.detect_network_ip: ContentProvider.detect_network_ip,
+        ProviderCall.start_network: lambda: content_provider.start_router(config_file)
     }
 
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)
@@ -89,6 +92,10 @@ def main_menu(termsize: Tuple[int, int]):
     cred_dir = str(Path(app_dir) / "credentials")
     if not os.path.exists(cred_dir):
         Path(cred_dir).mkdir(parents=True)
+    
+    log_dir = str(Path(app_dir) / "logs")
+    if not os.path.exists(log_dir):
+        Path(log_dir).mkdir(parents=True)
 
     if not os.path.exists(model_dir):
         Path(model_dir).mkdir(parents=True)

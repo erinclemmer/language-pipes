@@ -37,7 +37,7 @@ class MainFrame:
         self.loader = ContentLoader(providers)
         self.confirm = Confirm()
         self.nav = NavState(self.TOP_HEADERS, self.SIDE_OPTIONS_BY_TAB)
-        self.network_form = NetworkForm(self.loader, self.state, self.editor, self.confirm)
+        self.network_form = NetworkForm(self.loader, self.state, self.editor, self.confirm, self.change_nav)
         self.layout = FrameLayout(self.window, self.nav, self.editor, self.loader, self.exit_confirm, self.confirm, self.state)
         self.key_handler = FrameKeyHandler(self.layout, self.network_form)
 
@@ -46,9 +46,12 @@ class MainFrame:
         self._init_view()
         self.layout._render_all()
 
+    def change_nav(self, tab: str, section: str):
+        self.nav.set_tab(tab)
+        self.nav.set_side_nav(self.layout.side_nav, section)
+
     def _init_view(self):
-        self.nav.set_tab("Network")
-        self.nav.set_side_nav(self.layout.side_nav, "Configure")
+        self.change_nav("Network", "Configure")
         self.key_handler.activate_selection()
 
     def run(self) -> str:

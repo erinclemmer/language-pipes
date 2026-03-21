@@ -3,6 +3,7 @@ import random
 import logging
 import threading
 import requests
+from datetime import datetime
 from typing import Dict, List, Optional, Callable
 
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
@@ -66,6 +67,9 @@ class DSNode:
         }
         
         self.logger = logging.getLogger("DSN: " + config.node_id)
+        date_suffix = datetime.now().strftime("%d_%m_%Y")
+        log_filename = f"{self.config.logging_dir}/language_pipes_{date_suffix}.log"
+        logging.basicConfig(filename=log_filename, level=logging.INFO)
         self.disconnect_cb = disconnect_callback
         self.update_cb = update_callback
         self.receive_cb = receive_callback
@@ -341,7 +345,7 @@ class DSNode:
             self.config.node_id, 
             self.my_con(), 
             self.cred_manager.my_public(), 
-            None,
+            b'',
             None  # No certificate for HTTP
         )
         pkt.sign(self.cred_manager.my_private())

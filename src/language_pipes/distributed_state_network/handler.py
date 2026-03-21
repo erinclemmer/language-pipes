@@ -11,7 +11,6 @@ from language_pipes.distributed_state_network.util.aes import generate_aes_key
 from language_pipes.distributed_state_network.util import stop_thread
 
 VERSION = "0.7.0"
-logging.basicConfig(level=logging.INFO)
 
 # Silence Flask and Werkzeug logging
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
@@ -197,7 +196,7 @@ class DSNodeServer:
                     n.node.bootstrap(bs)
                     break # Throws exception if connection is not made
                 except Exception as e:
-                    print(e)
+                    n.node.logger.error(e)
 
         return n
 

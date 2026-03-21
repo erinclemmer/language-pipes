@@ -1,6 +1,7 @@
 import os
 import toml
 import shutil
+from threading import Thread
 from typing import List, Optional, Dict
 from pathlib import Path
 
@@ -11,24 +12,32 @@ from language_pipes.distributed_state_network.handler import DSNodeServer
 from language_pipes.distributed_state_network.objects.state_packet import StatePacket
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 from language_pipes.distributed_state_network.util.key_manager import CredentialManager
+from language_pipes.distributed_state_network.util import stop_thread
 
 AES_KEY_LEN = 32
 
 class ContentProvider:
     router: Optional[DSNodeServer]
+    router_thread: Optional[Thread]
 
     def __init__(self):
         self.router = None
+        self.router_thread = None
 
     def start_router(self, config_file: Path):
         config = ContentProvider.get_network_config(config_file)
-        self.router = DSNodeServer.start(config)
+        def start():
+            self.router = DSNodeServer.start(config)
+        self.router_thread = Thread(target=start, args=())
+        self.router_thread.start()
 
     def stop_router(self):
-        if self.router is None:
+        if self.router is None or self.router_thread is None:
             return
         self.router.stop()
+        stop_thread(self.router_thread)
         self.router = None
+        self.router_thread = None
 
     def get_router_status(self) -> bool:
         return self.router is None
@@ -45,6 +54,7 @@ class ContentProvider:
         return DSNodeConfig(
             node_id=data.get("node_id", ""),
             credential_dir=default_config_dir() + "/credentials",
+            logging_dir=default_config_dir() + "/logs",
             port=data.get("peer_port", 5000),
             network_ip=data.get("network_ip", ContentProvider.detect_network_ip()),
             aes_key=data.get("aes_key", None),
