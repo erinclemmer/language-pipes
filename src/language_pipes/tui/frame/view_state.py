@@ -89,7 +89,7 @@ def format_network(tab: str, section: str, payload: Any) -> Dict[str, Any]:
                 " |> Stop Server <|", "", 
                 "Logs:"
             ]
-            details.extend(data.logs[:-5])
+            details.extend(data.logs[:-5] if len(data.logs) > 5 else data.logs)
         return build_view_state(
             "ok",
             "Network:",

@@ -67,7 +67,7 @@ class ContentProvider:
         
         return RouterStatus(
             running=True,
-            num_peers=len(self.router.node.node_states.keys()),
+            num_peers=len(self.router.node.node_states.keys()) - 1,
             logs=self.router.node.logs
         )
     

@@ -171,7 +171,10 @@ class TuiWindow(TuiGrid):
     def update_text(self, id: int, v: Optional[TermText], pos: Optional[Tuple[int, int]] = None):
         if v is not None and not isinstance(v, TermText):
             raise Exception("TuiWindow must use TermText")
-        txtObj = self.get_text(id)
+        try:
+            txtObj = self.get_text(id)
+        except Exception:
+            return
 
         if v is not None and v.value == txtObj.text.value and pos is None:
             return

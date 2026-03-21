@@ -78,23 +78,23 @@ class DSNode:
 
         # Validate configured AES key eagerly so bad/legacy key formats fail fast.
         self.get_aes_key()
+        self.add_log("Network Server Started")
         
         threading.Thread(target=self.network_tick, daemon=True).start()
 
     def add_log(self, msg: str, level: str = "INFO"):
-        timestamp = datetime.now().strftime('%d/%m/%Y %I:%M:%S %p')
-        log_msg = f"{timestamp} {msg}"
+        timestamp = datetime.now().strftime('%I:%M:%S %p')
         if level.upper() == "INFO":
-            self.logger.info(log_msg)
+            self.logger.info(msg)
         elif level.upper() == "ERROR":
-            self.logger.error(log_msg)
+            self.logger.error(msg)
         elif level.upper() == "DEBUG":
-            self.logger.debug(log_msg)
+            self.logger.debug(msg)
         elif level.upper() == "WARNING":
-            self.logger.warning(log_msg)
+            self.logger.warning(msg)
         else:
-            self.logger.info(log_msg)
-        self.logs.append(log_msg)
+            self.logger.info(msg)
+        self.logs.append(f"{timestamp} | {msg}")
 
     def get_aes_key(self) -> Optional[bytes]:
         if self.config.aes_key is None:

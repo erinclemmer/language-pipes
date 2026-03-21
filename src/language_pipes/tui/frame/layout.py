@@ -125,7 +125,7 @@ class FrameLayout:
         ]
 
         if detail_lines:
-            content_parts.extend(["", "Details:", *detail_lines])
+            content_parts.extend(detail_lines)
 
 
         self.window.update_text(self.content_id, TermText("\n".join(content_parts)))
