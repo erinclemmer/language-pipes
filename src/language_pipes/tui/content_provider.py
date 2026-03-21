@@ -25,7 +25,7 @@ class ContentProvider:
             aes_key=data.get("aes_key", None),
             bootstrap_nodes=[Endpoint(d["address"], int(d["port"])) for d in  data.get("bootstrap_nodes", [])],
             whitelist_ips=[],
-            whitelist_node_ids=[]
+            whitelist_node_ids=data.get("whitelist_node_ids", [])
         )
     
     @staticmethod
@@ -41,6 +41,7 @@ class ContentProvider:
             "address": n.address,
             "port": n.port
         } for n in config.bootstrap_nodes]
+        data["whitelist_node_ids"] = config.whitelist_node_ids
         with open(save_file, 'w', encoding='utf-8') as f:
             toml.dump(data, f)
 

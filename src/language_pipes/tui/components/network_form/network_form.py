@@ -7,9 +7,10 @@ from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.components.network_form.node_id_editor import NodeIdEditor
 from language_pipes.tui.content_loader import ContentLoader, ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
-from language_pipes.tui.components.network_form.network_key_editor import NetworkKeyEditor
-from language_pipes.tui.components.network_form.network_ip_editor import NetworkIpEditor
 from language_pipes.tui.components.network_form.peer_port_editor import PeerPortEditor
+from language_pipes.tui.components.network_form.whitelist_editor import WhitelistEditor
+from language_pipes.tui.components.network_form.network_ip_editor import NetworkIpEditor
+from language_pipes.tui.components.network_form.network_key_editor import NetworkKeyEditor
 from language_pipes.tui.components.network_form.bootstrap_nodes_editor import BootstrapNodesEditor
 
 class NetworkForm:
@@ -34,6 +35,7 @@ class NetworkForm:
         self.network_ip_editor = NetworkIpEditor(loader, confirm, self.exit_field_editor)
         self.peer_port_editor = PeerPortEditor(loader, confirm, self.exit_field_editor)
         self.bootstrap_nodes_editor = BootstrapNodesEditor(loader, confirm, self.exit_field_editor)
+        self.whitelist_editor = WhitelistEditor(loader, confirm, self.exit_field_editor)
 
     def restart_field_editors(self):
         self.node_id_editor.restart()
@@ -41,6 +43,7 @@ class NetworkForm:
         self.bootstrap_nodes_editor.restart()
         self.network_ip_editor.restart()
         self.peer_port_editor.restart()
+        self.whitelist_editor.restart()
 
     def get_current_field_editor(self):
         res = self.editor.get_current_field()
@@ -57,6 +60,8 @@ class NetworkForm:
             return self.peer_port_editor
         if current_field == "bootstrap_nodes":
             return self.bootstrap_nodes_editor
+        if current_field == "whitelist_node_ids":
+            return self.whitelist_editor
 
     def back(self) -> bool:
         res = self.get_current_field_editor()
@@ -89,7 +94,7 @@ class NetworkForm:
 
     def get_edit_fields(self) -> List[Dict[str, Optional[Any]]]:
         try:
-            cfg = self.loader.call_provider(ProviderCall.get_network_config)
+            cfg: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
         except Exception as ex:
             self.state.set_status(f"Failed to load network config: {ex}", "error")
             return []
@@ -100,7 +105,8 @@ class NetworkForm:
             {"name": "network_key", "label": "Netwok Key", "value": key_label, "error": None, "masked": True},
             {"name": "network_ip", "label": "IP Address", "value": cfg.network_ip, "error": None},
             {"name": "peer_port", "label": "Peer Port", "value": cfg.port, "error": None},
-            {"name": "bootstrap_nodes", "label": "Bootstrap Nodes", "value": f"{len(cfg.bootstrap_nodes)} node(s)"}
+            {"name": "bootstrap_nodes", "label": "Bootstrap Nodes", "value": f"{len(cfg.bootstrap_nodes)} node(s)"},
+            {"name": "whitelist_node_ids", "label": "Whitelist", "value": f"{len(cfg.whitelist_node_ids)} node(s)"}
         ]
     
     def set_status(self):
