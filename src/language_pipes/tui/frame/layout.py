@@ -111,35 +111,20 @@ class FrameLayout:
         tab = self.nav_state.active_tab()
         section = self.nav_state.active_side_option()
         view_state = self._load_active_view_data(update_status=False, force=False)
-
-        state_summary = str(view_state.get("summary", "No summary available."))
-        next_action = str(view_state.get("hint", "Next: Press r to refresh."))
-        level = str(view_state.get("level", "info"))
         details = view_state.get("details", [])
 
         detail_lines: List[str] = []
         if isinstance(details, list) and details:
             detail_lines.extend([str(line) for line in details])
 
-        selection_hint = f"Selection index: {self.nav_state.content_cursor_idx + 1}"
-        state_label = str(view_state.get("state", "placeholder")).upper()
 
         content_parts = [
-            f"{tab} / {section}",
-            "",
-            f"State ({state_label}/{level.upper()}): {state_summary}",
+            f"{tab} / {section}", ""
         ]
 
         if detail_lines:
             content_parts.extend(["", "Details:", *detail_lines])
 
-        content_parts.extend([
-            "",
-            f"Next Action: {next_action}",
-            "",
-            selection_hint,
-            f"Focus depth: {self.nav_state.focus_depth} (0=top, 1=side, 2=content)",
-        ])
 
         self.window.update_text(self.content_id, TermText("\n".join(content_parts)))
 

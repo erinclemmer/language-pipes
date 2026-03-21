@@ -170,17 +170,15 @@ class NetworkForm:
 
         key_text = ""
         if payload.aes_key not in (None, ""):
-            key_text = "*" * len(str(payload.aes_key))
+            key_text = "*" * 10
 
         details = [
             f"- node_id: {payload.node_id}",
-            f"- network_key: {key_text}"
+            f"- network_key: {key_text}",
+            f"- IP Address: {payload.network_ip}",
+            f"- Peer Port: {payload.port}",
+            f"- Bootstrap Nodes: {len(payload.bootstrap_nodes)} node(s)",
+            f"- Whitelist: {len(payload.whitelist_node_ids)} node(s)"
         ]
-
-        if len(payload.bootstrap_nodes) > 0:
-            details.extend([
-                f"- bootstrap_address: {payload.bootstrap_nodes[0].address}",
-                f"- bootstrap_port: {payload.bootstrap_nodes[0].port}",
-            ])
 
         return details
