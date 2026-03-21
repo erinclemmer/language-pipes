@@ -1,18 +1,43 @@
 import os
 import toml
 import shutil
-from typing import List
+from typing import List, Optional, Dict
 from pathlib import Path
 
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.util.config import default_config_dir
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.distributed_state_network.handler import DSNodeServer
+from language_pipes.distributed_state_network.objects.state_packet import StatePacket
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 from language_pipes.distributed_state_network.util.key_manager import CredentialManager
 
 AES_KEY_LEN = 32
 
 class ContentProvider:
+    router: Optional[DSNodeServer]
+
+    def __init__(self):
+        self.router = None
+
+    def start_router(self, config_file: Path):
+        config = ContentProvider.get_network_config(config_file)
+        self.router = DSNodeServer.start(config)
+
+    def stop_router(self):
+        if self.router is None:
+            return
+        self.router.stop()
+        self.router = None
+
+    def get_router_status(self) -> bool:
+        return self.router is None
+    
+    def get_peers(self) -> Dict[str, StatePacket]:
+        if self.router is None:
+            return { }
+        return self.router.node.node_states
+
     @staticmethod
     def get_network_config(config_file: Path) -> DSNodeConfig:
         with open(config_file, 'r') as f:

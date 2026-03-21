@@ -163,6 +163,16 @@ class NetworkForm:
         
         return error
 
+    def on_exit(self):
+        def on_apply():
+            pass
+
+        self.confirm.open(
+            "Start connection to network?",
+            on_apply=on_apply,
+            on_discard=lambda:None
+        )
+
     @staticmethod
     def show_preview(payload: DSNodeConfig) -> Optional[List[str]]:
         if not isinstance(payload, DSNodeConfig):

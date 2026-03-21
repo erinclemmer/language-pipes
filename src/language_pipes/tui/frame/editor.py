@@ -29,6 +29,7 @@ class Editor:
         self.edit_field_idx = 0
         self._pending_apply = None
         self._pending_discard = None
+        self.form.on_exit()
 
     def discard_form(self) -> None:
         self.field_editor_visible = False
