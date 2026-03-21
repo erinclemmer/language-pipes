@@ -2,6 +2,7 @@
 ViewState helpers: building and formatting view-state dicts for each section.
 """
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from language_pipes.tui.content_provider import RouterStatus
 from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.components.network_form.network_form import NetworkForm
 
@@ -13,11 +14,10 @@ def build_view_state(
     hint: str,
     level: str,
 ) -> Dict[str, Any]:
-    normalized_details = [str(line) for line in details if str(line).strip() != ""]
     return {
         "state": state,
         "summary": summary,
-        "details": normalized_details,
+        "details": details,
         "hint": hint,
         "level": level,
     }
@@ -79,21 +79,20 @@ def _item_name(item: Dict[str, Any], fallback_idx: int) -> str:
 
 def format_network(tab: str, section: str, payload: Any) -> Dict[str, Any]:
     if section == "Status":
-        if not isinstance(payload, dict):
-            return error_view_state(
-                "Malformed network status payload.",
-                "Next: Confirm get_network_status returns a dict, then press r.",
-            )
-        if len(payload) == 0:
-            return empty_view_state(
-                "No network status data yet.",
-                "Next: Start networking components and press r to refresh.",
-            )
-        health = payload.get("status") or payload.get("state") or payload.get("health") or "unknown"
-        details = _dict_preview(payload)
+        data: Optional[RouterStatus] = payload
+        details = ["[X] Server Stopped", "", " |> Start Network Server <|"]
+        if data is not None:
+            details = [
+                "[O] Server Running",
+                f"{data.num_peers} peer(s) connected",
+                "",
+                " |> Stop Server <|", "", 
+                "Logs:"
+            ]
+            details.extend(data.logs[:-5])
         return build_view_state(
             "ok",
-            f"Network health: {health}",
+            "Network:",
             details,
             "Next: Use Network -> Peers for connected node details.",
             "info",

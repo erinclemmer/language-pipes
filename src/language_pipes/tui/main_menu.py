@@ -67,7 +67,8 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         ProviderCall.generate_aes_key: ContentProvider.generate_aes_key,
         ProviderCall.validate_aes_key: ContentProvider.validate_aes_key,
         ProviderCall.detect_network_ip: ContentProvider.detect_network_ip,
-        ProviderCall.start_network: lambda: content_provider.start_router(config_file)
+        ProviderCall.start_network: lambda: content_provider.start_router(config_file),
+        ProviderCall.get_network_status: lambda: content_provider.get_router_status()
     }
 
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)

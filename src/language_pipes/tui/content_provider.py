@@ -1,6 +1,7 @@
 import os
 import toml
 import shutil
+from dataclasses import dataclass
 from threading import Thread
 from typing import List, Optional, Dict
 from pathlib import Path
@@ -17,6 +18,13 @@ from language_pipes.distributed_state_network.util import stop_thread
 AES_KEY_LEN = 32
 
 
+@dataclass
+class RouterStatus:
+    running: bool
+    num_peers: int
+    logs: List
+
+
 class ContentProvider:
     router: Optional[DSNodeServer]
     router_thread: Optional[Thread]
@@ -27,9 +35,9 @@ class ContentProvider:
 
     def start_router(self, config_file: Path):
         config = ContentProvider.get_network_config(config_file)
-        def start():
+        def start_router():
             self.router = DSNodeServer.start(config)
-        self.router_thread = Thread(target=start, args=())
+        self.router_thread = Thread(target=start_router, args=())
         self.router_thread.start()
 
     def stop_router(self):
@@ -40,14 +48,14 @@ class ContentProvider:
         self.router = None
         self.router_thread = None
 
-    def get_router_status(self) -> Optional[Dict]:
+    def get_router_status(self) -> Optional[RouterStatus]:
         if self.router is None:
             return None
-        return {
-            "status": "online",
-            "num_peers": len(self.router.node.node_states.keys()),
-            "logs": self.router.node.logs
-        }
+        return RouterStatus(
+            running=True,
+            num_peers=len(self.router.node.node_states.keys()),
+            logs=self.router.node.logs
+        )
     
     def get_peers(self) -> Dict[str, StatePacket]:
         if self.router is None:
