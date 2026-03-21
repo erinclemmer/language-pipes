@@ -1,4 +1,5 @@
-from time import time
+from time import time, sleep
+from threading import Thread
 from typing import Dict, List, Optional, Tuple
 
 from language_pipes.tui.tui import TermText, TuiWindow
@@ -54,9 +55,15 @@ class MainFrame:
         self.change_nav("Network", "Configure")
         self.key_handler.activate_selection()
 
+    def frame_render_thread(self):
+        self.layout._render_all()
+        sleep(0.1)
+        Thread(target=self.frame_render_thread, args=()).start()
+
     def run(self) -> str:
         self.state.startup()
         self.layout._render_all()
+        Thread(target=self.frame_render_thread, args=()).start()
         while self.state.running:
             key, ch = read_key()
             start_time = time()

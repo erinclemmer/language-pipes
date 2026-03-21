@@ -1,4 +1,3 @@
-from time import time
 from typing import List, Tuple, Optional
 from language_pipes.tui.util.screen_utils import print_pos, Color, BgColor
 

@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional
 
 import language_pipes.tui.frame.view_state as vs
 from language_pipes.tui.frame.placeholders import PLACEHOLDERS
@@ -8,11 +8,9 @@ class ContentLoader:
     provider: object
     last_status_message: str
     last_status_level: str
-    _cache: Dict[Tuple[str, str], Dict[str, Any]]
 
     def __init__(self, providers: Optional[object] = None) -> None:
         self.providers = providers
-        self._cache = {}
         self.last_status_message = ""
         self.last_status_level = "info"
 
@@ -21,20 +19,14 @@ class ContentLoader:
         tab: str,
         section: str,
         *,
-        update_status: bool,
-        force: bool,
+        update_status: bool
     ) -> Dict[str, Any]:
         """Return the view-state for (tab, section), using the cache unless *force* is True."""
-        view_key = (tab, section)
-
-        if not force and view_key in self._cache:
-            return self._cache[view_key]
 
         provider_name, kwargs, formatter = vs.section_provider_spec(tab, section)
 
         if provider_name is None:
             result = self._placeholder_view_state(tab, section)
-            self._cache[view_key] = result
             if update_status:
                 self.last_status_message = (
                     f"No provider mapping for {tab} -> {section}; showing guidance"
@@ -45,7 +37,6 @@ class ContentLoader:
         provider = self._get_provider(provider_name)
         if provider is None:
             result = self._placeholder_view_state(tab, section)
-            self._cache[view_key] = result
             if update_status:
                 self.last_status_message = (
                     f"Provider '{provider_name}' unavailable for {tab} -> {section}; showing guidance"
@@ -62,8 +53,6 @@ class ContentLoader:
                 f"Provider call failed for {tab} -> {section}: {ex}",
                 "Next: Verify provider connectivity/configuration, then press r.",
             )
-
-        self._cache[view_key] = result
 
         if update_status:
             state = result["state"]
@@ -93,12 +82,6 @@ class ContentLoader:
             ),
         )
         return vs.build_view_state("placeholder", summary, [], hint, level)
-
-    def invalidate(self, tab: str, section: str) -> None:
-        self._cache.pop((tab, section), None)
-
-    def invalidate_all(self) -> None:
-        self._cache.clear()
 
     def provider_available(self, name: ProviderCall) -> bool:
         return self._get_provider(name) is not None

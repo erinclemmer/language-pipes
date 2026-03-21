@@ -83,7 +83,7 @@ def format_network(tab: str, section: str, payload: Any) -> Dict[str, Any]:
         details = ["[X] Server Stopped", "", " |> Start Network Server <|"]
         if data is not None:
             details = [
-                "[O] Server Running",
+                "[O] Server Running" if data.running else "[.] Server Starting",
                 f"{data.num_peers} peer(s) connected",
                 "",
                 " |> Stop Server <|", "", 

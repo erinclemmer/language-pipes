@@ -27,6 +27,7 @@ class RouterStatus:
 
 class ContentProvider:
     router: Optional[DSNodeServer]
+    router_starting: bool
     router_thread: Optional[Thread]
 
     def __init__(self):
@@ -36,7 +37,9 @@ class ContentProvider:
     def start_router(self, config_file: Path):
         config = ContentProvider.get_network_config(config_file)
         def start_router():
+            self.router_starting = True
             self.router = DSNodeServer.start(config)
+            self.router_starting = False
         self.router_thread = Thread(target=start_router, args=())
         self.router_thread.start()
 
@@ -49,8 +52,19 @@ class ContentProvider:
         self.router_thread = None
 
     def get_router_status(self) -> Optional[RouterStatus]:
+        if self.router is None and not self.router_starting:
+            return None
+        
+        if self.router_starting:
+            return RouterStatus(
+                running=False,
+                num_peers=0,
+                logs=[]
+            )
+
         if self.router is None:
             return None
+        
         return RouterStatus(
             running=True,
             num_peers=len(self.router.node.node_states.keys()),

@@ -83,15 +83,15 @@ class FrameLayout:
         width, height = self.content_area_size
         return "\n".join([" " * width for _ in range(height)])
 
-    def _load_active_view_data(self, update_status: bool, force: bool) -> Dict[str, Any]:
+    def _load_active_view_data(self, update_status: bool) -> Dict[str, Any]:
         tab, section = self.nav_state.active_view_key()
-        result = self.loader.load(tab, section, update_status=update_status, force=force)
+        result = self.loader.load(tab, section, update_status=update_status)
         if update_status and self.loader.last_status_message:
             self.state.set_status(self.loader.last_status_message, self.loader.last_status_level)
         return result
 
     def _refresh_current_view(self):
-        self._load_active_view_data(update_status=True, force=True)
+        self._load_active_view_data(update_status=True)
 
     def _render_content(self):
         self.window.update_text(self.content_bg_id, TermText(self._content_blank_block()))
@@ -110,7 +110,7 @@ class FrameLayout:
 
         tab = self.nav_state.active_tab()
         section = self.nav_state.active_side_option()
-        view_state = self._load_active_view_data(update_status=False, force=False)
+        view_state = self._load_active_view_data(update_status=False)
         details = view_state.get("details", [])
 
         detail_lines: List[str] = []
