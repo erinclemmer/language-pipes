@@ -16,6 +16,7 @@ from language_pipes.distributed_state_network.util import stop_thread
 
 AES_KEY_LEN = 32
 
+
 class ContentProvider:
     router: Optional[DSNodeServer]
     router_thread: Optional[Thread]
@@ -39,8 +40,14 @@ class ContentProvider:
         self.router = None
         self.router_thread = None
 
-    def get_router_status(self) -> bool:
-        return self.router is None
+    def get_router_status(self) -> Optional[Dict]:
+        if self.router is None:
+            return None
+        return {
+            "status": "online",
+            "num_peers": len(self.router.node.node_states.keys()),
+            "logs": self.router.node.logs
+        }
     
     def get_peers(self) -> Dict[str, StatePacket]:
         if self.router is None:
