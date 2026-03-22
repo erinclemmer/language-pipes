@@ -8,7 +8,7 @@ from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.components.network_form.network_form import NetworkForm
 from language_pipes.tui.components.exit_confirm import ExitConfirm
-from language_pipes.tui.components.network_status import network_status_on_key
+from language_pipes.tui.frame.page_router import PageRouter
 
 class FrameKeyHandler:
     nav: NavState
@@ -18,16 +18,15 @@ class FrameKeyHandler:
     layout: FrameLayout
     network_form: NetworkForm
     exit_confirm: ExitConfirm
-    page_cbs: Dict[Tuple[str, str], Callable] = {
-        ("Network", "Status"): network_status_on_key
-    }
+    page_router: PageRouter
 
-    def __init__(self, layout: FrameLayout, network_form: NetworkForm):
+    def __init__(self, layout: FrameLayout, network_form: NetworkForm, page_router: PageRouter):
         self.state = layout.state
         self.nav = layout.nav_state
         self.editor = layout.editor
         self.confirm = layout.edit_confirm
         self.exit_confirm = layout.exit_confirm
+        self.page_router = page_router
 
         self.layout = layout
         self.network_form = network_form
@@ -84,11 +83,9 @@ class FrameKeyHandler:
             self._handle_edit_mode_key(key, ch)
             return
         
-        tab = self.nav.active_tab()
-        section = self.nav.active_side_option()
-        prop = (tab, section)
-        if self.nav.focus_depth == 2 and prop in self.page_cbs and key != PressedKey.Escape:
-            self.page_cbs[prop](key, self.layout.loader)
+        current_page = self.page_router.get_page()
+        if self.nav.focus_depth == 2 and current_page is not None and key != PressedKey.Escape:
+            current_page.on_key(key)
             return
 
         if key == PressedKey.Alpha and ch.lower() == "q":

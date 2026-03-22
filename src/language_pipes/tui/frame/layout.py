@@ -10,6 +10,7 @@ from language_pipes.tui.frame.editor import Editor
 from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
+from language_pipes.tui.frame.page_router import PageRouter
 from language_pipes.tui.frame.tips import TIPS
 
 class FrameLayout:
@@ -26,6 +27,7 @@ class FrameLayout:
     edit_confirm: Confirm
     state: FrameState
     window: TuiWindow
+    page_router: PageRouter
 
     def __init__(
             self, 
@@ -35,13 +37,15 @@ class FrameLayout:
             loader: ContentLoader, 
             exit_confirm: ExitConfirm,
             edit_confirm: Confirm,
-            state: FrameState
+            state: FrameState,
+            page_router: PageRouter
         ):
         self.nav_state = nav
         self.window = window
         self.loader = loader
         self.exit_confirm = exit_confirm
         self.edit_confirm = edit_confirm
+        self.page_router = page_router
         self.state = state
         self.editor = editor
         self.status_text = ""
@@ -113,20 +117,14 @@ class FrameLayout:
 
         tab = self.nav_state.active_tab()
         section = self.nav_state.active_side_option()
-        view_state = self._load_active_view_data(update_status=False)
-        details = view_state.get("details", [])
-
-        detail_lines: List[str] = []
-        if isinstance(details, list) and details:
-            detail_lines.extend([str(line) for line in details])
-
-
+        
         content_parts = [
             f"{tab} / {section}", ""
         ]
 
-        if detail_lines:
-            content_parts.extend(detail_lines)
+        page = self.page_router.get_page()
+        if page is not None:
+            content_parts.extend(page.get_view())
 
 
         self.window.update_text(self.content_id, TermText("\n".join(content_parts)))
