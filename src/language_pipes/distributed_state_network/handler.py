@@ -164,7 +164,7 @@ class DSNodeServer:
             if len(e.args) >= 2 and isinstance(e.args[0], int):
                 # Error with HTTP status code
                 self.node.logger.error(f"Error handling {msg_type} from {remote_addr}: {e.args[1]}")
-                return e.args[0], None
+                return e.args[0], e.args[1].encode()
             else:
                 self.node.logger.error(f"Error handling {msg_type} from {remote_addr}: {e}")
                 return 500, None

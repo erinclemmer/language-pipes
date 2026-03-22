@@ -128,7 +128,7 @@ class DSNode:
 
     def ensure_node_id_allowed(self, node_id: Optional[str]):
         if not self._is_node_id_whitelisted(node_id):
-            raise Exception(401, f"Node ID '{node_id}' is not in whitelist")
+            raise Exception(401, "Node ID not in whitelist")
 
     def ensure_endpoint_allowed(self, endpoint: Endpoint):
         self.ensure_ip_allowed(endpoint.address)
@@ -204,7 +204,7 @@ class DSNode:
                 # No content - valid for some responses like successful HELLO with no data
                 return b''
             elif response.status_code != 200:
-                raise Exception(f"HTTP error: {response.status_code}")
+                raise Exception(response.status_code, response.content.decode())
             
             response_data = response.content
             # Decrypt the response
@@ -229,12 +229,6 @@ class DSNode:
             else:
                 raise Exception(f"HTTP request to {endpoint.to_string()} timed out")
         except requests.exceptions.RequestException as e:
-            if retries < 2:
-                time.sleep(0.5)
-                return self.send_http_request(endpoint, msg_type, payload, retries + 1)
-            else:
-                raise Exception(f"HTTP request to {endpoint.to_string()} failed: {e}")
-        except Exception as e:
             if retries < 2:
                 time.sleep(0.5)
                 return self.send_http_request(endpoint, msg_type, payload, retries + 1)
@@ -303,19 +297,22 @@ class DSNode:
         try:
             content = self.send_http_request(con, MSG_HELLO, payload)
         except Exception as e:
-            self.add_log(f"Bootstrap connection to {con.address}:{con.port} failed")
+            if len(e.args) > 1:
+                code, msg = e.args
+                if msg == "Node ID not in whitelist":
+                    self.add_log(f"Error connecting to {con.address}:{con.port}: Not in whitelist")
             raise e
-            return
         
         # Get the response packet
         pkt = HelloPacket.from_bytes(content)
-        self.add_log(f"{pkt.node_id} connected", "INFO")
         
         # Verify version compatibility
         if pkt.version != self.version:
             msg = f"HELLO => {pkt.node_id} (Version mismatch \"{pkt.version}\" != \"{self.version}\")"
             self.add_log(msg, "ERROR")
             raise Exception(505)  # Version not supported
+        
+        self.add_log(f"{pkt.node_id} connected", "INFO")
 
         # Store the peer's public key
         self.cred_manager.ensure_public(pkt.node_id, pkt.ecdsa_public_key)
@@ -375,7 +372,10 @@ class DSNode:
             raise Exception(f'PING => {node_id}: {e}')
 
     def send_update(self, node_id: str):
-        content = self.send_request_to_node(node_id, MSG_UPDATE, self.my_state().to_bytes())
+        try:
+            content = self.send_request_to_node(node_id, MSG_UPDATE, self.my_state().to_bytes())
+        except Exception:
+            return b''
         return content
 
     def handle_update(self, data: bytes):

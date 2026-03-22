@@ -37,6 +37,8 @@ class ContentProvider:
 
     # Network / Status
     def start_router(self, config_file: Path):
+        if self.router_starting:
+            return
         config = ContentProvider.get_network_config(config_file)
         def start_router():
             self.router_starting = True
@@ -46,6 +48,8 @@ class ContentProvider:
         self.router_thread.start()
 
     def stop_router(self):
+        if self.router_starting:
+            return
         if self.router is None or self.router_thread is None:
             return
         self.router.stop()
