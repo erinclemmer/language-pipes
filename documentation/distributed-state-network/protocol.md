@@ -1,7 +1,7 @@
 ## Network Protocol
 
 ### Transport Layer
-The network uses **HTTP** with a Flask server for all communication.
+The network uses **HTTP** with a threaded server based on `BaseHTTPRequestHandler` for all communication.
 
 ### Packet Structure
 Each HTTP request follows this structure:
@@ -35,7 +35,7 @@ Internal message type constants (used for verification):
 - Timestamps prevent older updates from overwriting newer ones
 
 ### HTTP Server Configuration
-- Flask server runs on specified port with threading enabled
+- HTTP server runs on specified port with threading enabled
 - Default timeout is 5 seconds for requests
 - Maximum retry attempts: 3 with 0.5 second delay between retries
 - Server runs in a separate daemon thread
