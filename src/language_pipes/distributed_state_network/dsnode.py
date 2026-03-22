@@ -322,7 +322,6 @@ class DSNode:
         
         # If the server sent us our detected IP, update our address book
         if pkt.detected_address:
-            self.add_log(f"Server detected our IP as: {pkt.detected_address}", "INFO")
             # Update our own connection in the address book with the detected IP
             self.write_address_book(self.config.node_id, Endpoint(pkt.detected_address, self.config.port))
         
@@ -376,7 +375,6 @@ class DSNode:
             raise Exception(f'PING => {node_id}: {e}')
 
     def send_update(self, node_id: str):
-        self.add_log(f"UPDATE => {node_id}", "DEBUG")
         content = self.send_request_to_node(node_id, MSG_UPDATE, self.my_state().to_bytes())
         return content
 

@@ -63,7 +63,7 @@ class MainFrame:
     def run(self) -> str:
         self.state.startup()
         self.layout._render_all()
-        Thread(target=self.frame_render_thread, args=()).start()
+        # Thread(target=self.frame_render_thread, args=()).start()
         while self.state.running:
             key, ch = read_key()
             start_time = time()

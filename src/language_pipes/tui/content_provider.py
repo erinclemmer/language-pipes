@@ -74,7 +74,9 @@ class ContentProvider:
     def get_peers(self) -> Dict[str, StatePacket]:
         if self.router is None:
             return { }
-        return self.router.node.node_states
+        data = self.router.node.node_states.copy()
+        del data[self.router.node.config.node_id]
+        return data
 
     @staticmethod
     def get_network_config(config_file: Path) -> DSNodeConfig:

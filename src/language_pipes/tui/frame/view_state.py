@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from language_pipes.tui.content_provider import RouterStatus
 from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.components.network_form.network_form import NetworkForm
-
+from language_pipes.distributed_state_network.objects.state_packet import StatePacket
 
 def build_view_state(
     state: str,
@@ -100,30 +100,20 @@ def format_network(tab: str, section: str, payload: Any) -> Dict[str, Any]:
         )
 
     if section == "Peers":
-        if not isinstance(payload, list):
-            return error_view_state(
-                "Malformed peers payload.",
-                "Next: Confirm list_peers returns a list of dict items, then press r.",
-            )
-        if len(payload) == 0:
-            return empty_view_state(
-                "No peers connected yet.",
-                "Next: Check bootstrap connectivity and press r.",
-            )
-        lines: List[str] = []
-        for i, peer in enumerate(payload[:5]):
-            if isinstance(peer, dict):
-                name = _item_name(peer, i)
-                addr = peer.get("address") or peer.get("host") or "unknown"
-                state = peer.get("state") or peer.get("status") or "unknown"
-                lines.append(f"- {name} @ {addr} ({state})")
-            else:
-                lines.append(f"- {peer}")
-        if len(payload) > 5:
-            lines.append(f"- ... ({len(payload) - 5} more peers)")
+        lines: List[str] = ["Connected Peers:"]
+        payload: Dict[str, StatePacket] = payload
+        for i, key in enumerate(payload.keys()):
+            if i > 5:
+                break
+            peer = payload[key]
+            lines.extend([
+                f"- {peer.node_id}"
+            ])
+        if len(lines) == 1:
+            lines.append("No peers connected")
         return build_view_state(
             "ok",
-            f"Connected peers: {len(payload)}",
+            f"Connected peers: {len(payload.keys())}",
             lines,
             "Next: Press r to re-check discovery/connectivity.",
             "info",

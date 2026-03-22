@@ -69,7 +69,8 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         ProviderCall.detect_network_ip: ContentProvider.detect_network_ip,
         ProviderCall.start_network: lambda: content_provider.start_router(config_file),
         ProviderCall.stop_network: lambda: content_provider.stop_router(),
-        ProviderCall.get_network_status: lambda: content_provider.get_router_status()
+        ProviderCall.get_network_status: lambda: content_provider.get_router_status(),
+        ProviderCall.list_peers: lambda: content_provider.get_peers()
     }
 
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)
