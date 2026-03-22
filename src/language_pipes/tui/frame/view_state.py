@@ -138,6 +138,15 @@ def format_network(tab: str, section: str, payload: Any) -> Dict[str, Any]:
 
 
 def format_models(_: str, section: str, payload: Any) -> Dict[str, Any]:
+    if section == "Installed":
+        payload: List[str] = payload
+        lines = ["Installed Models:"]
+        for model in payload:
+            lines.append(f"- {model}")
+        return build_view_state(
+            "ok", "", lines, "", ""
+        )
+
     if section == "Validation":
         if not isinstance(payload, bool):
             return error_view_state(
@@ -339,11 +348,16 @@ _FORMATTER_TYPE = Callable[[str, str, Any], Dict[str, Any]]
 def section_provider_spec(
     tab: str, section: str
 ) -> Tuple[Optional[ProviderCall], Dict[str, Any], _FORMATTER_TYPE]:
+    # Network
     if tab == "Network" and section == "Status":
         return ProviderCall.get_network_status, {}, format_network
     if tab == "Network" and section == "Peers":
         return ProviderCall.list_peers, {}, format_network
     if tab == "Network" and section == "Configure":
         return ProviderCall.get_network_config, {}, format_network
+    
+    # Models
+    if tab == "Models" and section == "Installed":
+        return ProviderCall.get_installed_models, {}, format_models
 
     return None, {}, format_unknown

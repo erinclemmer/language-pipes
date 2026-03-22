@@ -3,11 +3,11 @@ import toml
 import shutil
 from dataclasses import dataclass
 from threading import Thread
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, List
 from pathlib import Path
 
 from language_pipes.util.aes import generate_aes_key
-from language_pipes.util.config import default_config_dir
+from language_pipes.util.config import default_config_dir, default_model_dir
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.distributed_state_network.handler import DSNodeServer
 from language_pipes.distributed_state_network.objects.state_packet import StatePacket
@@ -35,6 +35,7 @@ class ContentProvider:
         self.router_thread = None
         self.router_starting = False
 
+    # Network / Status
     def start_router(self, config_file: Path):
         config = ContentProvider.get_network_config(config_file)
         def start_router():
@@ -72,6 +73,7 @@ class ContentProvider:
             logs=self.router.node.logs
         )
     
+    # Network / Peers
     def get_peers(self) -> Dict[str, StatePacket]:
         if self.router is None:
             return { }
@@ -79,6 +81,7 @@ class ContentProvider:
         del data[self.router.node.config.node_id]
         return data
 
+    # Network / Configure
     @staticmethod
     def get_network_config(config_file: Path) -> DSNodeConfig:
         with open(config_file, 'r') as f:
@@ -153,3 +156,22 @@ class ContentProvider:
             return s.getsockname()[0]
         finally:
             s.close()
+
+    # Models / Installed
+    @staticmethod
+    def get_installed_models() -> List[str]:
+        models_dir = default_model_dir()
+
+        models = []
+        if not os.path.exists(models_dir):
+            return models
+
+        for org in os.listdir(models_dir):
+            org_path = os.path.join(models_dir, org)
+            if os.path.isdir(org_path):
+                for model in os.listdir(org_path):
+                    model_path = os.path.join(org_path, model)
+                    if os.path.isdir(model_path):
+                        models.append(f"{org}/{model}")
+
+        return sorted(models)

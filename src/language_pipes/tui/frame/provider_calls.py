@@ -1,6 +1,7 @@
 from enum import Enum
 
 class ProviderCall(Enum):
+    # Network / Configure
     get_network_config = "get_network_config"
     save_network_config = "save_network_config"
 
@@ -18,7 +19,12 @@ class ProviderCall(Enum):
     validate_aes_key = "validate_aes_key"
 
     detect_network_ip = "detect_network_ip"
-
-    list_models = "list_models"
     get_network_status = "get_network_status"
+
+    # Models / Installed
+    get_installed_models = "get_installed_models"
+    download_model = "download_model"
+
+    # Other
+    list_models = "list_models"
     save_model_assignments = "save_model_assignments"
