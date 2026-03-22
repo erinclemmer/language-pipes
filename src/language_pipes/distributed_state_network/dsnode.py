@@ -137,7 +137,6 @@ class DSNode:
         if node_id != self.config.node_id:
             self.ensure_node_id_allowed(node_id)
             self.ensure_endpoint_allowed(conn)
-        self.add_log(f"Address set: {node_id} -> {conn.address}:{conn.port}", "INFO")
         self.address_book[node_id] = conn
 
     def network_tick(self):
@@ -164,7 +163,7 @@ class DSNode:
                 del self.node_states[node_id]
             if node_id in self.address_book:    
                 del self.address_book[node_id]
-            self.add_log(f"PING failed for {node_id}, disconnecting...", "INFO")
+            self.add_log(f"{node_id} disconnected", "INFO")
         
         for node_id in self.node_states.copy().keys():
             if node_id not in self.node_states or node_id == self.config.node_id:
@@ -174,7 +173,6 @@ class DSNode:
                     return
                 self.send_ping(node_id)
             except Exception:
-                self.add_log(f"PING Failure for {node_id}", "ERROR")
                 if node_id in self.node_states:  # double check if something has changed since the ping request started
                     remove(node_id)
                     if self.disconnect_cb is not None:
@@ -300,16 +298,13 @@ class DSNode:
         return pkt.to_bytes()
 
     def send_hello(self, con: Endpoint):
-        log_msg = f"HELLO => {con.to_string()}"
-        self.add_log(log_msg, "INFO")
-
         pkt = self.my_hello_packet()
         payload = pkt.to_bytes()
         content = self.send_http_request(con, MSG_HELLO, payload)
         
         # Get the response packet
         pkt = HelloPacket.from_bytes(content)
-        self.add_log(f"Received HELLO from {pkt.node_id}", "INFO")
+        self.add_log(f"{pkt.node_id} connected", "INFO")
         
         # Verify version compatibility
         if pkt.version != self.version:
@@ -339,7 +334,7 @@ class DSNode:
         self.ensure_ip_allowed(detected_address)
         pkt = HelloPacket.from_bytes(data)
         self.ensure_node_id_allowed(pkt.node_id)
-        self.add_log(f"Received HELLO from {pkt.node_id}", "INFO")
+        self.add_log(f"{pkt.node_id} connected", "INFO")
         if pkt.version != self.version:
             msg = f"HELLO => {pkt.node_id} (Version mismatch \"{pkt.version}\" != \"{self.version}\")"
             self.add_log(msg, "ERROR")

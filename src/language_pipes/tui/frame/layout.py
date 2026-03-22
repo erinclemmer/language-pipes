@@ -79,6 +79,7 @@ class FrameLayout:
         self.top_nav.focused_idx = self.nav_state.active_top_idx
         interactive_overlay_open = self.exit_confirm.is_open or self.edit_confirm.is_open or self.editor.edit_mode
         self.top_nav.set_focus(self.nav_state.focus_depth == 0 and not interactive_overlay_open)
+        self.top_nav._update_styles()
         self.side_nav.set_focus(self.nav_state.focus_depth == 1 and not interactive_overlay_open)
 
     def _content_blank_block(self) -> str:

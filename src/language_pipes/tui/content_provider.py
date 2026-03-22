@@ -33,6 +33,7 @@ class ContentProvider:
     def __init__(self):
         self.router = None
         self.router_thread = None
+        self.router_starting = False
 
     def start_router(self, config_file: Path):
         config = ContentProvider.get_network_config(config_file)
