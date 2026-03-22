@@ -300,7 +300,12 @@ class DSNode:
     def send_hello(self, con: Endpoint):
         pkt = self.my_hello_packet()
         payload = pkt.to_bytes()
-        content = self.send_http_request(con, MSG_HELLO, payload)
+        try:
+            content = self.send_http_request(con, MSG_HELLO, payload)
+        except Exception as e:
+            self.add_log(f"Bootstrap connection to {con.address}:{con.port} failed")
+            raise e
+            return
         
         # Get the response packet
         pkt = HelloPacket.from_bytes(content)
