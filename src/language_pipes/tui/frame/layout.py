@@ -235,5 +235,9 @@ class FrameLayout:
             return "Arrows L/R: Switch Tab   Enter: Side Nav   Esc: Back/Quit Options   q: Exit"
         if self.nav_state.focus_depth == 1:
             return "Arrows U/D: Switch Section   Enter: Content   Esc: Top Tabs   q: Exit"
+        if self.nav_state.focus_depth == 2:
+            page = self.page_router.get_page()
+            if page is not None:
+                return page.get_footer()
         return ""
 

@@ -28,6 +28,7 @@ class NetworkStatus:
             self.loader.call_provider(ProviderCall.start_network)
     
     def get_view(self) -> List[str]:
+        self.status = self.loader.call_provider(ProviderCall.get_network_status)
         lines = ["[X] Server Stopped", "", " |> Start Network Server <|"]
         if self.status is not None:
             lines = [
@@ -40,3 +41,6 @@ class NetworkStatus:
             ]
             lines.extend(self.status.logs[-5:] if len(self.status.logs) > 5 else self.status.logs)
         return lines
+    
+    def get_footer(self) -> str:
+        return "Arrows U/D: Move   Enter: Select   Esc: Back"
