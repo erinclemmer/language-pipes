@@ -83,7 +83,7 @@ class DSNode:
         threading.Thread(target=self.network_tick, daemon=True).start()
 
     def add_log(self, msg: str, level: str = "INFO"):
-        timestamp = datetime.now().strftime('%I:%M:%S %p')
+        timestamp = datetime.now().strftime('%H:%M:%S')
         if level.upper() == "INFO":
             self.logger.info(msg)
         elif level.upper() == "ERROR":
@@ -94,7 +94,7 @@ class DSNode:
             self.logger.warning(msg)
         else:
             self.logger.info(msg)
-        self.logs.append(f"{timestamp} | {msg}")
+        self.logs.append(f"{timestamp} {msg}")
 
     def get_aes_key(self) -> Optional[bytes]:
         if self.config.aes_key is None:
@@ -300,7 +300,7 @@ class DSNode:
             if len(e.args) > 1:
                 code, msg = e.args
                 if msg == "Node ID not in whitelist":
-                    self.add_log(f"Error connecting to {con.address}:{con.port}: Not in whitelist")
+                    self.add_log(f"Error from {con.address}:{con.port}: Not in their whitelist")
             raise e
         
         # Get the response packet

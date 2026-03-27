@@ -23,3 +23,6 @@ class NetworkPeers:
             lines.append(f"- {key}")
 
         return lines
+    
+    def get_footer(self) -> str:
+        return ""

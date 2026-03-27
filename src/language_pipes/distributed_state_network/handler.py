@@ -184,9 +184,13 @@ class DSNodeServer:
             return
 
         self.running = True
-        self.http_server = _DSNodeHTTPServer(('0.0.0.0', port), self)
-        self.node.logger.info(f'Started DSNode on HTTP port {port}')
-        self.http_server.serve_forever()
+        try:
+            self.http_server = _DSNodeHTTPServer(('0.0.0.0', port), self)
+            self.node.logger.info(f'Started DSNode on HTTP port {port}')
+            self.http_server.serve_forever()
+        except Exception as e:
+            self.node.add_log(str(e), "ERROR")
+            return
 
     @staticmethod
     def generate_key() -> str:
