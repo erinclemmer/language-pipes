@@ -5,7 +5,7 @@ from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.content_loader import ContentLoader, ProviderCall
-from language_pipes.tui.content_provider import RouterStatus
+from language_pipes.tui.content_provider.content_provider import RouterStatus
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.tui.components.network_form.node_id_editor import NodeIdEditor
 from language_pipes.tui.components.network_form.peer_port_editor import PeerPortEditor

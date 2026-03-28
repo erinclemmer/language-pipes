@@ -5,11 +5,12 @@ from threading import Thread
 from typing import Tuple, Optional
 
 from language_pipes.tui.tui import TuiWindow, TermText
-from language_pipes.tui.content_provider import ContentProvider
+from language_pipes.tui.content_provider.content_provider import ContentProvider
 from language_pipes.tui.util.prompt import prompt, select_option, prompt_bool
 from language_pipes.util.config import get_config_files, default_config_dir, default_model_dir
 from language_pipes.tui.frame.main_frame import MainFrame
 from language_pipes.tui.frame.provider_calls import ProviderCall
+from language_pipes.tui.content_provider.network_provider import NetworkProvider
 
 libraries_loaded = False
 
@@ -59,18 +60,18 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
     content_provider = ContentProvider()
 
     providers = {
-        ProviderCall.get_network_config: lambda: ContentProvider.get_network_config(config_file),
-        ProviderCall.save_network_config: lambda data: ContentProvider.save_network_config(config_file, data),
-        ProviderCall.get_registered_node_ids: ContentProvider.get_registered_node_ids,
-        ProviderCall.delete_node_id: ContentProvider.delete_node_id,
-        ProviderCall.save_new_node_id: ContentProvider.save_new_node_id,
-        ProviderCall.generate_aes_key: ContentProvider.generate_aes_key,
-        ProviderCall.validate_aes_key: ContentProvider.validate_aes_key,
-        ProviderCall.detect_network_ip: ContentProvider.detect_network_ip,
-        ProviderCall.start_network: lambda: content_provider.start_router(config_file),
-        ProviderCall.stop_network: lambda: content_provider.stop_router(),
-        ProviderCall.get_network_status: lambda: content_provider.get_router_status(),
-        ProviderCall.list_peers: lambda: content_provider.get_peers(),
+        ProviderCall.get_network_config: lambda: NetworkProvider.get_network_config(config_file),
+        ProviderCall.save_network_config: lambda data: NetworkProvider.save_network_config(config_file, data),
+        ProviderCall.get_registered_node_ids: NetworkProvider.get_registered_node_ids,
+        ProviderCall.delete_node_id: NetworkProvider.delete_node_id,
+        ProviderCall.save_new_node_id: NetworkProvider.save_new_node_id,
+        ProviderCall.generate_aes_key: NetworkProvider.generate_aes_key,
+        ProviderCall.validate_aes_key: NetworkProvider.validate_aes_key,
+        ProviderCall.detect_network_ip: NetworkProvider.detect_network_ip,
+        ProviderCall.start_network: lambda: content_provider.network_provider.start_router(config_file),
+        ProviderCall.stop_network: lambda: content_provider.network_provider.stop_router(),
+        ProviderCall.get_network_status: lambda: content_provider.network_provider.get_router_status(),
+        ProviderCall.list_peers: lambda: content_provider.network_provider.get_peers(),
         ProviderCall.get_installed_models: ContentProvider.get_installed_models,
         ProviderCall.delete_installed_model: ContentProvider.delete_installed_model,
         ProviderCall.start_download: content_provider.start_download,
