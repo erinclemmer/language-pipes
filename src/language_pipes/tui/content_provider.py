@@ -30,22 +30,6 @@ class RouterStatus:
 
 
 class ModelDownloadProgress(tqdm):
-    """tqdm subclass that silently captures progress for TUI display.
-
-    The default tqdm renders the progress bar by writing to ``self.fp``
-    (stderr) via ``display() -> sp() -> fp.write()``.  Overriding only
-    ``write()`` is not enough because the bar itself never goes through
-    ``write()``; it goes through ``display()``.
-
-    To fully suppress terminal output we:
-    1. Redirect ``file`` (``self.fp``) to ``os.devnull`` so any residual
-       writes from the base class are silenced.
-    2. Override ``display()`` to capture the formatted bar string into
-       ``self.messages`` instead of printing it.
-    3. Override ``clear()`` / ``close()`` so the base class never tries
-       to erase lines on the real terminal.
-    """
-
     latest_instance: Optional["ModelDownloadProgress"] = None
     _devnull_file: Optional[io.TextIOWrapper] = None
 
@@ -73,18 +57,15 @@ class ModelDownloadProgress(tqdm):
         pass
 
     def clear(self, *args, **kwargs):
-        """No-op – nothing to clear since we never wrote to the terminal."""
         pass
 
     def close(self):
-        """Mark bar as disabled without writing anything to the terminal."""
         if self.disable:
             return
         self.disable = True
         lock = self.get_lock()
         with lock:
             type(self)._instances.discard(self)  # type: ignore[attr-defined]
-
 
 class ContentProvider:
     router: Optional[DSNodeServer]
@@ -102,48 +83,6 @@ class ContentProvider:
         self.downloading_to_folder = None
         self.router_starting = False
     
-    def start_download(self, model_id: str):
-        if self.download_model_thread is not None:
-            return
-        clone_dir = Path(default_model_dir()) / model_id / "data"
-        self.downloading_to_folder = clone_dir
-        self.download_message = None
-        def download_model():
-            try:
-                snapshot_download(
-                    repo_id=model_id,
-                    local_dir=clone_dir,
-                    token=None,
-                    tqdm_class=ModelDownloadProgress
-                )
-            except errors.RepositoryNotFoundError:
-                self.download_message = "[ERROR] Repository not found"
-            except errors.HFValidationError:
-                self.download_message = "[ERROR] Invalid repository ID"
-            except RuntimeError:
-                self.download_message = "[ERROR] Download stopped"
-            self.download_model_thread = None
-            self.downloading_to_folder = None
-            self.download_message = "[SUCCESS] Download complete"
-        self.download_model_thread = Thread(target=download_model, args=())
-        self.download_model_thread.start()
-
-    def stop_model_download(self):
-        if self.download_model_thread is None:
-            return
-        stop_thread(self.download_model_thread)
-        shutil.rmtree(str(self.downloading_to_folder))
-        self.download_model_thread = None
-
-    def check_download_progress(self) -> Optional[str]:
-        if self.download_message is not None:
-            return self.download_message
-        if self.download_model_thread is None:
-            return None
-        if ModelDownloadProgress.latest_instance is None:
-            return None
-        return str(ModelDownloadProgress.latest_instance)
-
     # Network / Status
     def start_router(self, config_file: Path):
         if self.router_starting:
@@ -296,3 +235,44 @@ class ContentProvider:
             return
         shutil.rmtree(model_dir)
         
+    def start_download(self, model_id: str):
+        if self.download_model_thread is not None:
+            return
+        clone_dir = Path(default_model_dir()) / model_id / "data"
+        self.downloading_to_folder = clone_dir
+        self.download_message = None
+        def download_model():
+            try:
+                snapshot_download(
+                    repo_id=model_id,
+                    local_dir=clone_dir,
+                    token=None,
+                    tqdm_class=ModelDownloadProgress
+                )
+            except errors.RepositoryNotFoundError:
+                self.download_message = "[ERROR] Repository not found"
+            except errors.HFValidationError:
+                self.download_message = "[ERROR] Invalid repository ID"
+            except RuntimeError:
+                self.download_message = "[ERROR] Download stopped"
+            self.download_model_thread = None
+            self.downloading_to_folder = None
+            self.download_message = "[SUCCESS] Download complete"
+        self.download_model_thread = Thread(target=download_model, args=())
+        self.download_model_thread.start()
+
+    def stop_model_download(self):
+        if self.download_model_thread is None:
+            return
+        stop_thread(self.download_model_thread)
+        shutil.rmtree(str(self.downloading_to_folder))
+        self.download_model_thread = None
+
+    def check_download_progress(self) -> Optional[str]:
+        if self.download_message is not None:
+            return self.download_message
+        if self.download_model_thread is None:
+            return None
+        if ModelDownloadProgress.latest_instance is None:
+            return None
+        return str(ModelDownloadProgress.latest_instance)
