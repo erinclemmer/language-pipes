@@ -7,7 +7,7 @@ from pathlib import Path
 from threading import Thread
 from dataclasses import dataclass
 from typing import List, Optional, Dict
-from huggingface_hub import snapshot_download
+from huggingface_hub import snapshot_download, errors
 
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.distributed_state_network.util import stop_thread
@@ -90,26 +90,41 @@ class ContentProvider:
     router: Optional[DSNodeServer]
     router_starting: bool
     download_model_thread: Optional[Thread]
+    download_message: Optional[str]
+    downloading_to_folder: Optional[Path]
     router_thread: Optional[Thread]
 
     def __init__(self):
         self.router = None
         self.router_thread = None
         self.download_model_thread = None
+        self.download_message = None
+        self.downloading_to_folder = None
         self.router_starting = False
     
     def start_download(self, model_id: str):
         if self.download_model_thread is not None:
             return
         clone_dir = Path(default_model_dir()) / model_id / "data"
+        self.downloading_to_folder = clone_dir
+        self.download_message = None
         def download_model():
-            snapshot_download(
-                repo_id=model_id,
-                local_dir=clone_dir,
-                token=None,
-                tqdm_class=ModelDownloadProgress
-            )
+            try:
+                snapshot_download(
+                    repo_id=model_id,
+                    local_dir=clone_dir,
+                    token=None,
+                    tqdm_class=ModelDownloadProgress
+                )
+            except errors.RepositoryNotFoundError:
+                self.download_message = "[ERROR] Repository not found"
+            except errors.HFValidationError:
+                self.download_message = "[ERROR] Invalid repository ID"
+            except RuntimeError:
+                self.download_message = "[ERROR] Download stopped"
             self.download_model_thread = None
+            self.downloading_to_folder = None
+            self.download_message = "[SUCCESS] Download complete"
         self.download_model_thread = Thread(target=download_model, args=())
         self.download_model_thread.start()
 
@@ -117,9 +132,12 @@ class ContentProvider:
         if self.download_model_thread is None:
             return
         stop_thread(self.download_model_thread)
+        shutil.rmtree(str(self.downloading_to_folder))
         self.download_model_thread = None
 
     def check_download_progress(self) -> Optional[str]:
+        if self.download_message is not None:
+            return self.download_message
         if self.download_model_thread is None:
             return None
         if ModelDownloadProgress.latest_instance is None:

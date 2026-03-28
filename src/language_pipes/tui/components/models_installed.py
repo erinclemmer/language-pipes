@@ -44,7 +44,14 @@ class ModelsInstalled:
 
     def on_escape(self):
         if self.installing_model:
-            self.installing_model = False
+            if self.downloading_model:
+                self.confirm.open(
+                    "Stop Current Download?",
+                    on_apply=self.stop_download,
+                    on_discard=lambda:None
+                )
+            else:
+                self.installing_model = False
         else:
             self.exit_page()
             
