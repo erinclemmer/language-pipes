@@ -28,6 +28,8 @@ class ProviderCall(Enum):
     stop_model_download = "stop_model_download"
     check_download_progress = "check_download_progress"
     download_model = "download_model"
+    get_hf_token = "get_hf_token"
+    save_hf_token = "save_hf_token"
 
     # Other
     list_models = "list_models"

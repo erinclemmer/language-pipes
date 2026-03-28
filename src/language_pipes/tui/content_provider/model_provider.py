@@ -1,14 +1,15 @@
 import io
 import os
+import toml
 import shutil
 from tqdm.auto import tqdm
 from pathlib import Path
 from threading import Thread
-from typing import List, Optional
+from typing import List, Optional, Dict
 from huggingface_hub import snapshot_download, errors
 
 from language_pipes.distributed_state_network.util import stop_thread
-from language_pipes.util.config import default_model_dir
+from language_pipes.util.config import default_model_dir, default_config_dir
 
 class ModelDownloadProgress(tqdm):
     latest_instance: Optional["ModelDownloadProgress"] = None
@@ -98,7 +99,7 @@ class ModelProvider:
                 snapshot_download(
                     repo_id=model_id,
                     local_dir=clone_dir,
-                    token=None,
+                    token=self.get_hf_token(),
                     tqdm_class=ModelDownloadProgress
                 )
             except errors.RepositoryNotFoundError:
@@ -128,3 +129,29 @@ class ModelProvider:
         if ModelDownloadProgress.latest_instance is None:
             return None
         return str(ModelDownloadProgress.latest_instance)
+    
+    @staticmethod
+    def get_globals() -> Dict:
+        global_path = Path(default_config_dir()) / "globals.toml"
+        if not os.path.exists(global_path):
+            with open(global_path, 'w', encoding="utf-8") as f:
+                toml.dump({ }, f)
+        
+        return toml.loads(global_path.read_text())
+
+    @staticmethod
+    def save_globals(data: Dict):
+        global_path = Path(default_config_dir()) / "globals.toml"
+        if not os.path.exists(global_path):
+            with open(global_path, 'w', encoding="utf-8") as f:
+                toml.dump(data, f)
+
+    @staticmethod
+    def get_hf_token() -> Optional[str]:
+        return ModelProvider.get_globals().get("hf_token", None)
+
+    @staticmethod
+    def save_hf_token(token: str):
+        data = ModelProvider.get_globals()
+        data["hf_token"] = token
+        ModelProvider.save_globals(data)
