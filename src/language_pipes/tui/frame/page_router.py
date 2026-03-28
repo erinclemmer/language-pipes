@@ -17,9 +17,12 @@ class PageRouter:
 
     def __init__(self, loader: ContentLoader, confirm: Confirm, nav: NavState):
         self.nav = nav
-        self.network_status = NetworkStatus(loader, self.exit_page)
-        self.network_peers = NetworkPeers(loader, self.exit_page)
-        self.models_installed = ModelsInstalled(loader, confirm, self.exit_page)
+        self.network_status = NetworkStatus(loader, self.exit_page, self.is_focused)
+        self.network_peers = NetworkPeers(loader, self.exit_page, self.is_focused)
+        self.models_installed = ModelsInstalled(loader, confirm, self.exit_page, self.is_focused)
+
+    def is_focused(self):
+        return self.nav.focus_depth == 2
 
     def exit_page(self):
         self.nav.focus_shallower()

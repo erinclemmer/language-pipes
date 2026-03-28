@@ -9,6 +9,7 @@ class ModelsInstalled:
     loader: ContentLoader
     confirm: Confirm
     exit_page: Callable
+    is_focused: Callable
     installed_models: List[str]
     focus_idx: int
     installing_model: bool
@@ -16,12 +17,13 @@ class ModelsInstalled:
 
     new_model_id: str
 
-    def __init__(self, loader: ContentLoader, confirm: Confirm, exit_page: Callable):
+    def __init__(self, loader: ContentLoader, confirm: Confirm, exit_page: Callable, is_focused: Callable):
         self.loader = loader
         self.confirm = confirm
         self.installed_models = []
         self.focus_idx = 0
         self.exit_page = exit_page
+        self.is_focused = is_focused
         self.installing_model = False
         self.downloading_model = False
         self.new_model_id = ""
@@ -141,13 +143,13 @@ class ModelsInstalled:
         self.installed_models = self.loader.call_provider(ProviderCall.get_installed_models)
         lines = ["Installed Models:", ""]
         for i, model in enumerate(self.installed_models):
-            l_cursor = " |>" if i == self.focus_idx else "   "
-            r_cursor = "<|" if i == self.focus_idx else "  "
+            l_cursor = " |>" if i == self.focus_idx and self.is_focused() else "   "
+            r_cursor = "<|" if i == self.focus_idx and self.is_focused() else "  "
             lines.append(f"{l_cursor} {model} {r_cursor}")
         
         lines.append("")
-        l_cursor = " |>" if self.focus_idx == len(self.installed_models) else "   "
-        r_cursor = "<|" if self.focus_idx == len(self.installed_models) else "  "
+        l_cursor = " |>" if self.focus_idx == len(self.installed_models) and self.is_focused() else "   "
+        r_cursor = "<|" if self.focus_idx == len(self.installed_models) and self.is_focused() else "  "
         lines.append(f"{l_cursor} Install New Model {r_cursor}")
 
         return lines

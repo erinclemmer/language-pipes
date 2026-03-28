@@ -9,10 +9,12 @@ class NetworkStatus:
     loader: ContentLoader
     status: Optional[RouterStatus]
     exit_page: Callable
+    is_focused: Callable
 
-    def __init__(self, loader: ContentLoader, exit_page: Callable):
+    def __init__(self, loader: ContentLoader, exit_page: Callable, is_focused: Callable):
         self.loader = loader
         self.exit_page = exit_page
+        self.is_focused = is_focused
         self.status = None
 
     def start(self):
@@ -33,13 +35,15 @@ class NetworkStatus:
     
     def get_view(self) -> List[str]:
         self.status = self.loader.call_provider(ProviderCall.get_network_status)
-        lines = ["[X] Server Stopped", "", " |> Start Network Server <|"]
+        l_cursor = "|>" if self.is_focused() else "  "
+        r_cursor = "<|" if self.is_focused() else "  "
+        lines = ["[X] Server Stopped", "", f" {l_cursor} Start Network Server {r_cursor}"]
         if self.status is not None:
             lines = [
                 "[O] Server Running" if self.status.running else "[.] Server Starting",
                 f"{self.status.num_peers} peer(s) connected",
                 "",
-                " |> Stop Server <|" if self.status.running else " |> Start Server <|",
+                f" {l_cursor} Stop Server {r_cursor}" if self.status.running else f" {l_cursor} Start Server {r_cursor}",
                 "", 
                 "Logs:"
             ]
