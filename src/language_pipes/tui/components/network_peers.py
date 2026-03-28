@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Callable
 
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.content_loader import ContentLoader
@@ -7,14 +7,17 @@ from language_pipes.distributed_state_network.objects.state_packet import StateP
 
 class NetworkPeers:
     loader: ContentLoader
+    exit_page: Callable
     peers: Dict[str, StatePacket]
 
-    def __init__(self, loader: ContentLoader):
+    def __init__(self, loader: ContentLoader, exit_page: Callable):
         self.loader = loader
+        self.exit_page = exit_page
         self.peers = { }
 
     def on_key(self, key: PressedKey, ch: str):
-        pass
+        if key == PressedKey.Escape:
+            self.exit_page()
 
     def get_view(self) -> List[str]:
         self.peers = self.loader.call_provider(ProviderCall.list_peers)

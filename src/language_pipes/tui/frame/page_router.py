@@ -17,9 +17,12 @@ class PageRouter:
 
     def __init__(self, loader: ContentLoader, confirm: Confirm, nav: NavState):
         self.nav = nav
-        self.network_status = NetworkStatus(loader)
-        self.network_peers = NetworkPeers(loader)
-        self.models_installed = ModelsInstalled(loader, confirm)
+        self.network_status = NetworkStatus(loader, self.exit_page)
+        self.network_peers = NetworkPeers(loader, self.exit_page)
+        self.models_installed = ModelsInstalled(loader, confirm, self.exit_page)
+
+    def exit_page(self):
+        self.nav.focus_shallower()
 
     def get_page(self):
         tab = self.nav.active_tab()

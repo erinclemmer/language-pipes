@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Callable
 
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
@@ -8,6 +8,7 @@ from language_pipes.tui.frame.provider_calls import ProviderCall
 class ModelsInstalled:
     loader: ContentLoader
     confirm: Confirm
+    exit_page: Callable
     installed_models: List[str]
     focus_idx: int
     installing_model: bool
@@ -15,11 +16,12 @@ class ModelsInstalled:
 
     new_model_id: str
 
-    def __init__(self, loader: ContentLoader, confirm: Confirm):
+    def __init__(self, loader: ContentLoader, confirm: Confirm, exit_page: Callable):
         self.loader = loader
         self.confirm = confirm
         self.installed_models = []
         self.focus_idx = 0
+        self.exit_page = exit_page
         self.installing_model = False
         self.downloading_model = False
         self.new_model_id = ""
@@ -43,6 +45,8 @@ class ModelsInstalled:
     def on_escape(self):
         if self.installing_model:
             self.installing_model = False
+        else:
+            self.exit_page()
             
     def on_backspace(self):
         if not self.installing_model:

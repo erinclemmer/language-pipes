@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.content_loader import ContentLoader
@@ -8,9 +8,11 @@ from language_pipes.tui.frame.provider_calls import ProviderCall
 class NetworkStatus:
     loader: ContentLoader
     status: Optional[RouterStatus]
+    exit_page: Callable
 
-    def __init__(self, loader: ContentLoader):
+    def __init__(self, loader: ContentLoader, exit_page: Callable):
         self.loader = loader
+        self.exit_page = exit_page
         self.status = None
 
     def start(self):
@@ -19,6 +21,8 @@ class NetworkStatus:
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.Enter:
             self.on_enter()
+        if key == PressedKey.Escape:
+            self.exit_page()
 
     def on_enter(self):
         status: RouterStatus = self.loader.call_provider(ProviderCall.get_network_status)
