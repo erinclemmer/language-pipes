@@ -5,7 +5,8 @@ import shutil
 from tqdm.auto import tqdm
 from pathlib import Path
 from threading import Thread
-from typing import List, Optional, Dict
+from dataclasses import dataclass
+from typing import List, Optional, Dict, Tuple
 from huggingface_hub import snapshot_download, errors
 
 from language_pipes.distributed_state_network.util import stop_thread
@@ -50,7 +51,11 @@ class ModelDownloadProgress(tqdm):
             type(self)._instances.discard(self)  # type: ignore[attr-defined]
 
 
-
+@dataclass
+class ModelToLoad:
+    model_id: str
+    load_ends: bool
+    devices: List[Tuple[str, float]] # (device, max_memory)
 
 class ModelProvider:
     download_model_thread: Optional[Thread]
@@ -162,3 +167,41 @@ class ModelProvider:
         data = ModelProvider.get_globals()
         data["hf_token"] = token
         ModelProvider.save_globals(data)
+
+    @staticmethod
+    def get_models_to_load(config_file: str) -> List[ModelToLoad]:
+        config_path = Path(default_config_dir()) / "configs" / config_file
+        data = toml.loads(config_path.read_text())
+        if "models_to_load" not in data:
+            return []
+        models = []
+        for m in data.get("models_to_load", []):
+            model_to_load = ModelToLoad(m.get("model_id", ""), m.get("load_ends", False),[])
+            for d in m.get("devices", []):
+                model_to_load.devices.append((d.get("device", ""), d.get("max_memory")))
+            models.append(model_to_load)
+        return models
+    
+    @staticmethod
+    def save_models_to_load(config_file: str, models: List[ModelToLoad]):
+        config_path = Path(default_config_dir()) / "configs" / config_file
+        data = toml.loads(config_path.read_text())
+        
+        to_load = []
+        for m in models:
+            devices = []
+            for d, mm in m.devices:
+                devices.append({
+                    "device": d,
+                    "max_memory": mm
+                })
+            to_load.append({
+                "model_id": m.model_id,
+                "load_ends": m.load_ends,
+                "devices": devices
+            })
+
+        data["models_to_load"] = to_load
+
+        with open(config_path, 'w', encoding='utf-8') as f:
+            toml.dump(data, f)
