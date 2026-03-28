@@ -19,7 +19,7 @@ class MainFrame:
     TOP_HEADERS = ["Network", "Models", "Pipes", "Jobs", "Activity"]
     SIDE_OPTIONS_BY_TAB: Dict[str, List[str]] = {
         "Network": ["Status", "Peers", "Configure"],
-        "Models": ["Status", "Configure", "Installed"],
+        "Models": ["Hosted", "Installed"],
         "Pipes": ["Overview", "Routes", "Configure"],
         "Jobs": ["Queue", "History", "Stats"],
         "Activity": ["Logs", "Events", "Metrics"],

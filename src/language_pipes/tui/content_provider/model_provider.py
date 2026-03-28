@@ -207,3 +207,12 @@ class ModelProvider:
 
         with open(config_file, 'w', encoding='utf-8') as f:
             toml.dump(data, f)
+
+    @staticmethod
+    def validate_device_name(device: str) -> bool:
+        import torch
+        try:
+            torch.device(device)
+            return True
+        except RuntimeError:
+            return False

@@ -70,9 +70,9 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         ProviderCall.validate_aes_key: NetworkProvider.validate_aes_key,
         ProviderCall.detect_network_ip: NetworkProvider.detect_network_ip,
         ProviderCall.start_network: lambda: content_provider.network_provider.start_router(config_file),
-        ProviderCall.stop_network: lambda: content_provider.network_provider.stop_router(),
-        ProviderCall.get_network_status: lambda: content_provider.network_provider.get_router_status(),
-        ProviderCall.list_peers: lambda: content_provider.network_provider.get_peers(),
+        ProviderCall.stop_network: content_provider.network_provider.stop_router,
+        ProviderCall.get_network_status: content_provider.network_provider.get_router_status,
+        ProviderCall.list_peers: content_provider.network_provider.get_peers,
         
         
         ProviderCall.get_installed_models: ModelProvider.get_installed_models,
@@ -81,10 +81,11 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         ProviderCall.stop_model_download: content_provider.model_provider.stop_model_download,
         ProviderCall.check_download_progress: content_provider.model_provider.check_download_progress,
         ProviderCall.get_hf_token: ModelProvider.get_hf_token,
-        ProviderCall.save_hf_token: lambda t: ModelProvider.save_hf_token(t),
+        ProviderCall.save_hf_token: ModelProvider.save_hf_token,
 
         ProviderCall.get_models_to_load: lambda: ModelProvider.get_models_to_load(config_file),
-        ProviderCall.save_models_to_load: lambda m: ModelProvider.save_models_to_load(config_file, m)
+        ProviderCall.save_models_to_load: lambda m: ModelProvider.save_models_to_load(config_file, m),
+        ProviderCall.validate_device_name: ModelProvider.validate_device_name
     }
 
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)

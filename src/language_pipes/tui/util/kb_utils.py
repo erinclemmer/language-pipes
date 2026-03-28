@@ -25,7 +25,7 @@ def _read_byte() -> str:
     return data.decode("utf-8", errors="ignore") if data else ""
 
 def read_key() -> Tuple[PressedKey, str]:
-    accepted_chars = ["_", "-", ".", "/", "\\"]
+    accepted_chars = ["_", "-", ".", "/", "\\", ":"]
     ch = _read_byte()
     if ch.isalpha() or ch.isnumeric() or ch in accepted_chars:
         return PressedKey.Alpha, ch
