@@ -1,10 +1,12 @@
 import os
 import toml
 import shutil
+from tqdm.auto import tqdm
 from pathlib import Path
 from threading import Thread
 from dataclasses import dataclass
 from typing import List, Optional, Dict
+from huggingface_hub import snapshot_download
 
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.distributed_state_network.util import stop_thread
@@ -26,6 +28,10 @@ class RouterStatus:
     logs: List
 
 
+class ModelDownloadProgress(tqdm):
+    pass
+
+
 class ContentProvider:
     router: Optional[DSNodeServer]
     router_starting: bool
@@ -35,6 +41,15 @@ class ContentProvider:
         self.router = None
         self.router_thread = None
         self.router_starting = False
+    
+    def start_download(self, model_id: str):
+        clone_dir = Path(default_model_dir()) / model_id / "data"
+        snapshot_download(
+            repo_id=model_id,
+            local_dir=clone_dir,
+            token=None,
+            tqdm_class=ModelDownloadProgress
+        )
 
     # Network / Status
     def start_router(self, config_file: Path):

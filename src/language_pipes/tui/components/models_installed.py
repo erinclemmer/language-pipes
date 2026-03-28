@@ -35,6 +35,12 @@ class ModelsInstalled:
             self.on_char(ch)
         if key == PressedKey.Backspace:
             self.on_backspace()
+        if key == PressedKey.Escape:
+            self.on_escape()
+
+    def on_escape(self):
+        if self.installing_model:
+            self.installing_model = False
             
     def on_backspace(self):
         if not self.installing_model:
@@ -47,9 +53,20 @@ class ModelsInstalled:
         self.new_model_id += ch
 
     def on_enter(self):
-        if self.installing_model or self.focus_idx != len(self.installed_models):
+        if self.focus_idx != len(self.installed_models):
             return
-        self.installing_model = True
+        if not self.installing_model:
+            self.installing_model = True
+            return
+        else:
+            self.confirm.open(
+                f"Download {self.new_model_id}",
+                on_apply=self.download_new_model,
+                on_discard=lambda:None
+            )
+
+    def download_new_model(self):
+        pass
 
     def on_delete(self):
         if self.focus_idx < 0 or self.focus_idx >= len(self.installed_models):
