@@ -54,17 +54,16 @@ class ModelDownloadProgress(tqdm):
         # Send fp to devnull so any base-class writes are harmless.
         kwargs['file'] = open(os.devnull, 'w')
         super().__init__(*args, **kwargs)
-        self.messages: List[str] = []
         ModelDownloadProgress.latest_instance = self
 
     # -- output suppression / capture ------------------------------------------
 
     def display(self, msg=None, pos=None):  # type: ignore[override]
-        """Capture the formatted bar string instead of printing it."""
-        if msg is None:
-            msg = str(self)
-        if msg:
-            self.messages.append(msg.strip())
+        pass
+
+    @classmethod
+    def write(cls, s, file=None, end="\n", nolock=False):
+        pass
 
     def clear(self, *args, **kwargs):
         """No-op – nothing to clear since we never wrote to the terminal."""
@@ -78,11 +77,6 @@ class ModelDownloadProgress(tqdm):
         lock = self.get_lock()
         with lock:
             type(self)._instances.discard(self)  # type: ignore[attr-defined]
-
-    # -- public helpers --------------------------------------------------------
-
-    def get_messages(self) -> List[str]:
-        return list(self.messages)
 
 
 class ContentProvider:
@@ -108,6 +102,7 @@ class ContentProvider:
                 token=None,
                 tqdm_class=ModelDownloadProgress
             )
+            self.download_model_thread = None
         self.download_model_thread = Thread(target=download_model, args=())
         self.download_model_thread.start()
 
@@ -117,12 +112,12 @@ class ContentProvider:
         stop_thread(self.download_model_thread)
         self.download_model_thread = None
 
-    def check_download_progress(self) -> Optional[List[str]]:
+    def check_download_progress(self) -> Optional[str]:
         if self.download_model_thread is None:
             return None
         if ModelDownloadProgress.latest_instance is None:
-            return []
-        return ModelDownloadProgress.latest_instance.get_messages()[-10:]
+            return None
+        return str(ModelDownloadProgress.latest_instance)
 
     # Network / Status
     def start_router(self, config_file: Path):

@@ -124,7 +124,9 @@ class ModelsInstalled:
             lines.extend([
                 f"Downloading {model_id}...", ""
             ])
-            lines.extend(self.loader.call_provider(ProviderCall.check_download_progress))
+            download_status = self.loader.call_provider(ProviderCall.check_download_progress)
+            if download_status is not None:
+                lines.append(download_status)
 
         return lines
 
