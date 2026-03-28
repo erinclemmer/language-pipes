@@ -55,7 +55,22 @@ class ModelsHosted:
             self.on_char(ch)
         if key == PressedKey.Backspace:
             self.on_backspace()
+        if key == PressedKey.Delete:
+            self.on_delete()
         
+    def on_delete(self):
+        if self.model_idx == len(self.models_to_load):
+            return
+        def on_apply():
+            self.models_to_load = [m for i, m in enumerate(self.models_to_load) if i != self.model_idx]
+            self.loader.call_provider(ProviderCall.save_models_to_load, self.models_to_load)
+        
+        self.confirm.open(
+            "Remove this model?",
+            on_apply=on_apply,
+            on_discard=lambda:None
+        )
+
     def on_backspace(self):
         if not self.editing_model:
             return
@@ -81,7 +96,12 @@ class ModelsHosted:
             self.exit_page()
 
     def on_enter(self):
-        if not self.editing_model and self.model_idx == len(self.models_to_load):
+        if not self.editing_model:
+            model = self.get_editing_model()
+            self.edit_model_id = model.model_id if model is not None else ""
+            self.edit_load_ends = model.load_ends if model is not None else False
+            self.edit_device_name = model.device if model is not None else ""
+            self.edit_device_memory = str(model.max_memory) if model is not None else ""
             self.editing_model = True
         elif self.choosing_model:
             self.edit_model_id = self.installed_models[self.choose_model_idx]
