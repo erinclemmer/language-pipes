@@ -143,8 +143,9 @@ class ModelProvider:
     def save_globals(data: Dict):
         global_path = Path(default_config_dir()) / "globals.toml"
         if not os.path.exists(global_path):
-            with open(global_path, 'w', encoding="utf-8") as f:
-                toml.dump(data, f)
+            return
+        with open(global_path, 'w', encoding="utf-8") as f:
+            toml.dump(data, f)
 
     @staticmethod
     def get_hf_token() -> Optional[str]:

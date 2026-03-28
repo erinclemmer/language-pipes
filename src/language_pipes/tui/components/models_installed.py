@@ -1,4 +1,4 @@
-from typing import List, Callable
+from typing import List, Callable, Optional
 
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
@@ -14,8 +14,10 @@ class ModelsInstalled:
     focus_idx: int
     installing_model: bool
     downloading_model: bool
-
+    entering_token: bool
+    
     new_model_id: str
+    token_string: str
 
     def __init__(self, loader: ContentLoader, confirm: Confirm, exit_page: Callable, is_focused: Callable):
         self.loader = loader
@@ -26,7 +28,9 @@ class ModelsInstalled:
         self.is_focused = is_focused
         self.installing_model = False
         self.downloading_model = False
+        self.entering_token = False
         self.new_model_id = ""
+        self.token_string = ""
 
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.ArrowUp:
@@ -58,42 +62,74 @@ class ModelsInstalled:
             self.exit_page()
             
     def on_backspace(self):
-        if not self.installing_model:
-            return
-        self.new_model_id = self.new_model_id[:-1]
+        if self.entering_token:
+            self.token_string = self.token_string[:-1]
+        elif self.installing_model:
+            self.new_model_id = self.new_model_id[:-1]
         
     def on_char(self, ch: str):
-        if not self.installing_model:
-            return
-        self.new_model_id += ch
+        if self.entering_token:
+            self.token_string += ch
+        elif self.installing_model:
+            self.new_model_id += ch
 
     def on_enter(self):
-        if self.downloading_model:
+        if self.focus_idx != len(self.installed_models):
+            return
+        
+        if self.entering_token:
+            def apply_token():
+                self.loader.call_provider(ProviderCall.save_hf_token, self.token_string)
+                self.entering_token = False
+                self.token_string = ""
+                self.download_new_model()
+
+            def discard_token():
+                self.entering_token = False
+                self.token_string = ""
+                
+            self.confirm.open(
+                f"Use this token?\n{self.token_string}",
+                on_apply=apply_token,
+                on_discard=discard_token
+            )
+            return
+        elif self.downloading_model:
             self.confirm.open(
                 "Stop Current Download?",
                 on_apply=self.stop_download,
                 on_discard=lambda:None
             )
             return
-        if self.focus_idx != len(self.installed_models):
-            return
-        if not self.installing_model:
-            self.installing_model = True
-            return
-        else:
+        
+        if self.installing_model:
             self.confirm.open(
                 f"Download {self.new_model_id}",
                 on_apply=self.download_new_model,
                 on_discard=lambda:None
             )
+        else:
+            self.installing_model = True
 
     def stop_download(self):
         self.loader.call_provider(ProviderCall.stop_model_download)
         self.downloading_model = False
 
-    def download_new_model(self):
-        self.loader.call_provider(ProviderCall.start_download, self.new_model_id)
-        self.downloading_model = True
+    def download_new_model(self, check_token: bool = True):
+        token: Optional[str] = self.loader.call_provider(ProviderCall.get_hf_token)
+        if token is None and check_token:
+            def use_key():
+                self.entering_token = True
+            def dont_use_key():
+                self.download_new_model(False)
+            self.confirm.open(
+                "Use Huggingface API Key?",
+                on_apply=use_key,
+                on_discard=dont_use_key
+            )
+        else:
+            self.loader.call_provider(ProviderCall.start_download, self.new_model_id)
+            self.downloading_model = True
 
     def on_delete(self):
         if self.focus_idx < 0 or self.focus_idx >= len(self.installed_models):
@@ -116,11 +152,21 @@ class ModelsInstalled:
             self.focus_idx = len(self.installed_models)
 
     def get_view(self) -> List[str]:
-        if self.installing_model:
+        if self.entering_token:
+            return self.get_token_view()
+        elif self.installing_model:
             return self.get_installing_view()
         else:
             return self.get_list_view()
     
+    def get_token_view(self) -> List[str]:
+        token_string = self.token_string[-40:] if len(self.token_string) > 40 else self.token_string
+        lines = [
+            "Type or paste to enter a huggingface API key", "",
+            f"API Key |> {token_string}|"
+        ]
+        return lines
+
     def get_installing_view(self) -> List[str]:
         model_id = self.new_model_id[-40:] if len(self.new_model_id) > 40 else self.new_model_id
         lines = [

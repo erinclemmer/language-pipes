@@ -79,7 +79,7 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         ProviderCall.start_download: content_provider.model_provider.start_download,
         ProviderCall.stop_model_download: content_provider.model_provider.stop_model_download,
         ProviderCall.check_download_progress: content_provider.model_provider.check_download_progress,
-        ProviderCall.get_hf_token: lambda: ModelProvider.get_hf_token,
+        ProviderCall.get_hf_token: ModelProvider.get_hf_token,
         ProviderCall.save_hf_token: lambda t: ModelProvider.save_hf_token(t)
     }
 
