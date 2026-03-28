@@ -47,12 +47,19 @@ class ModelDownloadProgress(tqdm):
     """
 
     latest_instance: Optional["ModelDownloadProgress"] = None
+    _devnull_file: Optional[io.TextIOWrapper] = None
+
+    @classmethod
+    def _get_devnull_file(cls) -> io.TextIOWrapper:
+        if cls._devnull_file is None or cls._devnull_file.closed:
+            cls._devnull_file = open(os.devnull, 'w')
+        return cls._devnull_file
 
     def __init__(self, *args, **kwargs):
         if 'name' in kwargs:
             del kwargs['name']
         # Send fp to devnull so any base-class writes are harmless.
-        kwargs['file'] = open(os.devnull, 'w')
+        kwargs['file'] = self._get_devnull_file()
         super().__init__(*args, **kwargs)
         ModelDownloadProgress.latest_instance = self
 
