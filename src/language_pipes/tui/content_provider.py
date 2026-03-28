@@ -29,27 +29,65 @@ class RouterStatus:
 
 
 class ModelDownloadProgress(tqdm):
-    pass
+    """Simple tqdm subclass that records emitted messages for later inspection."""
+
+    latest_instance: Optional["ModelDownloadProgress"] = None
+
+    def __init__(self, *args, **kwargs):
+        if 'name' in kwargs:
+            del kwargs['name']
+        super().__init__(*args, **kwargs)
+        self.messages: List[str] = []
+        ModelDownloadProgress.latest_instance = self
+
+    def write(self, msg: str = "", *args, **kwargs) -> None:
+        # Record the stripped message so that downstream consumers can display it.
+        if msg:
+            self.messages.append(msg.rstrip("\n"))
+        # super().write(msg, *args, **kwargs)
+
+    def get_messages(self) -> List[str]:
+        return list(self.messages)
 
 
 class ContentProvider:
     router: Optional[DSNodeServer]
     router_starting: bool
+    download_model_thread: Optional[Thread]
     router_thread: Optional[Thread]
 
     def __init__(self):
         self.router = None
         self.router_thread = None
+        self.download_model_thread = None
         self.router_starting = False
     
     def start_download(self, model_id: str):
+        if self.download_model_thread is not None:
+            return
         clone_dir = Path(default_model_dir()) / model_id / "data"
-        snapshot_download(
-            repo_id=model_id,
-            local_dir=clone_dir,
-            token=None,
-            tqdm_class=ModelDownloadProgress
-        )
+        def download_model():
+            snapshot_download(
+                repo_id=model_id,
+                local_dir=clone_dir,
+                token=None,
+                tqdm_class=ModelDownloadProgress
+            )
+        self.download_model_thread = Thread(target=download_model, args=())
+        self.download_model_thread.start()
+
+    def stop_model_download(self):
+        if self.download_model_thread is None:
+            return
+        stop_thread(self.download_model_thread)
+        self.download_model_thread = None
+
+    def check_download_progress(self) -> Optional[List[str]]:
+        if self.download_model_thread is None:
+            return None
+        if ModelDownloadProgress.latest_instance is None:
+            return []
+        return ModelDownloadProgress.latest_instance.get_messages()[-10:]
 
     # Network / Status
     def start_router(self, config_file: Path):

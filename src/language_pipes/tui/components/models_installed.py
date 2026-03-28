@@ -11,6 +11,7 @@ class ModelsInstalled:
     installed_models: List[str]
     focus_idx: int
     installing_model: bool
+    downloading_model: bool
 
     new_model_id: str
 
@@ -20,6 +21,7 @@ class ModelsInstalled:
         self.installed_models = []
         self.focus_idx = 0
         self.installing_model = False
+        self.downloading_model = False
         self.new_model_id = ""
 
     def on_key(self, key: PressedKey, ch: str):
@@ -53,6 +55,13 @@ class ModelsInstalled:
         self.new_model_id += ch
 
     def on_enter(self):
+        if self.downloading_model:
+            self.confirm.open(
+                "Stop Current Download?",
+                on_apply=self.stop_download,
+                on_discard=lambda:None
+            )
+            return
         if self.focus_idx != len(self.installed_models):
             return
         if not self.installing_model:
@@ -65,8 +74,13 @@ class ModelsInstalled:
                 on_discard=lambda:None
             )
 
+    def stop_download(self):
+        self.loader.call_provider(ProviderCall.stop_model_download)
+        self.downloading_model = False
+
     def download_new_model(self):
-        pass
+        self.loader.call_provider(ProviderCall.start_download, self.new_model_id)
+        self.downloading_model = True
 
     def on_delete(self):
         if self.focus_idx < 0 or self.focus_idx >= len(self.installed_models):
@@ -99,8 +113,14 @@ class ModelsInstalled:
         lines = [
             "Install New Model:", "", 
             "Type the huggingface model ID from huggingface.co", "",
-            f"Model ID: {model_id}|"
+            f"Model ID: {model_id}|", ""
         ]
+
+        if self.downloading_model:
+            lines.extend([
+                f"Downloading {model_id}...", ""
+            ])
+            lines.extend(self.loader.call_provider(ProviderCall.check_download_progress))
 
         return lines
 
