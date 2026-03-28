@@ -18,6 +18,7 @@ class ModelsInstalled:
     
     new_model_id: str
     token_string: str
+    download_status: Optional[str]
 
     def __init__(self, loader: ContentLoader, confirm: Confirm, exit_page: Callable, is_focused: Callable):
         self.loader = loader
@@ -31,6 +32,7 @@ class ModelsInstalled:
         self.entering_token = False
         self.new_model_id = ""
         self.token_string = ""
+        self.download_status = None
 
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.ArrowUp:
@@ -62,12 +64,18 @@ class ModelsInstalled:
             self.exit_page()
             
     def on_backspace(self):
+        if self.downloading_model:
+            return
+        
         if self.entering_token:
             self.token_string = self.token_string[:-1]
         elif self.installing_model:
             self.new_model_id = self.new_model_id[:-1]
         
     def on_char(self, ch: str):
+        if self.downloading_model:
+            return
+        
         if self.entering_token:
             self.token_string += ch
         elif self.installing_model:
@@ -87,7 +95,7 @@ class ModelsInstalled:
             def discard_token():
                 self.entering_token = False
                 self.token_string = ""
-                
+
             self.confirm.open(
                 f"Use this token?\n{self.token_string}",
                 on_apply=apply_token,
@@ -95,11 +103,18 @@ class ModelsInstalled:
             )
             return
         elif self.downloading_model:
-            self.confirm.open(
-                "Stop Current Download?",
-                on_apply=self.stop_download,
-                on_discard=lambda:None
-            )
+            if self.download_status is not None and ("SUCCESS" in self.download_status or "ERROR" in self.download_status):
+                if "ERROR" in self.download_status:
+                    self.downloading_model = False
+                if "SUCCESS" in self.download_status:
+                    self.downloading_model = False
+                    self.installing_model = False
+            else:
+                self.confirm.open(
+                    "Stop Current Download?",
+                    on_apply=self.stop_download,
+                    on_discard=lambda:None
+                )
             return
         
         if self.installing_model:
@@ -110,6 +125,7 @@ class ModelsInstalled:
             )
         else:
             self.installing_model = True
+            self.new_model_id = ""
 
     def stop_download(self):
         self.loader.call_provider(ProviderCall.stop_model_download)
@@ -142,11 +158,16 @@ class ModelsInstalled:
         )
 
     def on_next(self):
+        if self.downloading_model or self.entering_token:
+            return
+        
         self.focus_idx += 1
         if self.focus_idx > len(self.installed_models):
             self.focus_idx = 0
 
     def on_prev(self):
+        if self.downloading_model or self.entering_token:
+            return
         self.focus_idx -= 1
         if self.focus_idx < 0:
             self.focus_idx = len(self.installed_models)
@@ -171,17 +192,20 @@ class ModelsInstalled:
         model_id = self.new_model_id[-40:] if len(self.new_model_id) > 40 else self.new_model_id
         lines = [
             "Install New Model:", "", 
-            "Type the huggingface model ID from huggingface.co", "",
-            f"Model ID: {model_id}|", ""
+            "Type the huggingface model ID from huggingface.co", ""
         ]
 
         if self.downloading_model:
             lines.extend([
                 f"Downloading {model_id}...", ""
             ])
-            download_status = self.loader.call_provider(ProviderCall.check_download_progress)
-            if download_status is not None:
-                lines.append(download_status)
+            self.download_status = self.loader.call_provider(ProviderCall.check_download_progress)
+            if self.download_status is not None:
+                lines.append(self.download_status)
+                if "SUCCESS" in self.download_status or "ERROR" in self.download_status:
+                    lines.extend(["", "Press Enter to continue..."])
+        else:
+            lines.extend([f"Model ID: {model_id}|", ""])
 
         return lines
 

@@ -95,6 +95,7 @@ class ModelProvider:
         self.downloading_to_folder = clone_dir
         self.download_message = None
         def download_model():
+            error = False
             try:
                 snapshot_download(
                     repo_id=model_id,
@@ -104,13 +105,18 @@ class ModelProvider:
                 )
             except errors.RepositoryNotFoundError:
                 self.download_message = "[ERROR] Repository not found"
+                error = True
             except errors.HFValidationError:
                 self.download_message = "[ERROR] Invalid repository ID"
+                error = True
             except RuntimeError:
                 self.download_message = "[ERROR] Download stopped"
+                error = True
             self.download_model_thread = None
             self.downloading_to_folder = None
-            self.download_message = "[SUCCESS] Download complete"
+            if not error:
+                self.download_message = "[SUCCESS] Download complete"
+                
         self.download_model_thread = Thread(target=download_model, args=())
         self.download_model_thread.start()
 
