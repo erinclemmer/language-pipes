@@ -2,7 +2,7 @@ from typing import List, Optional, Callable
 
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.content_loader import ContentLoader
-from language_pipes.tui.content_provider.content_provider import RouterStatus
+from language_pipes.tui.content_provider.network_provider import RouterStatus
 from language_pipes.tui.frame.provider_calls import ProviderCall
 
 class NetworkStatus:
