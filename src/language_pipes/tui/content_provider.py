@@ -1,3 +1,4 @@
+import io
 import os
 import toml
 import shutil
@@ -29,22 +30,56 @@ class RouterStatus:
 
 
 class ModelDownloadProgress(tqdm):
-    """Simple tqdm subclass that records emitted messages for later inspection."""
+    """tqdm subclass that silently captures progress for TUI display.
+
+    The default tqdm renders the progress bar by writing to ``self.fp``
+    (stderr) via ``display() -> sp() -> fp.write()``.  Overriding only
+    ``write()`` is not enough because the bar itself never goes through
+    ``write()``; it goes through ``display()``.
+
+    To fully suppress terminal output we:
+    1. Redirect ``file`` (``self.fp``) to ``os.devnull`` so any residual
+       writes from the base class are silenced.
+    2. Override ``display()`` to capture the formatted bar string into
+       ``self.messages`` instead of printing it.
+    3. Override ``clear()`` / ``close()`` so the base class never tries
+       to erase lines on the real terminal.
+    """
 
     latest_instance: Optional["ModelDownloadProgress"] = None
 
     def __init__(self, *args, **kwargs):
         if 'name' in kwargs:
             del kwargs['name']
+        # Send fp to devnull so any base-class writes are harmless.
+        kwargs['file'] = open(os.devnull, 'w')
         super().__init__(*args, **kwargs)
         self.messages: List[str] = []
         ModelDownloadProgress.latest_instance = self
 
-    def write(self, msg: str = "", *args, **kwargs) -> None:
-        # Record the stripped message so that downstream consumers can display it.
+    # -- output suppression / capture ------------------------------------------
+
+    def display(self, msg=None, pos=None):  # type: ignore[override]
+        """Capture the formatted bar string instead of printing it."""
+        if msg is None:
+            msg = str(self)
         if msg:
-            self.messages.append(msg.rstrip("\n"))
-        # super().write(msg, *args, **kwargs)
+            self.messages.append(msg.strip())
+
+    def clear(self, *args, **kwargs):
+        """No-op – nothing to clear since we never wrote to the terminal."""
+        pass
+
+    def close(self):
+        """Mark bar as disabled without writing anything to the terminal."""
+        if self.disable:
+            return
+        self.disable = True
+        lock = self.get_lock()
+        with lock:
+            type(self)._instances.discard(self)  # type: ignore[attr-defined]
+
+    # -- public helpers --------------------------------------------------------
 
     def get_messages(self) -> List[str]:
         return list(self.messages)
