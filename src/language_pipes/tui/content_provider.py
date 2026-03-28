@@ -180,3 +180,11 @@ class ContentProvider:
                         models.append(f"{org}/{model}")
 
         return sorted(models)
+    
+    @staticmethod
+    def delete_installed_model(model_name: str):
+        model_dir = Path(default_model_dir()) / model_name
+        if not os.path.exists(model_dir):
+            return
+        shutil.rmtree(model_dir)
+        

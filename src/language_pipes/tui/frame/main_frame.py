@@ -39,7 +39,7 @@ class MainFrame:
         self.loader = ContentLoader(providers)
         self.confirm = Confirm()
         self.nav = NavState(self.TOP_HEADERS, self.SIDE_OPTIONS_BY_TAB)
-        self.page_router = PageRouter(self.loader, self.nav)
+        self.page_router = PageRouter(self.loader, self.confirm, self.nav)
 
         self.network_form = NetworkForm(self.loader, self.state, self.editor, self.confirm, self.change_nav)
         self.layout = FrameLayout(

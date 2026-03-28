@@ -23,6 +23,7 @@ class ProviderCall(Enum):
 
     # Models / Installed
     get_installed_models = "get_installed_models"
+    delete_installed_model = "delete_installed_moodel"
     download_model = "download_model"
 
     # Other

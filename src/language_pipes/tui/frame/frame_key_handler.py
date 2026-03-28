@@ -85,7 +85,7 @@ class FrameKeyHandler:
         
         current_page = self.page_router.get_page()
         if self.nav.focus_depth == 2 and current_page is not None and key != PressedKey.Escape:
-            current_page.on_key(key)
+            current_page.on_key(key, ch)
             return
 
         if key == PressedKey.Alpha and ch.lower() == "q":

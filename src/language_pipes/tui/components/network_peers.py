@@ -13,7 +13,7 @@ class NetworkPeers:
         self.loader = loader
         self.peers = { }
 
-    def on_key(self, key: PressedKey):
+    def on_key(self, key: PressedKey, ch: str):
         pass
 
     def get_view(self) -> List[str]:

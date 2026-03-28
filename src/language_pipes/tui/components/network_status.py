@@ -16,7 +16,7 @@ class NetworkStatus:
     def start(self):
         self.status = self.loader.call_provider(ProviderCall.get_network_status)
 
-    def on_key(self, key: PressedKey):
+    def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.Enter:
             self.on_enter()
 
