@@ -74,13 +74,17 @@ def handle_file_load(window: TuiWindow, left_bound: int, termsize: Tuple[int, in
         ProviderCall.get_network_status: lambda: content_provider.network_provider.get_router_status(),
         ProviderCall.list_peers: lambda: content_provider.network_provider.get_peers(),
         
+        
         ProviderCall.get_installed_models: ModelProvider.get_installed_models,
         ProviderCall.delete_installed_model: ModelProvider.delete_installed_model,
         ProviderCall.start_download: content_provider.model_provider.start_download,
         ProviderCall.stop_model_download: content_provider.model_provider.stop_model_download,
         ProviderCall.check_download_progress: content_provider.model_provider.check_download_progress,
         ProviderCall.get_hf_token: ModelProvider.get_hf_token,
-        ProviderCall.save_hf_token: lambda t: ModelProvider.save_hf_token(t)
+        ProviderCall.save_hf_token: lambda t: ModelProvider.save_hf_token(t),
+
+        ProviderCall.get_models_to_load: lambda: ModelProvider.get_models_to_load(config_file),
+        ProviderCall.save_models_to_load: lambda m: ModelProvider.save_models_to_load(config_file, m)
     }
 
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)

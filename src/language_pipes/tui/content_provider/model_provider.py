@@ -50,12 +50,16 @@ class ModelDownloadProgress(tqdm):
         with lock:
             type(self)._instances.discard(self)  # type: ignore[attr-defined]
 
+@dataclass
+class DeviceConfig:
+    name: str
+    max_memory: float
 
 @dataclass
 class ModelToLoad:
     model_id: str
     load_ends: bool
-    devices: List[Tuple[str, float]] # (device, max_memory)
+    devices: List[DeviceConfig]
 
 class ModelProvider:
     download_model_thread: Optional[Thread]
@@ -169,31 +173,29 @@ class ModelProvider:
         ModelProvider.save_globals(data)
 
     @staticmethod
-    def get_models_to_load(config_file: str) -> List[ModelToLoad]:
-        config_path = Path(default_config_dir()) / "configs" / config_file
-        data = toml.loads(config_path.read_text())
+    def get_models_to_load(config_file: Path) -> List[ModelToLoad]:
+        data = toml.loads(config_file.read_text())
         if "models_to_load" not in data:
             return []
         models = []
         for m in data.get("models_to_load", []):
             model_to_load = ModelToLoad(m.get("model_id", ""), m.get("load_ends", False),[])
             for d in m.get("devices", []):
-                model_to_load.devices.append((d.get("device", ""), d.get("max_memory")))
+                model_to_load.devices.append(DeviceConfig(d.get("name", ""), d.get("max_memory", "")))
             models.append(model_to_load)
         return models
     
     @staticmethod
-    def save_models_to_load(config_file: str, models: List[ModelToLoad]):
-        config_path = Path(default_config_dir()) / "configs" / config_file
-        data = toml.loads(config_path.read_text())
+    def save_models_to_load(config_file: Path, models: List[ModelToLoad]):
+        data = toml.loads(config_file.read_text())
         
         to_load = []
         for m in models:
             devices = []
-            for d, mm in m.devices:
+            for d in m.devices:
                 devices.append({
-                    "device": d,
-                    "max_memory": mm
+                    "name": d.name,
+                    "max_memory": d.max_memory
                 })
             to_load.append({
                 "model_id": m.model_id,
@@ -203,5 +205,5 @@ class ModelProvider:
 
         data["models_to_load"] = to_load
 
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_file, 'w', encoding='utf-8') as f:
             toml.dump(data, f)
