@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 from threading import Thread
 from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Callable
 
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.distributed_state_network.util import stop_thread
@@ -26,14 +26,15 @@ class RouterStatus:
     logs: List
 
 class NetworkProvider:
-    router: Optional[DSNodeServer]
     router_thread: Optional[Thread]
     router_starting: bool
 
-    def __init__(self):
+    def __init__(self, get_router: Callable, set_router: Callable):
         self.router_starting = False
         self.router_thread = None
-        self.router = None
+        self.get_router = get_router
+        self.set_router = set_router
+        self.set_router(None)
 
     # Network / Status
     def start_router(self, config_file: Path):
@@ -42,7 +43,7 @@ class NetworkProvider:
         config = NetworkProvider.get_network_config(config_file)
         def start_router():
             self.router_starting = True
-            self.router = DSNodeServer.start(config)
+            self.set_router(DSNodeServer.start(config))
             self.router_starting = False
         self.router_thread = Thread(target=start_router, args=())
         self.router_thread.start()
@@ -50,15 +51,17 @@ class NetworkProvider:
     def stop_router(self):
         if self.router_starting:
             return
-        if self.router is None or self.router_thread is None:
+        rtr = self.get_router()
+        if rtr is None or self.router_thread is None:
             return
-        self.router.stop()
+        rtr.stop()
         stop_thread(self.router_thread)
-        self.router = None
+        self.set_router(None)
         self.router_thread = None
 
     def get_router_status(self) -> Optional[RouterStatus]:
-        if self.router is None and not self.router_starting:
+        rtr = self.get_router()
+        if rtr is None and not self.router_starting:
             return None
         
         if self.router_starting:
@@ -68,21 +71,22 @@ class NetworkProvider:
                 logs=[]
             )
 
-        if self.router is None:
+        if rtr is None:
             return None
         
         return RouterStatus(
             running=True,
-            num_peers=len(self.router.node.node_states.keys()) - 1,
-            logs=self.router.node.logs
+            num_peers=len(rtr.node.node_states.keys()) - 1,
+            logs=rtr.node.logs
         )
     
     # Network / Peers
     def get_peers(self) -> Dict[str, StatePacket]:
-        if self.router is None:
+        rtr = self.get_router()
+        if rtr is None:
             return { }
-        data = self.router.node.node_states.copy()
-        del data[self.router.node.config.node_id]
+        data = rtr.node.node_states.copy()
+        del data[rtr.node.config.node_id]
         return data
 
     # Network / Configure
