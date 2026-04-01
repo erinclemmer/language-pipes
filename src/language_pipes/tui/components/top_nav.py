@@ -12,7 +12,7 @@ class TopNav:
         self.is_focused = True
 
         for i, h in enumerate(self.headers):
-            header_x = 5 + i * 15
+            header_x = 5 + i * 12
             self.header_positions.append(header_x)
             self.header_ids.append(self.window.add_text(TermText(h), (header_x, 0)))
 

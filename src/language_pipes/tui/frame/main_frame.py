@@ -16,8 +16,9 @@ from language_pipes.tui.frame.frame_key_handler import FrameKeyHandler
 from language_pipes.tui.frame.page_router import PageRouter
 
 class MainFrame:
-    TOP_HEADERS = ["Network", "Models", "Pipes", "Jobs", "Activity"]
+    TOP_HEADERS = ["Dashboard", "Network", "Models", "Pipes", "Jobs", "Activity"]
     SIDE_OPTIONS_BY_TAB: Dict[str, List[str]] = {
+        "Dashboard": ["Dashboard"],
         "Network": ["Status", "Peers", "Configure"],
         "Models": ["Hosted", "Installed"],
         "Pipes": ["Overview", "Routes", "Configure"],
@@ -65,7 +66,7 @@ class MainFrame:
         self.nav.set_side_nav(self.layout.side_nav, section)
 
     def _init_view(self):
-        self.change_nav("Network", "Configure")
+        self.change_nav("Dashboard", "Dashboard")
         self.key_handler.activate_selection()
 
     def frame_render_thread(self):

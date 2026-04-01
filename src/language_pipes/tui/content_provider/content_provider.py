@@ -10,7 +10,7 @@ class ContentProvider:
     model_provider: ModelProvider
     network_provider: NetworkProvider
 
-    def __init__(self, config: LpConfig):
+    def __init__(self):
         self.model_provider = ModelProvider()
         self.network_provider = NetworkProvider(self.get_router, self.set_router)
 

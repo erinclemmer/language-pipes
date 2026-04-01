@@ -5,6 +5,7 @@ from language_pipes.tui.components.network_status import NetworkStatus
 from language_pipes.tui.components.network_peers import NetworkPeers
 from language_pipes.tui.components.models_installed import ModelsInstalled
 from language_pipes.tui.components.models_hosted import ModelsHosted
+from language_pipes.tui.components.dashboard import Dashboard
 
 class PageRouter:
     loader: ContentLoader
@@ -17,8 +18,11 @@ class PageRouter:
     models_installed: ModelsInstalled
     models_hosted: ModelsHosted
 
+    dashboard: Dashboard
+
     def __init__(self, loader: ContentLoader, confirm: Confirm, nav: NavState):
         self.nav = nav
+        self.dashboard = Dashboard(loader, self.exit_page, self.is_focused)
         self.network_status = NetworkStatus(loader, self.exit_page, self.is_focused)
         self.network_peers = NetworkPeers(loader, self.exit_page, self.is_focused)
         self.models_installed = ModelsInstalled(loader, confirm, self.exit_page, self.is_focused)
@@ -33,6 +37,8 @@ class PageRouter:
     def get_page(self):
         tab = self.nav.active_tab()
         section = self.nav.active_side_option()
+        if tab == "Dashboard" and section == "Dashboard":
+            return self.dashboard
         if tab == "Network" and section == "Status":
             return self.network_status
         if tab == "Network" and section == "Peers":
