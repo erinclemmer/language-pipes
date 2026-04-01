@@ -231,7 +231,7 @@ class ModelsHosted:
             r_cursor = "<|" if self.model_idx == i and self.is_focused() else "  "
             ends_string = "+ ends" if model.load_ends else ""
             lines.append(f"{l_cursor} {model.model_id} {model.max_memory}GB {ends_string} {model.device} {r_cursor}")
-
+            
         l_cursor = "|>" if self.model_idx == len(self.models_to_load) and self.is_focused() else "  "
         r_cursor = "<|" if self.model_idx == len(self.models_to_load) and self.is_focused() else "  "
         lines.append("")

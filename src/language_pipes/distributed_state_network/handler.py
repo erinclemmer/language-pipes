@@ -7,6 +7,7 @@ from language_pipes.distributed_state_network.dsnode import DSNode
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.distributed_state_network.util.aes import generate_aes_key
 from language_pipes.distributed_state_network.util import stop_thread
+from language_pipes.network_protocol import StateNetworkNode
 
 VERSION = "0.7.0"
 
@@ -63,7 +64,7 @@ class _DSNodeHTTPRequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args):
         return
 
-class DSNodeServer:
+class DSNodeServer(StateNetworkNode):
     config: DSNodeConfig
     network_ip: Optional[str]
     running: bool
@@ -223,11 +224,11 @@ class DSNodeServer:
     def read_data(self, node_id: str, key: str) -> Optional[str]:
         return self.node.read_data(node_id, key)
     
-    def update_data(self, key: str, val: str):
-        return self.node.update_data(key, val)
+    def update_data(self, key: str, value: str):
+        self.node.update_data(key, value)
 
     def send_to_node(self, node_id: str, data: bytes):
-        return self.node.send_to_node(node_id, data)
+        self.node.send_to_node(node_id, data)
 
     def is_shut_down(self) -> bool:
         return self.node.shutting_down
@@ -244,6 +245,6 @@ class DSNodeServer:
     def set_disconnect_cb(self, cb: Callable):
         self.node.disconnect_cb = cb
 
-    def _receive_data(self, data: bytes):
+    def receive_data(self, data: bytes):
         if self.node.receive_cb is not None:
             self.node.receive_cb(data)

@@ -2,6 +2,7 @@ import io
 import os
 import toml
 import shutil
+from enum import Enum
 from tqdm.auto import tqdm
 from pathlib import Path
 from threading import Thread
@@ -57,6 +58,12 @@ class ModelToLoad:
     device: str
     max_memory: float
 
+class ModelStatus(Enum):
+    Stopped = "Stopped"
+    Starting = "Starting"
+    Running = "Running"
+    Stopping = "Stopping"
+
 class ModelProvider:
     download_model_thread: Optional[Thread]
     download_message: Optional[str]
@@ -66,6 +73,10 @@ class ModelProvider:
         self.download_model_thread = None
         self.download_message = None
         self.downloading_to_folder = None
+    
+    # Returns (process_id, status)
+    def get_models_status() -> Dict[str, ModelStatus]:
+        return {}
     
     # Models / Installed
     @staticmethod

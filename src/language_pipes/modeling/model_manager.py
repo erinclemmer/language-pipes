@@ -10,6 +10,7 @@ from language_pipes.modeling.end_model import EndModel
 from language_pipes.modeling.llm_meta_data import validate_model
 
 from language_pipes.config import LpConfig
+from language_pipes.util.config import default_model_dir
 
 class ModelManager:
     logger: Logger
@@ -31,11 +32,6 @@ class ModelManager:
         self.models = []
         self.end_models = []
         self.pipes_hosted = { }
-        for m in self.config.layer_models:
-            self._host_model(m.id, m.max_memory, m.device)
-
-        for m in self.config.end_models:
-            self._load_end_model(m, "cpu")
 
     def stop(self):
         for m in self.models:
@@ -55,7 +51,7 @@ class ModelManager:
         start_memory = available_memory
 
         new_model: Optional[LlmModel] = LlmModel.from_id(
-            model_dir=self.config.model_dir,
+            model_dir=default_model_dir(),
             model_id=model_id,
             node_id=self.config.node_id,
             pipe_id=pipe.pipe_id,
@@ -88,9 +84,9 @@ class ModelManager:
             new_model = None
         return available_memory, new_model
 
-    def _load_end_model(self, model_id: str, device: str):
+    def _load_end_model(self, model_id: str, device: str, num_local_layers: int):
         self.logger.info(f"Loading end model: {model_id}")
-        model = EndModel(self.config.num_local_layers, self.config.model_dir, model_id, device, self.config.huggingface_token)
+        model = EndModel(num_local_layers, default_model_dir(), model_id, device, self.config.huggingface_token)
         model.load()
         self.end_models.append(model)
         self.logger.info("End model loading complete")
@@ -98,7 +94,6 @@ class ModelManager:
     def _host_model(self, model_id: str, max_memory: float, device: str):
         available_memory = max_memory * 10 ** 9
         models_to_load: List[LlmModel] = []
-        end_model = None
         
         if model_id not in self.pipes_hosted:
             self.pipes_hosted[model_id] = []
