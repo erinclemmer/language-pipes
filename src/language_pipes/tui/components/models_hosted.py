@@ -264,12 +264,23 @@ class ModelsHosted:
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
         models_status = self.loader.call_provider(ProviderCall.get_models_status)
         for i, model in enumerate(self.models_to_load):
-            status = models_status.get(model.model_id).value if model.model_id in models_status else "Stopped"
+            status_info = (
+                models_status.get(model.model_id)
+                if model.model_id in models_status
+                else None
+            )
+            if status_info:
+                status = status_info.status.value
+                layers_loaded = status_info.layers_loaded
+            else:
+                status = "Stopped"
+                layers_loaded = None
             lines.append(
                 format_model_line(
                     model,
                     selected=self.model_idx == i and self.is_focused(),
                     status=status,
+                    layers_loaded=layers_loaded,
                 )
             )
 
