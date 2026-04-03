@@ -86,9 +86,33 @@ class ModelProvider:
     def set_router_pipes(self, router_pipes: Optional[RouterPipes]):
         self.router_pipes = router_pipes
 
-    # Returns (process_id, status)
+    # Returns a mapping of model_id -> lifecycle status based on ModelManager state.
     def get_models_status(self) -> Dict[str, ModelStatus]:
-        return {}
+        status_by_model: Dict[str, ModelStatus] = {}
+
+        known_model_ids = set(self.model_manager.pipes_hosted.keys())
+        known_model_ids.update(model.model_id for model in self.model_manager.models)
+        known_model_ids.update(model.model_id for model in self.model_manager.end_models)
+
+        for model_id in known_model_ids:
+            status_by_model[model_id] = ModelStatus.Stopped
+
+        for model in self.model_manager.models:
+            status_by_model[model.model_id] = (
+                ModelStatus.Running
+                if getattr(model, "loaded", False)
+                else ModelStatus.Starting
+            )
+
+        for model in self.model_manager.end_models:
+            current_status = status_by_model.get(model.model_id, ModelStatus.Stopped)
+            is_loaded = getattr(model, "loaded", True)
+            if is_loaded:
+                status_by_model[model.model_id] = ModelStatus.Running
+            elif current_status != ModelStatus.Running:
+                status_by_model[model.model_id] = ModelStatus.Starting
+
+        return status_by_model
 
     # Models / Installed
     @staticmethod
