@@ -1,4 +1,6 @@
 from typing import Optional
+
+import psutil
 from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.modeling.model_manager import ModelManager
@@ -29,3 +31,11 @@ class ContentProvider:
         self.router = router
         self.router_pipes = RouterPipes(router)
         self.model_provider.set_router_pipes(self.router_pipes)
+
+    @staticmethod
+    def get_total_system_ram() -> float:
+        return psutil.virtual_memory().total / (1024**3)
+
+    @staticmethod
+    def get_used_system_ram() -> float:
+        return psutil.virtual_memory().used / (1024**3)
