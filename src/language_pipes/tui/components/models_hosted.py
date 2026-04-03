@@ -203,16 +203,16 @@ class ModelsHosted:
             return True
         except ValueError:
             return False
+        
+    def _network_not_started_warning(self):
+        return ["[WARNING] Network is not started.\nModels cannot be loaded until the network is started.", ""]
 
     def get_choosing_model_view(self) -> List[str]:
         lines = ["Choose Model to Host", ""]
 
         network_status = self.loader.call_provider(ProviderCall.get_network_status)
         if network_status is None or not network_status.running:
-            lines.append(
-                "[WARNING] Network is not started. Models cannot be loaded until the network is started."
-            )
-            lines.append("")
+            lines.extend(self._network_not_started_warning())
 
         self.installed_models = self.loader.call_provider(
             ProviderCall.get_installed_models
@@ -236,10 +236,7 @@ class ModelsHosted:
 
         network_status = self.loader.call_provider(ProviderCall.get_network_status)
         if network_status is None or not network_status.running:
-            lines.append(
-                "[WARNING] Network is not started. Models cannot be loaded until the network is started."
-            )
-            lines.append("")
+            lines.extend(self._network_not_started_warning())
 
         model_id_label = (
             self.edit_model_id if self.edit_model_id is not None else "Choose model..."
@@ -278,10 +275,7 @@ class ModelsHosted:
 
         network_status = self.loader.call_provider(ProviderCall.get_network_status)
         if network_status is None or not network_status.running:
-            lines.append(
-                "[WARNING] Network is not started. Models cannot be loaded until the network is started."
-            )
-            lines.append("")
+            lines.extend(self._network_not_started_warning())
 
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
         models_status = self.loader.call_provider(ProviderCall.get_models_status)
