@@ -31,8 +31,11 @@ class Dashboard:
         elif key == PressedKey.Enter:
             if self.selected_idx == 0:
                 status = self._get_status()
-                if status is None or not status.running:
+                state = self._get_state(status)
+                if state == "stopped":
                     self.loader.call_provider(ProviderCall.start_network)
+                elif state == "running":
+                    self.loader.call_provider(ProviderCall.stop_network)
             else:
                 _, tab, section = self.OPTIONS[self.selected_idx]
                 self.change_nav(tab, section)
@@ -45,19 +48,31 @@ class Dashboard:
         except LookupError:
             return None
 
+    @staticmethod
+    def _get_state(status: Optional[Any]) -> str:
+        if status is None:
+            return "stopped"
+        return getattr(status, "state", "running" if getattr(status, "running", False) else "starting")
+
     def get_view(self) -> List[str]:
         status = self._get_status()
-        is_running = status is not None and status.running
+        state = self._get_state(status)
+        is_running = state == "running"
         focused = self.is_focused()
         peer_text = (
             f" ({getattr(status, 'num_peers', 0)} peer(s) connected)"
             if is_running
             else ""
         )
-        lines = [f"Network Server: {'On' if is_running else 'Off'}{peer_text}", ""]
+        lines = [f"Network Server: {state.title()}{peer_text}", ""]
         for idx, (label, _, _) in enumerate(self.OPTIONS):
             if idx == 0:
-                label = "Stop Network Server" if is_running else label
+                if state == "running":
+                    label = "Stop Network Server"
+                elif state == "starting":
+                    label = "Starting Network Server"
+                elif state == "stopping":
+                    label = "Stopping Network Server"
             selected = focused and idx == self.selected_idx
             l_cursor = "|>" if selected else "  "
             r_cursor = "<|" if selected else "  "

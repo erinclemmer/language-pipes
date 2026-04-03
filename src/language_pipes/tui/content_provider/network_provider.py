@@ -21,6 +21,7 @@ AES_KEY_LEN = 32
 
 @dataclass
 class RouterStatus:
+    state: str
     running: bool
     num_peers: int
     logs: List
@@ -28,9 +29,11 @@ class RouterStatus:
 class NetworkProvider:
     router_thread: Optional[Thread]
     router_starting: bool
+    router_stopping: bool
 
     def __init__(self, get_router: Callable, set_router: Callable):
         self.router_starting = False
+        self.router_stopping = False
         self.router_thread = None
         self.get_router = get_router
         self.set_router = set_router
@@ -38,7 +41,7 @@ class NetworkProvider:
 
     # Network / Status
     def start_router(self, config_file: Path):
-        if self.router_starting:
+        if self.router_starting or self.router_stopping:
             return
         config = NetworkProvider.get_network_config(config_file)
         def start_router():
@@ -49,32 +52,49 @@ class NetworkProvider:
         self.router_thread.start()
 
     def stop_router(self):
-        if self.router_starting:
+        if self.router_starting or self.router_stopping:
             return
         rtr = self.get_router()
-        if rtr is None or self.router_thread is None:
+        router_thread = self.router_thread
+        if rtr is None or router_thread is None:
             return
-        rtr.stop()
-        stop_thread(self.router_thread)
-        self.set_router(None)
-        self.router_thread = None
+        def stop_router():
+            self.router_stopping = True
+            try:
+                rtr.stop()
+                stop_thread(router_thread)
+                self.set_router(None)
+                self.router_thread = None
+            finally:
+                self.router_stopping = False
+        Thread(target=stop_router, args=()).start()
 
     def get_router_status(self) -> Optional[RouterStatus]:
         rtr = self.get_router()
-        if rtr is None and not self.router_starting:
+        if rtr is None and not self.router_starting and not self.router_stopping:
             return None
         
         if self.router_starting:
             return RouterStatus(
+                state="starting",
                 running=False,
                 num_peers=0,
                 logs=[]
+            )
+
+        if self.router_stopping:
+            return RouterStatus(
+                state="stopping",
+                running=False,
+                num_peers=0 if rtr is None else len(rtr.node.node_states.keys()) - 1,
+                logs=[] if rtr is None else rtr.node.logs
             )
 
         if rtr is None:
             return None
         
         return RouterStatus(
+            state="running",
             running=True,
             num_peers=len(rtr.node.node_states.keys()) - 1,
             logs=rtr.node.logs
