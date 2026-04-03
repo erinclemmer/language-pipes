@@ -3,7 +3,9 @@ import sys
 import types
 import unittest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "src"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "src")
+)
 
 
 def install_stub_modules():
@@ -70,13 +72,19 @@ def install_stub_modules():
 
 install_stub_modules()
 
-from language_pipes.tui.content_provider.model_provider import ModelProvider, ModelStatus
+from language_pipes.tui.content_provider.model_provider import (
+    ModelProvider,
+    ModelStatus,
+    ModelStatusInfo,
+)
 
 
 class _Model:
-    def __init__(self, model_id, loaded):
+    def __init__(self, model_id, loaded, start_layer=-1, end_layer=-1):
         self.model_id = model_id
         self.loaded = loaded
+        self.start_layer = start_layer
+        self.end_layer = end_layer
 
 
 class _EndModelWithoutLoaded:
@@ -86,7 +94,9 @@ class _EndModelWithoutLoaded:
 
 class ModelProviderStatusTests(unittest.TestCase):
     def test_get_models_status_reflects_model_manager_state(self):
-        model_manager = sys.modules["language_pipes.modeling.model_manager"].ModelManager()
+        model_manager = sys.modules[
+            "language_pipes.modeling.model_manager"
+        ].ModelManager()
         model_manager.pipes_hosted = {
             "running/model": ["pipe-1"],
             "starting/model": ["pipe-2"],
@@ -103,29 +113,61 @@ class ModelProviderStatusTests(unittest.TestCase):
             _Model("end/starting", False),
         ]
 
-        provider = ModelProvider(model_manager)
+        provider = ModelProvider(lambda: model_manager, lambda: None)
 
+        result = provider.get_models_status()
         self.assertEqual(
-            provider.get_models_status(),
-            {
-                "running/model": ModelStatus.Running,
-                "starting/model": ModelStatus.Starting,
-                "stopped/model": ModelStatus.Stopped,
-                "end/running": ModelStatus.Running,
-                "end/starting": ModelStatus.Starting,
-            },
+            result["running/model"].status,
+            ModelStatus.Running,
+        )
+        self.assertEqual(
+            result["starting/model"].status,
+            ModelStatus.Starting,
+        )
+        self.assertEqual(
+            result["stopped/model"].status,
+            ModelStatus.Stopped,
+        )
+        self.assertEqual(
+            result["end/running"].status,
+            ModelStatus.Running,
+        )
+        self.assertEqual(
+            result["end/starting"].status,
+            ModelStatus.Starting,
         )
 
     def test_get_models_status_treats_end_models_without_loaded_flag_as_running(self):
-        model_manager = sys.modules["language_pipes.modeling.model_manager"].ModelManager()
+        model_manager = sys.modules[
+            "language_pipes.modeling.model_manager"
+        ].ModelManager()
         model_manager.end_models = [_EndModelWithoutLoaded("end/default")]
 
-        provider = ModelProvider(model_manager)
+        provider = ModelProvider(lambda: model_manager, lambda: None)
 
+        result = provider.get_models_status()
         self.assertEqual(
-            provider.get_models_status(),
-            {"end/default": ModelStatus.Running},
+            result["end/default"].status,
+            ModelStatus.Running,
         )
+
+    def test_get_models_status_includes_layers_loaded_for_models_with_layers(self):
+        model_manager = sys.modules[
+            "language_pipes.modeling.model_manager"
+        ].ModelManager()
+        model_manager.models = [
+            _Model("model/with-layers", True, start_layer=0, end_layer=5),
+            _Model("model/no-layers", True, start_layer=-1, end_layer=-1),
+            _Model("model/starting", False, start_layer=0, end_layer=3),
+        ]
+        model_manager.end_models = []
+
+        provider = ModelProvider(lambda: model_manager, lambda: None)
+
+        result = provider.get_models_status()
+        self.assertEqual(result["model/with-layers"].layers_loaded, "0-5")
+        self.assertEqual(result["model/no-layers"].layers_loaded, None)
+        self.assertEqual(result["model/starting"].layers_loaded, "0-3")
 
 
 if __name__ == "__main__":
