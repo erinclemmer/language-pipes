@@ -15,6 +15,7 @@ from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.frame.frame_key_handler import FrameKeyHandler
 from language_pipes.tui.frame.page_router import PageRouter
 
+
 class MainFrame:
     TOP_HEADERS = ["Dashboard", "Network", "Models", "Pipes", "Jobs", "Activity"]
     SIDE_OPTIONS_BY_TAB: Dict[str, List[str]] = {
@@ -40,21 +41,27 @@ class MainFrame:
         self.loader = ContentLoader(providers)
         self.confirm = Confirm()
         self.nav = NavState(self.TOP_HEADERS, self.SIDE_OPTIONS_BY_TAB)
-        self.page_router = PageRouter(self.loader, self.confirm, self.nav)
-
-        self.network_form = NetworkForm(self.loader, self.state, self.editor, self.confirm, self.change_nav)
-        self.layout = FrameLayout(
-            self.window, 
-            self.nav, 
-            self.editor, 
-            self.loader, 
-            self.exit_confirm, 
-            self.confirm, 
-            self.state,
-            self.page_router
+        self.page_router = PageRouter(
+            self.loader, self.confirm, self.nav, self.change_nav
         )
-        
-        self.key_handler = FrameKeyHandler(self.layout, self.network_form, self.page_router)
+
+        self.network_form = NetworkForm(
+            self.loader, self.state, self.editor, self.confirm, self.change_nav
+        )
+        self.layout = FrameLayout(
+            self.window,
+            self.nav,
+            self.editor,
+            self.loader,
+            self.exit_confirm,
+            self.confirm,
+            self.state,
+            self.page_router,
+        )
+
+        self.key_handler = FrameKeyHandler(
+            self.layout, self.network_form, self.page_router
+        )
 
         self.render_time_id = self.window.add_text(TermText(""), (0, 0))
         self.layout._init_layout(size, pos)
@@ -83,7 +90,10 @@ class MainFrame:
             start_time = time()
             self.key_handler.handle_key(key, ch)
             self.layout._render_all()
-            self.window.update_text(self.render_time_id, TermText(f"Render: {(time() - start_time) * 1000:.0f}ms"))
+            self.window.update_text(
+                self.render_time_id,
+                TermText(f"Render: {(time() - start_time) * 1000:.0f}ms"),
+            )
             self.window.paint()
 
         self.layout._teardown_windows()

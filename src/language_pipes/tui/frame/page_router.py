@@ -1,3 +1,5 @@
+from typing import Callable
+
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.content_loader import ContentLoader
@@ -6,6 +8,7 @@ from language_pipes.tui.components.network_peers import NetworkPeers
 from language_pipes.tui.components.models_installed import ModelsInstalled
 from language_pipes.tui.components.models_hosted import ModelsHosted
 from language_pipes.tui.components.dashboard import Dashboard
+
 
 class PageRouter:
     loader: ContentLoader
@@ -20,13 +23,23 @@ class PageRouter:
 
     dashboard: Dashboard
 
-    def __init__(self, loader: ContentLoader, confirm: Confirm, nav: NavState):
+    def __init__(
+        self,
+        loader: ContentLoader,
+        confirm: Confirm,
+        nav: NavState,
+        change_nav: Callable,
+    ):
         self.nav = nav
-        self.dashboard = Dashboard(loader, self.exit_page, self.is_focused)
+        self.dashboard = Dashboard(loader, self.exit_page, self.is_focused, change_nav)
         self.network_status = NetworkStatus(loader, self.exit_page, self.is_focused)
         self.network_peers = NetworkPeers(loader, self.exit_page, self.is_focused)
-        self.models_installed = ModelsInstalled(loader, confirm, self.exit_page, self.is_focused)
-        self.models_hosted = ModelsHosted(loader, confirm, self.exit_page, self.is_focused)
+        self.models_installed = ModelsInstalled(
+            loader, confirm, self.exit_page, self.is_focused
+        )
+        self.models_hosted = ModelsHosted(
+            loader, confirm, self.exit_page, self.is_focused
+        )
 
     def is_focused(self):
         return self.nav.focus_depth == 2
