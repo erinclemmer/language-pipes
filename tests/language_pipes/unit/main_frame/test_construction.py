@@ -6,7 +6,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'sr
 
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.frame.nav_state import NavState
-from language_pipes.tui.frame.editor import Editor
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.content_loader import ContentLoader
@@ -30,9 +29,6 @@ class TestMainFrameConstruction(unittest.TestCase):
 
     def test_nav_state_created(self):
         self.assertIsInstance(self.frame.nav, NavState)
-
-    def test_editor_created(self):
-        self.assertIsInstance(self.frame.editor, Editor)
 
     def test_frame_state_created(self):
         self.assertIsInstance(self.frame.state, FrameState)
@@ -73,9 +69,6 @@ class TestMainFrameConstruction(unittest.TestCase):
         providers = {"fake": lambda: None}
         frame = _make_main_frame(providers=providers)
         self.assertIs(frame.loader.providers, providers)
-
-    def test_editor_not_in_edit_mode(self):
-        self.assertFalse(self.frame.editor.edit_mode)
 
     def test_exit_confirm_not_open(self):
         self.assertFalse(self.frame.exit_confirm.is_open)

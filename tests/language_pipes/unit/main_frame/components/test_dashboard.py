@@ -25,6 +25,8 @@ class TestDashboardComponent(unittest.TestCase):
         loader = Mock()
 
         def call_provider(provider_call, *args):
+            if provider_call == ProviderCall.get_network_config:
+                return SimpleNamespace(node_id="test-node")  # Mock config with node_id
             if provider_call == ProviderCall.get_network_status:
                 return status
             if provider_call == ProviderCall.get_used_system_ram:

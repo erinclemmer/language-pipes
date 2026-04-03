@@ -1,6 +1,4 @@
-from typing import Tuple, Dict, Callable
 
-from language_pipes.tui.frame.editor import Editor
 from language_pipes.tui.frame.layout import FrameLayout
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.frame.nav_state import NavState
@@ -12,7 +10,6 @@ from language_pipes.tui.frame.page_router import PageRouter
 
 class FrameKeyHandler:
     nav: NavState
-    editor: Editor
     confirm: Confirm
     state: FrameState
     layout: FrameLayout
@@ -22,7 +19,6 @@ class FrameKeyHandler:
     def __init__(self, layout: FrameLayout, page_router: PageRouter):
         self.state = layout.state
         self.nav = layout.nav_state
-        self.editor = layout.editor
         self.confirm = layout.edit_confirm
         self.exit_confirm = layout.exit_confirm
         self.page_router = page_router

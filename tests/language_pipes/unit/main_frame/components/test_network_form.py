@@ -41,14 +41,12 @@ class TestNetworkFormPage(unittest.TestCase):
         frame = self._configure_page(providers=self._make_providers())
 
         self.assertIs(frame.page_router.get_page(), frame.network_form)
-        self.assertFalse(frame.editor.edit_mode)
         self.assertGreater(len(frame.network_form.edit_fields), 0)
 
     def test_activate_selection_without_providers_keeps_page_out_of_field_editor(self):
         frame = self._configure_page(providers=None)
 
         self.assertIs(frame.page_router.get_page(), frame.network_form)
-        self.assertFalse(frame.editor.edit_mode)
         self.assertFalse(frame.network_form.field_editor_visible)
         self.assertEqual(frame.network_form.edit_fields, [])
 

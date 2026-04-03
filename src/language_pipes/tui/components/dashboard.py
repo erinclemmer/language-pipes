@@ -3,12 +3,26 @@ from typing import Any, Callable, List, Optional
 from language_pipes.tui.components.hosted_models_view import format_model_line
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.frame.provider_calls import ProviderCall
+from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 
 
 class Dashboard:
-    @staticmethod
-    def _get_options(state: str) -> List[tuple]:
-        options = [("Start Network Server", "Network", "Status")]
+    def _has_node_id(self) -> bool:
+        config = self._get_config()
+        return config is not None and config.node_id != ""
+
+    def _get_options(self, state: str) -> List[tuple]:
+        if state == "running":
+            options = [("Stop Network Server", "Network", "Status")]
+        elif state == "starting":
+            options = [("Starting Network Server", "Network", "Status")]
+        elif state == "stopping":
+            options = [("Stopping Network Server", "Network", "Status")]
+        elif self._has_node_id():
+            options = [("Start Network Server", "Network", "Status")]
+        else:
+            options = [("Configure Network", "Network", "Configure")]
+
         if state == "running":
             options.append(("Host Models", "Models", "Hosted"))
         return options
@@ -36,7 +50,13 @@ class Dashboard:
             self.selected_idx = (self.selected_idx + 1) % len(options)
         elif key == PressedKey.Enter:
             if self.selected_idx == 0:
-                if state == "stopped":
+                config = self._get_config()
+                node_id = config.node_id if config else ""
+
+                if node_id == "":
+                    # Navigate to Network -> Configure page
+                    self.change_nav("Network", "Configure")
+                elif state == "stopped":
                     self.loader.call_provider(ProviderCall.start_network)
                 elif state == "running":
                     self.loader.call_provider(ProviderCall.stop_network)
@@ -51,6 +71,12 @@ class Dashboard:
     def _get_status(self) -> Optional[Any]:
         try:
             return self.loader.call_provider(ProviderCall.get_network_status)
+        except LookupError:
+            return None
+
+    def _get_config(self) -> Optional[DSNodeConfig]:
+        try:
+            return self.loader.call_provider(ProviderCall.get_network_config)
         except LookupError:
             return None
 
@@ -97,17 +123,12 @@ class Dashboard:
             else ""
         )
         lines = [f"Network Server: {self._get_state_label(state)}{peer_text}", ""]
+        if not self._has_node_id():
+            lines.extend(["Warning: Node ID not set, cannot start server", ""])
         if ram_usage is not None:
             lines.extend([ram_usage, ""])
         options = self._get_options(state)
         for idx, (label, _, _) in enumerate(options):
-            if idx == 0:
-                if state == "running":
-                    label = "Stop Network Server"
-                elif state == "starting":
-                    label = "Starting Network Server"
-                elif state == "stopping":
-                    label = "Stopping Network Server"
             selected = focused and idx == self.selected_idx
             l_cursor = "|>" if selected else "  "
             r_cursor = "<|" if selected else "  "

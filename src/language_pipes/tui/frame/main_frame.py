@@ -3,7 +3,6 @@ from threading import Thread
 from typing import Dict, List, Optional, Tuple
 
 from language_pipes.tui.tui import TermText, TuiWindow
-from language_pipes.tui.frame.editor import Editor
 from language_pipes.tui.util.kb_utils import read_key
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.frame.layout import FrameLayout
@@ -34,7 +33,6 @@ class MainFrame:
     ):
         self.window = TuiWindow(size, pos)
 
-        self.editor = Editor()
         self.state = FrameState()
         self.exit_confirm = ExitConfirm()
         self.loader = ContentLoader(providers)
@@ -47,7 +45,6 @@ class MainFrame:
         self.layout = FrameLayout(
             self.window,
             self.nav,
-            self.editor,
             self.loader,
             self.exit_confirm,
             self.confirm,
@@ -64,6 +61,7 @@ class MainFrame:
 
     def change_nav(self, tab: str, section: str):
         self.nav.set_tab(tab)
+        self.layout._sync_navigation()
         self.nav.set_side_nav(self.layout.side_nav, section)
 
     def _init_view(self):

@@ -6,20 +6,16 @@ from language_pipes.tui.components.top_nav import TopNav
 from language_pipes.tui.components.side_nav import SideNav
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.content_loader import ContentLoader
-from language_pipes.tui.frame.editor import Editor
 from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.frame.page_router import PageRouter
-from language_pipes.tui.frame.tips import TIPS
-
 
 class FrameLayout:
     content_id: int
     footer_id: int
     status_text: str
 
-    editor: Editor
     top_nav: TopNav
     side_nav: SideNav
     nav_state: NavState
@@ -34,7 +30,6 @@ class FrameLayout:
         self,
         window: TuiWindow,
         nav: NavState,
-        editor: Editor,
         loader: ContentLoader,
         exit_confirm: ExitConfirm,
         edit_confirm: Confirm,
@@ -48,7 +43,6 @@ class FrameLayout:
         self.edit_confirm = edit_confirm
         self.page_router = page_router
         self.state = state
-        self.editor = editor
         self.status_text = ""
 
     def _init_layout(self, size: Tuple[int, int], pos: Tuple[int, int]):
@@ -173,25 +167,6 @@ class FrameLayout:
         self.window.paint()
         self.top_nav.window.paint()
         self.side_nav.window.paint()
-
-    def _active_form_view_state(self) -> Dict[str, Any]:
-        fields: List[Dict[str, Any]] = []
-        for field in self.editor.edit_fields:
-            value = str(field.get("value", ""))
-            if field.get("masked"):
-                value = "*" * len(value) if value else ""
-            fields.append(
-                {
-                    "name": field.get("name", ""),
-                    "value": value,
-                    "error": field.get("error"),
-                }
-            )
-
-        hint = "Complete fields and press Enter on the last field to confirm."
-        if self.editor.edit_form_name == "model_assignments":
-            hint = "Format layer assignments as layer:model (comma separated), then confirm."
-        return vs.form_view_state(fields, hint, "info")
 
     def _footer_text(self) -> str:
         if self.exit_confirm.is_open:

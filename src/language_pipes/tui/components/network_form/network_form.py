@@ -61,6 +61,7 @@ class NetworkForm:
             loader, confirm, self.exit_field_editor
         )
         self.whitelist_editor = WhitelistEditor(loader, confirm, self.exit_field_editor)
+        self.start()
 
     def restart_field_editors(self):
         self.node_id_editor.restart()
