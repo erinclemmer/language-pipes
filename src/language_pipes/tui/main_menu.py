@@ -112,6 +112,7 @@ def handle_file_load(
             config_file, m
         ),
         ProviderCall.validate_device_name: ModelProvider.validate_device_name,
+        ProviderCall.get_models_status: content_provider.model_provider.get_models_status
     }
 
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)

@@ -21,7 +21,7 @@ class ContentProvider:
         self.router = None
         self.router_pipes = None
         self.model_manager = ModelManager()
-        self.model_provider = ModelProvider(self.model_manager)
+        self.model_provider = ModelProvider(self.get_model_manager, lambda: self.router_pipes)
         self.network_provider = NetworkProvider(self.get_router, self.set_router)
 
     def get_router(self):
@@ -29,8 +29,10 @@ class ContentProvider:
 
     def set_router(self, router: DSNodeServer):
         self.router = router
-        self.router_pipes = RouterPipes(router)
-        self.model_provider.set_router_pipes(self.router_pipes)
+        self.router_pipes = RouterPipes(router) if router is not None else None
+    
+    def get_model_manager(self):
+        return self.model_manager
 
     @staticmethod
     def get_total_system_ram() -> float:

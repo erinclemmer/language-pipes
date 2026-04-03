@@ -8,7 +8,7 @@ from tqdm.auto import tqdm
 from pathlib import Path
 from threading import Thread
 from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Callable
 from huggingface_hub import snapshot_download, errors
 
 from language_pipes.modeling.model_manager import ModelManager
@@ -76,35 +76,32 @@ class ModelProvider:
     download_message: Optional[str]
     downloading_to_folder: Optional[Path]
 
-    def __init__(self, model_manager: ModelManager):
-        self.model_manager = model_manager
-        self.router_pipes: Optional[RouterPipes] = None
+    def __init__(self, get_model_manager: Callable, get_router_pipes: Callable):
         self.download_model_thread = None
         self.download_message = None
         self.downloading_to_folder = None
-
-    def set_router_pipes(self, router_pipes: Optional[RouterPipes]):
-        self.router_pipes = router_pipes
+        self.get_model_manager = get_model_manager
+        self.get_router_pipes = get_router_pipes
 
     # Returns a mapping of model_id -> lifecycle status based on ModelManager state.
     def get_models_status(self) -> Dict[str, ModelStatus]:
         status_by_model: Dict[str, ModelStatus] = {}
 
-        known_model_ids = set(self.model_manager.pipes_hosted.keys())
-        known_model_ids.update(model.model_id for model in self.model_manager.models)
-        known_model_ids.update(model.model_id for model in self.model_manager.end_models)
+        known_model_ids = set(self.get_model_manager().pipes_hosted.keys())
+        known_model_ids.update(model.model_id for model in self.get_model_manager().models)
+        known_model_ids.update(model.model_id for model in self.get_model_manager().end_models)
 
         for model_id in known_model_ids:
             status_by_model[model_id] = ModelStatus.Stopped
 
-        for model in self.model_manager.models:
+        for model in self.get_model_manager().models:
             status_by_model[model.model_id] = (
                 ModelStatus.Running
                 if getattr(model, "loaded", False)
                 else ModelStatus.Starting
             )
 
-        for model in self.model_manager.end_models:
+        for model in self.get_model_manager().end_models:
             current_status = status_by_model.get(model.model_id, ModelStatus.Stopped)
             is_loaded = getattr(model, "loaded", True)
             if is_loaded:
@@ -217,10 +214,10 @@ class ModelProvider:
         ModelProvider.save_globals(data)
 
     def host_model(self, model: ModelToLoad):
-        if self.router_pipes is None:
+        if self.get_router_pipes() is None:
             return
-        self.model_manager.host_model(
-            self.router_pipes,
+        self.get_model_manager().host_model(
+            self.get_router_pipes(),
             model.model_id,
             model.max_memory,
             torch.device(model.device),
