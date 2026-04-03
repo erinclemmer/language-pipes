@@ -113,7 +113,15 @@ class Dashboard:
             r_cursor = "<|" if selected else "  "
             lines.append(f"{l_cursor} {label} {r_cursor}")
         lines.extend(["", "Hosted Models", ""])
-        lines.extend(format_model_line(model) for model in models_to_load)
+        # Get model status like in the Models -> Hosted page
+        try:
+            models_status = self.loader.call_provider(ProviderCall.get_models_status)
+        except LookupError:
+            models_status = {}
+        for model in models_to_load:
+            model_status = models_status.get(model.model_id)
+            status = model_status.value if model_status else "Stopped"
+            lines.append(format_model_line(model, status=status))
         return lines
 
     def get_footer(self) -> str:
