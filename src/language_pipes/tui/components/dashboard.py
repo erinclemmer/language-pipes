@@ -49,7 +49,12 @@ class Dashboard:
         status = self._get_status()
         is_running = status is not None and status.running
         focused = self.is_focused()
-        lines = [f"Network Server: {'On' if is_running else 'Off'}", ""]
+        peer_text = (
+            f" ({getattr(status, 'num_peers', 0)} peer(s) connected)"
+            if is_running
+            else ""
+        )
+        lines = [f"Network Server: {'On' if is_running else 'Off'}{peer_text}", ""]
         for idx, (label, _, _) in enumerate(self.OPTIONS):
             selected = focused and idx == self.selected_idx
             l_cursor = "|>" if selected else "  "

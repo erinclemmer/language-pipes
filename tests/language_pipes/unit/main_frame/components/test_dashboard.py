@@ -20,11 +20,11 @@ class TestDashboardComponent(unittest.TestCase):
         )
 
     def test_dashboard_renders_network_on_when_running(self):
-        dashboard = self._make_dashboard(SimpleNamespace(running=True))
+        dashboard = self._make_dashboard(SimpleNamespace(running=True, num_peers=0))
 
         view = dashboard.get_view()
 
-        self.assertEqual(view[0], "Network Server: On")
+        self.assertEqual(view[0], "Network Server: On (0 peer(s) connected)")
 
     def test_dashboard_renders_network_off_when_stopped(self):
         dashboard = self._make_dashboard(None)
@@ -33,7 +33,7 @@ class TestDashboardComponent(unittest.TestCase):
 
         self.assertEqual(view[0], "Network Server: Off")
 
-    def test_dashboard_renders_only_on_off_status_and_not_network_details(self):
+    def test_dashboard_renders_peer_count_only_when_running(self):
         dashboard = self._make_dashboard(
             SimpleNamespace(running=True, num_peers=3, logs=["a", "b"])
         )
@@ -42,10 +42,19 @@ class TestDashboardComponent(unittest.TestCase):
         rendered = "\n".join(view)
 
         self.assertIn("Network Server: On", rendered)
-        self.assertNotIn("peer(s) connected", rendered)
+        self.assertIn("3 peer(s) connected", rendered)
         self.assertNotIn("Logs:", rendered)
         self.assertNotIn("Server Running", rendered)
         self.assertNotIn("Server Stopped", rendered)
+
+    def test_dashboard_hides_peer_count_when_network_stopped(self):
+        dashboard = self._make_dashboard(SimpleNamespace(running=False, num_peers=3))
+
+        view = dashboard.get_view()
+        rendered = "\n".join(view)
+
+        self.assertIn("Network Server: Off", rendered)
+        self.assertNotIn("peer(s) connected", rendered)
 
     def test_dashboard_still_renders_existing_options(self):
         dashboard = self._make_dashboard(None)
