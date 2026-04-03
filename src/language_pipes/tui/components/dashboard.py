@@ -41,8 +41,10 @@ class Dashboard:
                 elif state == "running":
                     self.loader.call_provider(ProviderCall.stop_network)
             else:
-                _, tab, section = options[self.selected_idx]
-                self.change_nav(tab, section)
+                # Host all models in models_to_load list directly
+                models_to_load = self._get_models_to_load()
+                for model in models_to_load:
+                    self.loader.call_provider(ProviderCall.host_model, model)
         elif key == PressedKey.Escape:
             self.exit_page()
 

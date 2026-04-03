@@ -164,16 +164,56 @@ class TestDashboardComponent(unittest.TestCase):
         loader.call_provider.assert_any_call(ProviderCall.start_network)
         change_nav.assert_not_called()
 
-    def test_dashboard_enter_routes_host_models_when_running(self):
+    def test_dashboard_enter_hosts_models_when_running(self):
         change_nav = Mock()
-        dashboard = self._make_dashboard(
-            SimpleNamespace(running=True), change_nav=change_nav
+        loader = Mock()
+
+        # Create mock models to load
+        mock_models = [
+            SimpleNamespace(
+                model_id="model1", load_ends=False, device="cpu", max_memory=4.0
+            ),
+            SimpleNamespace(
+                model_id="model2", load_ends=True, device="cuda", max_memory=8.0
+            ),
+        ]
+
+        def call_provider(provider_call, *args):
+            if provider_call == ProviderCall.get_network_status:
+                return SimpleNamespace(running=True)
+            if provider_call == ProviderCall.get_models_to_load:
+                return mock_models
+            return None
+
+        loader.call_provider = Mock(side_effect=call_provider)
+
+        dashboard = Dashboard(
+            loader=loader,
+            exit_page=lambda: None,
+            is_focused=lambda: True,
+            change_nav=change_nav,
         )
         dashboard.selected_idx = 1
 
         dashboard.on_key(PressedKey.Enter, "")
 
-        change_nav.assert_called_once_with("Models", "Hosted")
+        # Should call host_model for each model
+        self.assertEqual(
+            loader.call_provider.call_count, 4
+        )  # get_network_status, get_models_to_load, host_model x2
+
+        # Verify host_model was called with each model
+        host_model_calls = [
+            call
+            for call in loader.call_provider.call_args_list
+            if call[0][0] == ProviderCall.host_model
+        ]
+        self.assertEqual(len(host_model_calls), 2)
+        self.assertEqual(host_model_calls[0][0][1].model_id, "model1")
+        self.assertEqual(host_model_calls[1][0][1].model_id, "model2")
+
+        # Should NOT navigate
+        change_nav.assert_not_called()
 
     def test_dashboard_escape_exits_page(self):
         exit_page = Mock()
