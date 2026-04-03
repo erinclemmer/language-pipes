@@ -241,7 +241,7 @@ class ModelsHosted:
         l_cursor = "|>" if self.edit_idx == 4 else "  "
         r_cursor = "<|" if self.edit_idx == 4 else "  "
         lines.append("")
-        lines.append(f"{l_cursor} Save and Host Model {r_cursor}")
+        lines.append(f"{l_cursor} Save Model {r_cursor}")
 
         return lines
 
