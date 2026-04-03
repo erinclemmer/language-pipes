@@ -120,8 +120,15 @@ class Dashboard:
             models_status = {}
         for model in models_to_load:
             model_status = models_status.get(model.model_id)
-            status = model_status.value if model_status else "Stopped"
-            lines.append(format_model_line(model, status=status))
+            if model_status:
+                status = model_status.status.value
+                layers_loaded = model_status.layers_loaded
+            else:
+                status = "Stopped"
+                layers_loaded = None
+            lines.append(
+                format_model_line(model, status=status, layers_loaded=layers_loaded)
+            )
         return lines
 
     def get_footer(self) -> str:
