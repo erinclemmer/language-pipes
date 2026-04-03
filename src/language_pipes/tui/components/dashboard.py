@@ -1,7 +1,7 @@
-from typing import List, Callable
+from typing import Any, Callable, List, Optional
 
 from language_pipes.tui.util.kb_utils import PressedKey
-from language_pipes.tui.content_loader import ContentLoader
+from language_pipes.tui.frame.provider_calls import ProviderCall
 
 
 class Dashboard:
@@ -12,7 +12,7 @@ class Dashboard:
 
     def __init__(
         self,
-        loader: ContentLoader,
+        loader: Any,
         exit_page: Callable,
         is_focused: Callable,
         change_nav: Callable,
@@ -34,9 +34,17 @@ class Dashboard:
         elif key == PressedKey.Escape:
             self.exit_page()
 
+    def _get_status(self) -> Optional[Any]:
+        try:
+            return self.loader.call_provider(ProviderCall.get_network_status)
+        except LookupError:
+            return None
+
     def get_view(self) -> List[str]:
+        status = self._get_status()
+        is_running = status is not None and status.running
         focused = self.is_focused()
-        lines = ["Dashboard", ""]
+        lines = [f"Network Server: {'On' if is_running else 'Off'}", ""]
         for idx, (label, _, _) in enumerate(self.OPTIONS):
             selected = focused and idx == self.selected_idx
             l_cursor = "|>" if selected else "  "

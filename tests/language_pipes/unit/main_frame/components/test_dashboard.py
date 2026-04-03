@@ -1,35 +1,77 @@
 import os
 import sys
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
 
+from language_pipes.tui.components.dashboard import Dashboard
 from language_pipes.tui.util.kb_utils import PressedKey
-from tests.language_pipes.unit.main_frame.util import _make_main_frame, _simulate_keys
 
 
 class TestDashboardComponent(unittest.TestCase):
-    def setUp(self):
-        self.frame = _make_main_frame()
-        self.dashboard = self.frame.page_router.dashboard
+    def _make_dashboard(self, status, *, change_nav=None, exit_page=None):
+        loader = Mock()
+        loader.call_provider.return_value = status
+        return Dashboard(loader, exit_page or Mock(), lambda: True, change_nav or Mock())
 
-    def test_dashboard_renders_two_options(self):
-        view = self.dashboard.get_view()
-        self.assertIn("Start Network", "\n".join(view))
-        self.assertIn("Host Models", "\n".join(view))
+    def test_dashboard_renders_network_on_when_running(self):
+        dashboard = self._make_dashboard(SimpleNamespace(running=True))
 
-    def test_dashboard_enter_routes_to_network_status(self):
-        _simulate_keys(self.frame, [(PressedKey.Enter, "")])
-        self.assertEqual(self.frame.nav.active_tab(), "Network")
-        self.assertEqual(self.frame.nav.active_side_option(), "Status")
+        view = dashboard.get_view()
+
+        self.assertEqual(view[0], "Network Server: On")
+
+    def test_dashboard_renders_network_off_when_stopped(self):
+        dashboard = self._make_dashboard(None)
+
+        view = dashboard.get_view()
+
+        self.assertEqual(view[0], "Network Server: Off")
+
+    def test_dashboard_renders_only_on_off_status_and_not_network_details(self):
+        dashboard = self._make_dashboard(SimpleNamespace(running=True, num_peers=3, logs=["a", "b"]))
+
+        view = dashboard.get_view()
+        rendered = "\n".join(view)
+
+        self.assertIn("Network Server: On", rendered)
+        self.assertNotIn("peer(s) connected", rendered)
+        self.assertNotIn("Logs:", rendered)
+        self.assertNotIn("Server Running", rendered)
+        self.assertNotIn("Server Stopped", rendered)
+
+    def test_dashboard_still_renders_existing_options(self):
+        dashboard = self._make_dashboard(None)
+
+        view = dashboard.get_view()
+        rendered = "\n".join(view)
+
+        self.assertIn("Start Network", rendered)
+        self.assertIn("Host Models", rendered)
 
     def test_dashboard_selection_moves_with_arrow_keys(self):
-        _simulate_keys(self.frame, [(PressedKey.ArrowDown, "")])
-        self.assertEqual(self.dashboard.selected_idx, 1)
-        _simulate_keys(self.frame, [(PressedKey.ArrowUp, "")])
-        self.assertEqual(self.dashboard.selected_idx, 0)
+        dashboard = self._make_dashboard(None)
 
-    def test_dashboard_enter_routes_to_models_hosted(self):
-        _simulate_keys(self.frame, [(PressedKey.ArrowDown, ""), (PressedKey.Enter, "")])
-        self.assertEqual(self.frame.nav.active_tab(), "Models")
-        self.assertEqual(self.frame.nav.active_side_option(), "Hosted")
+        dashboard.on_key(PressedKey.ArrowDown, "")
+        self.assertEqual(dashboard.selected_idx, 1)
+
+        dashboard.on_key(PressedKey.ArrowUp, "")
+        self.assertEqual(dashboard.selected_idx, 0)
+
+    def test_dashboard_enter_routes_to_network_status(self):
+        change_nav = Mock()
+        dashboard = self._make_dashboard(None, change_nav=change_nav)
+
+        dashboard.on_key(PressedKey.Enter, "")
+
+        change_nav.assert_called_once_with("Network", "Status")
+
+    def test_dashboard_escape_exits_page(self):
+        exit_page = Mock()
+        dashboard = self._make_dashboard(None, exit_page=exit_page)
+
+        dashboard.on_key(PressedKey.Escape, "")
+
+        exit_page.assert_called_once()
