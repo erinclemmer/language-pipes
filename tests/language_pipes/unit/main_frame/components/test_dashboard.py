@@ -12,9 +12,19 @@ from language_pipes.tui.util.kb_utils import PressedKey
 
 
 class TestDashboardComponent(unittest.TestCase):
-    def _make_dashboard(self, status, *, change_nav=None, exit_page=None):
+    def _make_dashboard(
+        self, status, *, models_to_load=None, change_nav=None, exit_page=None
+    ):
         loader = Mock()
-        loader.call_provider.return_value = status
+
+        def call_provider(name, *_args):
+            if name == ProviderCall.get_network_status:
+                return status
+            if name == ProviderCall.get_models_to_load:
+                return models_to_load or []
+            return None
+
+        loader.call_provider.side_effect = call_provider
         return Dashboard(
             loader, exit_page or Mock(), lambda: True, change_nav or Mock()
         )
@@ -64,6 +74,29 @@ class TestDashboardComponent(unittest.TestCase):
 
         self.assertIn("Start Network Server", rendered)
         self.assertIn("Host Models", rendered)
+
+    def test_dashboard_renders_hosted_models_using_hosted_view_format(self):
+        dashboard = self._make_dashboard(
+            None,
+            models_to_load=[
+                SimpleNamespace(
+                    model_id="org/model-a",
+                    load_ends=True,
+                    device="cuda:0",
+                    max_memory=12,
+                ),
+                SimpleNamespace(
+                    model_id="org/model-b", load_ends=False, device="cpu", max_memory=8
+                ),
+            ],
+        )
+
+        view = dashboard.get_view()
+        rendered = "\n".join(view)
+
+        self.assertIn("Hosted Models", rendered)
+        self.assertIn("org/model-a 12GB + ends cuda:0", rendered)
+        self.assertIn("org/model-b 8GB  cpu", rendered)
 
     def test_dashboard_renders_stop_network_server_option_when_running(self):
         dashboard = self._make_dashboard(SimpleNamespace(running=True))
