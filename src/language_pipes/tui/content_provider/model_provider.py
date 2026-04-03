@@ -3,6 +3,7 @@ import os
 import toml
 import shutil
 from enum import Enum
+import torch
 from tqdm.auto import tqdm
 from pathlib import Path
 from threading import Thread
@@ -11,8 +12,10 @@ from typing import List, Optional, Dict
 from huggingface_hub import snapshot_download, errors
 
 from language_pipes.modeling.model_manager import ModelManager
+from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.distributed_state_network.util import stop_thread
 from language_pipes.util.config import default_model_dir, default_config_dir
+
 
 class ModelDownloadProgress(tqdm):
     latest_instance: Optional["ModelDownloadProgress"] = None
@@ -21,14 +24,14 @@ class ModelDownloadProgress(tqdm):
     @classmethod
     def _get_devnull_file(cls) -> io.TextIOWrapper:
         if cls._devnull_file is None or cls._devnull_file.closed:
-            cls._devnull_file = open(os.devnull, 'w')
+            cls._devnull_file = open(os.devnull, "w")
         return cls._devnull_file
 
     def __init__(self, *args, **kwargs):
-        if 'name' in kwargs:
-            del kwargs['name']
+        if "name" in kwargs:
+            del kwargs["name"]
         # Send fp to devnull so any base-class writes are harmless.
-        kwargs['file'] = self._get_devnull_file()
+        kwargs["file"] = self._get_devnull_file()
         super().__init__(*args, **kwargs)
         ModelDownloadProgress.latest_instance = self
 
@@ -52,6 +55,7 @@ class ModelDownloadProgress(tqdm):
         with lock:
             type(self)._instances.discard(self)  # type: ignore[attr-defined]
 
+
 @dataclass
 class ModelToLoad:
     model_id: str
@@ -59,11 +63,13 @@ class ModelToLoad:
     device: str
     max_memory: float
 
+
 class ModelStatus(Enum):
     Stopped = "Stopped"
     Starting = "Starting"
     Running = "Running"
     Stopping = "Stopping"
+
 
 class ModelProvider:
     download_model_thread: Optional[Thread]
@@ -71,14 +77,19 @@ class ModelProvider:
     downloading_to_folder: Optional[Path]
 
     def __init__(self, model_manager: ModelManager):
+        self.model_manager = model_manager
+        self.router_pipes: Optional[RouterPipes] = None
         self.download_model_thread = None
         self.download_message = None
         self.downloading_to_folder = None
-    
+
+    def set_router_pipes(self, router_pipes: Optional[RouterPipes]):
+        self.router_pipes = router_pipes
+
     # Returns (process_id, status)
     def get_models_status(self) -> Dict[str, ModelStatus]:
         return {}
-    
+
     # Models / Installed
     @staticmethod
     def get_installed_models() -> List[str]:
@@ -97,20 +108,21 @@ class ModelProvider:
                         models.append(f"{org}/{model}")
 
         return sorted(models)
-    
+
     @staticmethod
     def delete_installed_model(model_name: str):
         model_dir = Path(default_model_dir()) / model_name
         if not os.path.exists(model_dir):
             return
         shutil.rmtree(model_dir)
-        
+
     def start_download(self, model_id: str):
         if self.download_model_thread is not None:
             return
         clone_dir = Path(default_model_dir()) / model_id / "data"
         self.downloading_to_folder = clone_dir
         self.download_message = None
+
         def download_model():
             error = False
             try:
@@ -118,7 +130,7 @@ class ModelProvider:
                     repo_id=model_id,
                     local_dir=clone_dir,
                     token=self.get_hf_token(),
-                    tqdm_class=ModelDownloadProgress
+                    tqdm_class=ModelDownloadProgress,
                 )
             except errors.RepositoryNotFoundError:
                 self.download_message = "[ERROR] Repository not found"
@@ -133,7 +145,7 @@ class ModelProvider:
             self.downloading_to_folder = None
             if not error:
                 self.download_message = "[SUCCESS] Download complete"
-                
+
         self.download_model_thread = Thread(target=download_model, args=())
         self.download_model_thread.start()
 
@@ -152,14 +164,14 @@ class ModelProvider:
         if ModelDownloadProgress.latest_instance is None:
             return None
         return str(ModelDownloadProgress.latest_instance)
-    
+
     @staticmethod
     def get_globals() -> Dict:
         global_path = Path(default_config_dir()) / "globals.toml"
         if not os.path.exists(global_path):
-            with open(global_path, 'w', encoding="utf-8") as f:
-                toml.dump({ }, f)
-        
+            with open(global_path, "w", encoding="utf-8") as f:
+                toml.dump({}, f)
+
         return toml.loads(global_path.read_text())
 
     @staticmethod
@@ -167,7 +179,7 @@ class ModelProvider:
         global_path = Path(default_config_dir()) / "globals.toml"
         if not os.path.exists(global_path):
             return
-        with open(global_path, 'w', encoding="utf-8") as f:
+        with open(global_path, "w", encoding="utf-8") as f:
             toml.dump(data, f)
 
     @staticmethod
@@ -180,6 +192,17 @@ class ModelProvider:
         data["hf_token"] = token
         ModelProvider.save_globals(data)
 
+    def host_model(self, model: ModelToLoad):
+        if self.router_pipes is None:
+            return
+        self.model_manager.host_model(
+            self.router_pipes,
+            model.model_id,
+            model.max_memory,
+            torch.device(model.device),
+            0,
+        )
+
     @staticmethod
     def get_models_to_load(config_file: Path) -> List[ModelToLoad]:
         data = toml.loads(config_file.read_text())
@@ -187,30 +210,40 @@ class ModelProvider:
             return []
         models = []
         for m in data.get("models_to_load", []):
-            models.append(ModelToLoad(m.get("model_id", ""), m.get("load_ends", False), m.get("device", ""), m.get("max_memory", "")))
+            models.append(
+                ModelToLoad(
+                    m.get("model_id", ""),
+                    m.get("load_ends", False),
+                    m.get("device", ""),
+                    m.get("max_memory", ""),
+                )
+            )
         return models
-    
+
     @staticmethod
     def save_models_to_load(config_file: Path, models: List[ModelToLoad]):
         data = toml.loads(config_file.read_text())
-        
+
         to_load = []
         for m in models:
-            to_load.append({
-                "model_id": m.model_id,
-                "load_ends": m.load_ends,
-                "device": m.device,
-                "max_memory": m.max_memory
-            })
+            to_load.append(
+                {
+                    "model_id": m.model_id,
+                    "load_ends": m.load_ends,
+                    "device": m.device,
+                    "max_memory": m.max_memory,
+                }
+            )
 
         data["models_to_load"] = to_load
 
-        with open(config_file, 'w', encoding='utf-8') as f:
+        with open(config_file, "w", encoding="utf-8") as f:
             toml.dump(data, f)
 
     @staticmethod
     def validate_device_name(device: str) -> bool:
         import torch
+
         try:
             torch.device(device)
             return True
