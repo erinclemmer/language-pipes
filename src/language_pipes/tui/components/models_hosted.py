@@ -257,10 +257,22 @@ class ModelsHosted:
         lines = ["Hosted Models", ""]
 
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
+        models_status = self.loader.call_provider(ProviderCall.get_models_status)
+        status_map = {
+            "Stopped": "Unloaded",
+            "Starting": "Loading",
+            "Running": "Loaded",
+            "Stopping": "Unloading",
+        }
         for i, model in enumerate(self.models_to_load):
+            status = status_map.get(
+                str(models_status.get(model.model_id, "Stopped")), "Unloaded"
+            )
             lines.append(
                 format_model_line(
-                    model, selected=self.model_idx == i and self.is_focused()
+                    model,
+                    selected=self.model_idx == i and self.is_focused(),
+                    status=status,
                 )
             )
 

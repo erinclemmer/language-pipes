@@ -39,6 +39,7 @@ class ProviderCall(Enum):
     get_models_to_load = "get_models_to_load"
     save_models_to_load = "save_models_to_load"
     validate_device_name = "validate_device_name"
+    get_models_status = "get_models_status"
 
     # Other
     list_models = "list_models"
