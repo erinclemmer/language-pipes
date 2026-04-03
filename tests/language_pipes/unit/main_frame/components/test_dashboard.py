@@ -20,6 +20,7 @@ class TestDashboardComponent(unittest.TestCase):
         exit_page=None,
         used_ram=4.2,
         total_ram=16.0,
+        models_to_load=None,
     ):
         loader = Mock()
 
@@ -30,6 +31,8 @@ class TestDashboardComponent(unittest.TestCase):
                 return used_ram
             if provider_call == ProviderCall.get_total_system_ram:
                 return total_ram
+            if provider_call == ProviderCall.get_models_to_load:
+                return models_to_load or []
             return None
 
         loader.call_provider.side_effect = call_provider
@@ -82,13 +85,22 @@ class TestDashboardComponent(unittest.TestCase):
         self.assertIn("Network Server: Off", rendered)
         self.assertNotIn("peer(s) connected", rendered)
 
-    def test_dashboard_still_renders_existing_options(self):
+    def test_dashboard_renders_start_network_server_option_when_stopped(self):
         dashboard = self._make_dashboard(None)
 
         view = dashboard.get_view()
         rendered = "\n".join(view)
 
         self.assertIn("Start Network Server", rendered)
+        self.assertNotIn("Host Models", rendered)
+
+    def test_dashboard_renders_host_models_option_when_running(self):
+        dashboard = self._make_dashboard(SimpleNamespace(running=True))
+
+        view = dashboard.get_view()
+        rendered = "\n".join(view)
+
+        self.assertIn("Stop Network Server", rendered)
         self.assertIn("Host Models", rendered)
 
     def test_dashboard_renders_hosted_models_using_hosted_view_format(self):
@@ -122,8 +134,17 @@ class TestDashboardComponent(unittest.TestCase):
 
         self.assertIn("Stop Network Server", rendered)
 
-    def test_dashboard_selection_moves_with_arrow_keys(self):
+    def test_dashboard_selection_moves_with_arrow_keys_when_stopped(self):
         dashboard = self._make_dashboard(None)
+
+        dashboard.on_key(PressedKey.ArrowDown, "")
+        self.assertEqual(dashboard.selected_idx, 0)
+
+        dashboard.on_key(PressedKey.ArrowUp, "")
+        self.assertEqual(dashboard.selected_idx, 0)
+
+    def test_dashboard_selection_moves_with_arrow_keys_when_running(self):
+        dashboard = self._make_dashboard(SimpleNamespace(running=True))
 
         dashboard.on_key(PressedKey.ArrowDown, "")
         self.assertEqual(dashboard.selected_idx, 1)
@@ -143,9 +164,11 @@ class TestDashboardComponent(unittest.TestCase):
         loader.call_provider.assert_any_call(ProviderCall.start_network)
         change_nav.assert_not_called()
 
-    def test_dashboard_enter_still_routes_host_models(self):
+    def test_dashboard_enter_routes_host_models_when_running(self):
         change_nav = Mock()
-        dashboard = self._make_dashboard(None, change_nav=change_nav)
+        dashboard = self._make_dashboard(
+            SimpleNamespace(running=True), change_nav=change_nav
+        )
         dashboard.selected_idx = 1
 
         dashboard.on_key(PressedKey.Enter, "")
