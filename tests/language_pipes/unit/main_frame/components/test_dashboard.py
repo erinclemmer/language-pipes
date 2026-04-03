@@ -33,6 +33,8 @@ class TestDashboardComponent(unittest.TestCase):
                 return total_ram
             if provider_call == ProviderCall.get_models_to_load:
                 return models_to_load or []
+            if provider_call == ProviderCall.get_models_status:
+                return {}
             return None
 
         loader.call_provider.side_effect = call_provider
