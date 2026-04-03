@@ -1,12 +1,19 @@
+from importlib import resources
 import toml
 import argparse
 
-VERSION = "1.2.0"
+VERSION = (
+    resources.files("language_pipes")
+    .joinpath("VERSION")
+    .read_text(encoding="utf-8")
+    .strip()
+)
+
 
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="Language Pipes",
-        description="A privacy focused distributed algorithm for llm inference"
+        description="A privacy focused distributed algorithm for llm inference",
     )
 
     parser.add_argument("-v", "--version", action="version", version=VERSION)
@@ -16,45 +23,116 @@ def build_parser():
     # TUI
     subparsers.add_parser("tui", help="Start Language Pipes in TUI mode")
 
-    #Upgrade
+    # Upgrade
     subparsers.add_parser("upgrade", help="Upgrade Language Pipes package")
 
     # Key Generation
     create_key_parser = subparsers.add_parser("keygen", help="Generate AES key")
-    create_key_parser.add_argument("output", nargs='?', help="Output file for AES key (default: network.key)", default="network.key")
+    create_key_parser.add_argument(
+        "output",
+        nargs="?",
+        help="Output file for AES key (default: network.key)",
+        default="network.key",
+    )
 
     # Initialize
     init = subparsers.add_parser("init", help="Create a new configuration file")
-    init.add_argument("output", nargs='?', default="config.toml", help="Output file name to write to (default: config.toml)")
+    init.add_argument(
+        "output",
+        nargs="?",
+        default="config.toml",
+        help="Output file name to write to (default: config.toml)",
+    )
 
     # run command
     run_parser = subparsers.add_parser("serve", help="Start Language Pipes server")
     run_parser.add_argument("-c", "--config", help="Path to TOML config file")
-    run_parser.add_argument("-l", "--logging-level", 
+    run_parser.add_argument(
+        "-l",
+        "--logging-level",
         help="Logging verbosity (Default: INFO)",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"]
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
     )
-    run_parser.add_argument("--openai-port", type=int, help="Open AI server port (Default: none)")
-    run_parser.add_argument("--app-data-dir", type=str, help="Application data directory for language pipes (default: ~/.config/language_pipes)")
-    run_parser.add_argument("--model-dir", type=str, help="Directory to store model data (default: ~/.cache/language_pipes/models)")
+    run_parser.add_argument(
+        "--openai-port", type=int, help="Open AI server port (Default: none)"
+    )
+    run_parser.add_argument(
+        "--app-data-dir",
+        type=str,
+        help="Application data directory for language pipes (default: ~/.config/language_pipes)",
+    )
+    run_parser.add_argument(
+        "--model-dir",
+        type=str,
+        help="Directory to store model data (default: ~/.cache/language_pipes/models)",
+    )
     run_parser.add_argument("--node-id", help="Node ID for the network (Required)")
-    run_parser.add_argument("--app-dir", type=str, help="Directory to store data for this application")
-    run_parser.add_argument("--api-keys", nargs="*", metavar="API_KEY", help="API key(s) for the Open AI compatable server")
-    run_parser.add_argument("--peer-port", type=int, help="Port for peer-to-peer network (Default: 5000)")
-    run_parser.add_argument("--bootstrap-address", help="Bootstrap node address (e.g. 192.168.1.100)")
-    run_parser.add_argument("--bootstrap-port", type=int, help="Bootstrap node port for the network (e.g. 8000)")
-    run_parser.add_argument("--max-pipes", type=int, help="Maximum amount of pipes to host")
+    run_parser.add_argument(
+        "--app-dir", type=str, help="Directory to store data for this application"
+    )
+    run_parser.add_argument(
+        "--api-keys",
+        nargs="*",
+        metavar="API_KEY",
+        help="API key(s) for the Open AI compatable server",
+    )
+    run_parser.add_argument(
+        "--peer-port", type=int, help="Port for peer-to-peer network (Default: 5000)"
+    )
+    run_parser.add_argument(
+        "--bootstrap-address", help="Bootstrap node address (e.g. 192.168.1.100)"
+    )
+    run_parser.add_argument(
+        "--bootstrap-port",
+        type=int,
+        help="Bootstrap node port for the network (e.g. 8000)",
+    )
+    run_parser.add_argument(
+        "--max-pipes", type=int, help="Maximum amount of pipes to host"
+    )
     run_parser.add_argument("--network-key", type=str, help="AES key to access network")
-    run_parser.add_argument("--whitelist-ips", nargs="*", metavar="IP", help="Only communicate with peers whose IP is in this whitelist")
-    run_parser.add_argument("--whitelist-node-ids", nargs="*", metavar="NODE_ID", help="Only communicate with peers whose node_id is in this whitelist")
-    run_parser.add_argument("--model-validation", help="Whether to validate the model weight hashes when connecting to a pipe.", action="store_true")
-    run_parser.add_argument("--layer-models", nargs="*", metavar="MODEL", 
-        help="Layer models as key=value pairs: id=MODEL,device=DEVICE,memory=GB (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4)")
-    run_parser.add_argument("--end-models", nargs="*", metavar="END", help="End models to host as model IDs like \"Qwen/Qwen3-1.7B\"")
-    run_parser.add_argument("--num-local-layers", type=int, help="Number of local layers to run on your machine. More layers means better prompt obfuscation")
-    run_parser.add_argument("--prefill-chunk-size", help="Number of tokens to process for each batch in prefill", type=int)
+    run_parser.add_argument(
+        "--whitelist-ips",
+        nargs="*",
+        metavar="IP",
+        help="Only communicate with peers whose IP is in this whitelist",
+    )
+    run_parser.add_argument(
+        "--whitelist-node-ids",
+        nargs="*",
+        metavar="NODE_ID",
+        help="Only communicate with peers whose node_id is in this whitelist",
+    )
+    run_parser.add_argument(
+        "--model-validation",
+        help="Whether to validate the model weight hashes when connecting to a pipe.",
+        action="store_true",
+    )
+    run_parser.add_argument(
+        "--layer-models",
+        nargs="*",
+        metavar="MODEL",
+        help="Layer models as key=value pairs: id=MODEL,device=DEVICE,memory=GB (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4)",
+    )
+    run_parser.add_argument(
+        "--end-models",
+        nargs="*",
+        metavar="END",
+        help='End models to host as model IDs like "Qwen/Qwen3-1.7B"',
+    )
+    run_parser.add_argument(
+        "--num-local-layers",
+        type=int,
+        help="Number of local layers to run on your machine. More layers means better prompt obfuscation",
+    )
+    run_parser.add_argument(
+        "--prefill-chunk-size",
+        help="Number of tokens to process for each batch in prefill",
+        type=int,
+    )
 
     return parser
+
 
 def apply_overrides(data, args):
     app_dir_arg = args.app_dir
@@ -83,6 +161,7 @@ def apply_overrides(data, args):
     }
 
     from language_pipes.config import apply_env_overrides  # noqa: E402
+
     config = apply_env_overrides(data, cli_args)
 
     if config["node_id"] is None:
@@ -91,7 +170,8 @@ def apply_overrides(data, args):
 
     return config
 
-def main(argv = None):
+
+def main(argv=None):
     parser = build_parser()
     args = []
     if argv is None:
@@ -107,59 +187,71 @@ def main(argv = None):
 
     if args.command == "keygen":
         from language_pipes.util.aes import save_new_aes_key  # noqa: E402
+
         key = save_new_aes_key(args.output)
         print(f"✓ Network key generated: {key}")
         print(f"✓ Network key saved to '{args.output}'")
     elif args.command == "init":
         from language_pipes.commands.initialize import interactive_init  # noqa: E402
+
         interactive_init(args.output)
     elif args.command == "tui":
         from language_pipes.tui import initialize_tui
+
         initialize_tui()
     elif args.command == "start":
         try:
             from language_pipes.commands.start import start_wizard  # noqa: E402
+
             return start_wizard(VERSION)
         except KeyboardInterrupt:
             exit()
     elif args.command == "serve":
-        data = { }
+        data = {}
         if args.config is not None:
             with open(args.config, "r", encoding="utf-8") as f:
                 data = toml.load(f)
         data = apply_overrides(data, args)
-        
+
         from language_pipes.config import LpConfig
+
         config = LpConfig.from_dict(data)
 
         print(config.to_string())
 
         from language_pipes.distributed_state_network import DSNodeConfig, DSNodeServer  # noqa: E402
-        router_config = DSNodeConfig.from_dict({
-            "node_id": data["node_id"],
-            "port": data.get("peer_port", 5000),
-            "network_ip": data.get("network_ip", None),
-            "aes_key": data.get("network_key", None),
-            "whitelist_ips": data.get("whitelist_ips", []),
-            "whitelist_node_ids": data.get("whitelist_node_ids", []),
-            "bootstrap_nodes": [
-                {
-                    "address": data["bootstrap_address"],
-                    "port": data["bootstrap_port"]
-                }
-            ] if data.get("bootstrap_address") is not None else []
-        })
+
+        router_config = DSNodeConfig.from_dict(
+            {
+                "node_id": data["node_id"],
+                "port": data.get("peer_port", 5000),
+                "network_ip": data.get("network_ip", None),
+                "aes_key": data.get("network_key", None),
+                "whitelist_ips": data.get("whitelist_ips", []),
+                "whitelist_node_ids": data.get("whitelist_node_ids", []),
+                "bootstrap_nodes": [
+                    {
+                        "address": data["bootstrap_address"],
+                        "port": data["bootstrap_port"],
+                    }
+                ]
+                if data.get("bootstrap_address") is not None
+                else [],
+            }
+        )
 
         print(router_config.to_string())
 
         router = DSNodeServer.start(router_config)
-        
+
         from language_pipes.lp import LanguagePipes  # noqa: E402
+
         app = LanguagePipes(config, router)
         return app
     else:
         parser.print_usage()
         exit(1)
+
 
 if __name__ == "__main__":
     main()
