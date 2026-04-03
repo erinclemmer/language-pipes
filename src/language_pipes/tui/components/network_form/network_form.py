@@ -389,6 +389,14 @@ class NetworkForm:
     def get_view(self) -> List[str]:
         if self.field_editor_visible:
             return self.get_editor_lines()
+        if not self.is_focused() and self.loader.provider_available(
+            ProviderCall.get_network_config
+        ):
+            preview = self.show_preview(
+                self.loader.call_provider(ProviderCall.get_network_config)
+            )
+            if preview is not None:
+                return preview
         return self._form_lines()
 
     def get_footer(self) -> str:
