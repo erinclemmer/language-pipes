@@ -207,6 +207,13 @@ class ModelsHosted:
     def get_choosing_model_view(self) -> List[str]:
         lines = ["Choose Model to Host", ""]
 
+        network_status = self.loader.call_provider(ProviderCall.get_network_status)
+        if network_status is None or not network_status.running:
+            lines.append(
+                "[WARNING] Network is not started. Models cannot be loaded until the network is started."
+            )
+            lines.append("")
+
         self.installed_models = self.loader.call_provider(
             ProviderCall.get_installed_models
         )
@@ -226,6 +233,14 @@ class ModelsHosted:
         editing_model = self.get_editing_model()
         header = "Editing Model" if editing_model is not None else "Adding new Model"
         lines = [header, ""]
+
+        network_status = self.loader.call_provider(ProviderCall.get_network_status)
+        if network_status is None or not network_status.running:
+            lines.append(
+                "[WARNING] Network is not started. Models cannot be loaded until the network is started."
+            )
+            lines.append("")
+
         model_id_label = (
             self.edit_model_id if self.edit_model_id is not None else "Choose model..."
         )
@@ -260,6 +275,13 @@ class ModelsHosted:
 
     def get_list_view(self) -> List[str]:
         lines = ["Hosted Models", ""]
+
+        network_status = self.loader.call_provider(ProviderCall.get_network_status)
+        if network_status is None or not network_status.running:
+            lines.append(
+                "[WARNING] Network is not started. Models cannot be loaded until the network is started."
+            )
+            lines.append("")
 
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
         models_status = self.loader.call_provider(ProviderCall.get_models_status)
