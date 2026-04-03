@@ -129,6 +129,10 @@ class FrameLayout:
         tab = self.nav_state.active_tab()
         section = self.nav_state.active_side_option()
 
+        if tab == "Pipes" and section == "Connected":
+            self.window.update_text(self.content_id, TermText("TEST"))
+            return
+
         content_parts = [f"{tab} / {section}", ""]
 
         page = self.page_router.get_page()
