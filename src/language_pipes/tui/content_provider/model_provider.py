@@ -89,10 +89,11 @@ class ModelProvider:
         self.get_model_manager = get_model_manager
         self.get_router_pipes = get_router_pipes
 
-    # Returns a mapping of model_id -> lifecycle status based on ModelManager state.
-    def get_models_status(self) -> Dict[str, ModelStatusInfo]:
-        status_by_model: Dict[str, ModelStatusInfo] = {}
+    # Returns a mapping of model_id -> list of lifecycle statuses based on ModelManager state.
+    def get_models_status(self) -> Dict[str, List[ModelStatusInfo]]:
+        status_by_model: Dict[str, List[ModelStatusInfo]] = {}
 
+        # Initialize with empty lists for all known model_ids
         known_model_ids = set(self.get_model_manager().pipes_hosted.keys())
         known_model_ids.update(
             model.model_id for model in self.get_model_manager().models
@@ -102,32 +103,32 @@ class ModelProvider:
         )
 
         for model_id in known_model_ids:
-            status_by_model[model_id] = ModelStatusInfo(status=ModelStatus.Stopped)
+            status_by_model[model_id] = []
 
+        # Add status for each model instance
         for model in self.get_model_manager().models:
             status = ModelStatus.Running if model.loaded else ModelStatus.Starting
             layers_info = None
             if hasattr(model, "start_layer") and hasattr(model, "end_layer"):
                 if model.start_layer >= 0 and model.end_layer >= 0:
                     layers_info = f"{model.start_layer}-{model.end_layer}"
-            status_by_model[model.model_id] = ModelStatusInfo(
-                status=status, layers_loaded=layers_info
+            status_by_model[model.model_id].append(
+                ModelStatusInfo(status=status, layers_loaded=layers_info)
             )
 
+        # Add status for end models
         for model in self.get_model_manager().end_models:
-            current_status_info = status_by_model.get(
-                model.model_id, ModelStatusInfo(status=ModelStatus.Stopped)
-            )
             is_loaded = getattr(model, "loaded", True)
-            if is_loaded:
-                status_by_model[model.model_id] = ModelStatusInfo(
-                    status=ModelStatus.Running,
-                    layers_loaded=current_status_info.layers_loaded,
-                )
-            elif current_status_info.status != ModelStatus.Running:
-                status_by_model[model.model_id] = ModelStatusInfo(
-                    status=ModelStatus.Starting,
-                    layers_loaded=current_status_info.layers_loaded,
+            status = ModelStatus.Running if is_loaded else ModelStatus.Starting
+            status_by_model[model.model_id].append(
+                ModelStatusInfo(status=status, layers_loaded=None)
+            )
+
+        # If a model_id has no instances, add a Stopped status
+        for model_id in list(status_by_model.keys()):
+            if not status_by_model[model_id]:
+                status_by_model[model_id].append(
+                    ModelStatusInfo(status=ModelStatus.Stopped)
                 )
 
         return status_by_model

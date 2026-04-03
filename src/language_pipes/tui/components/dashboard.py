@@ -119,16 +119,22 @@ class Dashboard:
         except LookupError:
             models_status = {}
         for model in models_to_load:
-            model_status = models_status.get(model.model_id)
-            if model_status:
-                status = model_status.status.value
-                layers_loaded = model_status.layers_loaded
+            model_statuses = models_status.get(model.model_id, [])
+            if not model_statuses:
+                # No instances, show as Stopped
+                lines.append(
+                    format_model_line(model, status="Stopped", layers_loaded=None)
+                )
             else:
-                status = "Stopped"
-                layers_loaded = None
-            lines.append(
-                format_model_line(model, status=status, layers_loaded=layers_loaded)
-            )
+                # Show each instance
+                for model_status in model_statuses:
+                    status = model_status.status.value
+                    layers_loaded = model_status.layers_loaded
+                    lines.append(
+                        format_model_line(
+                            model, status=status, layers_loaded=layers_loaded
+                        )
+                    )
         return lines
 
     def get_footer(self) -> str:
