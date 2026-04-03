@@ -6,6 +6,7 @@ from language_pipes.distributed_state_network.handler import DSNodeServer
 from language_pipes.tui.content_provider.model_provider import ModelProvider
 from language_pipes.tui.content_provider.network_provider import NetworkProvider
 
+
 class ContentProvider:
     router: Optional[DSNodeServer]
     router_pipes: Optional[RouterPipes]
@@ -23,9 +24,8 @@ class ContentProvider:
 
     def get_router(self):
         return self.router
-    
+
     def set_router(self, router: DSNodeServer):
         self.router = router
         self.router_pipes = RouterPipes(router)
-
-    
+        self.model_provider.set_router_pipes(self.router_pipes)

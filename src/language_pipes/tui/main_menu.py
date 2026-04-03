@@ -102,6 +102,7 @@ def handle_file_load(
         ProviderCall.check_download_progress: content_provider.model_provider.check_download_progress,
         ProviderCall.get_hf_token: ModelProvider.get_hf_token,
         ProviderCall.save_hf_token: ModelProvider.save_hf_token,
+        ProviderCall.host_model: content_provider.model_provider.host_model,
         ProviderCall.get_models_to_load: lambda: ModelProvider.get_models_to_load(
             config_file
         ),
