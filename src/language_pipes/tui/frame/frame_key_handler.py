@@ -6,9 +6,9 @@ from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
-from language_pipes.tui.components.network_form.network_form import NetworkForm
 from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.frame.page_router import PageRouter
+
 
 class FrameKeyHandler:
     nav: NavState
@@ -16,11 +16,10 @@ class FrameKeyHandler:
     confirm: Confirm
     state: FrameState
     layout: FrameLayout
-    network_form: NetworkForm
     exit_confirm: ExitConfirm
     page_router: PageRouter
 
-    def __init__(self, layout: FrameLayout, network_form: NetworkForm, page_router: PageRouter):
+    def __init__(self, layout: FrameLayout, page_router: PageRouter):
         self.state = layout.state
         self.nav = layout.nav_state
         self.editor = layout.editor
@@ -29,7 +28,6 @@ class FrameKeyHandler:
         self.page_router = page_router
 
         self.layout = layout
-        self.network_form = network_form
 
     def _resolve_exit_choice(self):
         choice = self.exit_confirm.selected_option()
@@ -62,10 +60,10 @@ class FrameKeyHandler:
         self.state.set_status("Choose: Return to menu, Exit TUI, or Cancel", "warning")
 
     def activate_selection(self):
-        tab = self.nav.active_tab()
-        section = self.nav.active_side_option()
-        if tab == "Network" and section == "Configure":
-            self.network_form.start()
+        page = self.page_router.get_page()
+        start = getattr(page, "start", None)
+        if callable(start):
+            start()
 
     def handle_key(self, key: PressedKey, ch: str):
         if self.exit_confirm.is_open:
@@ -79,10 +77,6 @@ class FrameKeyHandler:
                 self.nav.focus_shallower()
             return
 
-        if self.editor.edit_mode:
-            self._handle_edit_mode_key(key, ch)
-            return
-        
         current_page = self.page_router.get_page()
         if self.nav.focus_depth == 2 and current_page is not None:
             current_page.on_key(key, ch)
@@ -130,39 +124,15 @@ class FrameKeyHandler:
         if self.nav.focus_depth == 2:
             if key == PressedKey.ArrowDown:
                 self.nav.content_cursor_down()
-                self.state.set_status("Moved selection cursor (placeholder content)", "info")
+                self.state.set_status(
+                    "Moved selection cursor (placeholder content)", "info"
+                )
             elif key == PressedKey.ArrowUp:
                 self.nav.content_cursor_up()
-                self.state.set_status("Moved selection cursor (placeholder content)", "info")
+                self.state.set_status(
+                    "Moved selection cursor (placeholder content)", "info"
+                )
             elif key in (PressedKey.ArrowLeft, PressedKey.ArrowRight):
-                self.state.set_status("No horizontal action in placeholder content", "info")
-
-    def _discard_form(self) -> None:
-        self.editor.exit_edit_mode()
-        self.state.set_status("Discarded edits", "info")
-
-    def _handle_edit_mode_key(self, key: PressedKey, ch: str) -> None:
-        if key == PressedKey.Escape:
-            if self.editor.field_editor_visible:
-                if self.editor.form.back():
-                    self.editor.change_field_editor(False)
-                    self.editor.form.set_status()
-            else:
-                self._discard_form()
-                self.nav.focus_shallower()
-                self.state.set_status("Changing section")
-        elif key == PressedKey.ArrowUp:
-            self.editor.prev_field()
-        elif key == PressedKey.ArrowDown:
-            self.editor.next_field()
-        elif key == PressedKey.Enter:
-            self.editor.on_enter()
-            if "label" in self.editor.edit_fields[self.editor.edit_field_idx]:
-                field_name = self.editor.edit_fields[self.editor.edit_field_idx]["label"]
-                self.state.set_status(f"Editing {field_name}")
-        elif key == PressedKey.Backspace:
-            self.editor.on_backspace()
-        elif key == PressedKey.Delete:
-            self.editor.on_delete()
-        elif key == PressedKey.Alpha:
-            self.editor.on_alpha(ch)
+                self.state.set_status(
+                    "No horizontal action in placeholder content", "info"
+                )
