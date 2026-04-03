@@ -1,5 +1,6 @@
 from typing import Any, Callable, List, Optional
 
+from language_pipes.tui.components.hosted_models_view import format_model_line
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.frame.provider_calls import ProviderCall
 
@@ -48,6 +49,12 @@ class Dashboard:
         except LookupError:
             return None
 
+    def _get_models_to_load(self) -> List[Any]:
+        try:
+            return self.loader.call_provider(ProviderCall.get_models_to_load)
+        except LookupError:
+            return []
+
     def _get_ram_usage(self) -> Optional[str]:
         try:
             used_ram = self.loader.call_provider(ProviderCall.get_used_system_ram)
@@ -60,10 +67,21 @@ class Dashboard:
     def _get_state(status: Optional[Any]) -> str:
         if status is None:
             return "stopped"
-        return getattr(status, "state", "running" if getattr(status, "running", False) else "starting")
+        if hasattr(status, "state"):
+            return getattr(status, "state")
+        return "running" if getattr(status, "running", False) else "stopped"
+
+    @staticmethod
+    def _get_state_label(state: str) -> str:
+        if state == "running":
+            return "On"
+        if state == "stopped":
+            return "Off"
+        return state.title()
 
     def get_view(self) -> List[str]:
         status = self._get_status()
+        models_to_load = self._get_models_to_load()
         ram_usage = self._get_ram_usage()
         state = self._get_state(status)
         is_running = state == "running"
@@ -73,7 +91,7 @@ class Dashboard:
             if is_running
             else ""
         )
-        lines = [f"Network Server: {state.title()}{peer_text}", ""]
+        lines = [f"Network Server: {self._get_state_label(state)}{peer_text}", ""]
         if ram_usage is not None:
             lines.extend([ram_usage, ""])
         for idx, (label, _, _) in enumerate(self.OPTIONS):
@@ -88,6 +106,8 @@ class Dashboard:
             l_cursor = "|>" if selected else "  "
             r_cursor = "<|" if selected else "  "
             lines.append(f"{l_cursor} {label} {r_cursor}")
+        lines.extend(["", "Hosted Models", ""])
+        lines.extend(format_model_line(model) for model in models_to_load)
         return lines
 
     def get_footer(self) -> str:

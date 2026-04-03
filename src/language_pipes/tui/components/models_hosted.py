@@ -2,6 +2,7 @@ from typing import List, Callable, Optional
 
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
+from language_pipes.tui.components.hosted_models_view import format_model_line
 from language_pipes.tui.content_loader import ContentLoader
 from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.content_provider.model_provider import ModelToLoad
@@ -250,11 +251,10 @@ class ModelsHosted:
 
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
         for i, model in enumerate(self.models_to_load):
-            l_cursor = "|>" if self.model_idx == i and self.is_focused() else "  "
-            r_cursor = "<|" if self.model_idx == i and self.is_focused() else "  "
-            ends_string = "+ ends" if model.load_ends else ""
             lines.append(
-                f"{l_cursor} {model.model_id} {model.max_memory}GB {ends_string} {model.device} {r_cursor}"
+                format_model_line(
+                    model, selected=self.model_idx == i and self.is_focused()
+                )
             )
 
         l_cursor = (

@@ -91,6 +91,29 @@ class TestDashboardComponent(unittest.TestCase):
         self.assertIn("Start Network Server", rendered)
         self.assertIn("Host Models", rendered)
 
+    def test_dashboard_renders_hosted_models_using_hosted_view_format(self):
+        dashboard = self._make_dashboard(
+            None,
+            models_to_load=[
+                SimpleNamespace(
+                    model_id="org/model-a",
+                    load_ends=True,
+                    device="cuda:0",
+                    max_memory=12,
+                ),
+                SimpleNamespace(
+                    model_id="org/model-b", load_ends=False, device="cpu", max_memory=8
+                ),
+            ],
+        )
+
+        view = dashboard.get_view()
+        rendered = "\n".join(view)
+
+        self.assertIn("Hosted Models", rendered)
+        self.assertIn("org/model-a 12GB + ends cuda:0", rendered)
+        self.assertIn("org/model-b 8GB  cpu", rendered)
+
     def test_dashboard_renders_stop_network_server_option_when_running(self):
         dashboard = self._make_dashboard(SimpleNamespace(running=True))
 
