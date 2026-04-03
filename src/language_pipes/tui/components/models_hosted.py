@@ -263,16 +263,8 @@ class ModelsHosted:
 
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
         models_status = self.loader.call_provider(ProviderCall.get_models_status)
-        status_map = {
-            "Stopped": "Unloaded",
-            "Starting": "Loading",
-            "Running": "Loaded",
-            "Stopping": "Unloading",
-        }
         for i, model in enumerate(self.models_to_load):
-            status = status_map.get(
-                str(models_status.get(model.model_id, "Stopped")), "Unloaded"
-            )
+            status = models_status.get(model.model_id).value if model.model_id in models_status else "Stopped"
             lines.append(
                 format_model_line(
                     model,

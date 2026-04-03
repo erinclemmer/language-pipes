@@ -97,7 +97,7 @@ class ModelProvider:
         for model in self.get_model_manager().models:
             status_by_model[model.model_id] = (
                 ModelStatus.Running
-                if getattr(model, "loaded", False)
+                if model.loaded
                 else ModelStatus.Starting
             )
 
@@ -216,13 +216,15 @@ class ModelProvider:
     def host_model(self, model: ModelToLoad):
         if self.get_router_pipes() is None:
             return
-        self.get_model_manager().host_model(
-            self.get_router_pipes(),
-            model.model_id,
-            model.max_memory,
-            torch.device(model.device),
-            0,
-        )
+        def host():
+            self.get_model_manager().host_model(
+                self.get_router_pipes(),
+                model.model_id,
+                model.max_memory,
+                torch.device(model.device),
+                0,
+            )
+        Thread(target=host, args=()).start()
 
     @staticmethod
     def get_models_to_load(config_file: Path) -> List[ModelToLoad]:

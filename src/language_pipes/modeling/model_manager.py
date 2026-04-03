@@ -88,6 +88,7 @@ class ModelManager:
                     self.pipes_hosted[model_id].append(model.pipe_id)
                     router_pipes.add_model_to_network(model.to_meta())
                     models_to_load.append(model)
+                    self.models.append(model)
 
         if len(self.pipes_hosted[model_id]) < max_pipes:
             new_pipe = MetaPipe(str(uuid4()), model_id, [])
@@ -96,8 +97,8 @@ class ModelManager:
             if model is not None:
                 router_pipes.add_model_to_network(model.to_meta())
                 models_to_load.append(model)
+                self.models.append(model)
 
         for m in models_to_load:
             m.load()
             router_pipes.update_model(m.to_meta())
-            self.models.append(m)
