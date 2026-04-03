@@ -1,4 +1,5 @@
 from typing import Optional
+from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.distributed_state_network.handler import DSNodeServer
@@ -9,6 +10,7 @@ class ContentProvider:
     router: Optional[DSNodeServer]
     router_pipes: Optional[RouterPipes]
     model_manager: ModelManager
+    pipe_manager: PipeManager
     model_provider: ModelProvider
     network_provider: NetworkProvider
 
