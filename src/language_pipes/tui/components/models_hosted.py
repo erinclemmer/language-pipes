@@ -149,13 +149,18 @@ class ModelsHosted:
 
         self.loader.call_provider(ProviderCall.save_models_to_load, self.models_to_load)
 
-        def on_apply():
-            self.loader.call_provider(ProviderCall.host_model, model)
+        network_status = self.loader.call_provider(ProviderCall.get_network_status)
+        if network_status is not None and network_status.running:
 
-        def on_discard():
-            pass
+            def on_apply():
+                self.loader.call_provider(ProviderCall.host_model, model)
 
-        self.confirm.open("Host model now?", on_apply=on_apply, on_discard=on_discard)
+            def on_discard():
+                pass
+
+            self.confirm.open(
+                "Host model now?", on_apply=on_apply, on_discard=on_discard
+            )
         self.edit_device_memory = ""
         self.edit_device_name = ""
         self.edit_load_ends = False
