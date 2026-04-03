@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Callable, Optional, List, Dict, Any
 
 from language_pipes.tui.util.kb_utils import PressedKey
@@ -11,12 +12,15 @@ from language_pipes.tui.components.network_form.node_id_editor import NodeIdEdit
 from language_pipes.tui.components.network_form.peer_port_editor import PeerPortEditor
 from language_pipes.tui.components.network_form.whitelist_editor import WhitelistEditor
 from language_pipes.tui.components.network_form.network_ip_editor import NetworkIpEditor
-from language_pipes.tui.components.network_form.network_key_editor import (
-    NetworkKeyEditor,
-)
 from language_pipes.tui.components.network_form.bootstrap_nodes_editor import (
     BootstrapNodesEditor,
 )
+
+
+class NetworkKeyEditorState(Enum):
+    LIST = 0
+    INPUT = 1
+    SHOW = 2
 
 
 class NetworkForm:
@@ -42,10 +46,13 @@ class NetworkForm:
         self.edit_fields: List[Dict[str, Optional[Any]]] = []
         self.edit_field_idx = 0
         self.field_editor_visible = False
+        self.network_key_select_idx = 0
+        self.network_key_max_idx = 1
+        self.network_key_state = NetworkKeyEditorState.LIST
+        self.network_key = None
+        self.network_key_input = ""
+        self.network_key_valid = False
         self.node_id_editor = NodeIdEditor(loader, confirm, self.exit_field_editor)
-        self.network_key_editor = NetworkKeyEditor(
-            loader, confirm, self.exit_field_editor
-        )
         self.network_ip_editor = NetworkIpEditor(
             loader, confirm, self.exit_field_editor
         )
@@ -57,7 +64,7 @@ class NetworkForm:
 
     def restart_field_editors(self):
         self.node_id_editor.restart()
-        self.network_key_editor.restart()
+        self.restart_network_key_editor()
         self.bootstrap_nodes_editor.restart()
         self.network_ip_editor.restart()
         self.peer_port_editor.restart()
@@ -70,8 +77,6 @@ class NetworkForm:
         current_field, _ = res
         if current_field == "node_id":
             return self.node_id_editor
-        if current_field == "network_key":
-            return self.network_key_editor
         if current_field == "network_ip":
             return self.network_ip_editor
         if current_field == "peer_port":
@@ -184,6 +189,179 @@ class NetworkForm:
         self.field_editor_visible = True
         self.restart_field_editors()
 
+    def restart_network_key_editor(self, reset_select: bool = True):
+        if reset_select:
+            self.network_key_select_idx = 0
+        self.network_key_state = NetworkKeyEditorState.LIST
+        config: DSNodeConfig = self.loader.call_provider(
+            ProviderCall.get_network_config
+        )
+        self.network_key = config.aes_key
+        self.network_key_input = ""
+        self.network_key_valid = False
+        self.network_key_max_idx = 3 if self.network_key not in (None, "") else 1
+
+    def network_key_back(self) -> bool:
+        exit_field_editor = self.network_key_state == NetworkKeyEditorState.LIST
+        self.restart_network_key_editor(False)
+        return exit_field_editor
+
+    def is_editing_network_key(self) -> bool:
+        res = self.get_current_field()
+        return res is not None and res[0] == "network_key"
+
+    def get_network_key_footer(self) -> str:
+        if self.network_key_state == NetworkKeyEditorState.INPUT:
+            return (
+                "[A-Z]: Type key   Backspace: delete char   Esc: Back   Enter: Accept"
+            )
+        if self.network_key_state == NetworkKeyEditorState.SHOW:
+            return "Enter/Esc: Back"
+        return "Arrows U/D: Change choice   Enter: Confirm   Esc: Back"
+
+    def on_network_key_prev(self):
+        self.network_key_select_idx = max(0, self.network_key_select_idx - 1)
+
+    def on_network_key_next(self):
+        self.network_key_select_idx = min(
+            self.network_key_max_idx, self.network_key_select_idx + 1
+        )
+
+    def on_network_key_backspace(self):
+        if self.network_key_state != NetworkKeyEditorState.INPUT:
+            return
+        self.network_key_input = self.network_key_input[:-1]
+        self.network_key_valid = self.loader.call_provider(
+            ProviderCall.validate_aes_key, self.network_key_input
+        )
+
+    def on_network_key_char(self, ch: str):
+        if self.network_key_state != NetworkKeyEditorState.INPUT:
+            return
+        self.network_key_input += ch
+        self.network_key_valid = self.loader.call_provider(
+            ProviderCall.validate_aes_key, self.network_key_input
+        )
+
+    def save_network_key_input(self):
+        config: DSNodeConfig = self.loader.call_provider(
+            ProviderCall.get_network_config
+        )
+        config.aes_key = self.network_key_input
+        self.loader.call_provider(ProviderCall.save_network_config, config)
+        self.exit_field_editor()
+
+    def generate_network_key(self):
+        config: DSNodeConfig = self.loader.call_provider(
+            ProviderCall.get_network_config
+        )
+        config.aes_key = self.loader.call_provider(ProviderCall.generate_aes_key)
+        self.loader.call_provider(ProviderCall.save_network_config, config)
+        self.exit_field_editor()
+
+    def delete_network_key(self):
+        config: DSNodeConfig = self.loader.call_provider(
+            ProviderCall.get_network_config
+        )
+        config.aes_key = None
+        self.loader.call_provider(ProviderCall.save_network_config, config)
+        self.exit_field_editor()
+
+    def on_network_key_enter(self):
+        if self.network_key_select_idx == 0:
+            if self.network_key_state == NetworkKeyEditorState.LIST:
+                self.network_key_state = NetworkKeyEditorState.INPUT
+            elif self.network_key_state == NetworkKeyEditorState.INPUT:
+                if self.network_key_valid:
+                    self.confirm.open(
+                        f"Save this network key?\n{self.network_key_input[:32]}\n{self.network_key_input[32:]}",
+                        on_apply=self.save_network_key_input,
+                        on_discard=lambda: self.restart_network_key_editor(False),
+                        confirm_msg=(
+                            f"Saved network key!\n{self.network_key_input[:32]}\n"
+                            f"{self.network_key_input[32:]}"
+                        ),
+                    )
+        elif self.network_key_select_idx == 1:
+            self.confirm.open(
+                "Generate a new network key?",
+                on_apply=self.generate_network_key,
+                on_discard=lambda: self.restart_network_key_editor(False),
+                confirm_msg="New network key generated",
+            )
+        elif self.network_key_select_idx == 2:
+            if self.network_key_state == NetworkKeyEditorState.LIST:
+                self.network_key_state = NetworkKeyEditorState.SHOW
+            elif self.network_key_state == NetworkKeyEditorState.SHOW:
+                self.exit_field_editor()
+        elif self.network_key_select_idx == 3:
+            self.confirm.open(
+                "Delete the current network key?\n\nThis will open the network to all\nconnections unless a whitelist is set.",
+                on_apply=self.delete_network_key,
+                on_discard=lambda: self.restart_network_key_editor(False),
+                confirm_msg="Network key deleted",
+            )
+
+    def on_network_key(self, key: PressedKey, ch: str = ""):
+        if key == PressedKey.ArrowUp:
+            self.on_network_key_prev()
+        elif key == PressedKey.ArrowDown:
+            self.on_network_key_next()
+        elif key == PressedKey.Enter:
+            self.on_network_key_enter()
+        elif key == PressedKey.Alpha:
+            self.on_network_key_char(ch)
+        elif key == PressedKey.Backspace:
+            self.on_network_key_backspace()
+
+    def get_network_key_list_lines(self) -> List[str]:
+        lines = ["Editing Network Key"]
+
+        def add_option(option: str, idx: int):
+            l_cursor = "|>" if idx == self.network_key_select_idx else "  "
+            r_cursor = "<|" if idx == self.network_key_select_idx else "  "
+            lines.append(f" {l_cursor} {option} {r_cursor}")
+
+        add_option("Enter Key", 0)
+        add_option("Generate New Key", 1)
+        if self.network_key_max_idx > 1:
+            add_option("Show Existing Key", 2)
+            add_option("Delete Existing Key", 3)
+        lines.append("")
+        return lines
+
+    def get_network_key_input_lines(self) -> List[str]:
+        key = (
+            self.network_key_input[-40:]
+            if len(self.network_key_input) > 40
+            else self.network_key_input
+        )
+        lines = [
+            "Enter AES hex key",
+            "",
+            f"Key: {key}",
+            f"Length: {len(self.network_key_input)}",
+            "",
+        ]
+        if self.network_key_valid:
+            lines.append("Valid Key!")
+        else:
+            lines.append("Invalid key: must be a valid aes key hex string")
+        return lines
+
+    def get_network_key_show_lines(self) -> List[str]:
+        key = self.network_key or ""
+        return ["Network Key", "", key[:32], key[32:]]
+
+    def get_network_key_lines(self) -> List[str]:
+        if self.network_key_state == NetworkKeyEditorState.LIST:
+            return self.get_network_key_list_lines()
+        if self.network_key_state == NetworkKeyEditorState.INPUT:
+            return self.get_network_key_input_lines()
+        if self.network_key_state == NetworkKeyEditorState.SHOW:
+            return self.get_network_key_show_lines()
+        return []
+
     def _form_lines(self) -> List[str]:
         lines = ["Edit Network Configuration:"]
         for idx, field in enumerate(self.edit_fields):
@@ -218,12 +396,16 @@ class NetworkForm:
             return ""
         if not self.field_editor_visible:
             return "Arrows U/D: Change property to edit   Enter: Next   Esc: Back"
+        if self.is_editing_network_key():
+            return self.get_network_key_footer()
         res = self.get_current_field_editor()
         if res is None:
             return ""
         return res.get_footer()
 
     def get_editor_lines(self) -> List[str]:
+        if self.is_editing_network_key():
+            return self.get_network_key_lines()
         res = self.get_current_field_editor()
         if res is None:
             return []
@@ -232,7 +414,12 @@ class NetworkForm:
     def on_key(self, key: PressedKey, ch: str = ""):
         if key == PressedKey.Escape:
             if self.field_editor_visible:
-                if self.back():
+                should_exit = (
+                    self.network_key_back()
+                    if self.is_editing_network_key()
+                    else self.back()
+                )
+                if should_exit:
                     self.exit_field_editor()
                     self.set_status()
             else:
@@ -246,11 +433,12 @@ class NetworkForm:
                 self.next_field()
             elif key == PressedKey.Enter:
                 self.enter_field()
-                current = self.get_current_field_editor()
-                if current is not None:
-                    field_name = self.edit_fields[self.edit_field_idx]["label"]
-                    self.state.set_status(f"Editing {field_name}")
+                field_name = self.edit_fields[self.edit_field_idx]["label"]
+                self.state.set_status(f"Editing {field_name}")
             return
+
+        if self.is_editing_network_key():
+            return self.on_network_key(key, ch)
 
         res = self.get_current_field_editor()
         if res is None:
