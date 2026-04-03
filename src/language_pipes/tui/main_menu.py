@@ -94,6 +94,8 @@ def handle_file_load(
         ),
         ProviderCall.stop_network: content_provider.network_provider.stop_router,
         ProviderCall.get_network_status: content_provider.network_provider.get_router_status,
+        ProviderCall.get_total_system_ram: ContentProvider.get_total_system_ram,
+        ProviderCall.get_used_system_ram: ContentProvider.get_used_system_ram,
         ProviderCall.list_peers: content_provider.network_provider.get_peers,
         ProviderCall.get_installed_models: ModelProvider.get_installed_models,
         ProviderCall.delete_installed_model: ModelProvider.delete_installed_model,

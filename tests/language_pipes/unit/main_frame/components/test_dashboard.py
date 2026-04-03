@@ -12,9 +12,27 @@ from language_pipes.tui.util.kb_utils import PressedKey
 
 
 class TestDashboardComponent(unittest.TestCase):
-    def _make_dashboard(self, status, *, change_nav=None, exit_page=None):
+    def _make_dashboard(
+        self,
+        status,
+        *,
+        change_nav=None,
+        exit_page=None,
+        used_ram=4.2,
+        total_ram=16.0,
+    ):
         loader = Mock()
-        loader.call_provider.return_value = status
+
+        def call_provider(provider_call, *args):
+            if provider_call == ProviderCall.get_network_status:
+                return status
+            if provider_call == ProviderCall.get_used_system_ram:
+                return used_ram
+            if provider_call == ProviderCall.get_total_system_ram:
+                return total_ram
+            return None
+
+        loader.call_provider.side_effect = call_provider
         return Dashboard(
             loader, exit_page or Mock(), lambda: True, change_nav or Mock()
         )
@@ -46,6 +64,14 @@ class TestDashboardComponent(unittest.TestCase):
         self.assertNotIn("Logs:", rendered)
         self.assertNotIn("Server Running", rendered)
         self.assertNotIn("Server Stopped", rendered)
+
+    def test_dashboard_renders_system_ram_usage(self):
+        dashboard = self._make_dashboard(None, used_ram=5.5, total_ram=32.0)
+
+        view = dashboard.get_view()
+        rendered = "\n".join(view)
+
+        self.assertIn("System RAM: 5.5 / 32.0 GB", rendered)
 
     def test_dashboard_hides_peer_count_when_network_stopped(self):
         dashboard = self._make_dashboard(SimpleNamespace(running=False, num_peers=3))

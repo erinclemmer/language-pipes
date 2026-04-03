@@ -45,8 +45,17 @@ class Dashboard:
         except LookupError:
             return None
 
+    def _get_ram_usage(self) -> Optional[str]:
+        try:
+            used_ram = self.loader.call_provider(ProviderCall.get_used_system_ram)
+            total_ram = self.loader.call_provider(ProviderCall.get_total_system_ram)
+        except LookupError:
+            return None
+        return f"System RAM: {used_ram:.1f} / {total_ram:.1f} GB"
+
     def get_view(self) -> List[str]:
         status = self._get_status()
+        ram_usage = self._get_ram_usage()
         is_running = status is not None and status.running
         focused = self.is_focused()
         peer_text = (
@@ -55,6 +64,8 @@ class Dashboard:
             else ""
         )
         lines = [f"Network Server: {'On' if is_running else 'Off'}{peer_text}", ""]
+        if ram_usage is not None:
+            lines.extend([ram_usage, ""])
         for idx, (label, _, _) in enumerate(self.OPTIONS):
             if idx == 0:
                 label = "Stop Network Server" if is_running else label

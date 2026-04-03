@@ -21,6 +21,8 @@ class ProviderCall(Enum):
 
     detect_network_ip = "detect_network_ip"
     get_network_status = "get_network_status"
+    get_total_system_ram = "get_total_system_ram"
+    get_used_system_ram = "get_used_system_ram"
 
     # Models / Installed
     get_installed_models = "get_installed_models"
