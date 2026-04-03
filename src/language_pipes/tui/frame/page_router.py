@@ -5,9 +5,11 @@ from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.content_loader import ContentLoader
 from language_pipes.tui.components.network_status import NetworkStatus
 from language_pipes.tui.components.network_peers import NetworkPeers
+from language_pipes.tui.components.network_form.network_form import NetworkForm
 from language_pipes.tui.components.models_installed import ModelsInstalled
 from language_pipes.tui.components.models_hosted import ModelsHosted
 from language_pipes.tui.components.dashboard import Dashboard
+from language_pipes.tui.frame.frame_state import FrameState
 
 
 class PageRouter:
@@ -17,6 +19,7 @@ class PageRouter:
 
     network_status: NetworkStatus
     network_peers: NetworkPeers
+    network_form: NetworkForm
 
     models_installed: ModelsInstalled
     models_hosted: ModelsHosted
@@ -28,12 +31,16 @@ class PageRouter:
         loader: ContentLoader,
         confirm: Confirm,
         nav: NavState,
+        state: FrameState,
         change_nav: Callable,
     ):
         self.nav = nav
         self.dashboard = Dashboard(loader, self.exit_page, self.is_focused, change_nav)
         self.network_status = NetworkStatus(loader, self.exit_page, self.is_focused)
         self.network_peers = NetworkPeers(loader, self.exit_page, self.is_focused)
+        self.network_form = NetworkForm(
+            loader, state, confirm, change_nav, self.exit_page, self.is_focused
+        )
         self.models_installed = ModelsInstalled(
             loader, confirm, self.exit_page, self.is_focused
         )
@@ -56,6 +63,8 @@ class PageRouter:
             return self.network_status
         if tab == "Network" and section == "Peers":
             return self.network_peers
+        if tab == "Network" and section == "Configure":
+            return self.network_form
         if tab == "Models" and section == "Installed":
             return self.models_installed
         if tab == "Models" and section == "Hosted":

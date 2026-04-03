@@ -13,6 +13,7 @@ from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.frame.page_router import PageRouter
 from language_pipes.tui.frame.tips import TIPS
 
+
 class FrameLayout:
     content_id: int
     footer_id: int
@@ -30,16 +31,16 @@ class FrameLayout:
     page_router: PageRouter
 
     def __init__(
-            self, 
-            window: TuiWindow, 
-            nav: NavState, 
-            editor: Editor,
-            loader: ContentLoader, 
-            exit_confirm: ExitConfirm,
-            edit_confirm: Confirm,
-            state: FrameState,
-            page_router: PageRouter
-        ):
+        self,
+        window: TuiWindow,
+        nav: NavState,
+        editor: Editor,
+        loader: ContentLoader,
+        exit_confirm: ExitConfirm,
+        edit_confirm: Confirm,
+        state: FrameState,
+        page_router: PageRouter,
+    ):
         self.nav_state = nav
         self.window = window
         self.loader = loader
@@ -70,7 +71,7 @@ class FrameLayout:
             (pos[0] + 1, pos[1] + 4),
             self.nav_state.active_side_options(),
         )
-    
+
     def _sync_navigation(self):
         active_options = self.nav_state.active_side_options()
         self.side_nav.focused_idx = (
@@ -81,10 +82,16 @@ class FrameLayout:
         self.side_nav.set_options(active_options)
 
         self.top_nav.focused_idx = self.nav_state.active_top_idx
-        interactive_overlay_open = self.exit_confirm.is_open or self.edit_confirm.is_open or self.editor.edit_mode
-        self.top_nav.set_focus(self.nav_state.focus_depth == 0 and not interactive_overlay_open)
+        interactive_overlay_open = (
+            self.exit_confirm.is_open or self.edit_confirm.is_open
+        )
+        self.top_nav.set_focus(
+            self.nav_state.focus_depth == 0 and not interactive_overlay_open
+        )
         self.top_nav._update_styles()
-        self.side_nav.set_focus(self.nav_state.focus_depth == 1 and not interactive_overlay_open)
+        self.side_nav.set_focus(
+            self.nav_state.focus_depth == 1 and not interactive_overlay_open
+        )
 
     def _content_blank_block(self) -> str:
         width, height = self.content_area_size
@@ -94,76 +101,41 @@ class FrameLayout:
         tab, section = self.nav_state.active_view_key()
         result = self.loader.load(tab, section, update_status=update_status)
         if update_status and self.loader.last_status_message:
-            self.state.set_status(self.loader.last_status_message, self.loader.last_status_level)
+            self.state.set_status(
+                self.loader.last_status_message, self.loader.last_status_level
+            )
         return result
 
     def _refresh_current_view(self):
         self._load_active_view_data(update_status=True)
 
     def _render_content(self):
-        self.window.update_text(self.content_bg_id, TermText(self._content_blank_block()))
+        self.window.update_text(
+            self.content_bg_id, TermText(self._content_blank_block())
+        )
 
         if self.exit_confirm.is_open:
-            self.window.update_text(self.content_id, TermText(self.exit_confirm.render()))
+            self.window.update_text(
+                self.content_id, TermText(self.exit_confirm.render())
+            )
             return
 
         if self.edit_confirm.is_open:
-            self.window.update_text(self.content_id, TermText(self.edit_confirm.render()))
-            return
-
-        if self.editor.edit_mode:
-            self._render_form_content()
+            self.window.update_text(
+                self.content_id, TermText(self.edit_confirm.render())
+            )
             return
 
         tab = self.nav_state.active_tab()
         section = self.nav_state.active_side_option()
-        
-        content_parts = [
-            f"{tab} / {section}", ""
-        ]
+
+        content_parts = [f"{tab} / {section}", ""]
 
         page = self.page_router.get_page()
         if page is not None:
             content_parts.extend(page.get_view())
 
-
         self.window.update_text(self.content_id, TermText("\n".join(content_parts)))
-
-    def _render_form_content(self) -> None:
-        tab = self.nav_state.active_tab()
-        section = self.nav_state.active_side_option()
-
-        lines = [
-            f"{tab} / {section}",
-            "",
-        ]
-
-        if self.editor.field_editor_visible:
-            if tab == "Network" and section == "Configure":
-                lines.extend(self.editor.form.get_editor_lines())
-        else:
-            lines.append("Edit Network Configuration:")
-            for idx, field in enumerate(self.editor.edit_fields):
-                l_cursor = "|>" if idx == self.editor.edit_field_idx else "  "
-                r_cursor = "<|" if idx == self.editor.edit_field_idx else "  "
-                name = str(field.get("label", "field"))
-                value = str(field.get("value", ""))
-                error = field.get("error")
-                lines.append(f" {l_cursor} {name}: {value} {r_cursor}")
-                if error:
-                    lines.append(f"    ! {error}")
-
-        tip = ""
-        res = self.editor.get_current_field()
-        if not self.editor.field_editor_visible and res is not None and res[0] in TIPS["network"]["configure"]:
-            tip = TIPS["network"]["configure"][res[0]]
-
-        lines.extend([
-            "",
-            tip
-        ])
-
-        self.window.update_text(self.content_id, TermText("\n".join(lines)))
 
     def _render_footer(self):
         self.window.update_text(self.footer_id, TermText(self._footer_text()))
@@ -226,18 +198,14 @@ class FrameLayout:
             return "Arrows U/D: Navigate   Enter: Select   Esc: Cancel"
         if self.edit_confirm.is_open:
             return "Arrows U/D: Change choice   Enter: Select   Esc: Cancel"
-        if self.editor.edit_mode:
-            if self.editor.field_editor_visible:
-                return self.editor.form.get_footer()
-            else:
-                return "Arrows U/D: Change property to edit   Enter: Next   Esc: Back"
         if self.nav_state.focus_depth == 0:
             return "Arrows L/R: Switch Tab   Enter: Side Nav   Esc: Back/Quit Options   q: Exit"
         if self.nav_state.focus_depth == 1:
-            return "Arrows U/D: Switch Section   Enter: Content   Esc: Top Tabs   q: Exit"
+            return (
+                "Arrows U/D: Switch Section   Enter: Content   Esc: Top Tabs   q: Exit"
+            )
         if self.nav_state.focus_depth == 2:
             page = self.page_router.get_page()
             if page is not None:
                 return page.get_footer()
         return ""
-
