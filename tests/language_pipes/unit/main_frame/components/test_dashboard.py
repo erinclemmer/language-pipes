@@ -62,8 +62,16 @@ class TestDashboardComponent(unittest.TestCase):
         view = dashboard.get_view()
         rendered = "\n".join(view)
 
-        self.assertIn("Start Network", rendered)
+        self.assertIn("Start Network Server", rendered)
         self.assertIn("Host Models", rendered)
+
+    def test_dashboard_renders_stop_network_server_option_when_running(self):
+        dashboard = self._make_dashboard(SimpleNamespace(running=True))
+
+        view = dashboard.get_view()
+        rendered = "\n".join(view)
+
+        self.assertIn("Stop Network Server", rendered)
 
     def test_dashboard_selection_moves_with_arrow_keys(self):
         dashboard = self._make_dashboard(None)

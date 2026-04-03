@@ -6,7 +6,7 @@ from language_pipes.tui.frame.provider_calls import ProviderCall
 
 class Dashboard:
     OPTIONS = [
-        ("Start Network", "Network", "Status"),
+        ("Start Network Server", "Network", "Status"),
         ("Host Models", "Models", "Hosted"),
     ]
 
@@ -56,6 +56,8 @@ class Dashboard:
         )
         lines = [f"Network Server: {'On' if is_running else 'Off'}{peer_text}", ""]
         for idx, (label, _, _) in enumerate(self.OPTIONS):
+            if idx == 0:
+                label = "Stop Network Server" if is_running else label
             selected = focused and idx == self.selected_idx
             l_cursor = "|>" if selected else "  "
             r_cursor = "<|" if selected else "  "
