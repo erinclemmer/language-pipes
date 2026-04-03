@@ -9,6 +9,7 @@ from language_pipes.tui.components.network_form.network_form import NetworkForm
 from language_pipes.tui.components.models_installed import ModelsInstalled
 from language_pipes.tui.components.models_hosted import ModelsHosted
 from language_pipes.tui.components.dashboard import Dashboard
+from language_pipes.tui.components.pipes_connected import PipesConnected
 from language_pipes.tui.frame.frame_state import FrameState
 
 
@@ -25,6 +26,7 @@ class PageRouter:
     models_hosted: ModelsHosted
 
     dashboard: Dashboard
+    pipes_connected: PipesConnected
 
     def __init__(
         self,
@@ -47,6 +49,7 @@ class PageRouter:
         self.models_hosted = ModelsHosted(
             loader, confirm, self.exit_page, self.is_focused
         )
+        self.pipes_connected = PipesConnected(loader, self.exit_page, self.is_focused)
 
     def is_focused(self):
         return self.nav.focus_depth == 2
@@ -69,4 +72,6 @@ class PageRouter:
             return self.models_installed
         if tab == "Models" and section == "Hosted":
             return self.models_hosted
+        if tab == "Pipes" and section == "Connected":
+            return self.pipes_connected
         return None
