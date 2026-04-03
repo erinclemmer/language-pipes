@@ -1,5 +1,4 @@
 import os
-import logging
 from pathlib import Path
 from uuid import uuid4
 from logging import Logger
@@ -25,8 +24,7 @@ class LlmModel:
     pipe_id: str
     collector: LlmLayerCollector
 
-    node_id: str
-    device: str
+    device: torch.device
     virtual: bool
     model_dir: str
 
@@ -41,9 +39,8 @@ class LlmModel:
     def __init__(
             self,
             model_id: str,
-            node_id: str,
             pipe_id: str,
-            device: str,
+            device: torch.device,
             model_dir: str,
             process_id: Optional[str] = None,
             virtual: bool = False,
@@ -51,7 +48,6 @@ class LlmModel:
             num_hidden_layers: Optional[int] = None
     ):
         self.model_id = model_id
-        self.node_id = node_id
         self.pipe_id = pipe_id
         self.loaded = False
         self.virtual = virtual
@@ -61,7 +57,7 @@ class LlmModel:
         self.device = device
         self.model_dir = model_dir
 
-        if virtual:
+        if virtual and num_hidden_layers is not None:
             self.num_hidden_layers = num_hidden_layers
         else:
             model_path = str(Path(model_dir) / self.model_id)
@@ -92,23 +88,8 @@ class LlmModel:
         self.loaded = True
         self.virtual = False
 
-    def print(self, logger: logging.Logger):
-        logger.info(f'''
-=================================
-Loaded Model: {self.model_id}
-Pipe ID: {self.pipe_id}
-Node: {self.node_id}
-Process: {self.process_id}
-Start Layer: {self.start_layer}
-End Layer: {self.end_layer}
-Device: {self.device}
-=================================
-''')
-
     def process_job(self, job: Job, logger: Logger):
-        job.timing_stats.add_layer_time(self.node_id, job.current_layer, self.end_layer)
         self.compute_layers(job)
-        job.timing_stats.set_send_time(logger)
 
     def compute_layers(
         self, 
@@ -134,7 +115,6 @@ Device: {self.device}
             process_id=self.process_id,
             start_layer=self.start_layer,
             end_layer=self.end_layer,
-            node_id=self.node_id,
             pipe_id=self.pipe_id,
             model_id=self.model_id,
             loaded=self.loaded,
@@ -151,9 +131,8 @@ Device: {self.device}
     def from_meta(meta: MetaModel, model_dir: str) -> 'LlmModel':
         model = LlmModel(
             model_id=meta.model_id,
-            node_id=meta.node_id,
             pipe_id=meta.pipe_id,
-            device='cpu',
+            device=torch.device('cpu'),
             model_dir=model_dir,
             process_id=meta.process_id,
             num_hidden_layers=meta.num_layers,
@@ -168,10 +147,9 @@ Device: {self.device}
         return model
     
     @staticmethod
-    def from_id(model_dir: str, model_id: str, node_id: str, pipe_id: str, device: str, huggingface_token: Optional[str] = None) -> 'LlmModel':
+    def from_id(model_dir: str, model_id: str, pipe_id: str, device: torch.device, huggingface_token: Optional[str] = None) -> 'LlmModel':
         model = LlmModel(
-            model_id=model_id, 
-            node_id=node_id, 
+            model_id=model_id,
             pipe_id=pipe_id, 
             device=device, 
             model_dir=model_dir,

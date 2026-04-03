@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict
 from huggingface_hub import snapshot_download, errors
 
+from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.distributed_state_network.util import stop_thread
 from language_pipes.util.config import default_model_dir, default_config_dir
 
@@ -69,7 +70,7 @@ class ModelProvider:
     download_message: Optional[str]
     downloading_to_folder: Optional[Path]
 
-    def __init__(self):
+    def __init__(self, model_manager: ModelManager):
         self.download_model_thread = None
         self.download_message = None
         self.downloading_to_folder = None

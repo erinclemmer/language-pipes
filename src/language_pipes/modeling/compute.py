@@ -7,7 +7,7 @@ from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 from language_pipes.jobs.job_data import jobDataToComputationState, detachCompState
 from language_pipes.llm_layer_collector.auto.static_auto_model import StaticAutoModel
 
-def compute_layers(start_layer: int, job_data: JobData, device: str, layers: List[AutoDecoderLayer], cache: DynamicCache):
+def compute_layers(start_layer: int, job_data: JobData, device: torch.device, layers: List[AutoDecoderLayer], cache: DynamicCache):
     comp_state = jobDataToComputationState(job_data, device)
     comp_state = detachCompState(comp_state)
 

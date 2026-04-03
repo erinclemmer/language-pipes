@@ -104,7 +104,7 @@ def computationStateToJobData(data: LLmComputationState) -> JobData:
     job_data.sliding_causal_mask = maybeTo(data.causal_mask["sliding_attention"], 'cpu')
     return job_data
 
-def jobDataToComputationState(data: JobData, device: str) -> LLmComputationState:
+def jobDataToComputationState(data: JobData, device: torch.device) -> LLmComputationState:
     state = LLmComputationState()
     state.state = maybeTo(data.state, device)
     state.position_ids = maybeTo(data.position_ids, device)
