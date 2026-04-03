@@ -148,7 +148,14 @@ class ModelsHosted:
             self.models_to_load[self.model_idx] = model
 
         self.loader.call_provider(ProviderCall.save_models_to_load, self.models_to_load)
-        self.loader.call_provider(ProviderCall.host_model, model)
+
+        def on_apply():
+            self.loader.call_provider(ProviderCall.host_model, model)
+
+        def on_discard():
+            pass
+
+        self.confirm.open("Host model now?", on_apply=on_apply, on_discard=on_discard)
         self.edit_device_memory = ""
         self.edit_device_name = ""
         self.edit_load_ends = False
