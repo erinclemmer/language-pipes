@@ -29,8 +29,13 @@ class Dashboard:
         elif key == PressedKey.ArrowDown:
             self.selected_idx = (self.selected_idx + 1) % len(self.OPTIONS)
         elif key == PressedKey.Enter:
-            _, tab, section = self.OPTIONS[self.selected_idx]
-            self.change_nav(tab, section)
+            if self.selected_idx == 0:
+                status = self._get_status()
+                if status is None or not status.running:
+                    self.loader.call_provider(ProviderCall.start_network)
+            else:
+                _, tab, section = self.OPTIONS[self.selected_idx]
+                self.change_nav(tab, section)
         elif key == PressedKey.Escape:
             self.exit_page()
 

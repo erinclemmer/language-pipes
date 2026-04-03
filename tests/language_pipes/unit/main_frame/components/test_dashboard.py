@@ -7,6 +7,7 @@ from unittest.mock import Mock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
 
 from language_pipes.tui.components.dashboard import Dashboard
+from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.util.kb_utils import PressedKey
 
 
@@ -14,7 +15,9 @@ class TestDashboardComponent(unittest.TestCase):
     def _make_dashboard(self, status, *, change_nav=None, exit_page=None):
         loader = Mock()
         loader.call_provider.return_value = status
-        return Dashboard(loader, exit_page or Mock(), lambda: True, change_nav or Mock())
+        return Dashboard(
+            loader, exit_page or Mock(), lambda: True, change_nav or Mock()
+        )
 
     def test_dashboard_renders_network_on_when_running(self):
         dashboard = self._make_dashboard(SimpleNamespace(running=True))
@@ -31,7 +34,9 @@ class TestDashboardComponent(unittest.TestCase):
         self.assertEqual(view[0], "Network Server: Off")
 
     def test_dashboard_renders_only_on_off_status_and_not_network_details(self):
-        dashboard = self._make_dashboard(SimpleNamespace(running=True, num_peers=3, logs=["a", "b"]))
+        dashboard = self._make_dashboard(
+            SimpleNamespace(running=True, num_peers=3, logs=["a", "b"])
+        )
 
         view = dashboard.get_view()
         rendered = "\n".join(view)
@@ -60,13 +65,26 @@ class TestDashboardComponent(unittest.TestCase):
         dashboard.on_key(PressedKey.ArrowUp, "")
         self.assertEqual(dashboard.selected_idx, 0)
 
-    def test_dashboard_enter_routes_to_network_status(self):
+    def test_dashboard_enter_starts_network_from_dashboard(self):
+        loader = Mock()
+        loader.call_provider.return_value = None
         change_nav = Mock()
-        dashboard = self._make_dashboard(None, change_nav=change_nav)
+        dashboard = Dashboard(loader, Mock(), lambda: True, change_nav)
 
         dashboard.on_key(PressedKey.Enter, "")
 
-        change_nav.assert_called_once_with("Network", "Status")
+        loader.call_provider.assert_any_call(ProviderCall.get_network_status)
+        loader.call_provider.assert_any_call(ProviderCall.start_network)
+        change_nav.assert_not_called()
+
+    def test_dashboard_enter_still_routes_host_models(self):
+        change_nav = Mock()
+        dashboard = self._make_dashboard(None, change_nav=change_nav)
+        dashboard.selected_idx = 1
+
+        dashboard.on_key(PressedKey.Enter, "")
+
+        change_nav.assert_called_once_with("Models", "Hosted")
 
     def test_dashboard_escape_exits_page(self):
         exit_page = Mock()
