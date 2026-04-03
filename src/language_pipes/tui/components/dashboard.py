@@ -48,6 +48,14 @@ class Dashboard:
         except LookupError:
             return None
 
+    def _get_ram_usage(self) -> Optional[str]:
+        try:
+            used_ram = self.loader.call_provider(ProviderCall.get_used_system_ram)
+            total_ram = self.loader.call_provider(ProviderCall.get_total_system_ram)
+        except LookupError:
+            return None
+        return f"System RAM: {used_ram:.1f} / {total_ram:.1f} GB"
+
     @staticmethod
     def _get_state(status: Optional[Any]) -> str:
         if status is None:
@@ -56,6 +64,7 @@ class Dashboard:
 
     def get_view(self) -> List[str]:
         status = self._get_status()
+        ram_usage = self._get_ram_usage()
         state = self._get_state(status)
         is_running = state == "running"
         focused = self.is_focused()
@@ -65,6 +74,8 @@ class Dashboard:
             else ""
         )
         lines = [f"Network Server: {state.title()}{peer_text}", ""]
+        if ram_usage is not None:
+            lines.extend([ram_usage, ""])
         for idx, (label, _, _) in enumerate(self.OPTIONS):
             if idx == 0:
                 if state == "running":
