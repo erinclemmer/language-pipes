@@ -6,10 +6,12 @@ from language_pipes.tui.frame.provider_calls import ProviderCall
 
 
 class Dashboard:
-    OPTIONS = [
-        ("Start Network Server", "Network", "Status"),
-        ("Host Models", "Models", "Hosted"),
-    ]
+    @staticmethod
+    def _get_options(state: str) -> List[tuple]:
+        options = [("Start Network Server", "Network", "Status")]
+        if state == "running":
+            options.append(("Host Models", "Models", "Hosted"))
+        return options
 
     def __init__(
         self,
@@ -25,20 +27,21 @@ class Dashboard:
         self.selected_idx = 0
 
     def on_key(self, key: PressedKey, ch: str):
+        status = self._get_status()
+        state = self._get_state(status)
+        options = self._get_options(state)
         if key == PressedKey.ArrowUp:
-            self.selected_idx = (self.selected_idx - 1) % len(self.OPTIONS)
+            self.selected_idx = (self.selected_idx - 1) % len(options)
         elif key == PressedKey.ArrowDown:
-            self.selected_idx = (self.selected_idx + 1) % len(self.OPTIONS)
+            self.selected_idx = (self.selected_idx + 1) % len(options)
         elif key == PressedKey.Enter:
             if self.selected_idx == 0:
-                status = self._get_status()
-                state = self._get_state(status)
                 if state == "stopped":
                     self.loader.call_provider(ProviderCall.start_network)
                 elif state == "running":
                     self.loader.call_provider(ProviderCall.stop_network)
             else:
-                _, tab, section = self.OPTIONS[self.selected_idx]
+                _, tab, section = options[self.selected_idx]
                 self.change_nav(tab, section)
         elif key == PressedKey.Escape:
             self.exit_page()
@@ -94,7 +97,8 @@ class Dashboard:
         lines = [f"Network Server: {self._get_state_label(state)}{peer_text}", ""]
         if ram_usage is not None:
             lines.extend([ram_usage, ""])
-        for idx, (label, _, _) in enumerate(self.OPTIONS):
+        options = self._get_options(state)
+        for idx, (label, _, _) in enumerate(options):
             if idx == 0:
                 if state == "running":
                     label = "Stop Network Server"
