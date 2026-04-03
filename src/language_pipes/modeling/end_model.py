@@ -18,31 +18,26 @@ from language_pipes.jobs.job_data import computationStateToJobData
 from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.modeling.compute import compute_layers
 
-from language_pipes.util import clone_model
-
 class EndModel:
     model_id: str
     process_id: str
-    device: str
+    device: torch.device
     input_embedding: torch.nn.Embedding
     norm: AutoRMSNorm
     head: torch.nn.Linear
     collector: LlmLayerCollector
     layers: List[AutoDecoderLayer]
 
-    def __init__(self, num_local_layers: int, model_dir: str, model_id: str, device: str, huggingface_token: str | None = None):
+    def __init__(self, num_local_layers: int, model_dir: str, model_id: str, device: str):
         self.model_id = model_id
-        self.device = device
-
         self.process_id = str(uuid4())
         model_path = str(Path(model_dir) / self.model_id)
-        if not os.path.exists(model_path):
-            clone_model(model_id, model_path, token=huggingface_token)
         self.meta_data = LlmMetadata(model_path)
+        self.device = torch.device(device)
         self.collector = LlmLayerCollector(
             model_dir=os.path.join(model_path, 'data'),
             cache_file=os.path.join(model_path, 'cache.json'),
-            device=device,
+            device=torch.device(device),
             dtype=torch.float16
         )
         self.layers = []
@@ -57,7 +52,7 @@ class EndModel:
         if job.data is None:
             raise Exception("Job did not have data")
         job.set_layer(
-            state=compute_layers(0, job.data, self.device, self.layers, job.cache),
+            state=compute_layers(0, job.data, str(self.device), self.layers, job.cache),
             layer=len(self.layers),
             num_hidden_layers=self.collector.config.num_hidden_layers
         )
@@ -124,7 +119,7 @@ class EndModel:
         head = StaticAutoModel.compute_head(
             head=self.head, 
             state=job.data.state, 
-            device=self.device,
+            device=str(self.device),
             top_k=job.top_k,
             top_p=job.top_p,
             min_p=job.min_p,

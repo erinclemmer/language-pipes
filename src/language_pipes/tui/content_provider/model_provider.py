@@ -75,7 +75,7 @@ class ModelProvider:
         self.downloading_to_folder = None
     
     # Returns (process_id, status)
-    def get_models_status() -> Dict[str, ModelStatus]:
+    def get_models_status(self) -> Dict[str, ModelStatus]:
         return {}
     
     # Models / Installed

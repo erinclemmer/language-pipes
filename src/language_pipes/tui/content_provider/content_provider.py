@@ -1,4 +1,3 @@
-from language_pipes.config import LpConfig
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.distributed_state_network.handler import DSNodeServer
 from language_pipes.tui.content_provider.model_provider import ModelProvider
