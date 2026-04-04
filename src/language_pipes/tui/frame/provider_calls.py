@@ -44,6 +44,7 @@ class ProviderCall(Enum):
 
     # Pipes / Connected
     get_pipes_connected = "get_pipes_connected"
+    get_available_pipes = "get_available_pipes"
 
     # Other
     list_models = "list_models"

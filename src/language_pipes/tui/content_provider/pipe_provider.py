@@ -24,3 +24,17 @@ class PipeProvider:
                     pipes.append(pipe)
         
         return pipes
+    
+    def get_available_pipes(self) -> Optional[List[MetaPipe]]:
+        pipe_manager = self.get_pipe_manager()
+        if pipe_manager is None:
+            return None
+        pipes_hosted: List[str] = []
+        for key in pipe_manager.model_manager.pipes_hosted.keys():
+            pipe_ids = pipe_manager.model_manager.pipes_hosted[key]
+            for pipe_id in pipe_ids:
+                pipes_hosted.append(pipe_id)
+
+        network_pipes = pipe_manager.router_pipes._network_pipes()
+        return [p for p in network_pipes if p.pipe_id not in pipes_hosted]
+            

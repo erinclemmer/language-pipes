@@ -2,16 +2,16 @@ from typing import Callable
 
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.components.confirm import Confirm
-from language_pipes.tui.content_loader import ContentLoader
-from language_pipes.tui.components.network_status import NetworkStatus
-from language_pipes.tui.components.network_peers import NetworkPeers
-from language_pipes.tui.components.network_form.network_form import NetworkForm
-from language_pipes.tui.components.models_installed import ModelsInstalled
-from language_pipes.tui.components.models_hosted import ModelsHosted
-from language_pipes.tui.components.dashboard import Dashboard
-from language_pipes.tui.components.pipes_connected import PipesConnected
 from language_pipes.tui.frame.frame_state import FrameState
-
+from language_pipes.tui.content_loader import ContentLoader
+from language_pipes.tui.components.dashboard import Dashboard
+from language_pipes.tui.components.models_hosted import ModelsHosted
+from language_pipes.tui.components.network_peers import NetworkPeers
+from language_pipes.tui.components.network_status import NetworkStatus
+from language_pipes.tui.components.pipes_available import PipesAvailable
+from language_pipes.tui.components.pipes_connected import PipesConnected
+from language_pipes.tui.components.models_installed import ModelsInstalled
+from language_pipes.tui.components.network_form.network_form import NetworkForm
 
 class PageRouter:
     loader: ContentLoader
@@ -50,6 +50,7 @@ class PageRouter:
             loader, confirm, self.exit_page, self.is_focused
         )
         self.pipes_connected = PipesConnected(loader, self.exit_page, self.is_focused)
+        self.pipes_available = PipesAvailable(loader, self.exit_page, self.is_focused)
 
     def is_focused(self):
         return self.nav.focus_depth == 2
@@ -74,4 +75,6 @@ class PageRouter:
             return self.models_hosted
         if tab == "Pipes" and section == "Connected":
             return self.pipes_connected
+        if tab == "Pipes" and section == "Available":
+            return self.pipes_available
         return None
