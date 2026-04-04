@@ -1,6 +1,7 @@
 from typing import Any, Callable, List, Optional, Dict
 
 from language_pipes.tui.components.hosted_models_view import format_model_line
+from language_pipes.tui.content_provider.network_provider import RouterStatus
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
@@ -83,7 +84,7 @@ class Dashboard:
         elif key == PressedKey.Escape:
             self.exit_page()
 
-    def _get_status(self) -> Optional[Any]:
+    def _get_status(self) -> Optional[RouterStatus]:
         try:
             return self.loader.call_provider(ProviderCall.get_network_status)
         except LookupError:
@@ -130,6 +131,7 @@ class Dashboard:
         status = self._get_status()
         self.models_to_load = self._get_models_to_load()
         ram_usage = self._get_ram_usage()
+        config = self._get_config()
         state = self._get_state(status)
         is_running = state == "running"
         focused = self.is_focused()
@@ -139,7 +141,9 @@ class Dashboard:
             else ""
         )
         lines = [f"Network Server: {self._get_state_label(state)}{peer_text}", ""]
-        if not self._has_node_id():
+        if config is not None and self._has_node_id():
+            lines.extend([f"Node ID: {config.node_id}"])
+        else:
             lines.extend(["Warning: Node ID not set, cannot start server", ""])
         if ram_usage is not None:
             lines.extend([ram_usage, ""])

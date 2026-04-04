@@ -23,6 +23,7 @@ AES_KEY_LEN = 32
 class RouterStatus:
     state: str
     running: bool
+    node_id: str
     num_peers: int
     logs: List
 
@@ -30,6 +31,8 @@ class NetworkProvider:
     router_thread: Optional[Thread]
     router_starting: bool
     router_stopping: bool
+
+    get_router: Callable[[], Optional[DSNodeServer]]
 
     def __init__(self, get_router: Callable, set_router: Callable):
         self.router_starting = False
@@ -71,11 +74,14 @@ class NetworkProvider:
 
     def get_router_status(self) -> Optional[RouterStatus]:
         rtr = self.get_router()
+        if rtr is None: 
+            return None
         if rtr is None and not self.router_starting and not self.router_stopping:
             return None
         
         if self.router_starting:
             return RouterStatus(
+                node_id=rtr.node_id(),
                 state="starting",
                 running=False,
                 num_peers=0,
@@ -84,16 +90,15 @@ class NetworkProvider:
 
         if self.router_stopping:
             return RouterStatus(
+                node_id=rtr.node_id(),
                 state="stopping",
                 running=False,
                 num_peers=0 if rtr is None else len(rtr.node.node_states.keys()) - 1,
                 logs=[] if rtr is None else rtr.node.logs
             )
-
-        if rtr is None:
-            return None
         
         return RouterStatus(
+            node_id=rtr.node_id(),
             state="running",
             running=True,
             num_peers=len(rtr.node.node_states.keys()) - 1,
