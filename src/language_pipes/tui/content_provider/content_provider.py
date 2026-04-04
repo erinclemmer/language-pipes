@@ -12,14 +12,15 @@ from language_pipes.tui.content_provider.network_provider import NetworkProvider
 class ContentProvider:
     router: Optional[DSNodeServer]
     router_pipes: Optional[RouterPipes]
+    pipe_manager: Optional[PipeManager]
     model_manager: ModelManager
-    pipe_manager: PipeManager
     model_provider: ModelProvider
     network_provider: NetworkProvider
 
     def __init__(self):
         self.router = None
         self.router_pipes = None
+        self.pipe_manager = None
         self.model_manager = ModelManager()
         self.model_provider = ModelProvider(self.get_model_manager, lambda: self.router_pipes)
         self.network_provider = NetworkProvider(self.get_router, self.set_router)
@@ -30,9 +31,13 @@ class ContentProvider:
     def set_router(self, router: DSNodeServer):
         self.router = router
         self.router_pipes = RouterPipes(router) if router is not None else None
-    
+        self.pipe_manager = PipeManager(self.model_manager, self.router_pipes) if self.router_pipes is not None else None
+
     def get_model_manager(self):
         return self.model_manager
+    
+    def get_pipe_manager(self):
+        return self.pipe_manager
 
     @staticmethod
     def get_total_system_ram() -> float:
