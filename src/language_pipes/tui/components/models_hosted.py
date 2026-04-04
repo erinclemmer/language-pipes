@@ -14,6 +14,7 @@ class ModelsHostedState(Enum):
     Edit = 'edit'
     ChooseModel = 'choose_model'
 
+# TODO: Whenever we change a configuration and the model is running, restart the model
 class ModelsHosted:
     loader: ContentLoader
     confirm: Confirm

@@ -6,6 +6,8 @@ from language_pipes.tui.content_loader import ContentLoader
 from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.components.view_pipe import format_pipe_view
 
+
+# TODO: Split this into PipesComplete and PipesIncomplete, allow joining on PipesIncomplete
 class PipesAvailable:
     loader: ContentLoader
     pipes_available: List[MetaPipe]
