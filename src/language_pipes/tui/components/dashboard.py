@@ -24,9 +24,9 @@ class Dashboard:
         else:
             options = [("Configure Network", "Network", "Configure")]
 
-        if state == "running":
-            options.append(("Host Models", "Models", "Hosted"))
         return options
+
+    models_to_load: List[ModelToLoad]
 
     def __init__(
         self,
@@ -40,15 +40,25 @@ class Dashboard:
         self.is_focused = is_focused
         self.change_nav = change_nav
         self.selected_idx = 0
+        self.models_to_load = []
+
+    def on_prev(self):
+        self.selected_idx -= 1
+        if self.selected_idx < 0:
+            self.selected_idx = len(self.models_to_load)
+    
+    def on_next(self):
+        self.selected_idx += 1
+        if self.selected_idx > len(self.models_to_load):
+            self.selected_idx = 0
 
     def on_key(self, key: PressedKey, ch: str):
         status = self._get_status()
         state = self._get_state(status)
-        options = self._get_options(state)
         if key == PressedKey.ArrowUp:
-            self.selected_idx = (self.selected_idx - 1) % len(options)
+            self.on_prev()
         elif key == PressedKey.ArrowDown:
-            self.selected_idx = (self.selected_idx + 1) % len(options)
+            self.on_next()
         elif key == PressedKey.Enter:
             if self.selected_idx == 0:
                 config = self._get_config()
@@ -62,10 +72,8 @@ class Dashboard:
                 elif state == "running":
                     self.loader.call_provider(ProviderCall.stop_network)
             else:
-                # Host all models in models_to_load list directly
-                models_to_load = self._get_models_to_load()
-                for model in models_to_load:
-                    self.loader.call_provider(ProviderCall.host_model, model)
+                model = self.models_to_load[self.selected_idx - 1]
+                self.loader.call_provider(ProviderCall.host_model, model)
         elif key == PressedKey.Escape:
             self.exit_page()
 
@@ -113,7 +121,7 @@ class Dashboard:
 
     def get_view(self) -> List[str]:
         status = self._get_status()
-        models_to_load = self._get_models_to_load()
+        self.models_to_load = self._get_models_to_load()
         ram_usage = self._get_ram_usage()
         state = self._get_state(status)
         is_running = state == "running"
@@ -134,15 +142,11 @@ class Dashboard:
             l_cursor = "|>" if selected else "  "
             r_cursor = "<|" if selected else "  "
             lines.append(f"{l_cursor} {label} {r_cursor}")
-        lines.extend(["", "Hosted Models", ""])
-        # Get model status like in the Models -> Hosted page
-        try:
-            models_status: Dict[str, List[ModelStatusInfo]] = self.loader.call_provider(ProviderCall.get_models_status)
-        except LookupError:
-            models_status = {}
-        for model in models_to_load:
+        lines.extend(["", ""])
+        models_status: Dict[str, List[ModelStatusInfo]] = self.loader.call_provider(ProviderCall.get_models_status)
+        for i, model in enumerate(self.models_to_load):
             model_statuses = models_status.get(model.model_id, [])
-            lines.append(format_model_line(model, running=model_statuses))
+            lines.append(format_model_line(model, selected=self.is_focused() and i + 1 == self.selected_idx, running=model_statuses))
         
         return lines
 
