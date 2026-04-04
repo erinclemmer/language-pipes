@@ -1,11 +1,13 @@
-from typing import List, Callable, Optional
+from typing import List, Callable, Optional, Dict
 
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.components.hosted_models_view import format_model_line
 from language_pipes.tui.content_loader import ContentLoader
 from language_pipes.tui.frame.provider_calls import ProviderCall
-from language_pipes.tui.content_provider.model_provider import ModelToLoad
+from language_pipes.tui.content_provider.model_provider import ModelToLoad, ModelStatusInfo
+
+
 
 
 class ModelsHosted:
@@ -26,9 +28,6 @@ class ModelsHosted:
     edit_load_ends: bool
     edit_device_name: str
     edit_device_memory: str
-    display_to_config_map: List[
-        int
-    ]  # Maps display index to config index in models_to_load
     editing_config_idx: Optional[int]  # Config index being edited, None if adding new
 
     def __init__(
@@ -53,7 +52,6 @@ class ModelsHosted:
         self.choosing_model = False
         self.edit_device_name = ""
         self.edit_device_memory = ""
-        self.display_to_config_map = []
         self.editing_config_idx = None
 
     def on_key(self, key: PressedKey, ch: str):
@@ -73,11 +71,11 @@ class ModelsHosted:
             self.on_delete()
 
     def on_delete(self):
-        if self.model_idx == len(self.display_to_config_map):
+        if self.model_idx == len(self.models_to_load):
             return
 
         # Convert display index to config index
-        config_idx = self.display_to_config_map[self.model_idx]
+        config_idx = self.models_to_load[self.model_idx]
 
         def on_apply():
             self.models_to_load = [
@@ -125,8 +123,8 @@ class ModelsHosted:
             self.edit_device_memory = str(model.max_memory) if model is not None else ""
             self.editing_model = True
             # Store config index for when we save
-            if model is not None and self.model_idx < len(self.display_to_config_map):
-                self.editing_config_idx = self.display_to_config_map[self.model_idx]
+            if model is not None and self.model_idx < len(self.models_to_load):
+                self.editing_config_idx = 0
             else:
                 self.editing_config_idx = None
         elif self.choosing_model:
@@ -193,7 +191,7 @@ class ModelsHosted:
         else:
             self.model_idx += 1
             # +1 for the "Host New Model" button
-            if self.model_idx > len(self.display_to_config_map):
+            if self.model_idx > len(self.models_to_load):
                 self.model_idx = 0
 
     def on_prev(self):
@@ -205,7 +203,7 @@ class ModelsHosted:
             self.model_idx -= 1
             if self.model_idx < 0:
                 # +1 for the "Host New Model" button
-                self.model_idx = len(self.display_to_config_map)
+                self.model_idx = len(self.models_to_load)
 
     def get_view(self) -> List[str]:
         if self.choosing_model:
@@ -245,11 +243,10 @@ class ModelsHosted:
         return lines
 
     def get_editing_model(self) -> Optional[ModelToLoad]:
-        if self.model_idx == len(self.display_to_config_map):
+        if self.model_idx == len(self.models_to_load):
             return None
-        if self.model_idx < len(self.display_to_config_map):
-            config_idx = self.display_to_config_map[self.model_idx]
-            return self.models_to_load[config_idx]
+        if self.model_idx < len(self.models_to_load):
+            return self.models_to_load[self.model_idx]
         return None
 
     def get_editor_view(self) -> List[str]:
@@ -301,55 +298,28 @@ class ModelsHosted:
             lines.extend(self._network_not_started_warning())
 
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
-        models_status = self.loader.call_provider(ProviderCall.get_models_status)
-
-        # Build mapping from display index to config index
-        self.display_to_config_map = []
+        models_status: Dict[str, List[ModelStatusInfo]] = self.loader.call_provider(ProviderCall.get_models_status)
 
         for i, model in enumerate(self.models_to_load):
-            status_infos = models_status.get(model.model_id, [])
-
-            if not status_infos:
-                # No instances, show configuration as Stopped
-                lines.append(
-                    format_model_line(
-                        model,
-                        selected=self.model_idx == len(self.display_to_config_map)
-                        and self.is_focused(),
-                        status="Stopped",
-                        layers_loaded=None,
-                    )
-                )
-                self.display_to_config_map.append(i)
-            else:
-                # Show each instance
-                for status_info in status_infos:
-                    status = status_info.status.value
-                    layers_loaded = status_info.layers_loaded
-                    lines.append(
-                        format_model_line(
-                            model,
-                            selected=self.model_idx == len(self.display_to_config_map)
-                            and self.is_focused(),
-                            status=status,
-                            layers_loaded=layers_loaded,
-                        )
-                    )
-                    self.display_to_config_map.append(i)
-
+            lines.append(format_model_line(
+                model=model,
+                selected=self.model_idx == i and self.is_focused(),
+                running=models_status.get(model.model_id, [])
+            ))
+            
         # Clamp model_idx to valid range (+1 for "Host New Model" button)
-        max_idx = len(self.display_to_config_map)
+        max_idx = len(self.models_to_load)
         if self.model_idx > max_idx:
             self.model_idx = max_idx
 
         l_cursor = (
             "|>"
-            if self.model_idx == len(self.display_to_config_map) and self.is_focused()
+            if self.model_idx == len(self.models_to_load) and self.is_focused()
             else "  "
         )
         r_cursor = (
             "<|"
-            if self.model_idx == len(self.display_to_config_map) and self.is_focused()
+            if self.model_idx == len(self.models_to_load) and self.is_focused()
             else "  "
         )
         lines.append("")

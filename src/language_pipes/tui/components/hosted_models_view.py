@@ -1,18 +1,22 @@
-from typing import Any, Optional
+from typing import List
+from language_pipes.tui.content_provider.model_provider import ModelStatusInfo, ModelToLoad
 
 
 def format_model_line(
-    model: Any,
+    model: ModelToLoad,
     selected: bool = False,
-    status: str = "Unloaded",
-    layers_loaded: Optional[str] = None,
+    running: List[ModelStatusInfo] = []
 ) -> str:
     l_cursor = "|>" if selected else "  "
     r_cursor = "<|" if selected else "  "
-    ends_string = "+ ends" if getattr(model, "load_ends", False) else ""
-    layers_string = f" layers:{layers_loaded}" if layers_loaded else ""
-    return (
-        f"{l_cursor} {getattr(model, 'model_id', '')} "
-        f"{getattr(model, 'max_memory', '')}GB {ends_string} "
-        f"{getattr(model, 'device', '')} [{status}{layers_string}] {r_cursor}"
-    )
+    ends_string = "Yes" if model.load_ends else "No"
+    lines = [
+        f"{l_cursor} {model.model_id} {r_cursor} ",
+        f"       Max Memory: {model.max_memory}GB",
+        f"       Load Ends: {ends_string}"
+    ]
+    for mi in running:
+        lines.extend([
+            f"           Layers: {mi.layers_loaded} {mi.status.value}"
+        ])
+    return "\n".join(lines)

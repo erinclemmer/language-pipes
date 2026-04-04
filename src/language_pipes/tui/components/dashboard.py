@@ -1,9 +1,10 @@
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Dict
 
 from language_pipes.tui.components.hosted_models_view import format_model_line
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.tui.content_provider.model_provider import ModelToLoad, ModelStatusInfo
 
 
 class Dashboard:
@@ -136,26 +137,13 @@ class Dashboard:
         lines.extend(["", "Hosted Models", ""])
         # Get model status like in the Models -> Hosted page
         try:
-            models_status = self.loader.call_provider(ProviderCall.get_models_status)
+            models_status: Dict[str, List[ModelStatusInfo]] = self.loader.call_provider(ProviderCall.get_models_status)
         except LookupError:
             models_status = {}
         for model in models_to_load:
             model_statuses = models_status.get(model.model_id, [])
-            if not model_statuses:
-                # No instances, show as Stopped
-                lines.append(
-                    format_model_line(model, status="Stopped", layers_loaded=None)
-                )
-            else:
-                # Show each instance
-                for model_status in model_statuses:
-                    status = model_status.status.value
-                    layers_loaded = model_status.layers_loaded
-                    lines.append(
-                        format_model_line(
-                            model, status=status, layers_loaded=layers_loaded
-                        )
-                    )
+            lines.append(format_model_line(model, running=model_statuses))
+        
         return lines
 
     def get_footer(self) -> str:
