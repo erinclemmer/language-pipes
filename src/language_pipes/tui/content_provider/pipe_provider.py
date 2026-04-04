@@ -8,9 +8,11 @@ class PipeProvider:
     def __init__(self, get_pipe_manager: Callable):
         self.get_pipe_manager = get_pipe_manager
 
-    def get_connected_pipes(self) -> List[MetaPipe]:
+    def get_connected_pipes(self) -> Optional[List[MetaPipe]]:
         pipe_manager = self.get_pipe_manager()
-        if pipe_manager is None or len(pipe_manager.model_manager.pipes_hosted.keys()) == 0:
+        if pipe_manager is None:
+            return None 
+        if len(pipe_manager.model_manager.pipes_hosted.keys()) == 0:
             return []
         
         pipes: List[MetaPipe] = []

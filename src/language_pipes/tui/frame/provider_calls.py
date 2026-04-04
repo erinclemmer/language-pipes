@@ -42,6 +42,9 @@ class ProviderCall(Enum):
     host_model = "host_model"
     shutdown_models = "shutdown_models"
 
+    # Pipes / Connected
+    get_pipes_connected = "get_pipes_connected"
+
     # Other
     list_models = "list_models"
     save_model_assignments = "save_model_assignments"

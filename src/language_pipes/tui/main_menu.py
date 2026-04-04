@@ -113,7 +113,8 @@ def handle_file_load(
         ),
         ProviderCall.validate_device_name: ModelProvider.validate_device_name,
         ProviderCall.get_models_status: content_provider.model_provider.get_models_status,
-        ProviderCall.shutdown_models: content_provider.model_provider.shutdown_models
+        ProviderCall.shutdown_models: content_provider.model_provider.shutdown_models,
+        ProviderCall.get_pipes_connected: content_provider.pipe_provider.get_connected_pipes
     }
 
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)
