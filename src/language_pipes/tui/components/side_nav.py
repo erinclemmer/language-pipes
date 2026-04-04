@@ -25,7 +25,6 @@ class SideNav:
         self.is_focused = False
 
         self.l_cursor_id = self.window.add_text(TermText(" "), (0, 0))
-        self.r_cursor_id = self.window.add_text(TermText(" "), (self.window.size[0] - 1, 0))
 
         self.set_options(options)
 
@@ -35,12 +34,10 @@ class SideNav:
     def _update_cursor(self):
         if len(self.options) == 0:
             self.window.update_text(self.l_cursor_id, TermText(" "))
-            self.window.update_text(self.r_cursor_id, TermText(" "))
             return
 
-        cursor_char = ">" if self.is_focused else " "
-        self.window.update_text(self.l_cursor_id, TermText(cursor_char), (0, self._cursor_y()))
-        self.window.update_text(self.r_cursor_id, TermText("<" if self.is_focused else " "), (self.window.size[0] - 1, self._cursor_y()))
+        l_cursor = "|>" if self.is_focused else " "
+        self.window.update_text(self.l_cursor_id, TermText(l_cursor), (0, self._cursor_y()))
 
     def _update_option_styles(self):
         for i, option_id in enumerate(self.option_ids):
@@ -85,6 +82,6 @@ class SideNav:
         self.focused_idx = min(self.focused_idx, len(options) - 1) if len(options) > 0 else 0
 
         for i, opt in enumerate(options):
-            self.option_ids.append(self.window.add_text(TermText(opt), (2, i * 2)))
+            self.option_ids.append(self.window.add_text(TermText(opt), (3, i * 2)))
 
         self._update_option_styles()

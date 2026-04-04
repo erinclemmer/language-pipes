@@ -36,10 +36,10 @@ class TopNav:
         selected_x = self.header_positions[self.focused_idx]
         selected_header = self.headers[self.focused_idx]
         if self.is_focused:
-            self.window.update_text(self.l_cursor_id, TermText("["), (selected_x - 2, 0))
+            self.window.update_text(self.l_cursor_id, TermText("["), (selected_x - 1, 0))
             self.window.update_text(self.r_cursor_id, TermText("]"), (selected_x + len(selected_header), 0))
         else:
-            self.window.update_text(self.l_cursor_id, TermText(" "), (selected_x - 2, 0))
+            self.window.update_text(self.l_cursor_id, TermText(" "), (selected_x - 1, 0))
             self.window.update_text(self.r_cursor_id, TermText(" "), (selected_x + len(selected_header), 0))
 
     def move_next(self):
