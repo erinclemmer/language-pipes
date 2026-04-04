@@ -23,6 +23,7 @@ class ModelsHosted:
     state: ModelsHostedState
     model_idx: int
     edit_idx: int
+    option_idx: int
     choose_model_idx: int # Select the model to use in the editor
     
     models_to_load: List[ModelToLoad]
@@ -48,6 +49,7 @@ class ModelsHosted:
         self.state = ModelsHostedState.List
         self.model_idx = 0
         self.edit_idx = 0
+        self.option_idx = 0
         self.choose_model_idx = 0
         self.models_to_load = []
         self.installed_models = []
@@ -110,6 +112,8 @@ class ModelsHosted:
         elif self.state == ModelsHostedState.Edit:
             self.state = ModelsHostedState.List
             self._reset_editor()
+        elif self.state == ModelsHostedState.Options:
+            self.state = ModelsHostedState.List
         else:
             self.exit_page()
 
@@ -122,6 +126,7 @@ class ModelsHosted:
         self.editing_config_idx = None
 
     def _start_edit(self):
+        self._reset_editor()
         self.state = ModelsHostedState.Edit
         model = self.get_editing_model()
         self.edit_model_id = model.model_id if model is not None else ""
@@ -136,7 +141,10 @@ class ModelsHosted:
 
     def on_enter(self):
         if self.state == ModelsHostedState.List:
-            self._start_edit()
+            if self.model_idx == len(self.models_to_load) or not self._network_running():
+                self._start_edit()
+            else:
+                self.state = ModelsHostedState.Options
         elif self.state == ModelsHostedState.ChooseModel:
             self.edit_model_id = self.installed_models[self.choose_model_idx]
             self.state = ModelsHostedState.Edit
@@ -148,6 +156,23 @@ class ModelsHosted:
                 self.edit_load_ends = not self.edit_load_ends
             elif self.edit_idx == 4:
                 self.add_model()
+        elif self.state == ModelsHostedState.Options:
+            if self.option_idx == 0:
+                self._start_edit()
+            elif self.option_idx == 1:
+                model = self.get_editing_model()
+                if model is not None:
+                    if self._current_model_running():
+                        self.loader.call_provider(ProviderCall.shutdown_models, model.model_id)
+                    else:
+                        self.loader.call_provider(ProviderCall.host_model, model)
+                self.state = ModelsHostedState.List
+            elif self.option_idx == 2:
+                self.state = ModelsHostedState.List
+
+    def _network_running(self) -> bool:
+        network_status = self.loader.call_provider(ProviderCall.get_network_status)
+        return network_status is not None and network_status.running
 
     def add_model(self):
         valid_device_name = self.loader.call_provider(
@@ -174,8 +199,7 @@ class ModelsHosted:
 
         self.loader.call_provider(ProviderCall.save_models_to_load, self.models_to_load)
 
-        network_status = self.loader.call_provider(ProviderCall.get_network_status)
-        if network_status is not None and network_status.running:
+        if self._network_running():
 
             def on_apply():
                 self.loader.call_provider(ProviderCall.host_model, model)
@@ -199,6 +223,10 @@ class ModelsHosted:
             # +1 for the "Host New Model" button
             if self.model_idx > len(self.models_to_load):
                 self.model_idx = 0
+        elif self.state == ModelsHostedState.Options:
+            self.option_idx += 1
+            if self.option_idx > 2:
+                self.option_idx = 0
 
     def on_prev(self):
         if self.state == ModelsHostedState.Edit:
@@ -210,14 +238,42 @@ class ModelsHosted:
             if self.model_idx < 0:
                 # +1 for the "Host New Model" button
                 self.model_idx = len(self.models_to_load)
+        elif self.state == ModelsHostedState.Options:
+            self.option_idx -= 1
+            if self.option_idx < 0:
+                self.option_idx = 2
 
     def get_view(self) -> List[str]:
         if self.state == ModelsHostedState.ChooseModel:
             return self.get_choosing_model_view()
         elif self.state == ModelsHostedState.Edit:
             return self.get_editor_view()
+        elif self.state == ModelsHostedState.Options:
+            return self.get_options_view()
         else:
             return self.get_list_view()
+        
+    def _current_model_running(self) -> bool:
+        model = self.get_editing_model()
+        if model is None:
+            return False
+        return len(self.loader.call_provider(ProviderCall.get_models_status).get(model.model_id, [])) > 0
+        
+    def get_options_view(self) -> List[str]:
+        model = self.get_editing_model()
+        if model is None:
+            return ["ERROR"]
+        lines = [f"Options for {model.model_id}"]
+        options = [
+            "Edit Model", 
+            "Unload Model" if self._current_model_running() else "Load Model", 
+            "Back"
+        ]
+        for i, opt in enumerate(options):
+            l_cursor = "|>" if i == self.option_idx else "  "
+            r_cursor = "<|" if i == self.option_idx else "  "
+            lines.append(f"{l_cursor} {opt} {r_cursor}")
+        return lines
 
     def validate_memory(self):
         try:
@@ -260,8 +316,7 @@ class ModelsHosted:
         header = "Editing Model" if editing_model is not None else "Adding new Model"
         lines = [header, ""]
 
-        network_status = self.loader.call_provider(ProviderCall.get_network_status)
-        if network_status is None or not network_status.running:
+        if not self._network_running():
             lines.extend(self._network_not_started_warning())
 
         model_id_label = (
@@ -299,8 +354,7 @@ class ModelsHosted:
     def get_list_view(self) -> List[str]:
         lines = ["Hosted Models", ""]
 
-        network_status = self.loader.call_provider(ProviderCall.get_network_status)
-        if network_status is None or not network_status.running:
+        if not self._network_running():
             lines.extend(self._network_not_started_warning())
 
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
