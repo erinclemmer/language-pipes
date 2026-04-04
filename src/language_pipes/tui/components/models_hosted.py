@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import List, Callable, Optional, Dict
 
 from language_pipes.tui.util.kb_utils import PressedKey
@@ -7,8 +8,11 @@ from language_pipes.tui.content_loader import ContentLoader
 from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.content_provider.model_provider import ModelToLoad, ModelStatusInfo
 
-
-
+class ModelsHostedState(Enum):
+    List = 'list'
+    Options = 'options'
+    Edit = 'edit'
+    ChooseModel = 'choose_model'
 
 class ModelsHosted:
     loader: ContentLoader
@@ -16,18 +20,18 @@ class ModelsHosted:
     exit_page: Callable
     is_focused: Callable
 
+    state: ModelsHostedState
     model_idx: int
     edit_idx: int
-    choose_model_idx: int
+    choose_model_idx: int # Select the model to use in the editor
+    
     models_to_load: List[ModelToLoad]
     installed_models: List[str]
-    editing_model: bool
-    choosing_model: bool
-
-    edit_model_id: Optional[str]
-    edit_load_ends: bool
-    edit_device_name: str
-    edit_device_memory: str
+    
+    edit_model_id: Optional[str] # Editor: ID of model
+    edit_load_ends: bool # Editor: Load ends
+    edit_device_name: str # Editor: name
+    edit_device_memory: str # Editor: Max memory
     editing_config_idx: Optional[int]  # Config index being edited, None if adding new
 
     def __init__(
@@ -41,19 +45,14 @@ class ModelsHosted:
         self.confirm = confirm
         self.exit_page = exit_page
         self.is_focused = is_focoused
-        self.editing_model = False
+        self.state = ModelsHostedState.List
         self.model_idx = 0
         self.edit_idx = 0
         self.choose_model_idx = 0
         self.models_to_load = []
         self.installed_models = []
-        self.edit_model_id = None
-        self.edit_load_ends = False
-        self.choosing_model = False
-        self.edit_device_name = ""
-        self.edit_device_memory = ""
-        self.editing_config_idx = None
-
+        self._reset_editor()
+        
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.ArrowUp:
             self.on_prev()
@@ -90,7 +89,7 @@ class ModelsHosted:
         )
 
     def on_backspace(self):
-        if not self.editing_model:
+        if self.state != ModelsHostedState.Edit:
             return
         if self.edit_idx == 2:
             self.edit_device_name = self.edit_device_name[:-1]
@@ -98,7 +97,7 @@ class ModelsHosted:
             self.edit_device_memory = self.edit_device_memory[:-1]
 
     def on_char(self, ch: str):
-        if not self.editing_model:
+        if self.state != ModelsHostedState.Edit:
             return
         if self.edit_idx == 2:
             self.edit_device_name += ch
@@ -106,34 +105,45 @@ class ModelsHosted:
             self.edit_device_memory += ch
 
     def on_escape(self):
-        if self.choosing_model:
-            self.choosing_model = False
-        elif self.editing_model:
-            self.editing_model = False
-            self.editing_config_idx = None
+        if self.state == ModelsHostedState.ChooseModel:
+            self.state = ModelsHostedState.Edit
+        elif self.state == ModelsHostedState.Edit:
+            self.state = ModelsHostedState.List
+            self._reset_editor()
         else:
             self.exit_page()
 
+    def _reset_editor(self):
+        self.editing_config_idx = 0
+        self.edit_device_memory = ""
+        self.edit_device_name = ""
+        self.edit_load_ends = False
+        self.edit_model_id = ""
+        self.editing_config_idx = None
+
+    def _start_edit(self):
+        self.state = ModelsHostedState.Edit
+        model = self.get_editing_model()
+        self.edit_model_id = model.model_id if model is not None else ""
+        self.edit_load_ends = model.load_ends if model is not None else False
+        self.edit_device_name = model.device if model is not None else ""
+        self.edit_device_memory = str(model.max_memory) if model is not None else ""
+        # Store config index for when we save
+        if model is not None and self.model_idx < len(self.models_to_load):
+            self.editing_config_idx = 0
+        else:
+            self.editing_config_idx = None
+
     def on_enter(self):
-        if not self.editing_model:
-            model = self.get_editing_model()
-            self.edit_model_id = model.model_id if model is not None else ""
-            self.edit_load_ends = model.load_ends if model is not None else False
-            self.edit_device_name = model.device if model is not None else ""
-            self.edit_device_memory = str(model.max_memory) if model is not None else ""
-            self.editing_model = True
-            # Store config index for when we save
-            if model is not None and self.model_idx < len(self.models_to_load):
-                self.editing_config_idx = 0
-            else:
-                self.editing_config_idx = None
-        elif self.choosing_model:
+        if self.state == ModelsHostedState.List:
+            self._start_edit()
+        elif self.state == ModelsHostedState.ChooseModel:
             self.edit_model_id = self.installed_models[self.choose_model_idx]
-            self.choosing_model = False
+            self.state = ModelsHostedState.Edit
             self.choose_model_idx = 0
-        elif self.editing_model:
+        elif self.state == ModelsHostedState.Edit:
             if self.edit_idx == 0:
-                self.choosing_model = True
+                self.state = ModelsHostedState.ChooseModel
             elif self.edit_idx == 1:
                 self.edit_load_ends = not self.edit_load_ends
             elif self.edit_idx == 4:
@@ -176,39 +186,35 @@ class ModelsHosted:
             self.confirm.open(
                 "Host model now?", on_apply=on_apply, on_discard=on_discard
             )
-        self.edit_device_memory = ""
-        self.edit_device_name = ""
-        self.edit_load_ends = False
-        self.edit_model_id = ""
-        self.editing_model = False
-        self.editing_config_idx = None
+        self.state = ModelsHostedState.List
+        self._reset_editor()
 
     def on_next(self):
-        if self.editing_model:
+        if self.state == ModelsHostedState.Edit:
             self.edit_idx += 1
             if self.edit_idx > 4:
                 self.edit_idx = 0
-        else:
+        elif self.state == ModelsHostedState.List:
             self.model_idx += 1
             # +1 for the "Host New Model" button
             if self.model_idx > len(self.models_to_load):
                 self.model_idx = 0
 
     def on_prev(self):
-        if self.editing_model:
+        if self.state == ModelsHostedState.Edit:
             self.edit_idx -= 1
             if self.edit_idx < 0:
                 self.edit_idx = 3
-        else:
+        elif self.state == ModelsHostedState.List:
             self.model_idx -= 1
             if self.model_idx < 0:
                 # +1 for the "Host New Model" button
                 self.model_idx = len(self.models_to_load)
 
     def get_view(self) -> List[str]:
-        if self.choosing_model:
+        if self.state == ModelsHostedState.ChooseModel:
             return self.get_choosing_model_view()
-        elif self.editing_model:
+        elif self.state == ModelsHostedState.Edit:
             return self.get_editor_view()
         else:
             return self.get_list_view()
