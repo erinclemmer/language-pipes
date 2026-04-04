@@ -107,7 +107,8 @@ class Dashboard:
             total_ram = self.loader.call_provider(ProviderCall.get_total_system_ram)
         except LookupError:
             return None
-        return f"System RAM: {used_ram:.1f} / {total_ram:.1f} GB"
+        
+        return f"System RAM: {used_ram:.1f}/{total_ram:.1f}GB"
 
     @staticmethod
     def _get_state(status: Optional[Any]) -> str:

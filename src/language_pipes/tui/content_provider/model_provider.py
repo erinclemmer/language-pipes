@@ -75,6 +75,7 @@ class ModelStatus(Enum):
 @dataclass
 class ModelStatusInfo:
     status: ModelStatus
+    pipe_id: str
     start_layer: int
     end_layer: int
     num_layers: int
@@ -119,7 +120,8 @@ class ModelProvider:
                     start_layer=model.start_layer, 
                     end_layer=model.end_layer, 
                     end_model=False,
-                    num_layers=model.num_hidden_layers
+                    num_layers=model.num_hidden_layers,
+                    pipe_id=model.pipe_id
                 )
             )
 
@@ -128,7 +130,7 @@ class ModelProvider:
             is_loaded = getattr(end_model, "loaded", True)
             status = ModelStatus.Running if is_loaded else ModelStatus.Starting
             status_by_model[end_model.model_id].append(
-                ModelStatusInfo(status=status, start_layer=-1, end_layer=-1, end_model=True, num_layers=0)
+                ModelStatusInfo(status=status, start_layer=-1, end_layer=-1, end_model=True, num_layers=0, pipe_id='')
             )
 
         return status_by_model

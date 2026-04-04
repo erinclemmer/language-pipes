@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 from language_pipes.tui.content_provider.model_provider import ModelStatusInfo, ModelToLoad, ModelStatus
 
 
@@ -16,29 +16,38 @@ def format_model_line(
         f"       Load Ends: {ends_string}"
     ]
     has_ends = False
-    layers = []
     if len(running) == 0:
         lines.append("       Not Running")
-    else:
-        layers = [" " for _ in range(running[0].num_layers - 1)]
     
+    pipes: Dict[str, List[ModelStatusInfo]] = { }
+
     for mi in running:
         if mi.end_model:
             has_ends = True
+        if mi.pipe_id == '':
             continue
-        ch = "X"
-        if mi.status == ModelStatus.Running:
-            ch = "="
-        if mi.status == ModelStatus.Starting:
-            ch = "|"
+        if mi.pipe_id not in pipes:
+            pipes[mi.pipe_id] = []
+        pipes[mi.pipe_id].append(mi)
 
-        for i in range(mi.start_layer, mi.end_layer):
-            layers[i] = ch
+    pipe_strings = { }
+    for key in pipes.keys():
+        pipe = pipes[key]
+        pipe_string = [" " for _ in range(pipe[0].num_layers - 1)]
+        for mi in pipe:
+            ch = "X"
+            if mi.status == ModelStatus.Running:
+                ch = "="
+            if mi.status == ModelStatus.Starting:
+                ch = "|"
+            for i in range(mi.start_layer, mi.end_layer):
+                pipe_string[i] = ch
+        pipe_strings[key] = ''.join(pipe_string)
     
+    for key in pipe_strings.keys():
+        lines.append(f"       Pipe {key[:4]} >{pipe_strings[key]}<")
+
     if has_ends:
         lines.append("       Ends loaded")
-
-    if len(layers) > 0:
-        lines.append("       Running >" + "".join(layers) + "<")
 
     return "\n".join(lines)
