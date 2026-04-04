@@ -1,5 +1,5 @@
 from typing import List
-from language_pipes.tui.content_provider.model_provider import ModelStatusInfo, ModelToLoad
+from language_pipes.tui.content_provider.model_provider import ModelStatusInfo, ModelToLoad, ModelStatus
 
 
 def format_model_line(
@@ -15,8 +15,27 @@ def format_model_line(
         f"       Max Memory: {model.max_memory}GB",
         f"       Load Ends: {ends_string}"
     ]
+    has_ends = False
+    layers = []
+    if len(running) > 0:
+        layers = [" " for _ in range(running[0].num_layers - 1)]
     for mi in running:
-        lines.extend([
-            f"           Layers: {mi.layers_loaded} {mi.status.value}"
-        ])
+        if mi.end_model:
+            has_ends = True
+            continue
+        ch = "X"
+        if mi.status == ModelStatus.Running:
+            ch = "="
+        if mi.status == ModelStatus.Starting:
+            ch = "|"
+
+        for i in range(mi.start_layer, mi.end_layer):
+            layers[i] = ch
+    
+    if has_ends:
+        lines.append("Ends loaded")
+
+    if len(layers) > 0:
+        lines.append("       Running >" + "".join(layers) + "<")
+
     return "\n".join(lines)

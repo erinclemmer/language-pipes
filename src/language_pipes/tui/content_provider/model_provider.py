@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Callable
 from huggingface_hub import snapshot_download, errors
 
+from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.distributed_state_network.util import stop_thread
@@ -74,8 +75,10 @@ class ModelStatus(Enum):
 @dataclass
 class ModelStatusInfo:
     status: ModelStatus
-    layers_loaded: Optional[str] = None
-
+    start_layer: int
+    end_layer: int
+    num_layers: int
+    end_model: bool
 
 class ModelProvider:
     download_model_thread: Optional[Thread]
@@ -107,13 +110,16 @@ class ModelProvider:
 
         # Add status for each model instance
         for model in self.get_model_manager().models:
+            model: LlmModel = model
             status = ModelStatus.Running if model.loaded else ModelStatus.Starting
-            layers_info = None
-            if hasattr(model, "start_layer") and hasattr(model, "end_layer"):
-                if model.start_layer >= 0 and model.end_layer >= 0:
-                    layers_info = f"{model.start_layer}-{model.end_layer}"
             status_by_model[model.model_id].append(
-                ModelStatusInfo(status=status, layers_loaded=layers_info)
+                ModelStatusInfo(
+                    status=status, 
+                    start_layer=model.start_layer, 
+                    end_layer=model.end_layer, 
+                    end_model=False,
+                    num_layers=model.num_hidden_layers
+                )
             )
 
         # Add status for end models
@@ -121,14 +127,14 @@ class ModelProvider:
             is_loaded = getattr(model, "loaded", True)
             status = ModelStatus.Running if is_loaded else ModelStatus.Starting
             status_by_model[model.model_id].append(
-                ModelStatusInfo(status=status, layers_loaded=None)
+                ModelStatusInfo(status=status, start_layer=-1, end_layer=-1, end_model=True, num_layers=0)
             )
 
         # If a model_id has no instances, add a Stopped status
         for model_id in list(status_by_model.keys()):
             if not status_by_model[model_id]:
                 status_by_model[model_id].append(
-                    ModelStatusInfo(status=ModelStatus.Stopped)
+                    ModelStatusInfo(status=ModelStatus.Stopped, start_layer=-1, end_layer=-1, end_model=False, num_layers=0)
                 )
 
         return status_by_model
