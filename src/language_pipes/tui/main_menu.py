@@ -104,6 +104,8 @@ def handle_file_load(
         ProviderCall.check_download_progress: content_provider.model_provider.check_download_progress,
         ProviderCall.get_hf_token: ModelProvider.get_hf_token,
         ProviderCall.save_hf_token: ModelProvider.save_hf_token,
+
+
         ProviderCall.host_model: content_provider.model_provider.host_model,
         ProviderCall.get_models_to_load: lambda: ModelProvider.get_models_to_load(
             config_file
@@ -114,8 +116,14 @@ def handle_file_load(
         ProviderCall.validate_device_name: ModelProvider.validate_device_name,
         ProviderCall.get_models_status: content_provider.model_provider.get_models_status,
         ProviderCall.shutdown_models: content_provider.model_provider.shutdown_models,
+
+        
         ProviderCall.get_pipes_connected: content_provider.pipe_provider.get_connected_pipes,
-        ProviderCall.get_network_pipes: content_provider.pipe_provider.get_network_pipes
+        ProviderCall.get_network_pipes: content_provider.pipe_provider.get_network_pipes,
+
+        
+        ProviderCall.start_oai_server: content_provider.start_oai_server,
+        ProviderCall.stop_oai_server: content_provider.stop_oai_server
     }
 
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)
