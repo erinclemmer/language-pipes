@@ -19,6 +19,7 @@ from language_pipes.jobs.job import Job
 
 class LlmModel:
     model_id: str
+    node_id: str
     meta_data: LlmMetadata
     process_id: str
     pipe_id: str
@@ -38,6 +39,7 @@ class LlmModel:
 
     def __init__(
             self,
+            node_id: str,
             model_id: str,
             pipe_id: str,
             device: torch.device,
@@ -47,6 +49,7 @@ class LlmModel:
             huggingface_token: Optional[str] = None,
             num_hidden_layers: Optional[int] = None
     ):
+        self.node_id = node_id
         self.model_id = model_id
         self.pipe_id = pipe_id
         self.loaded = False
@@ -113,6 +116,7 @@ class LlmModel:
     def to_meta(self) -> MetaModel:
         return MetaModel(
             process_id=self.process_id,
+            node_id=self.node_id,
             start_layer=self.start_layer,
             end_layer=self.end_layer,
             pipe_id=self.pipe_id,
@@ -132,6 +136,7 @@ class LlmModel:
         model = LlmModel(
             model_id=meta.model_id,
             pipe_id=meta.pipe_id,
+            node_id=meta.node_id,
             device=torch.device('cpu'),
             model_dir=model_dir,
             process_id=meta.process_id,
@@ -147,9 +152,10 @@ class LlmModel:
         return model
     
     @staticmethod
-    def from_id(model_dir: str, model_id: str, pipe_id: str, device: torch.device, huggingface_token: Optional[str] = None) -> 'LlmModel':
+    def from_id(model_dir: str, node_id: str, model_id: str, pipe_id: str, device: torch.device, huggingface_token: Optional[str] = None) -> 'LlmModel':
         model = LlmModel(
             model_id=model_id,
+            node_id=node_id,
             pipe_id=pipe_id, 
             device=device, 
             model_dir=model_dir,

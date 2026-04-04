@@ -86,6 +86,8 @@ class ModelProvider:
     download_message: Optional[str]
     downloading_to_folder: Optional[Path]
 
+    get_router_pipes: Callable[[], Optional[RouterPipes]]
+
     def __init__(self, get_model_manager: Callable, get_router_pipes: Callable):
         self.download_model_thread = None
         self.download_message = None
@@ -238,17 +240,19 @@ class ModelProvider:
         ModelProvider.save_globals(data)
 
     def host_model(self, model: ModelToLoad):
-        if self.get_router_pipes() is None:
+        rp = self.get_router_pipes()
+        if rp is None:
             return
 
         def host():
             mm: ModelManager = self.get_model_manager()
             mm.host_model(
-                self.get_router_pipes(),
-                model.model_id,
-                model.max_memory,
-                torch.device(model.device),
-                0,
+                node_id=rp.router.node_id(),
+                router_pipes=rp,
+                model_id=model.model_id,
+                max_memory=model.max_memory,
+                device=torch.device(model.device),
+                first_layer=0,
             )
             if model.load_ends:
                 mm.load_end_model(model.model_id, "cpu", 0)
