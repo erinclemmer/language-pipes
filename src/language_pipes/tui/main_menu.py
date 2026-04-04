@@ -115,7 +115,7 @@ def handle_file_load(
         ProviderCall.get_models_status: content_provider.model_provider.get_models_status,
         ProviderCall.shutdown_models: content_provider.model_provider.shutdown_models,
         ProviderCall.get_pipes_connected: content_provider.pipe_provider.get_connected_pipes,
-        ProviderCall.get_available_pipes: content_provider.pipe_provider.get_available_pipes
+        ProviderCall.get_network_pipes: content_provider.pipe_provider.get_network_pipes
     }
 
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)

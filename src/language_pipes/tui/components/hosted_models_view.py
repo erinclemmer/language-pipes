@@ -33,7 +33,7 @@ def format_model_line(
     pipe_strings = { }
     for key in pipes.keys():
         pipe = pipes[key]
-        pipe_string = [" " for _ in range(pipe[0].num_layers - 1)]
+        pipe_string = ["X" for _ in range(pipe[0].num_layers - 1)]
         for mi in pipe:
             ch = "X"
             if mi.status == ModelStatus.Running:

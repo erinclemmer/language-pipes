@@ -6,11 +6,9 @@ from language_pipes.tui.content_loader import ContentLoader
 from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.components.view_pipe import format_pipe_view
 
-
-# TODO: Split this into PipesComplete and PipesIncomplete, allow joining on PipesIncomplete
-class PipesAvailable:
+class PipesComplete:
     loader: ContentLoader
-    pipes_available: List[MetaPipe]
+    network_pipes: List[MetaPipe]
 
     def __init__(
         self,
@@ -27,14 +25,20 @@ class PipesAvailable:
             self.exit_page()
 
     def get_view(self) -> List[str]:
-        self.pipes_available = self.loader.call_provider(ProviderCall.get_available_pipes)
-        if self.pipes_available is None:
+        self.network_pipes = self.loader.call_provider(ProviderCall.get_network_pipes)
+        if self.network_pipes is None:
             return ["Network Not Connected", "Connect to the network to view available pipes"]
-        if len(self.pipes_available) == 0:
+
+        pipes_to_show = []
+        for pipe in self.network_pipes:
+            if pipe.is_complete(0):
+               pipes_to_show.append(pipe)
+                
+        if len(pipes_to_show) == 0:
             return ["No Pipes unconnected pipes found on network"]
         
         lines = []
-        for pipe in self.pipes_available:
+        for pipe in pipes_to_show:
             lines.extend(format_pipe_view(pipe))
 
         return lines

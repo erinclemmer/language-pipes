@@ -20,7 +20,7 @@ class MainFrame:
         "Dashboard": ["Dashboard"],
         "Network": ["Status", "Peers", "Configure"],
         "Models": ["Hosted", "Installed"],
-        "Pipes": ["Connected", "Available"],
+        "Pipes": ["Connected", "Complete", "Incomplete"],
         "Jobs": ["Queue", "History", "Stats"],
         "Activity": ["Logs", "Events", "Metrics"],
     }
