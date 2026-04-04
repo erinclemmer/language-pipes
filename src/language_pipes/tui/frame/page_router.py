@@ -5,6 +5,7 @@ from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.content_loader import ContentLoader
 from language_pipes.tui.components.dashboard import Dashboard
+from language_pipes.tui.components.jobs_server import JobsServer
 from language_pipes.tui.components.models_hosted import ModelsHosted
 from language_pipes.tui.components.network_peers import NetworkPeers
 from language_pipes.tui.components.network_status import NetworkStatus
@@ -53,6 +54,7 @@ class PageRouter:
         self.pipes_connected = PipesConnected(loader, self.exit_page, self.is_focused)
         self.pipes_complete = PipesComplete(loader, self.exit_page, self.is_focused)
         self.pipes_incomplete = PipesIncomplete(loader, self.exit_page, self.is_focused)
+        self.jobs_server = JobsServer(loader, self.exit_page, self.is_focused)
 
     def is_focused(self):
         return self.nav.focus_depth == 2
@@ -65,20 +67,31 @@ class PageRouter:
         section = self.nav.active_side_option()
         if tab == "Dashboard" and section == "Dashboard":
             return self.dashboard
+        
+        
         if tab == "Network" and section == "Status":
             return self.network_status
         if tab == "Network" and section == "Peers":
             return self.network_peers
         if tab == "Network" and section == "Configure":
             return self.network_form
+        
+        
         if tab == "Models" and section == "Installed":
             return self.models_installed
         if tab == "Models" and section == "Hosted":
             return self.models_hosted
+        
+        
         if tab == "Pipes" and section == "Connected":
             return self.pipes_connected
         if tab == "Pipes" and section == "Complete":
             return self.pipes_complete
         if tab == "Pipes" and section == "Incomplete":
             return self.pipes_incomplete
+        
+        
+        if tab == "Jobs" and section == "Server":
+            return self.jobs_server
+        
         return None

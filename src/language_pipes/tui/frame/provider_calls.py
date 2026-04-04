@@ -50,6 +50,11 @@ class ProviderCall(Enum):
     start_oai_server = "start_oai_server"
     stop_oai_server = "stop_oai_server"
 
+    get_oai_port = "get_oai_port"
+    set_oai_port = "set_oai_port"
+    get_api_keys = "get_api_keys"
+    set_api_keys = "set_api_keys"
+
     # Other
     list_models = "list_models"
     save_model_assignments = "save_model_assignments"

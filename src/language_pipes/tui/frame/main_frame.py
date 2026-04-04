@@ -21,7 +21,7 @@ class MainFrame:
         "Network": ["Status", "Peers", "Configure"],
         "Models": ["Hosted", "Installed"],
         "Pipes": ["Connected", "Complete", "Incomplete"],
-        "Jobs": ["Queue", "History", "Stats"],
+        "Jobs": ["Server"],
         "Activity": ["Logs", "Events", "Metrics"],
     }
 

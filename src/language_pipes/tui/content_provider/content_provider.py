@@ -5,6 +5,7 @@ from typing import Optional, List
 
 import torch
 
+from language_pipes.tui.content_provider.job_provider import JobProvider
 from language_pipes.util import stop_thread
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import JobReceiver
@@ -32,6 +33,7 @@ class ContentProvider:
     model_provider: ModelProvider
     network_provider: NetworkProvider
     pipe_provider: PipeProvider
+    job_provider: JobProvider
 
     def __init__(self):
         self.router = None
@@ -41,10 +43,11 @@ class ContentProvider:
         self.job_factory = None
         self.job_receiver = None
         self.model_manager = ModelManager()
-        
+
         self.model_provider = ModelProvider(lambda: self.model_manager, lambda: self.router_pipes)
         self.network_provider = NetworkProvider(lambda: self.router, self.set_router)
         self.pipe_provider = PipeProvider(lambda: self.pipe_manager)
+        self.job_provider = JobProvider()
 
     def set_router(self, router: Optional[DSNodeServer]):
         self.router = router
