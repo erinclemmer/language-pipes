@@ -33,13 +33,14 @@ class ProviderCall(Enum):
     download_model = "download_model"
     get_hf_token = "get_hf_token"
     save_hf_token = "save_hf_token"
-    host_model = "host_model"
 
-    # Models / Configure
+    # Models / Hosted
     get_models_to_load = "get_models_to_load"
     save_models_to_load = "save_models_to_load"
     validate_device_name = "validate_device_name"
     get_models_status = "get_models_status"
+    host_model = "host_model"
+    shutdown_models = "shutdown_models"
 
     # Other
     list_models = "list_models"

@@ -145,3 +145,4 @@ class EndModel:
         del self.input_embedding
         del self.norm
         del self.head
+        torch.cuda.empty_cache()

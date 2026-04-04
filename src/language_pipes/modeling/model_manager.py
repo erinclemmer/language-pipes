@@ -1,3 +1,4 @@
+import gc
 import torch
 from uuid import uuid4
 from typing import List, Optional, Tuple, Dict
@@ -102,3 +103,32 @@ class ModelManager:
         for m in models_to_load:
             m.load()
             router_pipes.update_model(m.to_meta())
+
+    def shutdown_models(self, router_pipes: RouterPipes, model_id: str):
+        to_remove = []
+        for model in self.models:
+            if model.model_id == model_id:
+                model.cleanup_tensors()
+                router_pipes.remove_model(model.to_meta())
+                to_remove.append(model.process_id)
+
+        for m_id in to_remove:
+            self.models = [m for m in self.models if m.process_id != m_id]
+
+        to_remove = []
+        for model in self.end_models:
+            if model.model_id == model_id:
+                model.clean_up()
+                to_remove.append(model.process_id)
+
+        for m_id in to_remove:
+            self.end_models = [m for m in self.end_models if m.process_id != m_id]
+
+        self.pipes_hosted = { }
+        for model in self.models:
+            if model.model_id not in self.pipes_hosted:
+                self.pipes_hosted[model.model_id] = []
+            if model.pipe_id not in self.pipes_hosted[model.model_id]:
+                self.pipes_hosted[model.model_id].append(model.pipe_id)
+
+        gc.collect()

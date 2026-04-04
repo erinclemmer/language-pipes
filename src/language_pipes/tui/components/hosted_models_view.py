@@ -17,10 +17,11 @@ def format_model_line(
     ]
     has_ends = False
     layers = []
-    if len(running) > 0:
-        layers = [" " for _ in range(running[0].num_layers - 1)]
+    if len(running) == 0:
+        lines.append("       Not Running")
     else:
-        lines.append("Not Running")
+        layers = [" " for _ in range(running[0].num_layers - 1)]
+    
     for mi in running:
         if mi.end_model:
             has_ends = True
@@ -35,7 +36,7 @@ def format_model_line(
             layers[i] = ch
     
     if has_ends:
-        lines.append("Ends loaded")
+        lines.append("       Ends loaded")
 
     if len(layers) > 0:
         lines.append("       Running >" + "".join(layers) + "<")

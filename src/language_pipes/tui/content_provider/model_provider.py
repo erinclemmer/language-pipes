@@ -108,8 +108,9 @@ class ModelProvider:
         for model_id in known_model_ids:
             status_by_model[model_id] = []
 
+        mm: ModelManager = self.get_model_manager()
         # Add status for each model instance
-        for model in self.get_model_manager().models:
+        for model in mm.models:
             model: LlmModel = model
             status = ModelStatus.Running if model.loaded else ModelStatus.Starting
             status_by_model[model.model_id].append(
@@ -123,19 +124,12 @@ class ModelProvider:
             )
 
         # Add status for end models
-        for model in self.get_model_manager().end_models:
-            is_loaded = getattr(model, "loaded", True)
+        for end_model in mm.end_models:
+            is_loaded = getattr(end_model, "loaded", True)
             status = ModelStatus.Running if is_loaded else ModelStatus.Starting
-            status_by_model[model.model_id].append(
+            status_by_model[end_model.model_id].append(
                 ModelStatusInfo(status=status, start_layer=-1, end_layer=-1, end_model=True, num_layers=0)
             )
-
-        # If a model_id has no instances, add a Stopped status
-        for model_id in list(status_by_model.keys()):
-            if not status_by_model[model_id]:
-                status_by_model[model_id].append(
-                    ModelStatusInfo(status=ModelStatus.Stopped, start_layer=-1, end_layer=-1, end_model=False, num_layers=0)
-                )
 
         return status_by_model
 
@@ -246,15 +240,26 @@ class ModelProvider:
             return
 
         def host():
-            self.get_model_manager().host_model(
+            mm: ModelManager = self.get_model_manager()
+            mm.host_model(
                 self.get_router_pipes(),
                 model.model_id,
                 model.max_memory,
                 torch.device(model.device),
                 0,
             )
+            if model.load_ends:
+                mm.load_end_model(model.model_id, "cpu", 0)
 
         Thread(target=host, args=()).start()
+
+    def shutdown_models(self, model_id: str):
+        rp = self.get_router_pipes()
+        if rp is None:
+            return
+        def shutdown():
+            self.get_model_manager().shutdown_models(rp, model_id)
+        Thread(target=shutdown, args=()).start()
 
     @staticmethod
     def get_models_to_load(config_file: Path) -> List[ModelToLoad]:

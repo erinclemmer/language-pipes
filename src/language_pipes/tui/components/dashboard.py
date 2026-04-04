@@ -27,6 +27,7 @@ class Dashboard:
         return options
 
     models_to_load: List[ModelToLoad]
+    models_status: Dict[str, List[ModelStatusInfo]]
 
     def __init__(
         self,
@@ -41,6 +42,7 @@ class Dashboard:
         self.change_nav = change_nav
         self.selected_idx = 0
         self.models_to_load = []
+        self.models_status = { }
 
     def on_prev(self):
         self.selected_idx -= 1
@@ -73,7 +75,11 @@ class Dashboard:
                     self.loader.call_provider(ProviderCall.stop_network)
             else:
                 model = self.models_to_load[self.selected_idx - 1]
-                self.loader.call_provider(ProviderCall.host_model, model)
+                status = self.models_status.get(model.model_id)
+                if status:
+                    self.loader.call_provider(ProviderCall.shutdown_models, model.model_id)
+                else:
+                    self.loader.call_provider(ProviderCall.host_model, model)
         elif key == PressedKey.Escape:
             self.exit_page()
 
@@ -143,9 +149,9 @@ class Dashboard:
             r_cursor = "<|" if selected else "  "
             lines.append(f"{l_cursor} {label} {r_cursor}")
         lines.extend(["", ""])
-        models_status: Dict[str, List[ModelStatusInfo]] = self.loader.call_provider(ProviderCall.get_models_status)
+        self.models_status = self.loader.call_provider(ProviderCall.get_models_status)
         for i, model in enumerate(self.models_to_load):
-            model_statuses = models_status.get(model.model_id, [])
+            model_statuses = self.models_status.get(model.model_id, [])
             lines.append(format_model_line(model, selected=self.is_focused() and i + 1 == self.selected_idx, running=model_statuses))
         
         return lines
