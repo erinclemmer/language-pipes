@@ -25,9 +25,7 @@ class JobTracker:
     jobs_completed: List[str]
     jobs_pending: List[Job]
 
-    def __init__(self, logger, config: LpConfig):
-        self.logger = logger
-        self.config = config
+    def __init__(self):
         self.jobs_completed = []
         self.jobs_pending = []
         Thread(target=self.check_stale_jobs, args=( )).start()
@@ -40,10 +38,6 @@ class JobTracker:
                 # Unified timeout - prefill chunks regularly update last_update,
                 # so both prefill and decode phases use the same timeout
                 if stale_time > EXPIRED_JOB_TIME:
-                    self.logger.warning(
-                        f"[Stale] job={j.job_id[:8]} timed out after {stale_time:.1f}s "
-                        f"(token={j.current_token})"
-                    )
                     remove_jobs.append(j.job_id)
 
             if len(remove_jobs) == 0:
@@ -73,12 +67,7 @@ class JobTracker:
         self.jobs_completed.append(job_id)
         if job.resolve is None:
             return
-        self.logger.info(f'Received job complete for {job_id}\n')
-        self.logger.info("[TIMING] Prefill Summary:")
-        job.timing_stats.prefill_times.log_summary(self.logger)
-        self.logger.info("[TIMING] Output Summary:")
-        job.timing_stats.output_times.log_summary(self.logger)
-        job.resolve(job)
+        job.resolve(job) # pyright: ignore[reportCallIssue]
         self.jobs_pending = [j for j in self.jobs_pending if j.job_id != job_id]
 
     def update_job_time(self, job_id: str):
@@ -97,12 +86,15 @@ class JobTracker:
             origin_node_id=network_job.origin_node_id,
             messages=[],
             model_id="",
-            prefill_chunk_size=self.config.prefill_chunk_size,
+            prefill_chunk_size=network_job.prefill_chunk_size,
             pipe_id=network_job.pipe_id,
             data=network_job.data
         )
         job.job_id = network_job.job_id
         
+        if network_job.data is None:
+            raise Exception("Job does not have data")
+
         if network_job.data.state is None:
             raise Exception("job should be embedded before adding a pending job")
         

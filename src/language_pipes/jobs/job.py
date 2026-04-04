@@ -89,6 +89,7 @@ class Job:
         self.prompt_tokens = 0
         self.current_token = 0
         self.messages = messages
+        self.prefill_chunk_size = prefill_chunk_size
 
         self.temperature = temperature
         self.top_k = top_k
@@ -114,8 +115,8 @@ class Job:
     def pass_complete(self):
         pass
 
-    def init_chunking(self, chunk_size: int):
-        self.chunking.init(self.prompt_tokens, chunk_size)
+    def init_chunking(self):
+        self.chunking.init(self.prompt_tokens, self.prefill_chunk_size)
 
     def set_layer(self, state: torch.Tensor, layer: int, num_hidden_layers: int):
         if self.compute_step != ComputeStep.LAYER:
@@ -206,6 +207,7 @@ class Job:
             pipe_id=self.pipe_id, 
             origin_node_id=self.origin_node_id, 
             current_layer=self.current_layer, 
+            chunk_size=self.prefill_chunk_size,
             data=self.data, 
             data_hash=data_hash, 
             compute_step=self.compute_step, 
@@ -215,18 +217,3 @@ class Job:
     def set_last_update(self):
         self.last_update = time()
 
-    def print_job(self, logger):
-        logger.info(f"""
-=================================
-Job ID: {self.job_id}
-Pipe ID: {self.pipe_id}
-Prompt Tokens: {self.prompt_tokens}
-Current Token: {self.current_token}
-Max Tokens: {self.max_completion_tokens}
-Temperature: {self.temperature}
-Top K: {self.top_k}
-Top P: {self.top_p}
-Min P: {self.min_p}
-Pres Penalty: {self.presence_penalty}
-=================================
-""")

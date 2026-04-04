@@ -91,7 +91,7 @@ class LlmModel:
         self.loaded = True
         self.virtual = False
 
-    def process_job(self, job: Job, logger: Logger):
+    def process_job(self, job: Job):
         self.compute_layers(job)
 
     def compute_layers(

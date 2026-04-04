@@ -117,7 +117,7 @@ class TimingStats:
     def add_head_time(self, node_id: str) -> None:
         self.add_timing(JobTime(node_id=node_id, is_head=True))
     
-    def set_send_time(self, logger: Logger) -> None:
+    def set_send_time(self) -> None:
         if len(self.current_times) == 0:
             return
         last_time = self.current_times[-1]
@@ -134,17 +134,13 @@ class TimingStats:
         if type_str == "LAYER":
             elapsed /= last_time.end_layer - last_time.start_layer
         
-        logger.info(f"[TIMING] {type_str}: {elapsed*1000.0:.2f}ms")
-        
     def receive_network_job(self, times: List[JobTime]) -> None:
         self.current_times = times
 
-    def finalize_token(self, logger: Logger) -> None:
+    def finalize_token(self) -> None:
         self.output_times.add_times(self.current_times)
         self.current_times = []
-        self.output_times.log_summary(logger)
 
-    def finalize_prefill_chunk(self, logger: Logger) -> None:
+    def finalize_prefill_chunk(self) -> None:
         self.prefill_times.add_times(self.current_times)
         self.current_times = []
-        self.prefill_times.log_summary(logger)

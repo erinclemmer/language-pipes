@@ -1,6 +1,9 @@
 from typing import Optional
 
 import psutil
+from language_pipes.jobs.job_factory import JobFactory
+from language_pipes.jobs.job_receiver import JobReceiver
+from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.modeling.model_manager import ModelManager
@@ -14,6 +17,9 @@ class ContentProvider:
     router: Optional[DSNodeServer]
     router_pipes: Optional[RouterPipes]
     pipe_manager: Optional[PipeManager]
+    job_tracker: Optional[JobTracker]
+    job_factory: Optional[JobFactory]
+    job_receiver: Optional[JobReceiver]
     model_manager: ModelManager
     model_provider: ModelProvider
     network_provider: NetworkProvider
@@ -32,6 +38,20 @@ class ContentProvider:
         self.router = router
         self.router_pipes = RouterPipes(router) if router is not None else None
         self.pipe_manager = PipeManager(self.model_manager, self.router_pipes) if self.router_pipes is not None else None
+        if self.pipe_manager is not None:
+            self.job_tracker = JobTracker()
+            self.job_factory = JobFactory(self.job_tracker, self.pipe_manager)
+            self.job_receiver = JobReceiver(
+                job_factory=self.job_factory,
+                job_tracker=self.job_tracker,
+                model_manager=self.model_manager,
+                pipe_manager=self.pipe_manager,
+                is_shutdown=self.router.is_shut_down
+            )
+        else:
+            self.job_tracker = None
+            self.job_factory = None
+            self.job_receiver = None
 
     @staticmethod
     def get_total_system_ram() -> float:

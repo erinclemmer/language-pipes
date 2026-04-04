@@ -9,14 +9,10 @@ from language_pipes.jobs.job import ComputeStep
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob
+from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.jobs.job_processor import JobProcessor, JobContext
 
-from language_pipes.modeling.model_manager import ModelManager
-
-from language_pipes.config import LpConfig
-
 class JobReceiver:
-    config: LpConfig
     job_factory: JobFactory
     job_queue: List[NetworkJob]
     pipe_manager: PipeManager
@@ -25,8 +21,6 @@ class JobReceiver:
 
     def __init__(
             self, 
-            config: LpConfig,
-            logger,
             job_factory: JobFactory,
             job_tracker: JobTracker,
             pipe_manager: PipeManager,
@@ -38,10 +32,8 @@ class JobReceiver:
         self.job_factory = job_factory
         self.model_manager = model_manager
         self.pipe_manager = pipe_manager
-        self.config = config
         self.is_shutdown = is_shutdown
-        self.logger = logger
-
+        
         Thread(target=self._job_runner_loop, args=()).start()
 
     def _wait_for_job(self) -> Optional[NetworkJob]:
@@ -78,11 +70,10 @@ class JobReceiver:
         end_model = self.model_manager.get_end_model(pipe.model_id)
         
         fsm = JobProcessor(JobContext(
-            logger=self.logger,
+            node_id=self.pipe_manager.router_pipes.router.node_id(),
             pipe=pipe,
             end_model=end_model,
-            job=job,
-            config=self.config
+            job=job
         ))
 
         try:

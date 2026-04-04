@@ -72,7 +72,7 @@ class EndModel:
         job.prompt_tokens = len(input_tokens)
         job.next_step()
 
-    def compute_embed(self, job: Job, logger: Logger, prefill_chunk_size: int):
+    def compute_embed(self, job: Job, prefill_chunk_size: int):
         if job.compute_step != ComputeStep.EMBED and job.compute_step != ComputeStep.TOKENIZE:
             raise ValueError('Invalid step for embedding')
         if self.input_embedding is None:

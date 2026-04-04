@@ -1,38 +1,29 @@
+from promise import Promise
 from typing import List, Optional, Callable
 
-from promise import Promise
-
-from language_pipes.util import raise_exception
+from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage
-
+from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.pipes.pipe_manager import PipeManager
 
-from language_pipes.jobs.job import Job
-from language_pipes.jobs.job_tracker import JobTracker
-
-from language_pipes.config import LpConfig
-
 class JobFactory:
-    config: LpConfig
     job_tracker: JobTracker
     pipe_manager: PipeManager
 
     def __init__(
         self, 
-        logger,
-        config: LpConfig,
         job_tracker: JobTracker,
         pipe_manager: PipeManager
     ):
-        self.config = config
-        self.logger = logger
         self.job_tracker = job_tracker
         self.pipe_manager = pipe_manager
 
     def start_job(
         self, 
+        node_id: str,
         model_id: str, 
         messages: List[ChatMessage], 
+        prefill_chunk_size: int,
         max_completion_tokens: int, 
         temperature: float = 1.0,
         top_k: int = 0,
@@ -43,20 +34,23 @@ class JobFactory:
         update: Optional[Callable] = None,
         resolve: Optional[Promise] = None
     ) -> Optional[Job]:
-        pipe = self.pipe_manager.get_pipe_by_model_id(model_id, start_layer=self.config.num_local_layers)
+        end_model = self.pipe_manager.model_manager.get_end_model(model_id)
+        if end_model is None:
+            raise Exception("Cannot start job with no end model")
+        
+        pipe = self.pipe_manager.get_pipe_by_model_id(model_id, start_layer=len(end_model.layers))
         if pipe is None:
             if resolve is not None:
                 resolve('No pipe available') # pyright: ignore[reportCallIssue]
-            raise_exception(self.logger, f"Could not find pipe for model {model_id}")
             return
 
         job = Job(
-            origin_node_id=self.config.node_id,
+            origin_node_id=node_id,
             messages=messages, 
             pipe_id=pipe.pipe_id, 
             model_id=pipe.model_id,
             temperature=temperature, 
-            prefill_chunk_size=self.config.prefill_chunk_size,
+            prefill_chunk_size=prefill_chunk_size,
             top_k=top_k, 
             top_p=top_p, 
             min_p=min_p, 
@@ -67,10 +61,8 @@ class JobFactory:
             complete=self.job_tracker.complete_job
         )
         
-        job.print_job(self.logger)
-        
         network_job = job.to_network_job()
-        pipe.send_job(network_job, self.config.node_id)
+        pipe.send_job(network_job, node_id)
         self.job_tracker.jobs_pending.append(job)
 
         if start is not None:
