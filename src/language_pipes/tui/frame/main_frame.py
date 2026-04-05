@@ -61,7 +61,7 @@ class MainFrame:
     def change_nav(self, tab: str, section: str):
         self.nav.set_tab(tab)
         self.layout._sync_navigation()
-        self.nav.set_side_nav(self.layout.side_nav, section)
+        self.nav.set_side_nav(self.layout.nav_window.side_nav, section)
 
     def _init_view(self):
         self.change_nav("Dashboard", "Dashboard")
@@ -75,7 +75,7 @@ class MainFrame:
     def run(self) -> str:
         self.state.startup()
         self.layout._render_all()
-        Thread(target=self.frame_render_thread, args=()).start()
+        # Thread(target=self.frame_render_thread, args=()).start()
         while self.state.running:
             key, ch = read_key()
             start_time = time()
@@ -85,7 +85,6 @@ class MainFrame:
                 self.render_time_id,
                 TermText(f"Render: {(time() - start_time) * 1000:.0f}ms"),
             )
-            self.window.paint()
 
         self.layout._teardown_windows()
         return "exit" if self.state.exit_tui else "menu"

@@ -1,5 +1,6 @@
 from typing import Tuple, List, Dict, Any
 from language_pipes.tui.frame import view_state as vs
+from language_pipes.tui.frame.nav_window import NavWindow
 from language_pipes.tui.tui import TermText, TuiWindow
 from language_pipes.tui.util.screen_utils import Color
 from language_pipes.tui.components.top_nav import TopNav
@@ -11,13 +12,13 @@ from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.frame.page_router import PageRouter
 
+
 class FrameLayout:
     content_id: int
     footer_id: int
     status_text: str
 
-    top_nav: TopNav
-    side_nav: SideNav
+    nav_window: NavWindow
     nav_state: NavState
     loader: ContentLoader
     exit_confirm: ExitConfirm
@@ -46,46 +47,20 @@ class FrameLayout:
         self.status_text = ""
 
     def _init_layout(self, size: Tuple[int, int], pos: Tuple[int, int]):
-        self.window.add_text(TermText("_" * (size[0] - 2)), (1, 2))
-        self.window.add_text(TermText("|\n" * (size[1] - 5)), (15, 3))
-        self.window.add_text(TermText("_" * (size[0] - 2)), (1, size[1] - 3))
-
-        self.content_area_size = (max(1, size[0] - 19), max(1, size[1] - 7))
+        self.content_area_size = (max(1, size[0]), max(1, size[1]))
         self.content_bg_id = self.window.add_text(
             TermText(self._content_blank_block()),
             (17, 4),
         )
-        self.content_id = self.window.add_text(TermText(""), (17, 5))
+        self.window.add_text(TermText("_" * (size[0] - 2)), (1, size[1] - 3))
+        self.content_id = self.window.add_text(TermText(""), (0, 0))
         self.footer_id = self.window.add_text(TermText(""), (2, size[1] - 2))
         self.status_id = self.window.add_text(TermText(""), (17, size[1] - 4))
 
-        self.top_nav = TopNav((80, 1), (pos[0], pos[1] + 1), self.nav_state.TOP_HEADERS)
-        self.side_nav = SideNav(
-            (13, size[1] - 5),
-            (pos[0] + 1, pos[1] + 4),
-            self.nav_state.active_side_options(),
-        )
+        self.nav_window = NavWindow(self.window, self.nav_state, size, pos)
 
     def _sync_navigation(self):
-        active_options = self.nav_state.active_side_options()
-        self.side_nav.focused_idx = (
-            min(self.nav_state.active_side_idx(), len(active_options) - 1)
-            if active_options
-            else 0
-        )
-        self.side_nav.set_options(active_options)
-
-        self.top_nav.focused_idx = self.nav_state.active_top_idx
-        interactive_overlay_open = (
-            self.exit_confirm.is_open or self.edit_confirm.is_open
-        )
-        self.top_nav.set_focus(
-            self.nav_state.focus_depth == 0 and not interactive_overlay_open
-        )
-        self.top_nav._update_styles()
-        self.side_nav.set_focus(
-            self.nav_state.focus_depth == 1 and not interactive_overlay_open
-        )
+        self.nav_window.sync(self.exit_confirm, self.edit_confirm)
 
     def _content_blank_block(self) -> str:
         width, height = self.content_area_size
@@ -127,9 +102,21 @@ class FrameLayout:
 
         page = self.page_router.get_page()
         if page is not None:
-            content_parts.extend(page.get_view())
+            content_parts.extend(page.get_view()) # pyright: ignore[reportArgumentType]
 
         self.window.update_text(self.content_id, TermText("\n".join(content_parts)))
+        if self.nav_state.focus_depth == 2:
+            self.show_content()
+        else:
+            self.hide_content()
+
+    def show_content(self):
+        self.window.show_txt(self.content_bg_id)
+        self.window.show_txt(self.content_id)
+
+    def hide_content(self):
+        self.window.hide_txt(self.content_bg_id)
+        self.window.hide_txt(self.content_id)
 
     def _render_footer(self):
         self.window.update_text(self.footer_id, TermText(self._footer_text()))
@@ -150,24 +137,22 @@ class FrameLayout:
             self.window.update_text(self.status_id, TermText(f"[{lvl}] {msg}", fg))
 
     def _render_all(self):
-        self._sync_navigation()
+        if self.nav_state.focus_depth == 2:
+            self._sync_navigation()
+            self._render_content()
+        else:
+            self._render_content()    
+            self._sync_navigation()
         self._render_status()
-        self._render_content()
         self._render_footer()
 
         self.window.paint()
-        self.top_nav.window.paint()
-        self.side_nav.window.paint()
 
     def _teardown_windows(self):
         self.window.remove_all()
-        self.top_nav.window.remove_all()
-        self.side_nav.window.remove_all()
-
+        
         self.window.paint()
-        self.top_nav.window.paint()
-        self.side_nav.window.paint()
-
+        
     def _footer_text(self) -> str:
         if self.exit_confirm.is_open:
             return "Arrows U/D: Navigate   Enter: Select   Esc: Cancel"

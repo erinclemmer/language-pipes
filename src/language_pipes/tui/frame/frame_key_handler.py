@@ -1,4 +1,3 @@
-
 from language_pipes.tui.frame.layout import FrameLayout
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.frame.nav_state import NavState
@@ -112,9 +111,9 @@ class FrameKeyHandler:
 
         if self.nav.focus_depth == 1:
             if key == PressedKey.ArrowDown:
-                self.nav.side_next(self.layout.side_nav)
+                self.layout.nav_window.side_next()
             elif key == PressedKey.ArrowUp:
-                self.nav.side_prev(self.layout.side_nav)
+                self.layout.nav_window.side_prev()
             return
 
         if self.nav.focus_depth == 2:

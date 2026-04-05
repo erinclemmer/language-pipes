@@ -14,11 +14,10 @@ class SideNav:
 
     def __init__(
             self,
-            size: Tuple[int, int],
-            pos: Tuple[int, int],
+            window: TuiWindow,
             options: List[str]
         ):
-        self.window = TuiWindow(size, pos)
+        self.window = window
         self.options = []
         self.option_ids = []
         self.focused_idx = 0
@@ -28,8 +27,18 @@ class SideNav:
 
         self.set_options(options)
 
+    def hide(self):
+        self.window.hide_txt(self.l_cursor_id)
+        for oid in self.option_ids:
+            self.window.hide_txt(oid)
+
+    def show(self):
+        self.window.show_txt(self.l_cursor_id)
+        for oid in self.option_ids:
+            self.window.show_txt(oid)
+
     def _cursor_y(self) -> int:
-        return self.focused_idx * 2
+        return (self.focused_idx * 2) + 4
 
     def _update_cursor(self):
         if len(self.options) == 0:
@@ -82,6 +91,6 @@ class SideNav:
         self.focused_idx = min(self.focused_idx, len(options) - 1) if len(options) > 0 else 0
 
         for i, opt in enumerate(options):
-            self.option_ids.append(self.window.add_text(TermText(opt), (3, i * 2)))
+            self.option_ids.append(self.window.add_text(TermText(opt), (3, (i * 2) + 4)))
 
         self._update_option_styles()

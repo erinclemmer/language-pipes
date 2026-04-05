@@ -155,10 +155,19 @@ class TuiWindow(TuiGrid):
         txt.hidden = True
         self.clear_text(id)
 
+    def hide_all(self):
+        for txt in self.text_objects:
+            self.hide_txt(txt.id)
+        self.hidden = True
+            
     def show_txt(self, id: int):
         txt = self.get_text(id)
         txt.hidden = False
         self._update_grid()
+
+    def show_all(self):
+        for txt in self.text_objects:
+            self.show_txt(txt.id)
 
     def remove_txt(self, id: int):
         self.clear_text(id)
