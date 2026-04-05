@@ -125,6 +125,7 @@ def handle_file_load(
         ProviderCall.start_oai_server: content_provider.job_provider.start_oai_server,
         ProviderCall.stop_oai_server: content_provider.job_provider.stop_oai_server,
         ProviderCall.oai_server_running: content_provider.job_provider.oai_server_running,
+        ProviderCall.get_oai_logs: content_provider.job_provider.get_oai_logs,
         ProviderCall.get_oai_port: lambda: content_provider.job_provider.get_oai_port(config_file),
         ProviderCall.set_oai_port: lambda p: content_provider.job_provider.set_oai_port(config_file, p),
         ProviderCall.get_api_keys: lambda: content_provider.job_provider.get_api_keys(config_file),

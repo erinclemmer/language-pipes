@@ -6,11 +6,16 @@ from language_pipes.util.oai import oai_chat_complete, get_models
 from language_pipes.util.http import _send_code
 
 class T:
+    logs: List[str]
     complete: Callable
+    get_models: Callable
     api_keys: List[str]
 
 class OAIHttpHandler(BaseHTTPRequestHandler):
     server: T
+
+    def log_message(self, format: str, *args):
+        return
 
     def _validate_key(self, key: str) -> bool:
         if len(self.server.api_keys) == 0:
@@ -58,10 +63,18 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
             return
         
         if self.path == '/v1/chat/completions':
+            self.log('/v1/chat/completions')
             oai_chat_complete(self, self.server.complete, data)
+
+    def log(self, path: str):
+        ip_address = self.client_address[0]
+        self.server.logs.append(f"{ip_address} /v1/models")
+        if len(self.server.logs) > 10:
+            self.server.logs = self.server.logs[10:]
 
     def do_GET(self):
         if self.path == '/v1/models':
+            self.log('/v1/models')
             get_models(self, self.server.get_models)
 
 class OAIHttpServer(ThreadingHTTPServer):
@@ -72,3 +85,4 @@ class OAIHttpServer(ThreadingHTTPServer):
         self.api_keys = api_keys
         self.complete = complete
         self.get_models = get_models
+        self.logs = []

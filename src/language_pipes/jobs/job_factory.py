@@ -20,7 +20,6 @@ class JobFactory:
 
     def start_job(
         self, 
-        node_id: str,
         model_id: str, 
         messages: List[ChatMessage], 
         prefill_chunk_size: int,
@@ -43,6 +42,8 @@ class JobFactory:
             if resolve is not None:
                 resolve('No pipe available') # pyright: ignore[reportCallIssue]
             return
+
+        node_id = self.pipe_manager.router_pipes.router.node_id()
 
         job = Job(
             origin_node_id=node_id,

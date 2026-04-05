@@ -48,6 +48,7 @@ class ProviderCall(Enum):
     start_oai_server = "start_oai_server"
     stop_oai_server = "stop_oai_server"
     oai_server_running = "oai_server_running"
+    get_oai_logs = "get_oai_logs"
 
     get_oai_port = "get_oai_port"
     set_oai_port = "set_oai_port"

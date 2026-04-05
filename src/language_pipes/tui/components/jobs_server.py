@@ -256,6 +256,10 @@ class JobsServer:
             btn_label = "Stop Server" if self.server_running else "Start Server"
             lines.append(f"{l_cursor} {btn_label} {r_cursor}")
 
+        logs: List[str] = self.loader.call_provider(ProviderCall.get_oai_logs)
+        lines.extend(["", "Logs:"])
+        lines.extend(logs)
+
         return lines
     
     def _network_running(self) -> bool:
