@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import gc
 from pathlib import Path
 from threading import Thread
@@ -16,6 +17,13 @@ from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.util import stop_thread
 
+@dataclass
+class MetaJob:
+    job_id: str
+    pipe_id: str
+    model_id: str
+    origin_node_id: str
+    current_token: int
 
 class JobProvider:
     oai_server: Optional[OAIHttpServer]
@@ -128,3 +136,19 @@ class JobProvider:
 
     def oai_server_running(self) -> bool:
         return self.oai_server is not None
+    
+    def get_active_jobs(self) -> List[MetaJob]:
+        if self.job_tracker is None:
+            return []
+        
+        meta_jobs = []
+        for job in self.job_tracker.jobs_pending:
+            meta_jobs.append(MetaJob(
+                job_id=job.job_id,
+                pipe_id=job.pipe_id,
+                model_id=job.model_id,
+                current_token=job.current_token,
+                origin_node_id=job.origin_node_id
+            ))
+        
+        return meta_jobs

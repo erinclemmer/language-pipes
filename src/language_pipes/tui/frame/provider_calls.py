@@ -54,6 +54,8 @@ class ProviderCall(Enum):
     get_api_keys = "get_api_keys"
     set_api_keys = "set_api_keys"
 
+    get_active_jobs = "get_active_jobs"
+
     # Other
     list_models = "list_models"
     save_model_assignments = "save_model_assignments"

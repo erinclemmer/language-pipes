@@ -1,17 +1,10 @@
-import gc
 import psutil
-from time import sleep
-from threading import Thread
-from typing import Optional, List, Tuple
-
-import torch
+from typing import Optional 
 
 from language_pipes.tui.content_provider.job_provider import JobProvider
-from language_pipes.util import stop_thread
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
-from language_pipes.oai_server import OAIHttpServer
 from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.modeling.model_manager import ModelManager
@@ -25,9 +18,6 @@ class ContentProvider:
     router: Optional[DSNodeServer]
     router_pipes: Optional[RouterPipes]
     pipe_manager: Optional[PipeManager]
-    job_tracker: Optional[JobTracker]
-    job_factory: Optional[JobFactory]
-    job_receiver: Optional[JobReceiver]
     model_manager: ModelManager
     model_provider: ModelProvider
     network_provider: NetworkProvider
@@ -38,11 +28,6 @@ class ContentProvider:
         self.router = None
         self.router_pipes = None
         self.pipe_manager = None
-        self.job_tracker = None
-        self.job_factory = None
-        self.job_receiver = None
-        self.oai_server = None
-        self.oai_thread = None
         self.model_manager = ModelManager()
 
         self.model_provider = ModelProvider(lambda: self.model_manager, lambda: self.router_pipes)
