@@ -9,11 +9,11 @@ class JobProvider:
         pass
 
     @staticmethod
-    def get_oai_port(config_file: Path) -> Optional[int]:
+    def get_oai_port(config_file: Path) -> int:
         with open(config_file, 'r') as f:
             data = toml.load(f)
         
-        return data.get('oai_port', None)
+        return data.get('oai_port', 8000)
     
     @staticmethod
     def set_oai_port(config_file: Path, port: int):

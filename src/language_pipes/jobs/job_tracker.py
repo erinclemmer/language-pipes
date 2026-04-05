@@ -24,14 +24,18 @@ except:  # noqa: E722
 class JobTracker:
     jobs_completed: List[str]
     jobs_pending: List[Job]
+    shutdown: bool
 
     def __init__(self):
         self.jobs_completed = []
         self.jobs_pending = []
+        self.shutdown = False
         Thread(target=self.check_stale_jobs, args=( )).start()
 
     def check_stale_jobs(self):
         while True:
+            if self.shutdown:
+                return
             remove_jobs = []
             for j in self.jobs_pending:
                 stale_time = time() - j.last_update

@@ -17,6 +17,7 @@ class JobReceiver:
     job_queue: List[NetworkJob]
     pipe_manager: PipeManager
     model_manager: ModelManager
+    shutdown: bool
     is_shutdown: Callable[[], bool]
 
     def __init__(
@@ -33,13 +34,14 @@ class JobReceiver:
         self.model_manager = model_manager
         self.pipe_manager = pipe_manager
         self.is_shutdown = is_shutdown
+        self.shutdown = False
         
         Thread(target=self._job_runner_loop, args=()).start()
 
     def _wait_for_job(self) -> Optional[NetworkJob]:
         """Wait for a job from the queue. Returns None if shutting down."""
         while True:
-            if self.is_shutdown():
+            if self.is_shutdown() or self.shutdown:
                 return None
             if len(self.job_queue) > 0:
                 idx = random.randrange(len(self.job_queue))

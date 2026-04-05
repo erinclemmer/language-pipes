@@ -8,8 +8,6 @@ class ProviderCall(Enum):
 
     start_network = "start_network"
     stop_network = "stop_network"
-
-    get_router_status = "get_router_status"
     list_peers = "list_peers"
 
     get_registered_node_ids = "get_registered_node_ids"
@@ -49,6 +47,7 @@ class ProviderCall(Enum):
     # Jobs
     start_oai_server = "start_oai_server"
     stop_oai_server = "stop_oai_server"
+    oai_server_running = "oai_server_running"
 
     get_oai_port = "get_oai_port"
     set_oai_port = "set_oai_port"

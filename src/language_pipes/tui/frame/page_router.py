@@ -54,7 +54,7 @@ class PageRouter:
         self.pipes_connected = PipesConnected(loader, self.exit_page, self.is_focused)
         self.pipes_complete = PipesComplete(loader, self.exit_page, self.is_focused)
         self.pipes_incomplete = PipesIncomplete(loader, self.exit_page, self.is_focused)
-        self.jobs_server = JobsServer(loader, self.exit_page, self.is_focused)
+        self.jobs_server = JobsServer(loader, confirm, self.exit_page, self.is_focused)
 
     def is_focused(self):
         return self.nav.focus_depth == 2

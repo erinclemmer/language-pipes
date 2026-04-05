@@ -15,14 +15,13 @@ from language_pipes.tui.frame.page_router import PageRouter
 
 
 class MainFrame:
-    TOP_HEADERS = ["Dashboard", "Network", "Models", "Pipes", "Jobs", "Activity"]
+    TOP_HEADERS = ["Dashboard", "Network", "Models", "Pipes", "Jobs"]
     SIDE_OPTIONS_BY_TAB: Dict[str, List[str]] = {
-        "Dashboard": ["Dashboard"],
+        "Dashboard": ["Dashboard", "Activity"],
         "Network": ["Status", "Peers", "Configure"],
         "Models": ["Hosted", "Installed"],
         "Pipes": ["Connected", "Complete", "Incomplete"],
-        "Jobs": ["Server"],
-        "Activity": ["Logs", "Events", "Metrics"],
+        "Jobs": ["Server"]
     }
 
     def __init__(

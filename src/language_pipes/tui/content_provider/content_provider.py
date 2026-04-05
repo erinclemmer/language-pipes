@@ -1,7 +1,8 @@
 import gc
 import psutil
+from time import sleep
 from threading import Thread
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import torch
 
@@ -42,6 +43,8 @@ class ContentProvider:
         self.job_tracker = None
         self.job_factory = None
         self.job_receiver = None
+        self.oai_server = None
+        self.oai_thread = None
         self.model_manager = ModelManager()
 
         self.model_provider = ModelProvider(lambda: self.model_manager, lambda: self.router_pipes)
@@ -58,7 +61,8 @@ class ContentProvider:
             self.router_pipes = None
             self.pipe_manager = None
 
-    def start_oai_server(self, port: int, oai_keys: List[str]):
+    def start_oai_server(self, args: Tuple[int, List[str]]):
+        port, oai_keys = args
         if self.router is None or self.pipe_manager is None:
             raise Exception("Cannot start oai server without pipe manager")
         
@@ -90,15 +94,27 @@ class ContentProvider:
     def stop_oai_server(self):
         if self.oai_thread is None or self.oai_server is None:
             return
-        
-        self.job_tracker = None
+        if self.job_tracker is not None:
+            self.job_tracker.shutdown = True
+            sleep(0.1)
+            self.job_tracker = None
         self.job_factory = None
-        self.job_receiver = None
+        if self.job_receiver is not None:
+            self.job_receiver.shutdown = True
+            sleep(0.1)
+            self.job_receiver = None
         self.oai_server.shutdown()
+        self.oai_server.server_close()
         stop_thread(self.oai_thread)
+
+        self.oai_server = None
+        self.oai_thread = None
 
         gc.collect()
         torch.cuda.empty_cache()
+
+    def oai_server_running(self) -> bool:
+        return self.oai_server is not None
 
     @staticmethod
     def get_total_system_ram() -> float:
