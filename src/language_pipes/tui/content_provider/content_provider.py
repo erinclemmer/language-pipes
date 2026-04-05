@@ -28,8 +28,6 @@ class ContentProvider:
     job_tracker: Optional[JobTracker]
     job_factory: Optional[JobFactory]
     job_receiver: Optional[JobReceiver]
-    oai_server: Optional[OAIHttpServer]
-    oai_thread: Optional[Thread]
     model_manager: ModelManager
     model_provider: ModelProvider
     network_provider: NetworkProvider
@@ -50,7 +48,7 @@ class ContentProvider:
         self.model_provider = ModelProvider(lambda: self.model_manager, lambda: self.router_pipes)
         self.network_provider = NetworkProvider(lambda: self.router, self.set_router)
         self.pipe_provider = PipeProvider(lambda: self.pipe_manager)
-        self.job_provider = JobProvider()
+        self.job_provider = JobProvider(lambda: self.router_pipes, lambda: self.model_manager, lambda: self.pipe_manager)
 
     def set_router(self, router: Optional[DSNodeServer]):
         self.router = router
@@ -60,61 +58,6 @@ class ContentProvider:
         else:
             self.router_pipes = None
             self.pipe_manager = None
-
-    def start_oai_server(self, args: Tuple[int, List[str]]):
-        port, oai_keys = args
-        if self.router is None or self.pipe_manager is None:
-            raise Exception("Cannot start oai server without pipe manager")
-        
-        self.job_tracker = JobTracker()
-        self.job_factory = JobFactory(self.job_tracker, self.pipe_manager)
-        self.job_receiver = JobReceiver(
-            job_factory=self.job_factory,
-            job_tracker=self.job_tracker,
-            model_manager=self.model_manager,
-            pipe_manager=self.pipe_manager,
-            is_shutdown=self.router.is_shut_down
-        )
-
-        def get_models():
-            if self.router_pipes is None:
-                return
-            available_models = self.router_pipes.get_models(0)
-            return [m.model_id for m in self.model_manager.end_models if m.model_id in available_models]
-
-        self.oai_server = OAIHttpServer(
-            api_keys=oai_keys,
-            port=port,
-            get_models=get_models,
-            complete=self.job_factory.start_job
-        )
-        self.oai_thread = Thread(target=self.oai_server.serve_forever, args=())
-        self.oai_thread.start()
-
-    def stop_oai_server(self):
-        if self.oai_thread is None or self.oai_server is None:
-            return
-        if self.job_tracker is not None:
-            self.job_tracker.shutdown = True
-            sleep(0.1)
-            self.job_tracker = None
-        self.job_factory = None
-        if self.job_receiver is not None:
-            self.job_receiver.shutdown = True
-            sleep(0.1)
-            self.job_receiver = None
-        self.oai_server.shutdown()
-        self.oai_server.server_close()
-        stop_thread(self.oai_thread)
-
-        self.oai_server = None
-        self.oai_thread = None
-
-        gc.collect()
-        torch.cuda.empty_cache()
-
-    def oai_server_running(self) -> bool:
-        return self.oai_server is not None
 
     @staticmethod
     def get_total_system_ram() -> float:

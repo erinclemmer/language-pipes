@@ -1,5 +1,6 @@
 from typing import Callable
 
+from language_pipes.tui.components.jobs_active import JobsActive
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
@@ -54,7 +55,9 @@ class PageRouter:
         self.pipes_connected = PipesConnected(loader, self.exit_page, self.is_focused)
         self.pipes_complete = PipesComplete(loader, self.exit_page, self.is_focused)
         self.pipes_incomplete = PipesIncomplete(loader, self.exit_page, self.is_focused)
+
         self.jobs_server = JobsServer(loader, confirm, self.exit_page, self.is_focused)
+        self.jobs_active = JobsActive(loader, self.exit_page, self.is_focused)
 
     def is_focused(self):
         return self.nav.focus_depth == 2
@@ -65,7 +68,7 @@ class PageRouter:
     def get_page(self):
         tab = self.nav.active_tab()
         section = self.nav.active_side_option()
-        if tab == "Dashboard" and section == "Dashboard":
+        if tab == "Home" and section == "Dashboard":
             return self.dashboard
         
         
@@ -93,5 +96,7 @@ class PageRouter:
         
         if tab == "Jobs" and section == "Server":
             return self.jobs_server
+        if tab == "Jobs" and section == "Active":
+            return self.jobs_active
         
         return None
