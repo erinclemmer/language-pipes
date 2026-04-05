@@ -1,5 +1,6 @@
 from typing import Dict, List, Tuple
 
+from language_pipes.tui.components.top_nav import TopNav
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.util.screen_utils import Color
 
@@ -15,9 +16,11 @@ class SideNav:
     def __init__(
             self,
             window: TuiWindow,
+            top_nav: TopNav,
             options: List[str]
         ):
         self.window = window
+        self.top_nav = top_nav
         self.options = []
         self.option_ids = []
         self.focused_idx = 0
@@ -46,7 +49,7 @@ class SideNav:
             return
 
         l_cursor = "|>" if self.is_focused else " "
-        self.window.update_text(self.l_cursor_id, TermText(l_cursor), (0, self._cursor_y()))
+        self.window.update_text(self.l_cursor_id, TermText(l_cursor), (2 + self.top_nav.focused_idx * 12, self._cursor_y()))
 
     def _update_option_styles(self):
         for i, option_id in enumerate(self.option_ids):
@@ -56,7 +59,8 @@ class SideNav:
                     self.options[i],
                     fg=Color.Cyan if i == self.focused_idx else None,
                     bold=(i == self.focused_idx)
-                )
+                ),
+                (5 + self.top_nav.focused_idx * 12, (i * 2) + 4)
             )
         self._update_cursor()
 
