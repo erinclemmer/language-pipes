@@ -38,6 +38,9 @@ class JobTracker:
                 return
             remove_jobs = []
             for j in self.jobs_pending:
+                if j.stale:
+                    remove_jobs.append(j.job_id)
+                    continue
                 stale_time = time() - j.last_update
                 # Unified timeout - prefill chunks regularly update last_update,
                 # so both prefill and decode phases use the same timeout

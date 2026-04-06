@@ -152,6 +152,7 @@ class JobProcessor:
         
         # More tokens to generate - update and continue
         if not job.send_update():
+            job.stale = True
             return JobState.DONE
 
         return JobState.EMBED

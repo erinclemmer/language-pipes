@@ -37,6 +37,7 @@ class Job:
     result: Optional[str]
     last_update: float
     timing_stats: TimingStats
+    stale: bool
     
     # API params
     top_k: int
@@ -88,6 +89,7 @@ class Job:
         self.timing_stats = TimingStats(self.job_id, prefill_chunk_size)
         self.prompt_tokens = 0
         self.current_token = 0
+        self.stale = False
         self.messages = messages
         self.prefill_chunk_size = prefill_chunk_size
 
