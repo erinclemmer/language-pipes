@@ -117,8 +117,7 @@ def send_update_chunk(
     try:
         handler.wfile.write(b'data: ' + data_bytes + b'\n\n')
         handler.wfile.flush()
-    except BrokenPipeError as e:
-        print(e)
+    except BrokenPipeError:
         return False # Stop job when pipe is broken
     return True
 

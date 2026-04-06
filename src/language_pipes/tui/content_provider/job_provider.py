@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import gc
 from pathlib import Path
 from threading import Thread
-from time import sleep
+from time import sleep, time
 from typing import Callable, List, Optional, Tuple
 
 import toml
@@ -24,6 +24,7 @@ class MetaJob:
     model_id: str
     origin_node_id: str
     current_token: int
+    last_update: float
 
 class JobProvider:
     oai_server: Optional[OAIHttpServer]
@@ -155,7 +156,8 @@ class JobProvider:
                 pipe_id=job.pipe_id,
                 model_id=job.model_id,
                 current_token=job.current_token,
-                origin_node_id=job.origin_node_id
+                origin_node_id=job.origin_node_id,
+                last_update=time() - job.last_update
             ))
         
         return meta_jobs
