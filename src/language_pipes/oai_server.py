@@ -23,7 +23,7 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
         return key in self.server.api_keys
     
     def _extract_api_key(self, header: str) -> Optional[str]:
-        if not "Bearer " in header:
+        if "Bearer " not in header:
             return None
         return header[7:]
     
@@ -68,7 +68,7 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
 
     def log(self, path: str):
         ip_address = self.client_address[0]
-        self.server.logs.append(f"{ip_address} /v1/models")
+        self.server.logs.append(f"{ip_address} {path}")
         if len(self.server.logs) > 10:
             self.server.logs = self.server.logs[10:]
 

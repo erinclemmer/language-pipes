@@ -8,7 +8,6 @@ from threading import Thread
 
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.network_job import NetworkJob
-from language_pipes.config import LpConfig
 
 CHECK_JOB_INTERVAL = 10
 EXPIRED_JOB_TIME = 60  # Unified timeout for both prefill and decode phases
