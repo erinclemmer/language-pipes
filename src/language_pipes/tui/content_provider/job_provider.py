@@ -97,6 +97,8 @@ class JobProvider:
             is_shutdown=router_pipes.router.is_shut_down
         )
 
+        router_pipes.router.set_receive_cb(self.job_receiver.receive_data)
+
         def get_models():
             if router_pipes is None:
                 return
