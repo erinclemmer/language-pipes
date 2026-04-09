@@ -1,29 +1,31 @@
 from typing import Any, Callable, List, Optional, Dict
 
-from language_pipes.tui.components.hosted_models_view import format_model_line
-from language_pipes.tui.content_provider.network_provider import RouterStatus
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.frame.provider_calls import ProviderCall
-from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.tui.content_provider.network_provider import RouterStatus
+from language_pipes.tui.components.hosted_models_view import format_model_line
 from language_pipes.tui.content_provider.model_provider import ModelToLoad, ModelStatusInfo
-
 
 class Dashboard:
     def _has_node_id(self) -> bool:
-        config = self._get_config()
+        config = self.loader.call_provider(ProviderCall.get_network_config)
         return config is not None and config.node_id != ""
 
-    def _get_options(self, state: str) -> List[tuple]:
+    def _get_options(self, status: Optional[RouterStatus]) -> List[str]:
+        if status is None:
+            return ["Start Network Server"]
+        
+        state = status.state
         if state == "running":
-            options = [("Stop Network Server", "Network", "Status")]
+            options = ["Stop Network Server"]
         elif state == "starting":
-            options = [("Starting Network Server", "Network", "Status")]
+            options = ["Starting Network Server"]
         elif state == "stopping":
-            options = [("Stopping Network Server", "Network", "Status")]
+            options = ["Stopping Network Server"]
         elif self._has_node_id():
-            options = [("Start Network Server", "Network", "Status")]
+            options = ["Start Network Server", "Network", "Status"]
         else:
-            options = [("Configure Network", "Network", "Configure")]
+            options = ["Configure Network", "Network", "Configure"]
 
         return options
 
@@ -56,7 +58,7 @@ class Dashboard:
             self.selected_idx = 0
 
     def on_key(self, key: PressedKey, ch: str):
-        status = self._get_status()
+        status = self.loader.call_provider(ProviderCall.get_network_status)
         state = self._get_state(status)
         if key == PressedKey.ArrowUp:
             self.on_prev()
@@ -64,7 +66,7 @@ class Dashboard:
             self.on_next()
         elif key == PressedKey.Enter:
             if self.selected_idx == 0:
-                config = self._get_config()
+                config = self.loader.call_provider(ProviderCall.get_network_config)
                 node_id = config.node_id if config else ""
 
                 if node_id == "":
@@ -84,24 +86,6 @@ class Dashboard:
         elif key == PressedKey.Escape:
             self.exit_page()
 
-    def _get_status(self) -> Optional[RouterStatus]:
-        try:
-            return self.loader.call_provider(ProviderCall.get_network_status)
-        except LookupError:
-            return None
-
-    def _get_config(self) -> Optional[DSNodeConfig]:
-        try:
-            return self.loader.call_provider(ProviderCall.get_network_config)
-        except LookupError:
-            return None
-
-    def _get_models_to_load(self) -> List[Any]:
-        try:
-            return self.loader.call_provider(ProviderCall.get_models_to_load)
-        except LookupError:
-            return []
-
     def _get_ram_usage(self) -> Optional[str]:
         try:
             used_ram = self.loader.call_provider(ProviderCall.get_used_system_ram)
@@ -112,48 +96,47 @@ class Dashboard:
         return f"System RAM: {used_ram:.1f}/{total_ram:.1f}GB"
 
     @staticmethod
-    def _get_state(status: Optional[Any]) -> str:
+    def _get_state(status: Optional[RouterStatus]) -> str:
         if status is None:
             return "stopped"
-        if hasattr(status, "state"):
-            return getattr(status, "state")
-        return "running" if getattr(status, "running", False) else "stopped"
-
-    @staticmethod
-    def _get_state_label(state: str) -> str:
-        if state == "running":
-            return "On"
-        if state == "stopped":
-            return "Off"
-        return state.title()
+        return status.state
+        
+    def _get_network_label(self, status: Optional[RouterStatus]):
+        peer_text = ""
+        if status is not None and status.state == "running":
+            peer_text = f" ({getattr(status, 'num_peers', 0)} peer(s) connected)"
+        
+        state_label = "Off"
+        if status is not None:
+            if  status.state == "running":
+                state_label = f"Running on port {status.port}"
+            else:
+                state_label = status.state
+        
+        return f"{state_label}{peer_text}"
 
     def get_view(self) -> List[str]:
-        status = self._get_status()
-        self.models_to_load = self._get_models_to_load()
-        ram_usage = self._get_ram_usage()
-        config = self._get_config()
-        state = self._get_state(status)
-        is_running = state == "running"
-        focused = self.is_focused()
-        peer_text = (
-            f" ({getattr(status, 'num_peers', 0)} peer(s) connected)"
-            if is_running
-            else ""
-        )
-        lines = [f"Network Server: {self._get_state_label(state)}{peer_text}", ""]
+        self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
+        config = self.loader.call_provider(ProviderCall.get_network_config)
+        status = self.loader.call_provider(ProviderCall.get_network_status)
+
+        lines = ["Network Server:", f"Status: {self._get_network_label(status)}"]
         if config is not None and self._has_node_id():
             lines.extend([f"Node ID: {config.node_id}"])
         else:
             lines.extend(["Warning: Node ID not set, cannot start server", ""])
+        
+        ram_usage = self._get_ram_usage()
         if ram_usage is not None:
             lines.extend([ram_usage, ""])
-        options = self._get_options(state)
-        for idx, (label, _, _) in enumerate(options):
-            selected = focused and idx == self.selected_idx
+
+        for idx, label in enumerate(self._get_options(status)):
+            selected = self.is_focused() and idx == self.selected_idx
             l_cursor = "|>" if selected else "  "
             r_cursor = "<|" if selected else "  "
             lines.append(f"{l_cursor} {label} {r_cursor}")
         lines.extend(["", ""])
+
         self.models_status = self.loader.call_provider(ProviderCall.get_models_status)
         for i, model in enumerate(self.models_to_load):
             model_statuses = self.models_status.get(model.model_id, [])

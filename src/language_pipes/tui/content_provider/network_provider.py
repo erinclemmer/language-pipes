@@ -26,6 +26,7 @@ class RouterStatus:
     node_id: str
     num_peers: int
     logs: List
+    port: int
 
 class NetworkProvider:
     router_thread: Optional[Thread]
@@ -47,8 +48,8 @@ class NetworkProvider:
         if self.router_starting or self.router_stopping:
             return
         config = NetworkProvider.get_network_config(config_file)
+        self.router_starting = True
         def start_router():
-            self.router_starting = True
             self.set_router(DSNodeServer.start(config))
             self.router_starting = False
         self.router_thread = Thread(target=start_router, args=())
@@ -61,8 +62,8 @@ class NetworkProvider:
         router_thread = self.router_thread
         if rtr is None or router_thread is None:
             return
+        self.router_stopping = True
         def stop_router():
-            self.router_stopping = True
             try:
                 rtr.stop()
                 stop_thread(router_thread)
@@ -85,7 +86,8 @@ class NetworkProvider:
                 state="starting",
                 running=False,
                 num_peers=0,
-                logs=[]
+                logs=[],
+                port=rtr.config.port
             )
 
         if self.router_stopping:
@@ -94,7 +96,8 @@ class NetworkProvider:
                 state="stopping",
                 running=False,
                 num_peers=0 if rtr is None else len(rtr.node.node_states.keys()) - 1,
-                logs=[] if rtr is None else rtr.node.logs
+                logs=[] if rtr is None else rtr.node.logs,
+                port=rtr.config.port
             )
         
         return RouterStatus(
@@ -102,7 +105,8 @@ class NetworkProvider:
             state="running",
             running=True,
             num_peers=len(rtr.node.node_states.keys()) - 1,
-            logs=rtr.node.logs
+            logs=rtr.node.logs,
+            port=rtr.config.port
         )
     
     # Network / Peers
