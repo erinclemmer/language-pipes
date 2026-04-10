@@ -1,4 +1,4 @@
-from typing import Tuple, List, Dict, Any
+from typing import Optional, Tuple, List, Dict, Any
 from language_pipes.tui.frame import view_state as vs
 from language_pipes.tui.frame.nav_window import NavWindow
 from language_pipes.tui.tui import TermText, TuiWindow
@@ -14,9 +14,13 @@ from language_pipes.tui.frame.page_router import PageRouter
 
 
 class FrameLayout:
-    content_id: int
     footer_id: int
+    status_id: int
+    content_id: int
+    content_bg_id: int
+    
     status_text: str
+    content_area_size: Tuple[int, int]
 
     nav_window: NavWindow
     nav_state: NavState
@@ -54,6 +58,7 @@ class FrameLayout:
         )
         self.window.add_text(TermText("_" * (size[0] - 2)), (1, size[1] - 3))
         self.content_id = self.window.add_text(TermText(""), (0, 0))
+        self.right_panel_id = self.window.add_text(TermText(""), (40, 0))
         self.footer_id = self.window.add_text(TermText(""), (2, size[1] - 2))
         self.status_id = self.window.add_text(TermText(""), (17, size[1] - 4))
 
@@ -99,12 +104,21 @@ class FrameLayout:
         section = self.nav_state.active_side_option()
 
         content_parts = [f"{tab} / {section}", ""]
+        right_panel_parts = ["", ""]
 
         page = self.page_router.get_page()
         if page is not None:
-            content_parts.extend(page.get_view()) # pyright: ignore[reportArgumentType]
+            res = page.get_view() 
+            if res is not None:
+                if type(res) is type([]):
+                    content_parts.extend(res) # pyright: ignore[reportArgumentType]
+                elif type(res) is type(()):
+                    lft, rt = res
+                    content_parts.extend(lft)
+                    right_panel_parts.extend(rt)
 
         self.window.update_text(self.content_id, TermText("\n".join(content_parts)))
+        self.window.update_text(self.right_panel_id, TermText("\n".join(right_panel_parts)))
         if self.nav_state.focus_depth == 2:
             self.show_content()
         else:
@@ -113,10 +127,12 @@ class FrameLayout:
     def show_content(self):
         self.window.show_txt(self.content_bg_id)
         self.window.show_txt(self.content_id)
+        self.window.show_txt(self.right_panel_id)
 
     def hide_content(self):
         self.window.hide_txt(self.content_bg_id)
         self.window.hide_txt(self.content_id)
+        self.window.hide_txt(self.right_panel_id)
 
     def _render_footer(self):
         self.window.update_text(self.footer_id, TermText(self._footer_text()))

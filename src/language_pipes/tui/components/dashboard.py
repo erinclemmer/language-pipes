@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Optional, Dict
+from typing import Any, Callable, List, Optional, Dict, Tuple
 
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.tui.util.kb_utils import PressedKey
@@ -128,7 +128,7 @@ class Dashboard:
         
         return f"{state_label}{peer_text}"
 
-    def get_view(self) -> List[str]:
+    def get_view(self) -> Tuple[List[str], List[str]]:
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
         self.config = self.loader.call_provider(ProviderCall.get_network_config)
         self.router_status = self.loader.call_provider(ProviderCall.get_network_status)
@@ -152,7 +152,7 @@ class Dashboard:
             model_statuses = self.models_status.get(model.model_id, [])
             lines.append(format_model_line(model, selected=False, running=model_statuses))
         
-        return lines
+        return lines, ["test"]
 
     def get_footer(self) -> str:
         return "Arrows U/D: Move   Enter: Select   Esc: Back"
