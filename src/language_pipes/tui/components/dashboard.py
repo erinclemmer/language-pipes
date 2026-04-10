@@ -4,7 +4,7 @@ from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.content_provider.network_provider import RouterStatus
-from language_pipes.tui.components.hosted_models_view import format_model_line
+from language_pipes.tui.components.hosted_models_view import format_pipe_strings
 from language_pipes.tui.content_provider.model_provider import ModelStatus, ModelToLoad, ModelStatusInfo
 
 class Dashboard:
@@ -117,27 +117,38 @@ class Dashboard:
     def _get_network_label(self):
         peer_text = ""
         if self.router_status is not None and self.router_status.state == "running":
-            peer_text = f" ({getattr(self.router_status, 'num_peers', 0)} peer(s) connected)"
+            peer_text = f"\n{getattr(self.router_status, 'num_peers', 0)} peer(s) connected"
         
         state_label = "Off"
         if self.router_status is not None:
             if  self.router_status.state == "running":
-                state_label = f"{self.config.node_id}@{self.config.network_ip}:{self.router_status.port}"
+                state_label = f"Running\n{self.config.node_id}@{self.config.network_ip}:{self.router_status.port}"
             else:
                 state_label = self.router_status.state
         
         return f"{state_label}{peer_text}"
+
+    def _format_model_line(self, model: ModelToLoad, running: List[ModelStatusInfo]) -> List[str]:
+        ends_string = "+ ends" if model.load_ends else ""
+        lines = [
+            f"{model.model_id} ({model.max_memory}GB) {ends_string}"
+        ]
+        
+        lines.extend(format_pipe_strings(running))
+
+        return lines
 
     def get_view(self) -> Tuple[List[str], List[str]]:
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
         self.config = self.loader.call_provider(ProviderCall.get_network_config)
         self.router_status = self.loader.call_provider(ProviderCall.get_network_status)
 
-        lines = [self._get_ram_usage(), ""]
+        lines = []
+        right_panel = [self._get_ram_usage(), ""]
         if self.config.node_id != "":
-            lines.extend([f"Network: {self._get_network_label()}", ""])
+            right_panel.extend([f"Network: {self._get_network_label()}", ""])
         else:
-            lines.extend(["Warning: Node ID not set, cannot start network server", ""])
+            right_panel.extend(["Warning: Node ID not set, cannot start network server", ""])
 
         selected_option = self._get_selected_option()
         for label in self._get_options():
@@ -150,9 +161,9 @@ class Dashboard:
         self.models_status = self.loader.call_provider(ProviderCall.get_models_status)
         for model in self.models_to_load:
             model_statuses = self.models_status.get(model.model_id, [])
-            lines.append(format_model_line(model, selected=False, running=model_statuses))
+            right_panel.extend(self._format_model_line(model, model_statuses))
         
-        return lines, ["test"]
+        return lines, right_panel
 
     def get_footer(self) -> str:
         return "Arrows U/D: Move   Enter: Select   Esc: Back"

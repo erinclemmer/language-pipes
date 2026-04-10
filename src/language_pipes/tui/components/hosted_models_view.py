@@ -1,29 +1,10 @@
 from typing import List, Dict
 from language_pipes.tui.content_provider.model_provider import ModelStatusInfo, ModelToLoad, ModelStatus
 
-
-def format_model_line(
-    model: ModelToLoad,
-    selected: bool = False,
-    running: List[ModelStatusInfo] = []
-) -> str:
-    l_cursor = "|>" if selected else "  "
-    r_cursor = "<|" if selected else "  "
-    ends_string = "Yes" if model.load_ends else "No"
-    lines = [
-        f"{l_cursor} {model.model_id} {r_cursor} ",
-        f"       Max Memory: {model.max_memory}GB",
-        f"       Load Ends: {ends_string}"
-    ]
-    has_ends = False
-    if len(running) == 0:
-        lines.append("       Not Running")
-    
+def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
     pipes: Dict[str, List[ModelStatusInfo]] = { }
 
     for mi in running:
-        if mi.end_model:
-            has_ends = True
         if mi.pipe_id == '':
             continue
         if mi.pipe_id not in pipes:
@@ -43,9 +24,34 @@ def format_model_line(
             for i in range(mi.start_layer, mi.end_layer):
                 pipe_string[i] = ch
         pipe_strings[key] = ''.join(pipe_string)
-    
+
+    lines = []
     for key in pipe_strings.keys():
-        lines.append(f"       Pipe {key[:4]} >{pipe_strings[key]}<")
+        lines.append(f"Pipe {key[:4]} >{pipe_strings[key]}<")
+    return lines
+
+def format_model_line(
+    model: ModelToLoad,
+    selected: bool = False,
+    running: List[ModelStatusInfo] = []
+) -> str:
+    l_cursor = "|>" if selected else "  "
+    r_cursor = "<|" if selected else "  "
+    ends_string = "Yes" if model.load_ends else "No"
+    lines = [
+        f"{l_cursor} {model.model_id} {r_cursor} ",
+        f"       Max Memory: {model.max_memory}GB",
+        f"       Load Ends: {ends_string}"
+    ]
+    has_ends = len([m for m in running if m.end_model]) > 0
+    
+    if len(running) == 0:
+        lines.append("       Not Running")
+    
+    pipe_strings = format_pipe_strings(running)
+
+    for pipe in pipe_strings:
+        lines.append(f"       {pipe}")
 
     if has_ends:
         lines.append("       Ends loaded")
