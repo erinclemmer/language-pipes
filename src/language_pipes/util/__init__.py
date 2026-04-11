@@ -2,6 +2,7 @@ import io
 import re
 import os
 import shutil
+import socket
 import struct
 import json
 import base64
@@ -156,3 +157,12 @@ def maybeTo(t: Optional[torch.Tensor], device: str) -> Optional[torch.Tensor]:
     if str(t.device) == device:
         return t.detach()
     return t.detach().to(device)
+
+def is_port_available(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("0.0.0.0", port))
+        except OSError:
+            return False
+        return True

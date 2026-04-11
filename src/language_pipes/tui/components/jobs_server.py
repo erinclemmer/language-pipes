@@ -256,6 +256,8 @@ class JobsServer:
             r_cursor = "<|" if self.focus_idx == 2 and self.is_focused() else "  "
             btn_label = "Stop Server" if self.server_running else "Start Server"
             lines.append(f"{l_cursor} {btn_label} {r_cursor}")
+        elif not self.loader.call_provider(ProviderCall.is_port_available, self.oai_port):
+            lines.append(f"   Warning: Can't start server, port {self.oai_port} is not available")
 
         logs: List[Tuple[float, str]] = self.loader.call_provider(ProviderCall.get_oai_logs)
         lines.extend(["", "Logs:"])
@@ -274,7 +276,7 @@ class JobsServer:
         return network_status is not None and network_status.running
 
     def can_start_server(self) -> bool:
-        return self.validate_oai_port() and self._network_running()
+        return self.loader.call_provider(ProviderCall.is_port_available, self.oai_port) and self.validate_oai_port() and self._network_running()
     
     def validate_oai_port(self) -> bool:
         try:

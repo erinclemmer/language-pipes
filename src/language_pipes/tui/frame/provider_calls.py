@@ -61,3 +61,4 @@ class ProviderCall(Enum):
     # Other
     list_models = "list_models"
     save_model_assignments = "save_model_assignments"
+    is_port_available = "is_port_available"

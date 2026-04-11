@@ -12,9 +12,9 @@ class Dashboard:
     def _get_options(self) -> List[str]:
         opts = []
 
-
         if self.router_status is None or self.router_status.state == "stopped":
-            opts.append("Start Network Server")
+            if self.network_config.node_id != "" and self.network_port_available():
+                opts.append("Start Network Server")
             opts.append("Configure Network Server")
 
         if self.router_status is not None and self.router_status.state == "running":
@@ -22,7 +22,7 @@ class Dashboard:
             opts.append("Configure Network Server")
             if self.job_serv_running:
                 opts.append("Stop Job Server")
-            else:
+            elif self.job_port_available():
                 opts.append("Start Job Server")
             opts.append("Configure Job Server")
             if len(self.models_to_load) > 0:
@@ -77,6 +77,14 @@ class Dashboard:
         self.job_serv_running = False
         self.models_to_load = []
         self.models_status = { }
+
+    def network_port_available(self) -> bool:
+        if self.network_config is None:
+            return True
+        return self.loader.call_provider(ProviderCall.is_port_available, self.network_config.port)
+
+    def job_port_available(self) -> bool:
+        return self.loader.call_provider(ProviderCall.is_port_available, self.oai_port)
 
     def on_prev(self):
         self.selected_idx -= 1
@@ -144,7 +152,7 @@ class Dashboard:
         state_label = "Off"
         if self.router_status is not None:
             if  self.router_status.state == "running":
-                state_label = f"Running\n{self.config.node_id}@{self.config.network_ip}:{self.router_status.port}"
+                state_label = f"Running\n{self.network_config.node_id}@{self.network_config.network_ip}:{self.router_status.port}"
             else:
                 state_label = self.router_status.state
         
@@ -166,7 +174,7 @@ class Dashboard:
 
     def get_view(self) -> Tuple[List[str], List[str]]:
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
-        self.config = self.loader.call_provider(ProviderCall.get_network_config)
+        self.network_config = self.loader.call_provider(ProviderCall.get_network_config)
         self.router_status = self.loader.call_provider(ProviderCall.get_network_status)
         self.job_serv_running = self.loader.call_provider(ProviderCall.oai_server_running)
         self.oai_port = self.loader.call_provider(ProviderCall.get_oai_port)
@@ -175,12 +183,19 @@ class Dashboard:
         right_panel = [self._get_ram_usage(), ""]
 
         job_str = f"running on port {self.oai_port}" if self.job_serv_running else "stopped"
-        right_panel.extend([f"Job Server: {job_str}", ""])
-
-        if self.config.node_id != "":
-            right_panel.extend([f"Network: {self._get_network_label()}", ""])
+        if self.router_status is not None or self.network_port_available():
+            if self.network_config.node_id != "":
+                right_panel.extend([f"Network: {self._get_network_label()}", ""])
+            else:
+                right_panel.extend(["Warning:\nNode ID not set, cannot start network", ""])
         else:
-            right_panel.extend(["Warning: Node ID not set, cannot start network server", ""])
+            right_panel.extend([f"Warning:\nNetwork port {self.network_config.port} not available", ""])
+
+        if self.router_status is not None and self.router_status.state == "running":
+            if self.job_serv_running or self.job_port_available():
+                right_panel.extend([f"Job Server: {job_str}", ""])
+            else:
+                right_panel.extend([f"Warning:\nJob port {self.oai_port} is not available", ""])
 
         selected_option = self._get_selected_option()
         for label in self._get_options():

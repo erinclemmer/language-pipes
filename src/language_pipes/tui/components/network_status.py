@@ -1,6 +1,7 @@
 from typing import List, Optional, Callable
 import time
 
+from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.content_loader import ContentLoader
 from language_pipes.tui.content_provider.network_provider import RouterStatus
@@ -32,13 +33,18 @@ class NetworkStatus:
         if status is not None and status.running:
             self.loader.call_provider(ProviderCall.stop_network)
         else:
-            self.loader.call_provider(ProviderCall.start_network)
+            if self.loader.call_provider(ProviderCall.is_port_available, self.config.port):
+                self.loader.call_provider(ProviderCall.start_network)
     
     def get_view(self) -> List[str]:
-        self.status = self.loader.call_provider(ProviderCall.get_network_status)
+        self.config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+        self.status: Optional[RouterStatus] = self.loader.call_provider(ProviderCall.get_network_status)
         l_cursor = "|>" if self.is_focused() else "  "
         r_cursor = "<|" if self.is_focused() else "  "
-        lines = ["[X] Server Stopped", "", f" {l_cursor} Start Network Server {r_cursor}"]
+        btn_text = f" {l_cursor} Start Network Server {r_cursor}"
+        if not self.loader.call_provider(ProviderCall.is_port_available, self.config.port):
+            btn_text = f"Warning: Can't start server, port {self.config.port} is not available"
+        lines = ["[X] Server Stopped", "", btn_text]
         if self.status is not None:
             lines = [
                 "[O] Server Running" if self.status.running else "[.] Server Starting",

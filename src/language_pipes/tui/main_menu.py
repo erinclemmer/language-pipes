@@ -105,7 +105,7 @@ def handle_file_load(
         ProviderCall.get_hf_token: ModelProvider.get_hf_token,
         ProviderCall.save_hf_token: ModelProvider.save_hf_token,
         ProviderCall.get_model_manager_logs: content_provider.model_provider.get_model_manager_logs,
-
+        ProviderCall.is_port_available: ContentProvider.is_port_available,
 
         ProviderCall.host_model: content_provider.model_provider.host_model,
         ProviderCall.get_models_to_load: lambda: ModelProvider.get_models_to_load(
