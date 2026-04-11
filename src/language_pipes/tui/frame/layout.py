@@ -61,6 +61,7 @@ class FrameLayout:
         self.right_panel_id = self.window.add_text(TermText(""), (40, 0))
         self.footer_id = self.window.add_text(TermText(""), (2, size[1] - 2))
         self.status_id = self.window.add_text(TermText(""), (2, size[1] - 4))
+        self.exit_confirm_id = self.window.add_text(TermText(""), (0, 4))
         self.seperator_column_id = self.window.add_text(TermText("|\n"*(size[1] - 3)), (38, 0))
 
         self.nav_window = NavWindow(self.window, self.nav_state, size, pos)
@@ -84,16 +85,15 @@ class FrameLayout:
     def _refresh_current_view(self):
         self._load_active_view_data(update_status=True)
 
+    def _render_exit_confirm(self):
+        self.window.update_text(
+            self.exit_confirm_id, TermText(self.exit_confirm.render())
+        )
+    
     def _render_content(self):
         self.window.update_text(
             self.content_bg_id, TermText(self._content_blank_block())
         )
-
-        if self.exit_confirm.is_open:
-            self.window.update_text(
-                self.content_id, TermText(self.exit_confirm.render())
-            )
-            return
 
         if self.edit_confirm.is_open:
             self.window.update_text(
@@ -166,6 +166,13 @@ class FrameLayout:
         else:
             self._render_content()    
             self._sync_navigation()
+        
+        if self.exit_confirm.is_open:
+            self.window.show_txt(self.exit_confirm_id)
+            self._render_exit_confirm()
+        else:
+            self.window.hide_txt(self.exit_confirm_id)
+        
         self._render_status()
         self._render_footer()
 

@@ -52,3 +52,11 @@ class ContentProvider:
     @staticmethod
     def is_port_available(port: int) -> bool:
         return is_port_available(port)
+    
+    def shutdown(self):
+        if self.router is not None:
+            self.network_provider.stop_router()
+            self.set_router(None)
+        
+        self.model_manager.stop()
+        self.job_provider.stop_oai_server()

@@ -131,7 +131,8 @@ def handle_file_load(
         ProviderCall.set_oai_port: lambda p: content_provider.job_provider.set_oai_port(config_file, p),
         ProviderCall.get_api_keys: lambda: content_provider.job_provider.get_api_keys(config_file),
         ProviderCall.set_api_keys: lambda ks: content_provider.job_provider.set_api_keys(config_file, ks),
-        ProviderCall.get_active_jobs: content_provider.job_provider.get_active_jobs
+        ProviderCall.get_active_jobs: content_provider.job_provider.get_active_jobs,
+        ProviderCall.shutdown: content_provider.shutdown
     }
 
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)

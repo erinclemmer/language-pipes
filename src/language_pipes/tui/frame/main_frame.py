@@ -2,6 +2,7 @@ from time import sleep
 from threading import Thread
 from typing import Dict, List, Optional, Tuple
 
+from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.tui import TuiWindow
 from language_pipes.tui.util.kb_utils import read_key
 from language_pipes.tui.frame.nav_state import NavState
@@ -31,7 +32,7 @@ class MainFrame:
         providers: Optional[object] = None,
     ):
         self.window = TuiWindow(size, pos)
-
+        self.shutdown = False
         self.state = FrameState()
         self.exit_confirm = ExitConfirm()
         self.loader = ContentLoader(providers)
@@ -68,8 +69,15 @@ class MainFrame:
 
     def frame_render_thread(self):
         while True:
+            if self.shutdown:
+                return
             self.layout._render_all()
             sleep(1)
+
+    def shutdown_frame(self):
+        self.layout._teardown_windows()
+        self.shutdown = True
+        self.loader.call_provider(ProviderCall.shutdown)
 
     def run(self) -> str:
         self.state.startup()
@@ -80,5 +88,5 @@ class MainFrame:
             self.key_handler.handle_key(key, ch)
             self.layout._render_all()
 
-        self.layout._teardown_windows()
+        self.shutdown_frame()
         return "exit" if self.state.exit_tui else "menu"
