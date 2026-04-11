@@ -37,7 +37,10 @@ class Dashboard:
 
         return opts
 
-    def _get_selected_option(self) -> str:
+    def _get_selected_option(self) -> Optional[str]:
+        opts = self._get_options()
+        if len(opts) - 1 < self.selected_idx:
+            return None
         return self._get_options()[self.selected_idx]
 
     def _get_num_options(self) -> int:
@@ -108,6 +111,9 @@ class Dashboard:
 
     def on_enter(self):
         selected_option = self._get_selected_option()
+        if selected_option is None:
+            return
+        
         if selected_option == "Start Network Server":
             self.loader.call_provider(ProviderCall.start_network)
         elif selected_option == "Stop Network Server":
