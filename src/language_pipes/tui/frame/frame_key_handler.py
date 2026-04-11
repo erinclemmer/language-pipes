@@ -81,10 +81,6 @@ class FrameKeyHandler:
             self._open_exit_confirm()
             return
 
-        if key == PressedKey.Alpha and ch.lower() == "r":
-            self.layout._refresh_current_view()
-            return
-
         if key == PressedKey.Escape:
             if self.nav.focus_depth > 0:
                 self.nav.focus_shallower()

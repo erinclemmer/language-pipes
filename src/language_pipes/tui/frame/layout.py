@@ -1,10 +1,7 @@
-from typing import Optional, Tuple, List, Dict, Any
-from language_pipes.tui.frame import view_state as vs
+from typing import Tuple, Dict, Any
 from language_pipes.tui.frame.nav_window import NavWindow
 from language_pipes.tui.tui import TermText, TuiWindow
 from language_pipes.tui.util.screen_utils import Color
-from language_pipes.tui.components.top_nav import TopNav
-from language_pipes.tui.components.side_nav import SideNav
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.content_loader import ContentLoader
 from language_pipes.tui.components.exit_confirm import ExitConfirm
@@ -72,18 +69,6 @@ class FrameLayout:
     def _content_blank_block(self) -> str:
         width, height = self.content_area_size
         return "\n".join([" " * width for _ in range(height)])
-
-    def _load_active_view_data(self, update_status: bool) -> Dict[str, Any]:
-        tab, section = self.nav_state.active_view_key()
-        result = self.loader.load(tab, section, update_status=update_status)
-        if update_status and self.loader.last_status_message:
-            self.state.set_status(
-                self.loader.last_status_message, self.loader.last_status_level
-            )
-        return result
-
-    def _refresh_current_view(self):
-        self._load_active_view_data(update_status=True)
 
     def _render_exit_confirm(self):
         self.window.update_text(

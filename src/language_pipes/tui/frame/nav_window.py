@@ -16,8 +16,7 @@ class NavWindow:
 
     def __init__(self, window: TuiWindow, nav: NavState, size: Tuple[int, int], pos: Tuple[int, int]):
         self.window = window
-        self.hor_bar_id = self.window.add_text(TermText("_" * (size[0] - 2)), (1, 2))
-        # self.ver_bar_id = self.window.add_text(TermText("|\n" * (size[1] - 5)), (15, 3))
+        self.bar_id = self.window.add_text(TermText("_" * (size[0] - 2)), (1, 2))
         
         self.nav_state = nav
         self.top_nav = TopNav(
@@ -31,12 +30,10 @@ class NavWindow:
         )
 
     def hide_overlay(self):
-        self.window.hide_txt(self.hor_bar_id)
-        # self.window.hide_txt(self.ver_bar_id)
+        self.window.hide_txt(self.bar_id)
     
     def show_overlay(self):
-        self.window.show_txt(self.hor_bar_id)
-        # self.window.show_txt(self.ver_bar_id)
+        self.window.show_txt(self.bar_id)
 
     def side_next(self):
         self.nav_state.side_next(self.side_nav)
