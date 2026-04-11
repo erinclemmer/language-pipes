@@ -1,4 +1,5 @@
 from typing import List, Optional, Callable
+import time
 
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.content_loader import ContentLoader
@@ -47,7 +48,11 @@ class NetworkStatus:
                 "", 
                 "Logs:"
             ]
-            lines.extend(self.status.logs[-5:] if len(self.status.logs) > 5 else self.status.logs)
+            for i, (ts, log) in enumerate(self.status.logs):
+                if i > 5:
+                    break
+                timestamp = time.strftime("%H:%M:%S", time.localtime(ts))
+                lines.append(f"{timestamp} {log}")
         return lines
     
     def get_footer(self) -> str:

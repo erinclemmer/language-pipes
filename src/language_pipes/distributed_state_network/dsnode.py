@@ -4,7 +4,7 @@ import logging
 import threading
 import requests
 from datetime import datetime
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Tuple
 
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 from language_pipes.distributed_state_network.objects.hello_packet import HelloPacket
@@ -42,7 +42,7 @@ class DSNode:
     address_book: Dict[str, Endpoint]
     node_states: Dict[str, StatePacket]
     shutting_down: bool
-    logs: List[str]
+    logs: List[Tuple[float, str]]
 
     def __init__(
             self, 
@@ -83,7 +83,6 @@ class DSNode:
         threading.Thread(target=self.network_tick, daemon=True).start()
 
     def add_log(self, msg: str, level: str = "INFO"):
-        timestamp = datetime.now().strftime('%H:%M:%S')
         if level.upper() == "INFO":
             self.logger.info(msg)
         elif level.upper() == "ERROR":
@@ -94,7 +93,8 @@ class DSNode:
             self.logger.warning(msg)
         else:
             self.logger.info(msg)
-        self.logs.append(f"{timestamp} {msg}")
+        
+        self.logs.append((time.time(), msg))
 
     def get_aes_key(self) -> Optional[bytes]:
         if self.config.aes_key is None:

@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 from threading import Thread
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Callable
+from typing import List, Optional, Dict, Callable, Tuple
 
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.distributed_state_network.util import stop_thread
@@ -25,7 +25,7 @@ class RouterStatus:
     running: bool
     node_id: str
     num_peers: int
-    logs: List
+    logs: List[Tuple[float, str]]
     port: int
 
 class NetworkProvider:
