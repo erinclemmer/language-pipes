@@ -15,6 +15,7 @@ class TermText:
 
 class TuiCell:
     text: TermText
+    last_paint_ch: str
     
     position: Tuple[int, int]
     committed: bool
@@ -23,6 +24,7 @@ class TuiCell:
         self.text = v
         self.position = pos
         self.committed = True
+        self.last_paint_ch = v.value
 
     def set_value(self, tt: TermText):
         if not isinstance(tt, TermText):
@@ -32,13 +34,14 @@ class TuiCell:
         if tt.value == self.text.value:
             return
         self.text = tt
-        self.committed = False
+        self.committed = tt.value == self.last_paint_ch
 
     def paint(self, abs_position: Tuple[int, int]):
         if self.committed:
             return
         print_pos(abs_position[1], abs_position[0], self.text.value, self.text.fg, self.text.bg, self.text.bold)
         self.committed = True
+        self.last_paint_ch = self.text.value
 
 class TuiGrid:
     size: Tuple[int, int]
