@@ -1,4 +1,5 @@
 import gc
+import time
 import torch
 from uuid import uuid4
 from typing import List, Optional, Tuple, Dict
@@ -14,14 +15,17 @@ from language_pipes.util.config import default_model_dir
 class ModelManager:
     models: List[LlmModel]
     end_models: List[EndModel]
+    logs: List[Tuple[float, str]]
     pipes_hosted: Dict[str, List[str]]
 
     def __init__(self):
         self.models = []
+        self.logs = []
         self.end_models = []
         self.pipes_hosted = { }
 
     def stop(self):
+        self.logs.append((time.time(), "Stopping models"))
         for m in self.models:
             m.cleanup_tensors()
         for m in self.end_models:
@@ -68,6 +72,7 @@ class ModelManager:
         model = EndModel(num_local_layers, default_model_dir(), model_id, device)
         model.load()
         self.end_models.append(model)
+        self.logs.append((time.time(), f"Loading End Model for {model_id}"))
 
     def host_model(self, router_pipes: RouterPipes, node_id: str, model_id: str, max_memory: float, device: torch.device, first_layer: int, max_pipes: int = 1):
         available_memory = max_memory * 10 ** 9
@@ -102,6 +107,7 @@ class ModelManager:
                 self.models.append(model)
 
         for m in models_to_load:
+            self.logs.append((time.time(), f"Loading model {m.model_id} on {m.device}"))
             m.load()
             router_pipes.update_model(m.to_meta())
 
@@ -112,6 +118,7 @@ class ModelManager:
                 model.cleanup_tensors()
                 router_pipes.remove_model(model.to_meta())
                 to_remove.append(model.process_id)
+                self.logs.append((time.time(), f"Stopping model {model.model_id} on {model.device}"))
 
         for m_id in to_remove:
             self.models = [m for m in self.models if m.process_id != m_id]
@@ -121,6 +128,7 @@ class ModelManager:
             if model.model_id == model_id:
                 model.clean_up()
                 to_remove.append(model.process_id)
+                self.logs.append((time.time(), f"Stopping end model {model.model_id}"))
 
         for m_id in to_remove:
             self.end_models = [m for m in self.end_models if m.process_id != m_id]

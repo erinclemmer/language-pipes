@@ -38,22 +38,22 @@ def load_libraries(window: TuiWindow):
     paint_loader(0)
     window.update_text(loading_id, TermText("Loading: inspect"))
     window.paint()
-    import inspect
+    import inspect  # noqa: F401
 
     paint_loader(10)
     window.update_text(loading_id, TermText("Loading: numpy"))
     window.paint()
-    import numpy
+    import numpy  # noqa: F401
 
     paint_loader(20)
     window.update_text(loading_id, TermText("Loading: torch"))
     window.paint()
-    import torch
+    import torch  # noqa: F401
 
     paint_loader(30)
     window.update_text(loading_id, TermText("Loading: transformers"))
     window.paint()
-    import transformers
+    import transformers  # noqa: F401
 
     paint_loader(40)
     window.update_text(loading_id, TermText("Loading Complete"))
@@ -104,6 +104,7 @@ def handle_file_load(
         ProviderCall.check_download_progress: content_provider.model_provider.check_download_progress,
         ProviderCall.get_hf_token: ModelProvider.get_hf_token,
         ProviderCall.save_hf_token: ModelProvider.save_hf_token,
+        ProviderCall.get_model_manager_logs: content_provider.model_provider.get_model_manager_logs,
 
 
         ProviderCall.host_model: content_provider.model_provider.host_model,

@@ -31,6 +31,7 @@ class ProviderCall(Enum):
     download_model = "download_model"
     get_hf_token = "get_hf_token"
     save_hf_token = "save_hf_token"
+    get_model_manager_logs = "get_model_manager_logs"
 
     # Models / Hosted
     get_models_to_load = "get_models_to_load"

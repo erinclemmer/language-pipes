@@ -13,7 +13,7 @@ class T:
     api_keys: List[str]
 
 class OAIHttpHandler(BaseHTTPRequestHandler):
-    server: T
+    server: T # type: ignore
 
     def log_message(self, format: str, *args):
         return
@@ -84,4 +84,4 @@ class OAIHttpServer(ThreadingHTTPServer):
         self.api_keys = api_keys
         self.complete = complete
         self.get_models = get_models
-        self.logs = []
+        self.logs = [(time.time(), f"Starting Job Server on port {port}")]

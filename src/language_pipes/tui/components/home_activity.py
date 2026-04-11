@@ -30,6 +30,8 @@ class HomeActivity:
             logs.extend(network_status.logs)
         
         logs.extend(self.loader.call_provider(ProviderCall.get_oai_logs))
+
+        logs.extend(self.loader.call_provider(ProviderCall.get_model_manager_logs))
         
         logs.sort(key=lambda x: x[0])
 

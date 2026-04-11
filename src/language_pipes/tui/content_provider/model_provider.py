@@ -8,7 +8,7 @@ from tqdm.auto import tqdm
 from pathlib import Path
 from threading import Thread
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Callable
+from typing import List, Optional, Dict, Callable, Tuple
 from huggingface_hub import snapshot_download, errors
 
 from language_pipes.modeling.llm_model import LlmModel
@@ -94,6 +94,10 @@ class ModelProvider:
         self.downloading_to_folder = None
         self.get_model_manager = get_model_manager
         self.get_router_pipes = get_router_pipes
+
+    def get_model_manager_logs(self) -> List[Tuple[float, str]]:
+        mm = self.get_model_manager()
+        return mm.logs
 
     # Returns a mapping of model_id -> list of lifecycle statuses based on ModelManager state.
     def get_models_status(self) -> Dict[str, List[ModelStatusInfo]]:
