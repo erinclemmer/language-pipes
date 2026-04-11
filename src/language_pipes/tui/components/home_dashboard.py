@@ -33,6 +33,8 @@ class Dashboard:
 
                 opts.append("Configure Models")
 
+            opts.append("Show Logs")
+
         return opts
 
     def _get_selected_option(self) -> str:
@@ -119,6 +121,8 @@ class Dashboard:
             self.loader.call_provider(ProviderCall.stop_oai_server)
         elif selected_option == "Configure Job Server":
             self.change_nav("Jobs", "Server")
+        elif selected_option == "Show Logs":
+            self.change_nav("Home", "Activity")
 
     def _get_ram_usage(self) -> str:
         used_ram = self.loader.call_provider(ProviderCall.get_used_system_ram)

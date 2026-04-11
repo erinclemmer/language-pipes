@@ -1,5 +1,6 @@
 from typing import Callable
 
+from language_pipes.tui.components.home_activity import HomeActivity
 from language_pipes.tui.components.jobs_active import JobsActive
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.components.confirm import Confirm
@@ -41,6 +42,7 @@ class PageRouter:
     ):
         self.nav = nav
         self.dashboard = Dashboard(loader, self.exit_page, self.is_focused, change_nav)
+        self.home_activity = HomeActivity(loader, self.exit_page, self.is_focused)
         self.network_status = NetworkStatus(loader, self.exit_page, self.is_focused)
         self.network_peers = NetworkPeers(loader, self.exit_page, self.is_focused)
         self.network_form = NetworkForm(
@@ -70,6 +72,8 @@ class PageRouter:
         section = self.nav.active_side_option()
         if tab == "Home" and section == "Dashboard":
             return self.dashboard
+        if tab == "Home" and section == "Activity":
+            return self.home_activity
         
         
         if tab == "Network" and section == "Status":

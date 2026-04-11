@@ -7,7 +7,7 @@ from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.util.kb_utils import PressedKey
 
 
-class DashboardActivity:
+class HomeActivity:
     loader: ContentLoader
     exit_page: Callable
     is_focused: Callable[[], bool]
