@@ -19,7 +19,7 @@ from language_pipes.llm_layer_collector.cache import get_shard_files
 from language_pipes.llm_layer_collector.helpers import load_shard_tensor
 from language_pipes.llm_layer_collector.load_layer import files_to_load_for_layer
 from language_pipes.llm_layer_collector import StaticAutoModel
-from language_pipes.util import clone_model
+from language_pipes.util.utils import clone_model
 
 PROMPT = "The quick brown fox jumps over the "
 

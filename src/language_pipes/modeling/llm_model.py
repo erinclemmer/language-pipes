@@ -9,7 +9,7 @@ import torch
 from language_pipes.llm_layer_collector import LlmLayerCollector
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
-from language_pipes.util import clone_model
+from language_pipes.util.utils import clone_model
 
 from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata

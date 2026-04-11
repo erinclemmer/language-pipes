@@ -12,7 +12,7 @@ import sys
 PATH = str(Path(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src')).resolve())
 sys.path.insert(0, PATH)
 
-from language_pipes.util import clone_model
+from language_pipes.util.utils import clone_model
 
 class TestCloneModel(unittest.TestCase):
     @unittest.skip("Skip successful download normally")

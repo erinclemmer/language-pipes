@@ -12,7 +12,7 @@ from language_pipes.pipes.pipe_manager import PipeManager
 
 from language_pipes.modeling.model_manager import ModelManager
 
-from language_pipes.util import stop_thread
+from language_pipes.util.utils import stop_thread
 from language_pipes.config import LpConfig
 from language_pipes.network_protocol import StateNetworkNode
 

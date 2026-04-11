@@ -1,7 +1,7 @@
 import psutil
 from typing import Optional 
 
-from language_pipes.util import is_port_available
+from language_pipes.util.utils import is_port_available
 from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.modeling.model_manager import ModelManager

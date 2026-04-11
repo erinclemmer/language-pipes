@@ -6,7 +6,7 @@ from typing import List, Tuple, Optional
 from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from language_pipes.llm_layer_collector import LlmLayerCollector
 
-from language_pipes.util import size_of_tensor, tensor_hash
+from language_pipes.util.utils import size_of_tensor, tensor_hash
 from language_pipes.util.enums import ModelPartType
 from language_pipes.llm_layer_collector.helpers import get_config
 

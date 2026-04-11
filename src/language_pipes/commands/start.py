@@ -14,7 +14,7 @@ from language_pipes.commands.edit import edit_config
 from language_pipes.commands.view import view_config
 from language_pipes.lp import LanguagePipes
 from language_pipes.util.user_prompts import prompt, prompt_number_choice, select_config, get_config_files, show_banner
-from language_pipes.util import sanitize_file_name
+from language_pipes.util.utils import sanitize_file_name
 
 def check_latest_version() -> Optional[str]:
     res = requests.get('https://raw.githubusercontent.com/erinclemmer/language-pipes/refs/heads/main/pyproject.toml')
