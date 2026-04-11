@@ -1,6 +1,7 @@
 from typing import Any, Callable, List, Optional, Dict, Tuple
 
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.tui.content_provider.job_provider import MetaJob
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.content_provider.network_provider import RouterStatus
@@ -10,21 +11,27 @@ from language_pipes.tui.content_provider.model_provider import ModelStatus, Mode
 class Dashboard:
     def _get_options(self) -> List[str]:
         opts = []
+
+
         if self.router_status is None or self.router_status.state == "stopped":
             opts.append("Start Network Server")
+            opts.append("Configure Network Server")
 
         if self.router_status is not None and self.router_status.state == "running":
             opts.append("Stop Network Server")
-
-        opts.append("Configure Network Server")
-
-        if len(self.models_to_load) > 0:
-            if self._has_active_model():
-                opts.append("Unload Models")
+            opts.append("Configure Network Server")
+            if self.job_serv_running:
+                opts.append("Stop Job Server")
             else:
-                opts.append("Load Models")
+                opts.append("Start Job Server")
+            opts.append("Configure Job Server")
+            if len(self.models_to_load) > 0:
+                if self._has_active_model():
+                    opts.append("Unload Models")
+                else:
+                    opts.append("Load Models")
 
-        opts.append("Configure Models")
+                opts.append("Configure Models")
 
         return opts
 
@@ -45,6 +52,8 @@ class Dashboard:
     router_status: Optional[RouterStatus]
 
     selected_idx: int
+    oai_port: int
+    job_serv_running: bool
     models_to_load: List[ModelToLoad]
     models_status: Dict[str, List[ModelStatusInfo]]
 
@@ -62,6 +71,8 @@ class Dashboard:
         self.router_status = None
         self.network_config = self.loader.call_provider(ProviderCall.get_network_config)
         self.selected_idx = 0
+        self.oai_port = self.loader.call_provider(ProviderCall.get_oai_port)
+        self.job_serv_running = False
         self.models_to_load = []
         self.models_status = { }
 
@@ -101,6 +112,13 @@ class Dashboard:
                 self.loader.call_provider(ProviderCall.shutdown_models, model.model_id)
         elif selected_option == "Configure Models":
             self.change_nav("Models", "Hosted")
+        elif selected_option == "Start Job Server":
+            api_keys = self.loader.call_provider(ProviderCall.get_api_keys)
+            self.loader.call_provider(ProviderCall.start_oai_server, (self.oai_port, api_keys))
+        elif selected_option == "Stop Job Server":
+            self.loader.call_provider(ProviderCall.stop_oai_server)
+        elif selected_option == "Configure Job Server":
+            self.change_nav("Jobs", "Server")
 
     def _get_ram_usage(self) -> str:
         used_ram = self.loader.call_provider(ProviderCall.get_used_system_ram)
@@ -128,13 +146,17 @@ class Dashboard:
         
         return f"{state_label}{peer_text}"
 
-    def _format_model_line(self, model: ModelToLoad, running: List[ModelStatusInfo]) -> List[str]:
+    def _format_model_line(self, model: ModelToLoad, running: List[ModelStatusInfo], jobs: List[MetaJob]) -> List[str]:
         ends_string = "+ ends" if model.load_ends else ""
         lines = [
             f"{model.model_id} ({model.max_memory}GB) {ends_string}"
         ]
         
         lines.extend(format_pipe_strings(running))
+        for j in jobs:
+            lines.extend([
+                f"Job {j.job_id[:4]} from {j.origin_node_id}, Token: {j.current_token}"
+            ])
 
         return lines
 
@@ -142,9 +164,15 @@ class Dashboard:
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
         self.config = self.loader.call_provider(ProviderCall.get_network_config)
         self.router_status = self.loader.call_provider(ProviderCall.get_network_status)
+        self.job_serv_running = self.loader.call_provider(ProviderCall.oai_server_running)
+        self.oai_port = self.loader.call_provider(ProviderCall.get_oai_port)
 
         lines = []
         right_panel = [self._get_ram_usage(), ""]
+
+        job_str = f"running on port {self.oai_port}" if self.job_serv_running else "stopped"
+        right_panel.extend([f"Job Server: {job_str}", ""])
+
         if self.config.node_id != "":
             right_panel.extend([f"Network: {self._get_network_label()}", ""])
         else:
@@ -159,9 +187,12 @@ class Dashboard:
         lines.extend(["", ""])
 
         self.models_status = self.loader.call_provider(ProviderCall.get_models_status)
+        jobs: List[MetaJob] = self.loader.call_provider(ProviderCall.get_active_jobs)
         for model in self.models_to_load:
             model_statuses = self.models_status.get(model.model_id, [])
-            right_panel.extend(self._format_model_line(model, model_statuses))
+            pipe_ids = [p.pipe_id for p in model_statuses]
+            model_jobs = [j for j in jobs if j.pipe_id in pipe_ids]
+            right_panel.extend(self._format_model_line(model, model_statuses, model_jobs))
         
         return lines, right_panel
 
