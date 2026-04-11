@@ -48,9 +48,13 @@ class NetworkStatus:
                 "", 
                 "Logs:"
             ]
-            for i, (ts, log) in enumerate(self.status.logs):
-                if i > 5:
-                    break
+
+            logs = self.status.logs
+            
+            if len(logs) > 5:
+                logs = logs[-5:]
+
+            for ts, log in logs:
                 timestamp = time.strftime("%H:%M:%S", time.localtime(ts))
                 lines.append(f"{timestamp} {log}")
         return lines

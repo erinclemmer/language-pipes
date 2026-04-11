@@ -1,6 +1,7 @@
 import secrets
 from enum import Enum
-from typing import Callable, List
+import time
+from typing import Callable, List, Tuple
 
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.content_loader import ContentLoader
@@ -256,9 +257,15 @@ class JobsServer:
             btn_label = "Stop Server" if self.server_running else "Start Server"
             lines.append(f"{l_cursor} {btn_label} {r_cursor}")
 
-        logs: List[str] = self.loader.call_provider(ProviderCall.get_oai_logs)
+        logs: List[Tuple[float, str]] = self.loader.call_provider(ProviderCall.get_oai_logs)
         lines.extend(["", "Logs:"])
-        lines.extend(logs)
+
+        if len(logs) > 5:
+            logs = logs[-5:]
+
+        for ts, log in logs:
+            timestamp = time.strftime("%H:%M:%S", time.localtime(ts))
+            lines.append(f"{timestamp} {log}")
 
         return lines
     

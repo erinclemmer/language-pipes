@@ -1,12 +1,13 @@
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Callable, List, Optional
+import time
+from typing import Callable, List, Optional, Tuple
 
 from language_pipes.util.oai import oai_chat_complete, get_models
 from language_pipes.util.http import _send_code
 
 class T:
-    logs: List[str]
+    logs: List[Tuple[float, str]]
     complete: Callable
     get_models: Callable
     api_keys: List[str]
@@ -68,9 +69,7 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
 
     def log(self, path: str):
         ip_address = self.client_address[0]
-        self.server.logs.append(f"{ip_address} {path}")
-        if len(self.server.logs) > 10:
-            self.server.logs = self.server.logs[10:]
+        self.server.logs.append((time.time(), f"{ip_address} {path}"))
 
     def do_GET(self):
         if self.path == '/v1/models':

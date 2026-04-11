@@ -140,7 +140,7 @@ class JobProvider:
     def oai_server_running(self) -> bool:
         return self.oai_server is not None
     
-    def get_oai_logs(self) -> List[str]:
+    def get_oai_logs(self) -> List[Tuple[float, str]]:
         if self.oai_server is None:
             return []
         return self.oai_server.logs
