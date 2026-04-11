@@ -53,7 +53,6 @@ class MainFrame:
 
         self.key_handler = FrameKeyHandler(self.layout, self.page_router)
 
-        self.render_time_id = self.window.add_text(TermText(""), (0, 0))
         self.layout._init_layout(size, pos)
         self._init_view()
         self.layout._render_all()
@@ -78,13 +77,8 @@ class MainFrame:
         Thread(target=self.frame_render_thread, args=()).start()
         while self.state.running:
             key, ch = read_key()
-            start_time = time()
             self.key_handler.handle_key(key, ch)
             self.layout._render_all()
-            self.window.update_text(
-                self.render_time_id,
-                TermText(f"Render: {(time() - start_time) * 1000:.0f}ms"),
-            )
 
         self.layout._teardown_windows()
         return "exit" if self.state.exit_tui else "menu"

@@ -107,7 +107,7 @@ class ModelManager:
                 self.models.append(model)
 
         for m in models_to_load:
-            self.logs.append((time.time(), f"Loading model {m.model_id} on {m.device}"))
+            self.logs.append((time.time(), f"Loading model {m.model_id} on {m.device}, Layers {m.start_layer}-{m.end_layer}"))
             m.load()
             router_pipes.update_model(m.to_meta())
 

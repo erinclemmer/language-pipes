@@ -60,7 +60,8 @@ class FrameLayout:
         self.content_id = self.window.add_text(TermText(""), (0, 0))
         self.right_panel_id = self.window.add_text(TermText(""), (40, 0))
         self.footer_id = self.window.add_text(TermText(""), (2, size[1] - 2))
-        self.status_id = self.window.add_text(TermText(""), (17, size[1] - 4))
+        self.status_id = self.window.add_text(TermText(""), (2, size[1] - 4))
+        self.seperator_column_id = self.window.add_text(TermText("|\n"*(size[1] - 3)), (38, 0))
 
         self.nav_window = NavWindow(self.window, self.nav_state, size, pos)
 
@@ -119,6 +120,12 @@ class FrameLayout:
 
         self.window.update_text(self.content_id, TermText("\n".join(content_parts)))
         self.window.update_text(self.right_panel_id, TermText("\n".join(right_panel_parts)))
+        
+        if self.nav_state.focus_depth == 2 and len(right_panel_parts) > 2:
+            self.window.show_txt(self.seperator_column_id)
+        else:
+            self.window.hide_txt(self.seperator_column_id)
+
         if self.nav_state.focus_depth == 2:
             self.show_content()
         else:
