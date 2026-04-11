@@ -5,8 +5,6 @@ from language_pipes.tui.util.screen_utils import (
     restore_mode,
     exit_vt_mode,
 )
-from language_pipes.tui.tui import TuiWindow
-
 
 def initialize_tui():
     fd_in = None

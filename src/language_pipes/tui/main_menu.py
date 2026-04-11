@@ -5,7 +5,6 @@ from threading import Thread
 from typing import Tuple, Optional
 
 from language_pipes.tui.tui import TuiWindow, TermText
-from language_pipes.tui.content_provider.content_provider import ContentProvider
 from language_pipes.tui.util.prompt import prompt, select_option, prompt_bool
 from language_pipes.util.config import (
     get_config_files,
@@ -13,10 +12,7 @@ from language_pipes.util.config import (
     default_model_dir,
 )
 from language_pipes.cli import VERSION
-from language_pipes.tui.frame.main_frame import MainFrame
 from language_pipes.tui.frame.provider_calls import ProviderCall
-from language_pipes.tui.content_provider.network_provider import NetworkProvider
-from language_pipes.tui.content_provider.model_provider import ModelProvider
 
 libraries_loaded = False
 
@@ -71,11 +67,15 @@ def new_config(window: TuiWindow) -> Optional[str]:
 def handle_file_load(
     window: TuiWindow, left_bound: int, termsize: Tuple[int, int], config_file: Path
 ):
+    from language_pipes.tui.content_provider.content_provider import ContentProvider
+    from language_pipes.tui.content_provider.network_provider import NetworkProvider
+    from language_pipes.tui.content_provider.model_provider import ModelProvider
+
     window.remove_all()
     window.paint()
-
+    
     content_provider = ContentProvider()
-
+    
     providers = {
         ProviderCall.get_network_config: lambda: NetworkProvider.get_network_config(
             config_file
@@ -135,6 +135,7 @@ def handle_file_load(
         ProviderCall.shutdown: content_provider.shutdown
     }
 
+    from language_pipes.tui.frame.main_frame import MainFrame
     frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)
     action = frame.run()
     if action == "exit":

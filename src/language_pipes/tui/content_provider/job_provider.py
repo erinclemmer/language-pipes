@@ -1,9 +1,8 @@
-from dataclasses import dataclass
 import gc
-import socket
 from pathlib import Path
 from threading import Thread
 from time import sleep, time
+from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple
 
 import toml

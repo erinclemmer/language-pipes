@@ -31,7 +31,7 @@ class Dashboard:
                 else:
                     opts.append("Load Models")
 
-                opts.append("Configure Models")
+            opts.append("Configure Models")
 
             opts.append("Show Logs")
 
@@ -188,7 +188,6 @@ class Dashboard:
         lines = ["   Options:", ""]
         right_panel = [self._get_ram_usage(), ""]
 
-        job_str = f"running on port {self.oai_port}" if self.job_serv_running else "stopped"
         if self.router_status is not None or self.network_port_available():
             if self.network_config.node_id != "":
                 right_panel.extend([f"Network: {self._get_network_label()}", ""])
@@ -199,6 +198,7 @@ class Dashboard:
 
         if self.router_status is not None and self.router_status.state == "running":
             if self.job_serv_running or self.job_port_available():
+                job_str = f"running on port {self.oai_port}" if self.job_serv_running else "stopped"
                 right_panel.extend([f"Job Server: {job_str}", ""])
             else:
                 right_panel.extend([f"Warning:\nJob port {self.oai_port} is not available", ""])
@@ -210,6 +210,9 @@ class Dashboard:
             r_cursor = "<|" if selected else "  "
             lines.extend([f"{l_cursor} {label} {r_cursor}", ""])
         lines.extend(["", ""])
+
+        if len(self.models_to_load) > 0:
+            right_panel.append("Models:")
 
         self.models_status = self.loader.call_provider(ProviderCall.get_models_status)
         jobs: List[MetaJob] = self.loader.call_provider(ProviderCall.get_active_jobs)

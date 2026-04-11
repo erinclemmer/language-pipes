@@ -29,7 +29,7 @@ class TuiCell:
             raise Exception(f"Tried to set cell value for non string {tt}")
         if len(tt.value) > 1:
             raise Exception("Tried to set cell with more than one character")
-        if tt == self.text:
+        if tt.value == self.text.value:
             return
         self.text = tt
         self.committed = False
