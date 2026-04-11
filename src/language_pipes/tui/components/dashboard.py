@@ -167,7 +167,7 @@ class Dashboard:
         self.job_serv_running = self.loader.call_provider(ProviderCall.oai_server_running)
         self.oai_port = self.loader.call_provider(ProviderCall.get_oai_port)
 
-        lines = []
+        lines = ["   Options:", ""]
         right_panel = [self._get_ram_usage(), ""]
 
         job_str = f"running on port {self.oai_port}" if self.job_serv_running else "stopped"
@@ -183,7 +183,7 @@ class Dashboard:
             selected = self.is_focused() and label == selected_option
             l_cursor = "|>" if selected else "  "
             r_cursor = "<|" if selected else "  "
-            lines.append(f"{l_cursor} {label} {r_cursor}")
+            lines.extend([f"{l_cursor} {label} {r_cursor}", ""])
         lines.extend(["", ""])
 
         self.models_status = self.loader.call_provider(ProviderCall.get_models_status)
