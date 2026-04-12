@@ -98,30 +98,14 @@ class NetworkForm:
         self.edit_fields = self.get_edit_fields()
 
     def start(self) -> None:
-        if not self.loader.provider_available(ProviderCall.get_network_config):
-            self.state.set_status(
-                "Provider 'get_network_config' unavailable; edit disabled", "error"
-            )
-            return
-        if not self.loader.provider_available(ProviderCall.save_network_config):
-            self.state.set_status(
-                "Provider 'save_network_config' unavailable; edit disabled", "error"
-            )
-            return
-
         self.edit_fields = self.get_edit_fields()
         self.edit_field_idx = 0
         self.field_editor_visible = False
-        self.set_status()
 
     def get_edit_fields(self) -> List[Dict[str, Optional[Any]]]:
-        try:
-            cfg: DSNodeConfig = self.loader.call_provider(
-                ProviderCall.get_network_config
-            )
-        except Exception as ex:
-            self.state.set_status(f"Failed to load network config: {ex}", "error")
-            return []
+        cfg: DSNodeConfig = self.loader.call_provider(
+            ProviderCall.get_network_config
+        )
 
         key_label = "*" * 10 if cfg.aes_key is not None else ""
         return [
@@ -161,9 +145,6 @@ class NetworkForm:
                 "value": f"{len(cfg.whitelist_node_ids)} node(s)",
             },
         ]
-
-    def set_status(self):
-        self.state.set_status("Editing Network -> Configure", "info")
 
     def get_current_field(self) -> Optional[tuple[str, str]]:
         if not self.edit_fields:
@@ -430,7 +411,6 @@ class NetworkForm:
                 )
                 if should_exit:
                     self.exit_field_editor()
-                    self.set_status()
             else:
                 self.exit_page()
             return
@@ -442,8 +422,6 @@ class NetworkForm:
                 self.next_field()
             elif key == PressedKey.Enter:
                 self.enter_field()
-                field_name = self.edit_fields[self.edit_field_idx]["label"]
-                self.state.set_status(f"Editing {field_name}")
             return
 
         if self.is_editing_network_key():

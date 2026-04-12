@@ -37,8 +37,6 @@ class FrameKeyHandler:
             self.state.running = False
             return
 
-        self.state.set_status("Exit canceled", "info")
-
     def _handle_confirm_key(self, key: PressedKey):
         action = self.confirm.handle_key(key)
         if action == "confirm":
@@ -52,7 +50,6 @@ class FrameKeyHandler:
 
     def _open_exit_confirm(self):
         self.exit_confirm.open()
-        self.state.set_status("Choose: Return to menu, Exit TUI, or Cancel", "warning")
 
     def activate_selection(self):
         page = self.page_router.get_page()
@@ -84,7 +81,6 @@ class FrameKeyHandler:
         if key == PressedKey.Escape:
             if self.nav.focus_depth > 0:
                 self.nav.focus_shallower()
-                self.state.set_status("Changing Tab")
             else:
                 self._open_exit_confirm()
             return
@@ -92,7 +88,6 @@ class FrameKeyHandler:
         if key == PressedKey.Enter:
             if self.nav.focus_depth < 1:
                 self.nav.focus_deeper()
-                self.state.set_status("Changing Section")
             else:
                 self.nav.focus_deeper()
                 self.activate_selection()
@@ -111,19 +106,3 @@ class FrameKeyHandler:
             elif key == PressedKey.ArrowUp:
                 self.layout.nav_window.side_prev()
             return
-
-        if self.nav.focus_depth == 2:
-            if key == PressedKey.ArrowDown:
-                self.nav.content_cursor_down()
-                self.state.set_status(
-                    "Moved selection cursor (placeholder content)", "info"
-                )
-            elif key == PressedKey.ArrowUp:
-                self.nav.content_cursor_up()
-                self.state.set_status(
-                    "Moved selection cursor (placeholder content)", "info"
-                )
-            elif key in (PressedKey.ArrowLeft, PressedKey.ArrowRight):
-                self.state.set_status(
-                    "No horizontal action in placeholder content", "info"
-                )

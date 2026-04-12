@@ -58,7 +58,6 @@ class FrameLayout:
         self.content_id = self.window.add_text(TermText(""), (0, 0))
         self.right_panel_id = self.window.add_text(TermText(""), (40, 0))
         self.footer_id = self.window.add_text(TermText(""), (2, size[1] - 2))
-        self.status_id = self.window.add_text(TermText(""), (2, size[1] - 4))
         self.exit_confirm_id = self.window.add_text(TermText(""), (0, 4))
         self.seperator_column_id = self.window.add_text(TermText("|\n"*(size[1] - 3)), (38, 0))
 
@@ -130,21 +129,6 @@ class FrameLayout:
     def _render_footer(self):
         self.window.update_text(self.footer_id, TermText(self._footer_text()))
 
-    def _render_status(self):
-        msg = self.state.status_message
-        lvl = self.state.status_level.upper()
-        fg = Color.Black
-        if lvl == "INFO":
-            fg = Color.Black
-        if lvl == "WARNING":
-            fg = Color.BrightYellow
-        if lvl == "ERROR":
-            fg = Color.BrightRed
-        status_text = f"[{lvl}] {msg}"
-        if self.status_text != status_text:
-            self.status_text = status_text
-            self.window.update_text(self.status_id, TermText(f"[{lvl}] {msg}", fg))
-
     def _render_all(self):
         if self.nav_state.focus_depth == 2:
             self._sync_navigation()
@@ -158,8 +142,6 @@ class FrameLayout:
             self._render_exit_confirm()
         else:
             self.window.hide_txt(self.exit_confirm_id)
-        
-        self._render_status()
         self._render_footer()
 
         self.window.paint()

@@ -28,7 +28,7 @@ class Dashboard:
             if len(self.models_to_load) > 0:
                 if self._has_active_model():
                     opts.append("Unload Models")
-                else:
+                elif not self._models_are_starting():
                     opts.append("Load Models")
 
             opts.append("Configure Models")
@@ -177,6 +177,14 @@ class Dashboard:
             ])
 
         return lines
+
+    def _models_are_starting(self) -> bool:
+        for key in self.models_status.keys():
+            pipe = self.models_status[key]
+            for model in pipe:
+                if model.status == ModelStatus.Starting:
+                    return True
+        return False
 
     def get_view(self) -> Tuple[List[str], List[str]]:
         self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
