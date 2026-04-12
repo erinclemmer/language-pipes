@@ -1,4 +1,5 @@
-from typing import Tuple, Dict, Any
+from typing import Tuple
+
 from language_pipes.tui.frame.nav_window import NavWindow
 from language_pipes.tui.tui import TermText, TuiWindow
 from language_pipes.tui.util.screen_utils import Color

@@ -34,27 +34,29 @@ def load_libraries(window: TuiWindow):
     paint_loader(0)
     window.update_text(loading_id, TermText("Loading: inspect"))
     window.paint()
-    import inspect  # noqa: F401
-
+    
     paint_loader(10)
-    window.update_text(loading_id, TermText("Loading: numpy"))
-    window.paint()
-    import numpy  # noqa: F401
-
-    paint_loader(20)
     window.update_text(loading_id, TermText("Loading: torch"))
     window.paint()
     import torch  # noqa: F401
-
-    paint_loader(30)
+    
+    paint_loader(20)
     window.update_text(loading_id, TermText("Loading: transformers"))
     window.paint()
     import transformers  # noqa: F401
 
+    paint_loader(30)
+    window.update_text(loading_id, TermText("Loading: language-pipes"))
+    window.paint()
+    import language_pipes.tui.content_provider.content_provider
+    import language_pipes.tui.content_provider.network_provider
+    import language_pipes.tui.content_provider.model_provider
+    import language_pipes.tui.frame.main_frame  # noqa: F401
+
     paint_loader(40)
     window.update_text(loading_id, TermText("Loading Complete"))
     window.paint()
-    sleep(0.1)
+    sleep(0.2)
     window.remove_txt(pipe_id)
     window.remove_txt(loading_id)
     window.paint()
