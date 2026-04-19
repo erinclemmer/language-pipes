@@ -1,17 +1,23 @@
 from time import sleep
 from pathlib import Path
+from typing import Any, Dict
 
+from language_pipes.config import LpConfig
 from language_pipes.content_provider.content_provider import ContentProvider
 
 class LpRunner:
-    def __init__(self, config_file: Path):
+    def __init__(self, config_file: Path, overrides: Dict[str, Any]):
+        config = LpConfig.from_file(config_file)
+        config.apply_overrides(overrides)
+
         self.provider = ContentProvider(config_file)
-        self.provider.network_provider.start_network()
-        self.provider.job_provider.start_oai_server()
-        for model in self.provider.model_provider.get_layer_models():
+
+        self.provider.network_provider.start_network(config.network_config)
+        self.provider.job_provider.start_oai_server(config)
+        for model in config.layer_models:
             self.provider.model_provider.host_layer_model(model)
         
-        for model in self.provider.model_provider.get_end_models():
+        for model in config.end_models:
             self.provider.model_provider.host_end_model(model)
 
         self.log_output()

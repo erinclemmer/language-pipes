@@ -56,13 +56,33 @@ class LpConfig:
                 "api_keys": self.api_keys,
                 "layer_models": [o.to_dict() for o in self.layer_models],
                 "end_models": self.end_models,
-                "network_config": self.network_config.to_dict()
+                "node_id": self.network_config.node_id,
+                "peer_port": self.network_config.port,
+                "network_ip": self.network_config.network_ip,
+                "network_key": self.network_config.aes_key,
+                "whitelist_ips": self.network_config.whitelist_ips,
+                "whitelist_node_ids": self.network_config.whitelist_node_ids
             }, f)
 
     def apply_overrides(self, data: Dict[str, Any]):
         if "oai_port" in data:
             self.oai_port = data["oai_port"]
-
+        if "api_keys" in data:
+            self.api_keys = data["api_keys"]
+        if "layer_models" in data:
+            self.layer_models = [ModelToLoad.from_dict(o) for o in data["layer_models"]]
+        if "end_models" in data:
+            self.end_models = data["end_models"]
+        if "node_id" in data:
+            self.network_config.node_id = data["node_id"]
+        if "peer_port" in data:
+            self.network_config.port = data["peer_port"]
+        if "network_ip" in data:
+            self.network_config.network_ip = data["network_ip"]
+        if "whitlelist_ips" in data:
+            self.network_config.whitelist_ips = data["whitelist_ips"]
+        if "whitelist_node_ids" in data:
+            self.network_config.whitelist_node_ids = data["whitelist_node_ids"]
 
     @staticmethod
     def from_file(file_path: Path) -> 'LpConfig':
@@ -78,7 +98,14 @@ class LpConfig:
         cfg.api_keys = data.get("api_keys", [])
         cfg.layer_models = [ModelToLoad.from_dict(o) for o in data.get("layer_models", [])]
         cfg.end_models = data.get("end_models", [])
-        cfg.network_config = DSNodeConfig.from_dict(data.get("network_config", { }))
+        cfg.network_config = DSNodeConfig.from_dict({
+            "node_id": data.get("node_id", ""),
+            "aes_key": data.get("network_key", None),
+            "network_ip": data.get("network_ip", None),
+            "port": data.get("peer_port", 5000),
+            "whitelist_ips": data.get("whitelist_ips", []),
+            "whitelist_node_ids": data.get("whitelist_node_ids", [])
+        })
         
         cfg._file_path = file_path
 

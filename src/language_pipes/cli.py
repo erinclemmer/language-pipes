@@ -88,7 +88,7 @@ def main(argv=None):
             print(f"ERROR: {config_file} not found")
             return
 
-        LpRunner(Path(config_file))
+        LpRunner(Path(config_file), config_args.set_overrides)
         
     elif args.command == "config":
         config_args = ConfigurationArgs(args)

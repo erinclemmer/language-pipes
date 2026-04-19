@@ -45,11 +45,13 @@ class NetworkProvider:
         self.set_router(None)
 
     # Network / Status
-    def start_network(self):
+    def start_network(self, config: Optional[DSNodeConfig] = None):
         if self.router_starting or self.router_stopping:
             return
         
-        config = self.get_network_config()
+        if config is None:
+            config = self.get_network_config() 
+        
         if config.node_id is None:
             return
         

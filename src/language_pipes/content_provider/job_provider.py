@@ -66,7 +66,7 @@ class JobProvider:
         cfg.api_keys = keys
         cfg.save()
 
-    def start_oai_server(self):
+    def start_oai_server(self, cfg: Optional[LpConfig] = None):
         router_pipes = self.get_router_pipes()
         model_manager = self.get_model_manager()
         pipe_manager = self.get_pipe_manager()
@@ -91,7 +91,9 @@ class JobProvider:
             available_models = router_pipes.get_models(0)
             return [m.model_id for m in model_manager.end_models if m.model_id in available_models]
 
-        cfg = LpConfig.from_file(self.config_file)
+        if cfg is None:
+            cfg = LpConfig.from_file(self.config_file)
+        
         self.oai_server = OAIHttpServer(
             api_keys=cfg.api_keys,
             port=cfg.oai_port,
