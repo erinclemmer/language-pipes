@@ -1,9 +1,7 @@
 import io
 import os
-import toml
 import shutil
 from enum import Enum
-import torch
 from tqdm.auto import tqdm
 from pathlib import Path
 from threading import Thread
@@ -244,26 +242,38 @@ class ModelProvider:
 
         Thread(target=host_end_model, args=()).start()
 
-    def shutdown_models(self, model_id: str):
+    def shutdown_layer_models(self, model_id: str):
         rp = self.get_router_pipes()
         if rp is None:
             return
-        def shutdown():
-            self.get_model_manager().shutdown_models(rp, model_id)
-        Thread(target=shutdown, args=()).start()
+        def shutdown_layer_models():
+            self.get_model_manager().shutdown_layer_models(rp, model_id)
+        Thread(target=shutdown_layer_models, args=()).start()
 
     def shutdown_end_model(self, model_id: str):
-        self.get_model_manager().shutdown_end_model(model_id)
+        def shutdown_end_model():
+            self.get_model_manager().shutdown_end_model(model_id)
+        Thread(target=shutdown_end_model, args=()).start()
 
     @staticmethod
-    def get_models_to_load(config_file: Path) -> List[ModelToLoad]:
+    def get_layer_models(config_file: Path) -> List[ModelToLoad]:
         cfg = LpConfig.from_file(config_file)
         return cfg.layer_models
 
     @staticmethod
-    def save_models_to_load(config_file: Path, models: List[ModelToLoad]):
+    def save_layer_models(config_file: Path, models: List[ModelToLoad]):
         cfg = LpConfig.from_file(config_file)
         cfg.layer_models = models
+        cfg.save()
+
+    @staticmethod
+    def get_end_models(config_file: Path) -> List[str]:
+        return LpConfig.from_file(config_file).end_models
+
+    @staticmethod
+    def save_end_models(config_file: Path, end_models: List[str]):
+        cfg = LpConfig.from_file(config_file)
+        cfg.end_models = end_models
         cfg.save()
 
     @staticmethod

@@ -119,7 +119,7 @@ class ModelManager:
             if model.pipe_id not in self.pipes_hosted[model.model_id]:
                 self.pipes_hosted[model.model_id].append(model.pipe_id)
 
-    def shutdown_models(self, router_pipes: RouterPipes, model_id: str):
+    def shutdown_layer_models(self, router_pipes: RouterPipes, model_id: str):
         to_remove = []
         for model in self.models:
             if model.model_id == model_id:
