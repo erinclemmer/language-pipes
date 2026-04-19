@@ -4,7 +4,7 @@
 
 ```bash
 language-pipes                                  # Launch interactive TUI
-language-pipes serve -c config.toml             # Run headless
+language-pipes run -c config.toml               # Run headless
 language-pipes config show -c config.toml       # Print effective configuration
 language-pipes config validate -c config.toml   # Validate and exit
 language-pipes keygen [output]                  # Generate AES encryption key
@@ -25,21 +25,26 @@ language-pipes keygen [output]                  # Generate AES encryption key
 
 Launches the interactive TUI for creating, viewing, editing, and loading configurations.
 
-In TUI mode the configuration file is authoritative. Environment variables and flags do not override config values. The exceptions are machine-local settings (`LP_APP_DIR`, `LP_MODEL_DIR`, `LP_HUGGINGFACE_TOKEN`, `LP_LOGGING_LEVEL`) which describe the host environment rather than the node's behavior.
+In TUI mode the configuration file is authoritative. Environment variables and flags do not override config values. The exceptions are machine-local settings (`LP_APP_DIR`, `LP_MODEL_DIR`, `LP_HUGGINGFACE_TOKEN`) which describe the host environment rather than the node's behavior.
 
 ```bash
 language-pipes
 ```
 
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--config FILE` | `-c` | Load configuration from TOML file | Show Main Menu |
+| `--start` | | Skip startup confirmation and begin serving immediately | `false` |
+
 ---
 
-### `serve`
+### `run`
 
 Start a Language Pipes server node without the TUI.
 
 **Format:**
 ```bash
-language-pipes serve -c FILE [OPTIONS]
+language-pipes run -c FILE [OPTIONS]
 ```
 
 Configuration is resolved with the following precedence (highest to lowest):
@@ -61,18 +66,14 @@ See [Configuration](./configuration.md) for all available properties, types, and
 | `--end-models MODEL...` | | Model IDs for which to load end models | |
 | `--log-file PATH` | | Write log output to a file in addition to stdout | None |
 | `--log-format FORMAT` | | `text` (default) or `json` | `text` |
-| `--log-level LEVEL` | `-l` | Log verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR` | `INFO` |
-| `--status-interval SECONDS` | | Seconds between status summary lines in log output | `30` |
-| `--autostart` | | Skip startup confirmation and begin serving immediately | `false` |
 
 The `--set` flag accepts any TOML property name and can be repeated:
 
 ```bash
-language-pipes serve -c config.toml \
+language-pipes run -c config.toml \
   --set node_id=node-4 \
   --set peer_port=5001 \
-  --set oai_port=9000 \
-  --set logging_level=DEBUG
+  --set oai_port=9000
 ```
 
 #### Model Specification
@@ -82,7 +83,7 @@ language-pipes serve -c config.toml \
 Layer models are specified as comma-separated `key=value` pairs:
 
 ```bash
---layer-models "id=MODEL,device=DEVICE,memory=GB"
+--set layer-models="id=MODEL,device=DEVICE,memory=GB"
 ```
 
 | Key | Example |
@@ -111,7 +112,7 @@ language-pipes config show -c FILE [OPTIONS]
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--config FILE` | `-c` | Configuration file to resolve | 
-| `--set KEY=VALUE` | | Override a property (same as `serve`) |
+| `--set KEY=VALUE` | | Override a property (same as `run`) |
 
 **Example:**
 
@@ -148,7 +149,7 @@ language-pipes config validate -c FILE [OPTIONS]
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--config FILE` | `-c` | Configuration file to validate |
-| `--set KEY=VALUE` | | Override a property (same as `serve`) |
+| `--set KEY=VALUE` | | Override a property (same as `run`) |
 
 **Example:**
 
@@ -187,13 +188,13 @@ language-pipes keygen network.key
 ### Start with a config file
 
 ```bash
-language-pipes serve -c config.toml
+language-pipes run -c config.toml
 ```
 
 ### Override config values
 
 ```bash
-language-pipes serve -c config.toml \
+language-pipes run -c config.toml \
   --set logging_level=DEBUG \
   --set oai_port=8080
 ```
@@ -201,7 +202,7 @@ language-pipes serve -c config.toml \
 ### Start a standalone node (no config file)
 
 ```bash
-language-pipes serve -c minimal.toml \
+language-pipes run -c minimal.toml \
   --set node_id=node-1 \
   --set oai_port=8000 \
   --layer-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4" \
@@ -211,14 +212,14 @@ language-pipes serve -c minimal.toml \
 ### Join an existing network
 
 ```bash
-language-pipes serve -c config.toml \
+language-pipes run -c config.toml \
   --set bootstrap_address=192.168.1.100
 ```
 
 ### Host multiple models
 
 ```bash
-language-pipes serve -c config.toml \
+language-pipes run -c config.toml \
   --layer-models \
     "id=Qwen/Qwen3-1.7B,device=cpu,memory=4" \
     "id=Qwen/Qwen3-0.6B,device=cuda:0,memory=2" \
@@ -232,13 +233,13 @@ export LP_NODE_ID="node-1"
 export LP_OAI_PORT="8000"
 export LP_LAYER_MODELS="id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
 
-language-pipes serve -c config.toml
+language-pipes run -c config.toml
 ```
 
 ### Run with logging to file
 
 ```bash
-language-pipes serve -c node4.toml \
+language-pipes run -c node4.toml \
   --log-file node4.log \
   --status-interval 60
 ```
@@ -246,7 +247,7 @@ language-pipes serve -c node4.toml \
 ### Log to file and terminal simultaneously
 
 ```bash
-language-pipes serve -c node4.toml | tee node4.log
+language-pipes run -c node4.toml | tee node4.log
 ```
 
 ### Check what would run before starting
