@@ -1,21 +1,95 @@
 # Configuration File Reference
 
-This document describes the TOML configuration file format for Language Pipes.
+This document describes the TOML configuration file format and command-line interface for Language Pipes.
 
-For command-line usage, see the [CLI Reference](./cli.md).
+---
+
+## Commands
+
+```
+language-pipes                                  # Launch interactive TUI
+language-pipes serve -c config.toml             # Run headless
+language-pipes config show -c config.toml       # Print effective configuration
+language-pipes config validate -c config.toml   # Validate and exit
+language-pipes keygen                           # Generate AES encryption key
+```
+
+### `language-pipes`
+
+Launches the interactive TUI. In this mode the configuration file is authoritative — environment variables and flags do not override config values. The exceptions are machine-local settings (`LP_APP_DIR`, `LP_MODEL_DIR`, `LP_HUGGINGFACE_TOKEN`, `LP_LOGGING_LEVEL`) which are respected because they describe the host environment, not the node's behavior.
+
+### `language-pipes serve`
+
+Runs the server without the TUI. Configuration is resolved with the following precedence (highest to lowest):
+
+1. Environment variables (`LP_*`)
+2. `--set` flags
+3. Configuration file (`-c`)
+4. Defaults
+
+```
+language-pipes serve -c config.toml \
+  --set node_id=node-4 \
+  --set peer_port=5001 \
+  --log-file node4.log \
+  --log-format text \
+  --status-interval 30
+```
+
+| Flag | Description |
+|------|-------------|
+| `-c`, `--config` | Path to TOML configuration file (required) |
+| `--set KEY=VALUE` | Override a config property using its TOML key name. Repeatable. |
+| `--log-file PATH` | Write log output to a file in addition to stdout |
+| `--log-format` | `text` (default) or `json`. Controls log output format. |
+| `--log-level` | Override logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `--status-interval` | Seconds between status summary lines (default: `30`) |
+| `--autostart` | Skip startup confirmation and begin serving immediately |
+
+### `language-pipes config show`
+
+Resolves the full precedence chain (environment, `--set` flags, config file, defaults) and prints the effective configuration as valid TOML with source annotations.
+
+```
+$ LP_OAI_PORT=9000 language-pipes config show -c node4.toml
+
+# Effective configuration
+# Sources: node4.toml + environment
+
+node_id = "node-4"                    # node4.toml
+oai_port = 9000                       # LP_OAI_PORT (env)
+peer_port = 5000                      # node4.toml
+logging_level = "INFO"                # default
+```
+
+The output is valid TOML (comments aside) and can be piped to a file to materialize a resolved configuration:
+
+```
+language-pipes config show -c node4.toml > resolved.toml
+```
+
+### `language-pipes config validate`
+
+Resolves configuration the same way as `config show`, validates all values, and exits with code `0` on success or `1` on failure. Useful for CI and pre-flight checks.
+
+```
+language-pipes config validate -c node4.toml
+```
+
+### `language-pipes keygen`
+
+Generates an AES encryption key file for encrypted peer-to-peer communication.
 
 ---
 
 ## Minimal Configuration
 
-These configuration options will:
-- Load "Qwen/Qwen3-1.7B" into memory with all layers and the end model
-- Start an Open AI compatable server on port 8000
+This configuration will load "Qwen/Qwen3-1.7B" into memory with all layers and the end model, and start an OpenAI-compatible server on port 8000:
 
 ```toml
 node_id = "my-node"
 network_ip = "[Your local IP address]"
-openai_port = 8000
+oai_port = 8000
 
 [[layer_models]]
 id = "Qwen/Qwen3-1.7B"
@@ -126,7 +200,7 @@ end_models = ["Qwen/Qwen3-1.7B"]
 
 **About End Models:**
 
-The "ends" of a model are the embedding layer and output head—the components that convert between text and numerical representations. The node with a model in its `end_models` list is the **only node that can see your actual prompts and responses** for that model. Other nodes only process hidden state tensors and cannot read the conversation content.
+The "ends" of a model are the embedding layer and output head — the components that convert between text and numerical representations. The node with a model in its `end_models` list is the **only node that can see your actual prompts and responses** for that model. Other nodes only process hidden state tensors and cannot read the conversation content.
 
 ```toml
 # Privacy-preserving setup: you control the End Model
@@ -150,7 +224,6 @@ id = "meta-llama/Llama-3.2-1B-Instruct"
 device = "cuda:0"
 max_memory = 8
 
-# Load end models for both
 end_models = ["Qwen/Qwen3-1.7B", "meta-llama/Llama-3.2-1B-Instruct"]
 ```
 
@@ -170,10 +243,9 @@ oai_port = 8000
 |------|---------|
 | int | None (disabled) |
 
-
 #### `api_keys`
 
-List of keys that are acceptable to use for the OpenAI compatable server. [See official documentation for more information](https://developers.openai.com/api/reference/overview/)
+List of keys that are acceptable to use for the OpenAI-compatible server. [See official documentation for more information](https://developers.openai.com/api/reference/overview/).
 
 ```toml
 api_keys = ["test_key"]
@@ -181,19 +253,7 @@ api_keys = ["test_key"]
 
 | Type | Default |
 |------|---------|
-| str | None (disabled) |
-
-#### `logging_level`
-
-Log verbosity. See [Python logging levels](https://docs.python.org/3/library/logging.html#logging-levels).
-
-```toml
-logging_level = "INFO"
-```
-
-| Type | Default | Values |
-|------|---------|--------|
-| string | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| array of strings | None (disabled) |
 
 ---
 
@@ -301,6 +361,8 @@ model_validation = true
 |------|---------|
 | bool | `false` |
 
+---
+
 ### Directories
 
 #### `app_dir`
@@ -337,6 +399,18 @@ model_dir = "~/.cache/language_pipes/models"
 ---
 
 ### Other
+
+#### `logging_level`
+
+Log verbosity. See [Python logging levels](https://docs.python.org/3/library/logging.html#logging-levels).
+
+```toml
+logging_level = "INFO"
+```
+
+| Type | Default | Values |
+|------|---------|--------|
+| string | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
 #### `num_local_layers`
 
@@ -378,34 +452,36 @@ print_times = true
 
 ## Environment Variables
 
-Most properties can be set via environment variables with the `LP_` prefix:
+Most properties can be set via environment variables with the `LP_` prefix. In `serve` mode, environment variables take highest precedence. In TUI mode, only machine-local variables (`LP_APP_DIR`, `LP_MODEL_DIR`, `LP_HUGGINGFACE_TOKEN`, `LP_LOGGING_LEVEL`) are respected; all others are ignored.
 
-| Property | Environment Variable |
-|----------|---------------------|
-| `node_id` | `LP_NODE_ID` |
-| `layer_models` | `LP_LAYER_MODELS` |
-| `logging_level` | `LP_LOGGING_LEVEL` |
-| `oai_port` | `LP_OAI_PORT` |
-| `api_keys` | `LP_API_KEYS` |
-| `peer_port` | `LP_PEER_PORT` |
-| `network_ip` | `LP_NETWORK_IP` |
-| `bootstrap_address` | `LP_BOOTSTRAP_ADDRESS` |
-| `bootstrap_port` | `LP_BOOTSTRAP_PORT` |
-| `network_key` | `LP_NETWORK_KEY` |
-| `whitelist_ips` | `LP_WHITELIST_IPS` |
-| `whitelist_node_ids` | `LP_WHITELIST_NODE_IDS` |
-| `num_local_layers` | `LP_NUM_LOCAL_LAYERS` |
-| `max_pipes` | `LP_MAX_PIPES` |
-| `model_validation` | `LP_MODEL_VALIDATION` |
-| `app_dir` | `LP_APP_DIR` |
-| `model_dir` | `LP_MODEL_DIR` |
-| `print_times` | `LP_PRINT_TIMES` |
+If an environment variable is set but ignored in TUI mode, a notice is printed at startup.
+
+| Property | Environment Variable | Respected in TUI |
+|----------|---------------------|:----------------:|
+| `node_id` | `LP_NODE_ID` | |
+| `layer_models` | `LP_LAYER_MODELS` | |
+| `logging_level` | `LP_LOGGING_LEVEL` | ✓ |
+| `oai_port` | `LP_OAI_PORT` | |
+| `api_keys` | `LP_API_KEYS` | |
+| `peer_port` | `LP_PEER_PORT` | |
+| `network_ip` | `LP_NETWORK_IP` | |
+| `bootstrap_address` | `LP_BOOTSTRAP_ADDRESS` | |
+| `bootstrap_port` | `LP_BOOTSTRAP_PORT` | |
+| `network_key` | `LP_NETWORK_KEY` | |
+| `whitelist_ips` | `LP_WHITELIST_IPS` | |
+| `whitelist_node_ids` | `LP_WHITELIST_NODE_IDS` | |
+| `num_local_layers` | `LP_NUM_LOCAL_LAYERS` | |
+| `max_pipes` | `LP_MAX_PIPES` | |
+| `model_validation` | `LP_MODEL_VALIDATION` | |
+| `app_dir` | `LP_APP_DIR` | ✓ |
+| `model_dir` | `LP_MODEL_DIR` | ✓ |
+| `print_times` | `LP_PRINT_TIMES` | |
 
 ### Authentication (Environment Variable Only)
 
 #### `LP_HUGGINGFACE_TOKEN`
 
-HuggingFace API token for downloading gated or private models (like Llama). This is only available as an environment variable for better security. You can also supply it at download time via a prompt.
+HuggingFace API token for downloading gated or private models (like Llama). This is only available as an environment variable for security. You can also supply it at download time via a prompt. Respected in both TUI and serve modes.
 
 Get your token from [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
 
@@ -418,12 +494,42 @@ language-pipes serve -c config.toml
 
 ---
 
+## Logging Output
+
+In `serve` mode, Language Pipes emits a line-oriented log stream to stdout (and optionally to `--log-file`). This stream contains two types of lines:
+
+**Event lines** are emitted when something happens:
+```
+[14:23:04] EVENT  peer-connected node=node-3 address=192.168.0.3
+[14:23:07] EVENT  model-loaded id=Qwen/Qwen3-1.7B layers=4-11 device=cpu
+[14:23:09] EVENT  inference-complete job=af29 model=Qwen/Qwen3-1.7B time=1.2s
+```
+
+**Status lines** are emitted at the interval set by `--status-interval`:
+```
+[14:23:30] STATUS peers=3 layers=8/24 mem=2.1G reqs=147 uptime=2h13m
+```
+
+With `--log-format json`, each line is a self-contained JSON object:
+```json
+{"time":"14:23:04","type":"event","event":"peer-connected","node":"node-3","address":"192.168.0.3"}
+{"time":"14:23:30","type":"status","peers":3,"layers":"8/24","mem":"2.1G","reqs":147,"uptime":"2h13m"}
+```
+
+All output is 80 columns or fewer and contains no ANSI escape codes, so it works cleanly with `tee`, `grep`, `tail -f`, and other standard tools:
+
+```bash
+language-pipes serve -c node4.toml | tee node4.log
+```
+
+---
+
 ### Documentation
 * [CLI Reference](./cli.md)
 * [Privacy Protection](./privacy.md)
 * [Configuration Manual](./configuration.md)
 * [Architecture Overview](./architecture.md)
-* [Open AI Compatable API](./oai.md)
+* [OpenAI-Compatible API](./oai.md)
 * [Job Processor State Machine](./job-processor.md)
 * [The default peer to peer implementation](./distributed-state-network/README.md)
 * [The way Language Pipes abstracts from model architecture](./llm-layer-collector.md)
