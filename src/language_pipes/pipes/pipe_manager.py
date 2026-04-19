@@ -1,7 +1,5 @@
 from typing import Optional
 
-from language_pipes.config import LpConfig
-
 from language_pipes.pipes.pipe import Pipe
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.pipes.router_pipes import RouterPipes
@@ -10,7 +8,6 @@ from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.util.config import default_model_dir
 
 class PipeManager:
-    config: LpConfig
     router_pipes: RouterPipes
     model_manager: ModelManager
 

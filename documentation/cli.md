@@ -34,7 +34,7 @@ language-pipes
 | Flag | Short | Description | Default |
 |------|-------|-------------|---------|
 | `--config FILE` | `-c` | Load configuration from TOML file | Show Main Menu |
-| `--start` | | Skip startup confirmation and begin serving immediately | `false` |
+| `--start` | `-s` | Skip startup confirmation and begin serving immediately | `false` |
 
 ---
 
@@ -61,11 +61,9 @@ See [Configuration](./configuration.md) for all available properties, types, and
 | Flag | Short | Description | Default |
 |------|-------|-------------|---------|
 | `--config FILE` | `-c` | Load configuration from TOML file | Required |
-| `--set KEY=VALUE` | | Override a config property by its TOML key name. Repeatable. | |
+| `--set KEY=VALUE` | `-s` | Override a config property by its TOML key name. Repeatable. | |
 | `--layer-models MODEL...` | | Models to host (see Model Specification below) | |
 | `--end-models MODEL...` | | Model IDs for which to load end models | |
-| `--log-file PATH` | | Write log output to a file in addition to stdout | None |
-| `--log-format FORMAT` | | `text` (default) or `json` | `text` |
 
 The `--set` flag accepts any TOML property name and can be repeated:
 
@@ -100,7 +98,7 @@ End models are specified as a list of model IDs:
 
 ---
 
-### `config show`
+### `config`
 
 Resolve the full precedence chain (environment variables, `--set` flags, config file, defaults) and print the effective configuration as valid TOML with source annotations.
 
@@ -112,12 +110,14 @@ language-pipes config show -c FILE [OPTIONS]
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--config FILE` | `-c` | Configuration file to resolve | 
-| `--set KEY=VALUE` | | Override a property (same as `run`) |
+| `--set KEY=VALUE` | `-s` | Override a property (same as `run`) |
+| `--layer-models MODEL...` | | Models to host | |
+| `--end-models MODEL...` | | Model IDs for which to load end models | |
 
 **Example:**
 
 ```bash
-$ LP_OAI_PORT=9000 language-pipes config show -c node4.toml --set peer_port=5001
+$ LP_OAI_PORT=9000 language-pipes config -c node4.toml --set peer_port=5001
 
 # Effective configuration
 # Sources: node4.toml + environment + flags
@@ -132,36 +132,8 @@ logging_level = "INFO"                # default
 The output (minus comments) is valid TOML and can be piped to a file to materialize a fully resolved configuration:
 
 ```bash
-language-pipes config show -c node4.toml > resolved.toml
+language-pipes config -c node4.toml > resolved.toml
 ```
-
----
-
-### `config validate`
-
-Resolve configuration the same way as `config show`, validate all values, and exit. Returns exit code `0` on success, `1` on failure. Useful for CI and pre-flight checks.
-
-**Format:**
-```bash
-language-pipes config validate -c FILE [OPTIONS]
-```
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--config FILE` | `-c` | Configuration file to validate |
-| `--set KEY=VALUE` | | Override a property (same as `run`) |
-
-**Example:**
-
-```bash
-$ language-pipes config validate -c node4.toml
-✓ Configuration valid
-
-$ language-pipes config validate -c broken.toml
-✗ layer_models[0].device: "tpu" is not a valid PyTorch device
-```
-
----
 
 ### `keygen`
 

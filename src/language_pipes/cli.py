@@ -1,6 +1,7 @@
-from importlib import resources
 import toml
 import argparse
+from typing import List, Dict
+from importlib import resources
 
 VERSION = (
     resources.files("language_pipes")
@@ -9,249 +10,111 @@ VERSION = (
     .strip()
 )
 
-
-def build_parser():
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="Language Pipes",
-        description="A privacy focused distributed algorithm for llm inference",
+        description="Peer-to-peer distributed inference for open-source language models",
     )
 
     parser.add_argument("-v", "--version", action="version", version=VERSION)
+    parser.add_argument("-c", "config", help="Load configuration from TOML file")
+    parser.add_argument("-s", "start", help="Start running all configured services immediately", default=False)
 
     subparsers = parser.add_subparsers(dest="command")
+    
+    # Run
+    run_parser = subparsers.add_parser("run", help="Start Language Pipes as a stdout stream without the TUI")
+    
+    run_parser.add_argument("-c", "config", help="Load configuration from TOML file", required=True)
+    run_parser.add_argument("-s", "set", help="Override config property by its TOML key name. Repeatable", dest="set_overrides", action="append", metavar="KEY=VALUE")
 
-    # TUI
-    subparsers.add_parser("tui", help="Start Language Pipes in TUI mode")
+    run_parser.add_argument("layer-models", help="Models to host", nargs="*", metavar="MODEL")
+    run_parser.add_argument("end-models", help="Model IDs for which to load end models", nargs="*", metavar="END")
 
-    # Upgrade
-    subparsers.add_parser("upgrade", help="Upgrade Language Pipes package")
-
-    # Key Generation
-    create_key_parser = subparsers.add_parser("keygen", help="Generate AES key")
-    create_key_parser.add_argument(
+    # Config
+    config_parser = subparsers.add_parser("config", help="Verify configuration file and flags")
+    config_parser.add_argument("-c", "config", help="Configuration file to resolve")
+    config_parser.add_argument("-s", "set", help="Override a property (same as run)", dest="set_overrides", action="append", metavar="KEY=VALUE")
+    
+    config_parser.add_argument("layer-models", help="Models to host", nargs="*", metavar="MODEL")
+    config_parser.add_argument("end-models", help="Model IDs for which to load end models", nargs="*", metavar="END")
+    
+    # Keygen
+    keygen_parser = subparsers.add_parser("keygen", help="Generate AES encryption key")
+    keygen_parser.add_argument(
         "output",
         nargs="?",
         help="Output file for AES key (default: network.key)",
         default="network.key",
     )
 
-    # Initialize
-    init = subparsers.add_parser("init", help="Create a new configuration file")
-    init.add_argument(
-        "output",
-        nargs="?",
-        default="config.toml",
-        help="Output file name to write to (default: config.toml)",
-    )
-
-    # run command
-    run_parser = subparsers.add_parser("serve", help="Start Language Pipes server")
-    run_parser.add_argument("-c", "--config", help="Path to TOML config file")
-    run_parser.add_argument(
-        "-l",
-        "--logging-level",
-        help="Logging verbosity (Default: INFO)",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-    )
-    run_parser.add_argument(
-        "--openai-port", type=int, help="Open AI server port (Default: none)"
-    )
-    run_parser.add_argument(
-        "--app-data-dir",
-        type=str,
-        help="Application data directory for language pipes (default: ~/.config/language_pipes)",
-    )
-    run_parser.add_argument(
-        "--model-dir",
-        type=str,
-        help="Directory to store model data (default: ~/.cache/language_pipes/models)",
-    )
-    run_parser.add_argument("--node-id", help="Node ID for the network (Required)")
-    run_parser.add_argument(
-        "--app-dir", type=str, help="Directory to store data for this application"
-    )
-    run_parser.add_argument(
-        "--api-keys",
-        nargs="*",
-        metavar="API_KEY",
-        help="API key(s) for the Open AI compatable server",
-    )
-    run_parser.add_argument(
-        "--peer-port", type=int, help="Port for peer-to-peer network (Default: 5000)"
-    )
-    run_parser.add_argument(
-        "--bootstrap-address", help="Bootstrap node address (e.g. 192.168.1.100)"
-    )
-    run_parser.add_argument(
-        "--bootstrap-port",
-        type=int,
-        help="Bootstrap node port for the network (e.g. 8000)",
-    )
-    run_parser.add_argument(
-        "--max-pipes", type=int, help="Maximum amount of pipes to host"
-    )
-    run_parser.add_argument("--network-key", type=str, help="AES key to access network")
-    run_parser.add_argument(
-        "--whitelist-ips",
-        nargs="*",
-        metavar="IP",
-        help="Only communicate with peers whose IP is in this whitelist",
-    )
-    run_parser.add_argument(
-        "--whitelist-node-ids",
-        nargs="*",
-        metavar="NODE_ID",
-        help="Only communicate with peers whose node_id is in this whitelist",
-    )
-    run_parser.add_argument(
-        "--model-validation",
-        help="Whether to validate the model weight hashes when connecting to a pipe.",
-        action="store_true",
-    )
-    run_parser.add_argument(
-        "--layer-models",
-        nargs="*",
-        metavar="MODEL",
-        help="Layer models as key=value pairs: id=MODEL,device=DEVICE,memory=GB (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4)",
-    )
-    run_parser.add_argument(
-        "--end-models",
-        nargs="*",
-        metavar="END",
-        help='End models to host as model IDs like "Qwen/Qwen3-1.7B"',
-    )
-    run_parser.add_argument(
-        "--num-local-layers",
-        type=int,
-        help="Number of local layers to run on your machine. More layers means better prompt obfuscation",
-    )
-    run_parser.add_argument(
-        "--prefill-chunk-size",
-        help="Number of tokens to process for each batch in prefill",
-        type=int,
-    )
-
     return parser
 
+class ConfigurationArgs:
+    config_file: str
+    set_overrides: Dict[str, str]
+    layer_models: List[str]
+    end_models: List[str]
 
-def apply_overrides(data, args):
-    app_dir_arg = args.app_dir
-    if app_dir_arg is None and hasattr(args, "app_data_dir"):
-        app_dir_arg = args.app_data_dir
+    def __init__(self, args):
+        self.config_file = args.config
+        self.set_overrides = self.parse_set_overrides(getattr(args, "set_overrides", []))
+        self.layer_models = self.parse_layer_models(getattr(args, "layer_models", []))
+        self.end_models = getattr(args, "end_models", [])
 
-    cli_args = {
-        "logging_level": args.logging_level,
-        "openai_port": args.openai_port,
-        "api_keys": args.api_keys,
-        "app_dir": app_dir_arg,
-        "node_id": args.node_id,
-        "peer_port": args.peer_port,
-        "bootstrap_address": args.bootstrap_address,
-        "bootstrap_port": args.bootstrap_port,
-        "network_key": args.network_key,
-        "whitelist_ips": args.whitelist_ips,
-        "whitelist_node_ids": args.whitelist_node_ids,
-        "model_validation": args.model_validation,
-        "max_pipes": args.max_pipes,
-        "layer_models": args.layer_models,
-        "end_models": args.end_models,
-        "prefill_chunk_size": args.prefill_chunk_size,
-        "num_local_layers": args.num_local_layers,
-        "model_dir": args.model_dir,
-    }
+    def parse_set_overrides(self, values: List[str]) -> Dict[str, str]:
+        overrides = {}
+        for item in values:
+            key, value = item.split("=", 1)
+            try:
+                overrides[key] = toml.loads(f"x = {value}")["x"]
+            except toml.TomlDecodeError:
+                overrides[key] = value
+        return overrides
 
-    from language_pipes.config import apply_env_overrides  # noqa: E402
-
-    config = apply_env_overrides(data, cli_args)
-
-    if config["node_id"] is None:
-        print("Error: node_id param is not supplied in config")
-        exit()
-
-    return config
-
+    def parse_layer_models(self, layer_models: List[str]):
+        result = []
+        for m in layer_models:
+            model_config = { }
+            for pair in m.split(","):
+                if "=" not in pair:
+                    raise ValueError(
+                        f"Invalid format '{pair}' in '{m}'. "
+                        "Expected key=value pairs (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4)"
+                    )
+                key, value = pair.split("=", 1)
+                model_config[key.strip()] = value.strip()
+            
+            required_keys = {"id", "device", "memory"}
+            missing = required_keys - set(model_config.keys())
+            if missing:
+                raise ValueError(f"Missing required keys {missing} in '{m}'")
+            
+            result.append({
+                "id": model_config["id"],
+                "device": model_config["device"],
+                "memory": float(model_config["memory"])
+            })
+        
+        return result
 
 def main(argv=None):
     parser = build_parser()
-    args = []
-    if argv is None:
-        args = parser.parse_args()
-    else:
-        args = parser.parse_args(argv)
+    args = parser.parse_args() if argv is None else parser.parse_args(argv)
 
-    # Default to "start" command if no command given
     if args.command is None:
-        args.command = "start"
-        args.config = "config.toml"
-        args.key = "network.key"
-
-    if args.command == "keygen":
-        from language_pipes.util.aes import save_new_aes_key  # noqa: E402
-
-        key = save_new_aes_key(args.output)
-        print(f"✓ Network key generated: {key}")
-        print(f"✓ Network key saved to '{args.output}'")
-    elif args.command == "init":
-        from language_pipes.commands.initialize import interactive_init  # noqa: E402
-
-        interactive_init(args.output)
-    elif args.command == "tui":
         from language_pipes.tui import initialize_tui
 
         initialize_tui()
-    elif args.command == "start":
-        try:
-            from language_pipes.commands.start import start_wizard  # noqa: E402
-
-            return start_wizard(VERSION)
-        except KeyboardInterrupt:
-            exit()
-    elif args.command == "serve":
-        data = {}
-        if args.config is not None:
-            with open(args.config, "r", encoding="utf-8") as f:
-                data = toml.load(f)
-        data = apply_overrides(data, args)
-
-        from language_pipes.config import LpConfig
-
-        config = LpConfig.from_dict(data)
-
-        print(config.to_string())
-
-        from language_pipes.distributed_state_network import DSNodeConfig, DSNodeServer  # noqa: E402
-
-        router_config = DSNodeConfig.from_dict(
-            {
-                "node_id": data["node_id"],
-                "port": data.get("peer_port", 5000),
-                "network_ip": data.get("network_ip", None),
-                "aes_key": data.get("network_key", None),
-                "whitelist_ips": data.get("whitelist_ips", []),
-                "whitelist_node_ids": data.get("whitelist_node_ids", []),
-                "bootstrap_nodes": [
-                    {
-                        "address": data["bootstrap_address"],
-                        "port": data["bootstrap_port"],
-                    }
-                ]
-                if data.get("bootstrap_address") is not None
-                else [],
-            }
-        )
-
-        print(router_config.to_string())
-
-        router = DSNodeServer.start(router_config)
-
-        from language_pipes.lp import LanguagePipes  # noqa: E402
-
-        app = LanguagePipes(config, router)
-        return app
-    else:
-        parser.print_usage()
-        exit(1)
-
+        pass
+    elif args.command == "run":
+        config_args = ConfigurationArgs(args)
+        # Start headless
+        pass
+    elif args.command == "config":
+        config_args = ConfigurationArgs(args)
+        # Validate config
+        pass
 
 if __name__ == "__main__":
     main()
