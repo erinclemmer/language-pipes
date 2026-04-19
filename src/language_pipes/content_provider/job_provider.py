@@ -32,39 +32,37 @@ class JobProvider:
     job_tracker: Optional[JobTracker]
     job_factory: Optional[JobFactory]
     job_receiver: Optional[JobReceiver]
+    config_file: Path
     get_router_pipes: Callable[[], Optional[RouterPipes]]
     get_model_manager: Callable[[], Optional[ModelManager]]
     get_pipe_manager: Callable[[], Optional[PipeManager]]
 
-    def __init__(self, get_router_pipes: Callable, get_model_manager: Callable, get_pipe_manager: Callable):
+    def __init__(self, config_file: Path, get_router_pipes: Callable, get_model_manager: Callable, get_pipe_manager: Callable):
         self.get_router_pipes = get_router_pipes
         self.get_model_manager = get_model_manager
         self.get_pipe_manager = get_pipe_manager
+        self.config_file = config_file
         self.job_tracker = None
         self.job_factory = None
         self.job_receiver = None
         self.oai_server = None
         self.oai_thread = None
 
-    @staticmethod
-    def get_oai_port(config_file: Path) -> int:
-        cfg = LpConfig.from_file(config_file)
+    def get_oai_port(self) -> int:
+        cfg = LpConfig.from_file(self.config_file)
         return cfg.oai_port
     
-    @staticmethod
-    def set_oai_port(config_file: Path, port: int):
-        cfg = LpConfig.from_file(config_file)
+    def set_oai_port(self, port: int):
+        cfg = LpConfig.from_file(self.config_file)
         cfg.oai_port = port
         cfg.save()
         
-    @staticmethod
-    def get_api_keys(config_file: Path) -> List[str]:
-        cfg = LpConfig.from_file(config_file)
+    def get_api_keys(self) -> List[str]:
+        cfg = LpConfig.from_file(self.config_file)
         return cfg.api_keys
         
-    @staticmethod
-    def set_api_keys(config_file: Path, keys: List[str]):
-        cfg = LpConfig.from_file(config_file)
+    def set_api_keys(self, keys: List[str]):
+        cfg = LpConfig.from_file(self.config_file)
         cfg.api_keys = keys
         cfg.save()
 

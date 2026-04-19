@@ -77,14 +77,16 @@ class ModelProvider:
     download_model_thread: Optional[Thread]
     download_message: Optional[str]
     downloading_to_folder: Optional[Path]
+    config_file: Path
 
     get_router_pipes: Callable[[], Optional[RouterPipes]]
     get_model_manager: Callable[[], ModelManager]
 
-    def __init__(self, get_model_manager: Callable, get_router_pipes: Callable):
+    def __init__(self, config_file: Path, get_model_manager: Callable, get_router_pipes: Callable):
         self.download_model_thread = None
         self.download_message = None
         self.downloading_to_folder = None
+        self.config_file = config_file
         self.get_model_manager = get_model_manager
         self.get_router_pipes = get_router_pipes
 
@@ -258,24 +260,20 @@ class ModelProvider:
             self.get_model_manager().shutdown_end_model(model_id)
         Thread(target=shutdown_end_model, args=()).start()
 
-    @staticmethod
-    def get_layer_models(config_file: Path) -> List[ModelToLoad]:
-        cfg = LpConfig.from_file(config_file)
+    def get_layer_models(self) -> List[ModelToLoad]:
+        cfg = LpConfig.from_file(self.config_file)
         return cfg.layer_models
 
-    @staticmethod
-    def save_layer_models(config_file: Path, models: List[ModelToLoad]):
-        cfg = LpConfig.from_file(config_file)
+    def save_layer_models(self, models: List[ModelToLoad]):
+        cfg = LpConfig.from_file(self.config_file)
         cfg.layer_models = models
         cfg.save()
 
-    @staticmethod
-    def get_end_models(config_file: Path) -> List[str]:
-        return LpConfig.from_file(config_file).end_models
+    def get_end_models(self) -> List[str]:
+        return LpConfig.from_file(self.config_file).end_models
 
-    @staticmethod
-    def save_end_models(config_file: Path, end_models: List[str]):
-        cfg = LpConfig.from_file(config_file)
+    def save_end_models(self, end_models: List[str]):
+        cfg = LpConfig.from_file(self.config_file)
         cfg.end_models = end_models
         cfg.save()
 
