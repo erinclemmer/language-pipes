@@ -1,43 +1,17 @@
-import os
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from language_pipes.util.config import default_config_dir, default_model_dir
-
-
-def get_env_config() -> Dict[str, Optional[str]]:
-    return {
-        "logging_level": os.getenv("LP_LOGGING_LEVEL"),
-        "oai_port": os.getenv("LP_OAI_PORT"),
-        "api_keys": os.getenv("LP_API_KEYS"),
-        "app_dir": os.getenv("LP_APP_DIR"),
-        "node_id": os.getenv("LP_NODE_ID"),
-        "peer_port": os.getenv("LP_PEER_PORT"),
-        "network_ip": os.getenv("LP_NETWORK_IP"),
-        "bootstrap_address": os.getenv("LP_BOOTSTRAP_ADDRESS"),
-        "bootstrap_port": os.getenv("LP_BOOTSTRAP_PORT"),
-        "network_key": os.getenv("LP_NETWORK_KEY"),
-        "whitelist_ips": os.getenv("LP_WHITELIST_IPS"),
-        "whitelist_node_ids": os.getenv("LP_WHITELIST_NODE_IDS"),
-        "model_validation": os.getenv("LP_MODEL_VALIDATION"),
-        "max_pipes": os.getenv("LP_MAX_PIPES"),
-        "layer_models": os.getenv("LP_LAYER_MODELS"),
-        "prefill_chunk_size": os.getenv("LP_PREFILL_CHUNK_SIZE"),
-        "num_local_layers": os.getenv("LP_NUM_LOCAL_LAYERS"),
-        "model_dir": os.getenv("LP_MODEL_DIR"),
-        "huggingface_token": os.getenv("LP_HUGGINGFACE_TOKEN"),
-    }
-
+from language_pipes.util.env_props import get_env_config
 
 def apply_env_overrides(data: Dict[str, Any], cli_args: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     env_map = get_env_config()
     cli_args = cli_args or {}
     
-    def precedence(key: str, cli_key: Optional[str] = None) -> Any:
+    def precedence(key: str) -> Any:
         """Get value with precedence: CLI > env > config file."""
         # Check CLI args first
-        arg_key = cli_key if cli_key else key
-        if arg_key in cli_args and cli_args[arg_key] is not None:
-            return cli_args[arg_key]
+        if key in cli_args and cli_args[key] is not None:
+            return cli_args[key]
         # Then environment variables
         if key in env_map and env_map[key] is not None:
             return env_map[key]
@@ -48,8 +22,8 @@ def apply_env_overrides(data: Dict[str, Any], cli_args: Optional[Dict[str, Any]]
 
     config = {
         "logging_level": precedence("logging_level"),
-        "oai_port": precedence("oai_port", "openai_port"),
-        "api_keys": precedence("api_keys", "api_keys"),
+        "oai_port": precedence("oai_port"),
+        "api_keys": precedence("api_keys"),
         "app_dir": precedence("app_dir"),
         "node_id": precedence("node_id"),
         "peer_port": precedence("peer_port"),
@@ -95,39 +69,6 @@ def apply_env_overrides(data: Dict[str, Any], cli_args: Optional[Dict[str, Any]]
 
     return config
 
-
-def parse_layer_models(layer_models: str | List[str] | Dict[str, Any] | List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    if isinstance(layer_models, str):
-        layer_models = [layer_models]
-    
-    result = []
-    for m in layer_models:
-        if isinstance(m, str):
-            model_config = {}
-            for pair in m.split(","):
-                if "=" not in pair:
-                    raise ValueError(
-                        f"Invalid format '{pair}' in '{m}'. "
-                        "Expected key=value pairs (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4)"
-                    )
-                key, value = pair.split("=", 1)
-                model_config[key.strip()] = value.strip()
-            
-            required_keys = {"id", "device", "memory"}
-            missing = required_keys - set(model_config.keys())
-            if missing:
-                raise ValueError(f"Missing required keys {missing} in '{m}'")
-            
-            result.append({
-                "id": model_config["id"],
-                "device": model_config["device"],
-                "max_memory": float(model_config["memory"])
-            })
-        else:
-            result.append(m)
-    
-    return result
-
 @dataclass
 class LayerModel:
     id: str
@@ -146,9 +87,6 @@ class LayerModel:
 class LpConfig:
     # Core settings
     node_id: str
-    app_dir: str
-    model_dir: str
-    logging_level: str
     
     # API server
     oai_port: Optional[int]
@@ -211,9 +149,6 @@ class LpConfig:
         return LpConfig(
             # Core settings
             node_id=data.get('node_id'),
-            logging_level=logging_level,
-            app_dir=app_dir,
-            model_dir=model_dir,
             
             # API server
             oai_port=data.get('oai_port', None),
