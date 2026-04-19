@@ -1,10 +1,10 @@
-from pathlib import Path
 from time import sleep
+from pathlib import Path
 from typing import Optional
 
 from language_pipes.content_loader import ContentLoader
-from language_pipes.content_provider.network_provider import RouterStatus
 from language_pipes.content_provider.providers import get_providers
+from language_pipes.content_provider.network_provider import RouterStatus
 from language_pipes.content_provider.provider_calls import ProviderCall
 
 class LpRunner:
@@ -22,6 +22,7 @@ class LpRunner:
         
     def log_output(self):
         while True:
+            # Consume all logs and wait for next loop
             status: Optional[RouterStatus] = self.loader.call_provider(ProviderCall.get_network_status)
             if status is not None:
                 for log in status.logs:
