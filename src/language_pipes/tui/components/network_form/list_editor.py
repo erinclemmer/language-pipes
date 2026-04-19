@@ -3,7 +3,7 @@ from typing import Callable, Generic, List, TypeVar
 
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
-from language_pipes.tui.content_loader import ContentLoader
+from language_pipes.content_loader import ContentLoader
 
 T = TypeVar("T")
 

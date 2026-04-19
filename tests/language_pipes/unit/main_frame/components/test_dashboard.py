@@ -7,7 +7,7 @@ from unittest.mock import Mock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
 
 from language_pipes.tui.components.home_dashboard import Dashboard
-from language_pipes.tui.frame.provider_calls import ProviderCall
+from language_pipes.content_provider.provider_calls import ProviderCall
 from language_pipes.tui.util.kb_utils import PressedKey
 
 

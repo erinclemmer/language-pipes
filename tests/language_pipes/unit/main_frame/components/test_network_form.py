@@ -12,7 +12,7 @@ class TestNetworkFormPage(unittest.TestCase):
     def _make_providers(self):
         from language_pipes.distributed_state_network.objects.config import DSNodeConfig
         from language_pipes.distributed_state_network.objects.endpoint import Endpoint
-        from language_pipes.tui.frame.provider_calls import ProviderCall
+        from language_pipes.content_provider.provider_calls import ProviderCall
 
         fake_config = DSNodeConfig(
             node_id="test-node",

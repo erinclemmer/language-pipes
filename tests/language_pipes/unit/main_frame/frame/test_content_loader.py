@@ -4,7 +4,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
-from language_pipes.tui.content_loader import ContentLoader
+from language_pipes.content_loader import ContentLoader
 
 class TestContentLoader(unittest.TestCase):
     """Unit tests for ContentLoader caching and provider dispatch."""
@@ -44,12 +44,12 @@ class TestContentLoader(unittest.TestCase):
         self.assertEqual(len(loader._cache), 0)
 
     def test_provider_available_false_when_none(self):
-        from language_pipes.tui.frame.provider_calls import ProviderCall
+        from language_pipes.content_provider.provider_calls import ProviderCall
         loader = ContentLoader(providers=None)
         self.assertFalse(loader.provider_available(ProviderCall.get_network_config))
 
     def test_provider_available_true_with_dict(self):
-        from language_pipes.tui.frame.provider_calls import ProviderCall
+        from language_pipes.content_provider.provider_calls import ProviderCall
         providers = {ProviderCall.get_network_config: lambda: None}
         loader = ContentLoader(providers=providers)
         self.assertTrue(loader.provider_available(ProviderCall.get_network_config))
@@ -57,7 +57,7 @@ class TestContentLoader(unittest.TestCase):
     def test_load_with_provider_calls_formatter(self):
         """When a provider is available, load should call it and format the result."""
         from language_pipes.distributed_state_network.objects.config import DSNodeConfig
-        from language_pipes.tui.frame.provider_calls import ProviderCall
+        from language_pipes.content_provider.provider_calls import ProviderCall
 
         fake_config = DSNodeConfig(
             node_id="test",

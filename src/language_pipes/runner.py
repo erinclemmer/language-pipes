@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from language_pipes.tui.content_loader import ContentLoader
-from language_pipes.tui.frame.provider_calls import ProviderCall
+from language_pipes.content_loader import ContentLoader
+from language_pipes.content_provider.provider_calls import ProviderCall
 from language_pipes.content_provider.providers import get_providers
 
 class LpRunner:

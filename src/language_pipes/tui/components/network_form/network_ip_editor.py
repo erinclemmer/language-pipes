@@ -2,7 +2,7 @@ from typing import Callable
 
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
-from language_pipes.tui.content_loader import ContentLoader, ProviderCall
+from language_pipes.content_loader import ContentLoader, ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.tui.components.network_form.util import validate_address
 

@@ -5,7 +5,7 @@ from language_pipes.tui.components.jobs_active import JobsActive
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
-from language_pipes.tui.content_loader import ContentLoader
+from language_pipes.content_loader import ContentLoader
 from language_pipes.tui.components.home_dashboard import Dashboard
 from language_pipes.tui.components.jobs_server import JobsServer
 from language_pipes.tui.components.models_hosted import ModelsHosted

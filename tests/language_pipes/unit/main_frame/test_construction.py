@@ -8,7 +8,7 @@ from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.components.exit_confirm import ExitConfirm
-from language_pipes.tui.content_loader import ContentLoader
+from language_pipes.content_loader import ContentLoader
 from language_pipes.tui.frame.frame_key_handler import FrameKeyHandler
 
 from tests.language_pipes.unit.main_frame.util import _make_main_frame

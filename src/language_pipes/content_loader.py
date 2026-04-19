@@ -1,6 +1,6 @@
 from typing import Any, Callable, Dict, Optional
 
-from language_pipes.tui.frame.provider_calls import ProviderCall
+from language_pipes.content_provider.provider_calls import ProviderCall
 
 class ContentLoader:
     provider: object

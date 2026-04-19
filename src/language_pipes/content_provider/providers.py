@@ -1,7 +1,7 @@
 from pathlib import Path
 
 def get_providers(config_file: Path):
-    from language_pipes.tui.frame.provider_calls import ProviderCall
+    from language_pipes.content_provider.provider_calls import ProviderCall
     from language_pipes.content_provider.model_provider import ModelProvider
     from language_pipes.content_provider.content_provider import ContentProvider
     from language_pipes.content_provider.network_provider import NetworkProvider

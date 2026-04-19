@@ -1,9 +1,9 @@
 import time
 from typing import Callable, List, Optional, Tuple
 
-from language_pipes.tui.content_loader import ContentLoader
+from language_pipes.content_loader import ContentLoader
 from language_pipes.content_provider.network_provider import RouterStatus
-from language_pipes.tui.frame.provider_calls import ProviderCall
+from language_pipes.content_provider.provider_calls import ProviderCall
 from language_pipes.tui.util.kb_utils import PressedKey
 
 
