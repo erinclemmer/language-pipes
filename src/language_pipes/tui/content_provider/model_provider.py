@@ -11,11 +11,12 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Callable, Tuple
 from huggingface_hub import snapshot_download, errors
 
+from language_pipes.global_config import GlobalConfig
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.distributed_state_network.util import stop_thread
-from language_pipes.util.config import default_model_dir, default_app_dir
+from language_pipes.util.config import get_model_dir, get_app_dir
 
 
 class ModelDownloadProgress(tqdm):
@@ -144,7 +145,7 @@ class ModelProvider:
     # Models / Installed
     @staticmethod
     def get_installed_models() -> List[str]:
-        models_dir = default_model_dir()
+        models_dir = get_model_dir()
 
         models = []
         if not os.path.exists(models_dir):
@@ -162,7 +163,7 @@ class ModelProvider:
 
     @staticmethod
     def delete_installed_model(model_name: str):
-        model_dir = Path(default_model_dir()) / model_name
+        model_dir = get_model_dir() / model_name
         if not os.path.exists(model_dir):
             return
         shutil.rmtree(model_dir)
@@ -170,7 +171,7 @@ class ModelProvider:
     def start_download(self, model_id: str):
         if self.download_model_thread is not None:
             return
-        clone_dir = Path(default_model_dir()) / model_id / "data"
+        clone_dir = get_model_dir() / model_id / "data"
         self.downloading_to_folder = clone_dir
         self.download_message = None
 
@@ -217,31 +218,14 @@ class ModelProvider:
         return str(ModelDownloadProgress.latest_instance)
 
     @staticmethod
-    def get_globals() -> Dict:
-        global_path = Path(default_app_dir()) / "globals.toml"
-        if not os.path.exists(global_path):
-            with open(global_path, "w", encoding="utf-8") as f:
-                toml.dump({}, f)
-
-        return toml.loads(global_path.read_text())
-
-    @staticmethod
-    def save_globals(data: Dict):
-        global_path = Path(default_app_dir()) / "globals.toml"
-        if not os.path.exists(global_path):
-            return
-        with open(global_path, "w", encoding="utf-8") as f:
-            toml.dump(data, f)
-
-    @staticmethod
     def get_hf_token() -> Optional[str]:
-        return ModelProvider.get_globals().get("hf_token", None)
+        cfg = GlobalConfig.from_file()
+        return cfg.hf_token
 
     @staticmethod
     def save_hf_token(token: str):
-        data = ModelProvider.get_globals()
-        data["hf_token"] = token
-        ModelProvider.save_globals(data)
+        cfg = GlobalConfig.from_file()
+        return cfg
 
     def host_model(self, model: ModelToLoad):
         rp = self.get_router_pipes()

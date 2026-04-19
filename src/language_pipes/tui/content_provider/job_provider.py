@@ -8,6 +8,7 @@ from typing import Callable, List, Optional, Tuple
 import toml
 import torch
 
+from language_pipes.config import LpConfig
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
@@ -48,37 +49,25 @@ class JobProvider:
 
     @staticmethod
     def get_oai_port(config_file: Path) -> int:
-        with open(config_file, 'r') as f:
-            data = toml.load(f)
-        
-        return data.get('oai_port', 8000)
+        cfg = LpConfig.from_file(config_file)
+        return cfg.oai_port
     
     @staticmethod
     def set_oai_port(config_file: Path, port: int):
-        with open(config_file, 'r') as f:
-            data = toml.load(f)
-
-        data['oai_port'] = port
-
-        with open(config_file, 'w') as f:
-            toml.dump(data, f)
-
+        cfg = LpConfig.from_file(config_file)
+        cfg.oai_port = port
+        cfg.save()
+        
     @staticmethod
     def get_api_keys(config_file: Path) -> List[str]:
-        with open(config_file, 'r') as f:
-            data = toml.load(f)
-
-        return data.get('api_keys', [])
-    
+        cfg = LpConfig.from_file(config_file)
+        return cfg.api_keys
+        
     @staticmethod
     def set_api_keys(config_file: Path, keys: List[str]):
-        with open(config_file, 'r') as f:
-            data = toml.load(f)
-            
-        data['api_keys'] = keys
-
-        with open(config_file, 'w') as f:
-            toml.dump(data, f)
+        cfg = LpConfig.from_file(config_file)
+        cfg.api_keys = keys
+        cfg.save()
 
     def start_oai_server(self, args: Tuple[int, List[str]]):
         port, oai_keys = args
