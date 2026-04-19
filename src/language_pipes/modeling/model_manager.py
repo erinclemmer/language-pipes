@@ -111,6 +111,14 @@ class ModelManager:
             m.load()
             router_pipes.update_model(m.to_meta())
 
+    def refresh_pipes_hosted(self):
+        self.pipes_hosted = { }
+        for model in self.models:
+            if model.model_id not in self.pipes_hosted:
+                self.pipes_hosted[model.model_id] = []
+            if model.pipe_id not in self.pipes_hosted[model.model_id]:
+                self.pipes_hosted[model.model_id].append(model.pipe_id)
+
     def shutdown_models(self, router_pipes: RouterPipes, model_id: str):
         to_remove = []
         for model in self.models:
@@ -123,6 +131,10 @@ class ModelManager:
         for m_id in to_remove:
             self.models = [m for m in self.models if m.process_id != m_id]
 
+        self.refresh_pipes_hosted()
+        gc.collect()
+
+    def shutdown_end_model(self, model_id: str):
         to_remove = []
         for model in self.end_models:
             if model.model_id == model_id:
@@ -133,11 +145,5 @@ class ModelManager:
         for m_id in to_remove:
             self.end_models = [m for m in self.end_models if m.process_id != m_id]
 
-        self.pipes_hosted = { }
-        for model in self.models:
-            if model.model_id not in self.pipes_hosted:
-                self.pipes_hosted[model.model_id] = []
-            if model.pipe_id not in self.pipes_hosted[model.model_id]:
-                self.pipes_hosted[model.model_id].append(model.pipe_id)
-
+        self.refresh_pipes_hosted()
         gc.collect()

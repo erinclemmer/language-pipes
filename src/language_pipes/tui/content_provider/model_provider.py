@@ -81,6 +81,7 @@ class ModelProvider:
     downloading_to_folder: Optional[Path]
 
     get_router_pipes: Callable[[], Optional[RouterPipes]]
+    get_model_manager: Callable[[], ModelManager]
 
     def __init__(self, get_model_manager: Callable, get_router_pipes: Callable):
         self.download_model_thread = None
@@ -225,9 +226,8 @@ class ModelProvider:
         if rp is None:
             return
 
-        def host():
-            mm: ModelManager = self.get_model_manager()
-            mm.host_model(
+        def host_layer_model():
+            self.get_model_manager().host_model(
                 node_id=rp.router.node_id(),
                 router_pipes=rp,
                 model_id=model.model_id,
@@ -236,10 +236,13 @@ class ModelProvider:
                 first_layer=0,
             )
 
-            if model.load_ends:
-                mm.load_end_model(model.model_id, "cpu", 0)
+        Thread(target=host_layer_model, args=()).start()
 
-        Thread(target=host, args=()).start()
+    def host_end_model(self, model_id: str):
+        def host_end_model():
+            self.get_model_manager().load_end_model(model_id, "cpu", 0)
+
+        Thread(target=host_end_model, args=()).start()
 
     def shutdown_models(self, model_id: str):
         rp = self.get_router_pipes()
@@ -248,6 +251,9 @@ class ModelProvider:
         def shutdown():
             self.get_model_manager().shutdown_models(rp, model_id)
         Thread(target=shutdown, args=()).start()
+
+    def shutdown_end_model(self, model_id: str):
+        self.get_model_manager().shutdown_end_model(model_id)
 
     @staticmethod
     def get_models_to_load(config_file: Path) -> List[ModelToLoad]:
