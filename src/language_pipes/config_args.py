@@ -1,12 +1,12 @@
 import toml
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 class ConfigurationArgs:
     config_file: Optional[str]
     auto_start: bool
-    set_overrides: Dict[str, str]
-    layer_models: List[str]
-    end_models: List[str]
+    set_overrides: Dict[str, Any]
+    layer_models: Optional[List[str]]
+    end_models: Optional[List[str]]
 
     def __init__(self, args):
         self.config_file = getattr(args, "config", None)
@@ -14,6 +14,12 @@ class ConfigurationArgs:
         self.set_overrides = self.parse_set_overrides(getattr(args, "set_overrides", []))
         self.layer_models = self.parse_layer_models(getattr(args, "layer_models", []))
         self.end_models = getattr(args, "end_models", [])
+        
+        if self.layer_models is not None and len(self.layer_models) == 0:
+            self.layer_models = None
+
+        if self.end_models is not None and len(self.end_models) == 0:
+            self.end_models = None
 
     def parse_set_overrides(self, values: List[str]) -> Dict[str, str]:
         overrides = {}

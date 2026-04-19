@@ -84,6 +84,47 @@ class LpConfig:
         if "whitelist_node_ids" in data:
             self.network_config.whitelist_node_ids = data["whitelist_node_ids"]
 
+    def to_string(self) -> str:
+        lines = [
+            "=" * 60,
+            "--- Configuration Settings ---",
+            "=" * 60,
+            "",
+            f"Job Port: {self.oai_port}"
+        ]
+
+        lines.append("API Keys:")
+        if len(self.api_keys) > 0:
+            for key in self.api_keys:
+                lines.append(f"- {key}")
+        else:
+            lines.append("- None")
+
+        lines.append("")
+        lines.append("Layer Models:")
+        if len(self.layer_models) > 0:
+            for model in self.layer_models:
+                lines.extend([
+                    f"Model ID: {model.model_id}",
+                    f"Max Memory: {model.memory}",
+                    f"Device: {model.device}",
+                    ""
+                ])
+        else:
+            lines.append("- None")
+        
+        lines.append("")
+        lines.append("End Models:")
+        if len(self.end_models) > 0:
+            for model in self.end_models:
+                lines.append(f"- {model}")
+        else:
+            lines.append("- None")
+        
+        lines.append(self.network_config.to_string())
+
+        return "\n".join(lines)
+
     @staticmethod
     def from_file(file_path: Path) -> 'LpConfig':
         cfg = LpConfig()

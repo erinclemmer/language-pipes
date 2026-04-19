@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Optional
 from language_pipes.config_args import ConfigurationArgs
-from language_pipes.runner import LpRunner
+from language_pipes.util.aes import save_new_aes_key
 from language_pipes.util.config import get_app_dir
 
 VERSION = (
@@ -87,13 +87,49 @@ def main(argv=None):
         if ".toml" in config_file and not os.path.exists(config_file):
             print(f"ERROR: {config_file} not found")
             return
-
+        
+        if ".toml" not in config_file:
+            config_file = get_app_dir() / "configs" / (config_file + ".toml")
+            if not os.path.exists(config_file):
+                print(f"ERROR: {config_file} not found")
+                return
+        
+        from language_pipes.runner import LpRunner
         LpRunner(Path(config_file), config_args.set_overrides)
         
     elif args.command == "config":
         config_args = ConfigurationArgs(args)
-        # Validate config
-        pass
+        config_file = config_args.config_file
+        if config_file is None:
+            print("ERROR: --config param required")
+            return
+        
+        if ".toml" in config_file and not os.path.exists(config_file):
+            print(f"ERROR: {config_file} not found")
+            return
+        
+        if ".toml" not in config_file:
+            config_file = get_app_dir() / "configs" / (config_file + ".toml")
+            if not os.path.exists(config_file):
+                print(f"ERROR: {config_file} not found")
+                return
+
+        from language_pipes.config import LpConfig
+        config = LpConfig.from_file(Path(config_file))
+        overrides = config_args.set_overrides
+
+        if config_args.layer_models is not None:
+            overrides["layer_models"] = config_args.layer_models
+        if config_args.end_models is not None:
+            overrides["end_models"] = config_args.end_models
+
+        config.apply_overrides(overrides)
+        print(config.to_string())
+        
+    elif args.command == "keygen":
+        key = save_new_aes_key(args.output)
+        print(f"✓ Network key generated: {key}")
+        print(f"✓ Network key saved to '{args.output}'")
 
 if __name__ == "__main__":
     main()
