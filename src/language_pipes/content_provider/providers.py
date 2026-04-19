@@ -37,6 +37,7 @@ def get_providers(config_file: Path):
         ProviderCall.get_hf_token: ModelProvider.get_hf_token,
         ProviderCall.save_hf_token: ModelProvider.save_hf_token,
         ProviderCall.get_model_manager_logs: content_provider.model_provider.get_model_manager_logs,
+        ProviderCall.reset_model_manager_logs: content_provider.model_provider.reset_model_manager_logs,
         ProviderCall.is_port_available: ContentProvider.is_port_available,
 
         ProviderCall.host_layer_model: content_provider.model_provider.host_model,
@@ -61,6 +62,7 @@ def get_providers(config_file: Path):
         ProviderCall.stop_oai_server: content_provider.job_provider.stop_oai_server,
         ProviderCall.oai_server_running: content_provider.job_provider.oai_server_running,
         ProviderCall.get_oai_logs: content_provider.job_provider.get_oai_logs,
+        ProviderCall.reset_oai_logs: content_provider.job_provider.reset_oai_logs,
         ProviderCall.get_oai_port: lambda: content_provider.job_provider.get_oai_port(config_file),
         ProviderCall.set_oai_port: lambda p: content_provider.job_provider.set_oai_port(config_file, p),
         ProviderCall.get_api_keys: lambda: content_provider.job_provider.get_api_keys(config_file),

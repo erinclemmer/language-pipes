@@ -33,6 +33,7 @@ class ProviderCall(Enum):
     get_hf_token = "get_hf_token"
     save_hf_token = "save_hf_token"
     get_model_manager_logs = "get_model_manager_logs"
+    reset_model_manager_logs = "reset_model_manager_logs"
 
     # Models / Hosted
     get_layer_models = "get_models_to_load"

@@ -92,6 +92,9 @@ class ModelProvider:
         mm = self.get_model_manager()
         return mm.logs
 
+    def reset_model_manager_logs(self):
+        self.get_model_manager().logs = []
+
     # Returns a mapping of model_id -> list of lifecycle statuses based on ModelManager state.
     def get_models_status(self) -> Dict[str, List[ModelStatusInfo]]:
         status_by_model: Dict[str, List[ModelStatusInfo]] = {}
