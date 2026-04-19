@@ -4,7 +4,7 @@ import time
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.content_loader import ContentLoader
-from language_pipes.tui.content_provider.network_provider import RouterStatus
+from language_pipes.content_provider.network_provider import RouterStatus
 from language_pipes.tui.frame.provider_calls import ProviderCall
 
 class NetworkStatus:

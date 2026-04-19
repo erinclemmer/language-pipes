@@ -72,7 +72,7 @@ def install_stub_modules():
 
 install_stub_modules()
 
-from language_pipes.tui.content_provider.model_provider import (
+from language_pipes.content_provider.model_provider import (
     ModelProvider,
     ModelStatus,
     ModelStatusInfo,

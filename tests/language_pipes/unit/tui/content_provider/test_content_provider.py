@@ -52,7 +52,7 @@ psutil_module = types.ModuleType("psutil")
 psutil_module.virtual_memory = lambda: SimpleNamespace(total=0, used=0)
 sys.modules[psutil_module.__name__] = psutil_module
 
-from language_pipes.tui.content_provider.content_provider import ContentProvider
+from language_pipes.content_provider.content_provider import ContentProvider
 
 class ContentProviderTests(unittest.TestCase):
     @patch(

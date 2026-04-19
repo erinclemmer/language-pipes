@@ -6,7 +6,7 @@ from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.components.hosted_models_view import format_model_line
 from language_pipes.tui.content_loader import ContentLoader
 from language_pipes.tui.frame.provider_calls import ProviderCall
-from language_pipes.tui.content_provider.model_provider import ModelToLoad, ModelStatusInfo
+from language_pipes.content_provider.model_provider import ModelToLoad, ModelStatusInfo
 
 class ModelsHostedState(Enum):
     List = 'list'

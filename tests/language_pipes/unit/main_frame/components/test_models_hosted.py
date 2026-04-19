@@ -7,8 +7,8 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
 
 from language_pipes.tui.components.models_hosted import ModelsHosted
-from language_pipes.tui.content_provider.content_provider import ContentProvider
-from language_pipes.tui.content_provider.model_provider import (
+from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.content_provider.model_provider import (
     ModelProvider,
     ModelToLoad,
 )

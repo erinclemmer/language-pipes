@@ -66,13 +66,12 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args() if argv is None else parser.parse_args(argv)
 
-    if args.command is None:
-        if args.config is not None and not validate_config_arg(args.config):
+    if args.config is not None and not validate_config_arg(args.config):
             print(f"ERROR: {args.config} is not a valid path or saved configuration")
             exit()
 
+    if args.command is None:
         from language_pipes.tui import initialize_tui
-
         initialize_tui(args.config, getattr(args, "start", False))
         
     elif args.command == "run":

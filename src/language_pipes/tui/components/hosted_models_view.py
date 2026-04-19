@@ -1,5 +1,5 @@
 from typing import List, Dict
-from language_pipes.tui.content_provider.model_provider import ModelStatusInfo, ModelToLoad, ModelStatus
+from language_pipes.content_provider.model_provider import ModelStatusInfo, ModelToLoad, ModelStatus
 
 def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
     pipes: Dict[str, List[ModelStatusInfo]] = { }

@@ -48,9 +48,9 @@ def load_libraries(window: TuiWindow):
     paint_loader(30)
     window.update_text(loading_id, TermText("Loading: language-pipes"))
     window.paint()
-    import language_pipes.tui.content_provider.content_provider
-    import language_pipes.tui.content_provider.network_provider
-    import language_pipes.tui.content_provider.model_provider
+    import language_pipes.content_provider.content_provider
+    import language_pipes.content_provider.network_provider
+    import language_pipes.content_provider.model_provider
     import language_pipes.tui.frame.main_frame  # noqa: F401
 
     paint_loader(40)
@@ -69,9 +69,9 @@ def new_config(window: TuiWindow) -> Optional[str]:
 def handle_file_load(
     window: TuiWindow, left_bound: int, termsize: Tuple[int, int], config_file: Path, auto_start: bool
 ):
-    from language_pipes.tui.content_provider.content_provider import ContentProvider
-    from language_pipes.tui.content_provider.network_provider import NetworkProvider
-    from language_pipes.tui.content_provider.model_provider import ModelProvider
+    from language_pipes.content_provider.content_provider import ContentProvider
+    from language_pipes.content_provider.network_provider import NetworkProvider
+    from language_pipes.content_provider.model_provider import ModelProvider
 
     window.remove_all()
     window.paint()
