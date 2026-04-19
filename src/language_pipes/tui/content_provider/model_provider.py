@@ -11,12 +11,13 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Callable, Tuple
 from huggingface_hub import snapshot_download, errors
 
+from language_pipes.config import LpConfig, ModelToLoad
 from language_pipes.global_config import GlobalConfig
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.distributed_state_network.util import stop_thread
-from language_pipes.util.config import get_model_dir, get_app_dir
+from language_pipes.util.config import get_model_dir
 
 
 class ModelDownloadProgress(tqdm):
@@ -56,14 +57,6 @@ class ModelDownloadProgress(tqdm):
         lock = self.get_lock()
         with lock:
             type(self)._instances.discard(self)  # type: ignore[attr-defined]
-
-
-@dataclass
-class ModelToLoad:
-    model_id: str
-    load_ends: bool
-    device: str
-    max_memory: float
 
 
 class ModelStatus(Enum):
@@ -238,10 +231,11 @@ class ModelProvider:
                 node_id=rp.router.node_id(),
                 router_pipes=rp,
                 model_id=model.model_id,
-                max_memory=model.max_memory,
-                device=torch.device(model.device),
+                max_memory=model.memory,
+                device=model.device,
                 first_layer=0,
             )
+
             if model.load_ends:
                 mm.load_end_model(model.model_id, "cpu", 0)
 
@@ -257,46 +251,19 @@ class ModelProvider:
 
     @staticmethod
     def get_models_to_load(config_file: Path) -> List[ModelToLoad]:
-        data = toml.loads(config_file.read_text())
-        if "models_to_load" not in data:
-            return []
-        models = []
-        for m in data.get("models_to_load", []):
-            models.append(
-                ModelToLoad(
-                    m.get("model_id", ""),
-                    m.get("load_ends", False),
-                    m.get("device", ""),
-                    m.get("max_memory", ""),
-                )
-            )
-        return models
+        cfg = LpConfig.from_file(config_file)
+        return cfg.layer_models
 
     @staticmethod
     def save_models_to_load(config_file: Path, models: List[ModelToLoad]):
-        data = toml.loads(config_file.read_text())
-
-        to_load = []
-        for m in models:
-            to_load.append(
-                {
-                    "model_id": m.model_id,
-                    "load_ends": m.load_ends,
-                    "device": m.device,
-                    "max_memory": m.max_memory,
-                }
-            )
-
-        data["models_to_load"] = to_load
-
-        with open(config_file, "w", encoding="utf-8") as f:
-            toml.dump(data, f)
+        cfg = LpConfig.from_file(config_file)
+        cfg.layer_models = models
+        cfg.save()
 
     @staticmethod
     def validate_device_name(device: str) -> bool:
-        import torch
-
         try:
+            import torch
             torch.device(device)
             return True
         except RuntimeError:
