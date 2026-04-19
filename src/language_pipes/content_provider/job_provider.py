@@ -132,6 +132,11 @@ class JobProvider:
         if self.oai_server is None:
             return []
         return self.oai_server.logs
+    
+    def reset_oai_logs(self):
+        if self.oai_server is None:
+            return
+        self.oai_server.logs = []
 
     def get_active_jobs(self) -> List[MetaJob]:
         if self.job_tracker is None:

@@ -28,14 +28,14 @@ class EndModel:
     collector: LlmLayerCollector
     layers: List[AutoDecoderLayer]
 
-    def __init__(self, num_local_layers: int, model_dir: str, model_id: str, device: str):
+    def __init__(self, num_local_layers: int, model_dir: Path, model_id: str, device: str):
         self.model_id = model_id
         self.process_id = str(uuid4())
-        model_path = str(Path(model_dir) / self.model_id)
+        model_path = model_dir / self.model_id
         self.meta_data = LlmMetadata(model_path)
         self.device = torch.device(device)
         self.collector = LlmLayerCollector(
-            model_dir=os.path.join(model_path, 'data'),
+            model_dir=model_path / "data",
             cache_file=os.path.join(model_path, 'cache.json'),
             device=torch.device(device),
             dtype=torch.float16

@@ -27,7 +27,7 @@ class LlmModel:
 
     device: torch.device
     virtual: bool
-    model_dir: str
+    model_dir: Path
 
     layers: List[AutoDecoderLayer]
     tokenizer: Callable
@@ -43,7 +43,7 @@ class LlmModel:
             model_id: str,
             pipe_id: str,
             device: torch.device,
-            model_dir: str,
+            model_dir: Path,
             process_id: Optional[str] = None,
             virtual: bool = False,
             huggingface_token: Optional[str] = None,
@@ -63,11 +63,11 @@ class LlmModel:
         if virtual and num_hidden_layers is not None:
             self.num_hidden_layers = num_hidden_layers
         else:
-            model_path = str(Path(model_dir) / self.model_id)
+            model_path = model_dir / self.model_id
             if not os.path.exists(model_path):
                 clone_model(model_id, model_path, token=huggingface_token)
             self.collector = LlmLayerCollector(
-                    model_dir=os.path.join(model_path, 'data'),
+                    model_dir=model_path / "data",
                     cache_file=os.path.join(model_path, 'cache.json'),
                     device=device,
                     dtype=torch.float16 
@@ -132,7 +132,7 @@ class LlmModel:
         torch.cuda.empty_cache()
 
     @staticmethod
-    def from_meta(meta: MetaModel, model_dir: str) -> 'LlmModel':
+    def from_meta(meta: MetaModel, model_dir: Path) -> 'LlmModel':
         model = LlmModel(
             model_id=meta.model_id,
             pipe_id=meta.pipe_id,
@@ -152,7 +152,7 @@ class LlmModel:
         return model
     
     @staticmethod
-    def from_id(model_dir: str, node_id: str, model_id: str, pipe_id: str, device: torch.device, huggingface_token: Optional[str] = None) -> 'LlmModel':
+    def from_id(model_dir: Path, node_id: str, model_id: str, pipe_id: str, device: torch.device, huggingface_token: Optional[str] = None) -> 'LlmModel':
         model = LlmModel(
             model_id=model_id,
             node_id=node_id,
@@ -162,6 +162,6 @@ class LlmModel:
             huggingface_token=huggingface_token
         )
 
-        model_path = str(Path(model_dir) / model_id)
+        model_path = model_dir / model_id
         model.meta_data = LlmMetadata(model_path)
         return model

@@ -1,3 +1,4 @@
+from pathlib import Path
 import re
 import os
 import torch
@@ -6,20 +7,20 @@ from typing import List, Dict
 from safetensors import safe_open
 from language_pipes.llm_layer_collector.helpers import get_shard_keys
 
-def get_shard_files(shard_pattern: str, model_dir: str) -> List[str]:
+def get_shard_files(shard_pattern: str, model_dir: Path) -> List[str]:
     if 'model.safetensors' in os.listdir(model_dir):
         return ['model.safetensors']
     
     multiple_pattern = re.compile(shard_pattern)
     shard_files = [f for f in os.listdir(model_dir) if multiple_pattern.match(f)]
     if not shard_files:
-        raise Exception("No Shard files in specified directory " + model_dir)
+        raise Exception("No Shard files in specified directory " + str(model_dir))
 
     shard_files.sort()
     return shard_files
 
 def build_cache_data(
-        model_dir: str,
+        model_dir: Path,
         shard_pattern: str,
         device: torch.device
     ) -> Dict[str, str]:

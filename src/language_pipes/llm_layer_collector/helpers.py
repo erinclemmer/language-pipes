@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Dict, List
 
 import torch
@@ -20,7 +21,7 @@ def get_shard_tensor(st: safe_open, name: str) -> torch.Tensor:
 
 def load_shard_tensor(
         layer_file_cache: Dict[str, str], 
-        model_dir: str,
+        model_dir: Path,
         layer_name: str, 
         device: torch.device,
         dtype: torch.dtype
@@ -31,10 +32,10 @@ def load_shard_tensor(
     shard = safe_open(os.path.join(model_dir, file), framework='pt', device=str(device))
     return get_shard_tensor(shard, layer_name).to(dtype)
 
-def get_config(model_dir: str) -> PretrainedConfig:
+def get_config(model_dir: Path) -> PretrainedConfig:
     config = AutoConfig.from_pretrained(model_dir)
     if config.model_type == "glm4v":
-        config = Glm4vTextConfig.from_json_file(model_dir + "/config.json")
+        config = Glm4vTextConfig.from_json_file(model_dir  / "config.json")
         # Some GLM-4.1V checkpoints ship with rope_scaling unset, but
         # Glm4vTextAttention.forward unconditionally reads
         # rope_scaling["mrope_section"]. Provide a compatible default.

@@ -113,6 +113,12 @@ class NetworkProvider:
             port=rtr.config.port
         )
     
+    def reset_router_logs(self):
+        rtr = self.get_router()
+        if rtr is None:
+            return
+        rtr.node.logs = []
+
     # Network / Peers
     def get_peers(self) -> Dict[str, StatePacket]:
         rtr = self.get_router()

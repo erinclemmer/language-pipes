@@ -1,5 +1,6 @@
 import os
 import json
+from pathlib import Path
 import torch
 from typing import List, Tuple, Optional
 
@@ -11,7 +12,7 @@ from language_pipes.util.enums import ModelPartType
 from language_pipes.llm_layer_collector.helpers import get_config
 
 
-def get_avg_layer_size(model_path: str) -> Tuple[int, str]:
+def get_avg_layer_size(model_path: Path) -> Tuple[int, str]:
     if not os.path.exists(model_path):
         return -1, ""
     collector = LlmLayerCollector(
@@ -34,7 +35,7 @@ def get_avg_layer_size(model_path: str) -> Tuple[int, str]:
     return total_size, hsh
 
 
-def data_of_type(typ: ModelPartType, model_path: str) -> Tuple[float, str]:
+def data_of_type(typ: ModelPartType, model_path: Path) -> Tuple[float, str]:
     config = get_config(model_path)
 
     size = 0
@@ -48,8 +49,8 @@ def data_of_type(typ: ModelPartType, model_path: str) -> Tuple[float, str]:
 
     if typ == ModelPartType.NORM:
         n = AutoRMSNorm(config).to(dtype=torch.float16)
-        size = size_of_tensor(n.cls.weight)
-        hash = tensor_hash(n.cls.weight)
+        size = size_of_tensor(n.cls.weight) # pyright: ignore[reportArgumentType]
+        hash = tensor_hash(n.cls.weight) # pyright: ignore[reportArgumentType]
     if typ == ModelPartType.HEAD:
         h = torch.nn.Linear(config.hidden_size, config.vocab_size).to(
             dtype=torch.float16
@@ -60,7 +61,7 @@ def data_of_type(typ: ModelPartType, model_path: str) -> Tuple[float, str]:
     return size, hash
 
 
-def get_computed_data(model_path: str):
+def get_computed_data(model_path: Path):
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model {model_path} not found")
     computed_path = os.path.join(model_path, "meta_data.json")
@@ -69,7 +70,7 @@ def get_computed_data(model_path: str):
             return json.load(f)
 
     meta_data = {}
-    model_path = os.path.join(model_path, "data")
+    model_path = model_path / "data"
     size, hash = data_of_type(ModelPartType.EMBED, model_path)
     meta_data["embed_size"] = size
     meta_data["embed_hash"] = hash
@@ -96,7 +97,7 @@ class LlmMetadata:
     head_hash: str
     layer_hashes: List[str]
 
-    def __init__(self, model_dir: Optional[str] = None):
+    def __init__(self, model_dir: Optional[Path] = None):
         if model_dir is None:
             return
         data = get_computed_data(model_dir)

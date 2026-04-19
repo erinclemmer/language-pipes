@@ -1,6 +1,7 @@
 import os
 import gc
 import json
+from pathlib import Path
 from typing import List, Dict, Optional
 
 import torch
@@ -24,7 +25,7 @@ class LlmLayerCollector:
 
     config: PretrainedConfig
 
-    model_dir: str
+    model_dir: Path
     cache_file: str
 
     num_layers: int
@@ -35,7 +36,7 @@ class LlmLayerCollector:
 
     def __init__(
         self,
-        model_dir: str,
+        model_dir: Path,
         cache_file: Optional[str] = None,
         shard_pattern: str = r"model-(\d+)-of-(\d+).safetensors",
         layer_prefix: str = "model.layers.",

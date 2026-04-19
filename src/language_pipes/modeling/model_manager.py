@@ -10,7 +10,7 @@ from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.end_model import EndModel
 
-from language_pipes.util.config import default_model_dir
+from language_pipes.util.config import get_model_dir
 
 class ModelManager:
     models: List[LlmModel]
@@ -42,7 +42,7 @@ class ModelManager:
     def _get_model_for_pipe(self, node_id: str, model_id: str, pipe: MetaPipe, device: torch.device, available_memory: int | float, first_layer: int) -> Tuple[int | float, Optional[LlmModel]]:
         new_model: Optional[LlmModel] = LlmModel.from_id(
             node_id=node_id,
-            model_dir=default_model_dir(),
+            model_dir=get_model_dir(),
             model_id=model_id,
             pipe_id=pipe.pipe_id,
             device=device,
@@ -69,7 +69,7 @@ class ModelManager:
         return available_memory, new_model
 
     def load_end_model(self, model_id: str, device: str, num_local_layers: int):
-        model = EndModel(num_local_layers, default_model_dir(), model_id, device)
+        model = EndModel(num_local_layers, get_model_dir(), model_id, device)
         model.load()
         self.end_models.append(model)
         self.logs.append((time.time(), f"Loading End Model for {model_id}"))

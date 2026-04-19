@@ -9,6 +9,7 @@ class ProviderCall(Enum):
     start_network = "start_network"
     stop_network = "stop_network"
     list_peers = "list_peers"
+    reset_router_logs = "reset_router_logs"
 
     get_registered_node_ids = "get_registered_node_ids"
     delete_node_id = "delete_node_id"
@@ -53,6 +54,7 @@ class ProviderCall(Enum):
     stop_oai_server = "stop_oai_server"
     oai_server_running = "oai_server_running"
     get_oai_logs = "get_oai_logs"
+    reset_oai_logs = "reset_oai_logs"
 
     get_oai_port = "get_oai_port"
     set_oai_port = "set_oai_port"

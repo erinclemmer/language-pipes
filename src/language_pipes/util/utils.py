@@ -1,4 +1,5 @@
 import io
+from pathlib import Path
 import re
 import os
 import shutil
@@ -107,7 +108,7 @@ def stop_thread(thread: Thread):
         ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
         print('Exception raise failure')
 
-def clone_model(model_id: str, model_dir: str, token: Optional[str] = None):
+def clone_model(model_id: str, model_dir: Path, token: Optional[str] = None):
     clone_dir = f"{model_dir}/data"
     print(f"Downloading {model_id} to {model_dir}")
 

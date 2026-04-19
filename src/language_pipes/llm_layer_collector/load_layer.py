@@ -1,4 +1,5 @@
 import gc
+from pathlib import Path
 import torch
 from typing import List, Dict
 
@@ -36,7 +37,7 @@ def get_shard_data(
         start_layer: int,
         end_layer: int,
         device: torch.device,
-        model_dir: str,
+        model_dir: Path,
         layer_prefix: str,
         layer_file_cache: Dict[str, str],
         dtype: torch.dtype
@@ -88,7 +89,7 @@ def load_layers(
         layer_prefix: str,
         layer_file_cache: Dict[str, str],
         config: PretrainedConfig,
-        model_dir: str,
+        model_dir: Path,
         device: torch.device,
         dtype: torch.dtype
     ) -> List[AutoDecoderLayer]:

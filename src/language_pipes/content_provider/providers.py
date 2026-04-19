@@ -23,6 +23,7 @@ def get_providers(config_file: Path):
         ProviderCall.start_network: lambda: (
             content_provider.network_provider.start_router(config_file)
         ),
+        ProviderCall.reset_router_logs: content_provider.network_provider.reset_router_logs,
         ProviderCall.stop_network: content_provider.network_provider.stop_router,
         ProviderCall.get_network_status: content_provider.network_provider.get_router_status,
         ProviderCall.get_total_system_ram: ContentProvider.get_total_system_ram,
