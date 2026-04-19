@@ -65,7 +65,7 @@ class ModelProviderTests(unittest.TestCase):
         provider.set_router_pipes(router_pipes)
 
         model = ModelToLoad("org/model", False, "cpu", 8.0)
-        provider.host_model(model)
+        provider.host_layer_model(model)
 
         model_manager.host_model.assert_called_once()
         args = model_manager.host_model.call_args.args

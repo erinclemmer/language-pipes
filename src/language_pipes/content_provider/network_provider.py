@@ -45,7 +45,7 @@ class NetworkProvider:
         self.set_router(None)
 
     # Network / Status
-    def start_router(self):
+    def start_network(self):
         if self.router_starting or self.router_stopping:
             return
         
@@ -78,7 +78,7 @@ class NetworkProvider:
                 self.router_stopping = False
         Thread(target=stop_router, args=()).start()
 
-    def get_router_status(self) -> Optional[RouterStatus]:
+    def get_network_status(self) -> Optional[RouterStatus]:
         rtr = self.get_router()
         if rtr is None: 
             return None

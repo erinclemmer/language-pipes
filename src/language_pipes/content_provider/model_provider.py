@@ -224,7 +224,7 @@ class ModelProvider:
         cfg = GlobalConfig.from_file()
         return cfg
 
-    def host_model(self, model: ModelToLoad):
+    def host_layer_model(self, model: ModelToLoad):
         rp = self.get_router_pipes()
         if rp is None:
             return
