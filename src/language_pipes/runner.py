@@ -27,15 +27,14 @@ class LpRunner:
             if status is not None:
                 for log in status.logs:
                     print(log)
-                self.loader.call_provider(ProviderCall.reset_router_logs)
             
             for log in self.loader.call_provider(ProviderCall.get_oai_logs):
                 print(log)
             
-            self.loader.call_provider(ProviderCall.reset_oai_logs)
-
             for log in self.loader.call_provider(ProviderCall.get_model_manager_logs):
                 print(log)
 
+            self.loader.call_provider(ProviderCall.reset_router_logs)
+            self.loader.call_provider(ProviderCall.reset_oai_logs)
             self.loader.call_provider(ProviderCall.reset_model_manager_logs)
             sleep(1)
