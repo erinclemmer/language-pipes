@@ -5,7 +5,6 @@ from time import sleep, time
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple
 
-import toml
 import torch
 
 from language_pipes.config import LpConfig
@@ -75,7 +74,7 @@ class JobProvider:
         model_manager = self.get_model_manager()
         pipe_manager = self.get_pipe_manager()
         if router_pipes is None or pipe_manager is None or model_manager is None:
-            raise Exception("Cannot start oai server without pipe manager")
+            return
         
         self.job_tracker = JobTracker()
         self.job_factory = JobFactory(self.job_tracker, pipe_manager)

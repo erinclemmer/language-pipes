@@ -47,7 +47,11 @@ class NetworkProvider:
     def start_router(self, config_file: Path):
         if self.router_starting or self.router_stopping:
             return
+        
         config = NetworkProvider.get_network_config(config_file)
+        if config.node_id is None:
+            return
+        
         self.router_starting = True
         def start_router():
             self.set_router(DSNodeServer.start(config))

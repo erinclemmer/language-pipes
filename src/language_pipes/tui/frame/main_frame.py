@@ -2,7 +2,6 @@ from time import sleep
 from threading import Thread
 from typing import Dict, List, Optional, Tuple
 
-from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.tui import TuiWindow
 from language_pipes.tui.util.kb_utils import read_key
 from language_pipes.tui.frame.nav_state import NavState
@@ -10,6 +9,7 @@ from language_pipes.tui.frame.layout import FrameLayout
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.content_loader import ContentLoader
+from language_pipes.tui.frame.provider_calls import ProviderCall
 from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.frame.frame_key_handler import FrameKeyHandler
 from language_pipes.tui.frame.page_router import PageRouter
@@ -30,6 +30,7 @@ class MainFrame:
         size: Tuple[int, int],
         pos: Tuple[int, int],
         providers: Optional[object] = None,
+        auto_start: Optional[bool] = None
     ):
         self.window = TuiWindow(size, pos)
         self.shutdown = False
@@ -57,6 +58,17 @@ class MainFrame:
         self.layout._init_layout(size, pos)
         self._init_view()
         self.layout._render_all()
+        if self.auto_start:
+            self.auto_start()
+
+    def auto_start(self):
+        self.loader.call_provider(ProviderCall.start_network)
+        self.loader.call_provider(ProviderCall.start_oai_server)
+        for model in self.loader.call_provider(ProviderCall.get_layer_models):
+            self.loader.call_provider(ProviderCall.host_layer_model, model.model_id)
+        
+        for model in self.loader.call_provider(ProviderCall.get_end_models):
+            self.loader.call_provider(ProviderCall.host_end_model, model)
 
     def change_nav(self, tab: str, section: str):
         self.nav.set_tab(tab)

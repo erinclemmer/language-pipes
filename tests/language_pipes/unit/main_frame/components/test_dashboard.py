@@ -33,7 +33,7 @@ class TestDashboardComponent(unittest.TestCase):
                 return used_ram
             if provider_call == ProviderCall.get_total_system_ram:
                 return total_ram
-            if provider_call == ProviderCall.get_models_to_load:
+            if provider_call == ProviderCall.get_layer_models:
                 return models_to_load or []
             if provider_call == ProviderCall.get_models_status:
                 return {}
@@ -185,7 +185,7 @@ class TestDashboardComponent(unittest.TestCase):
         def call_provider(provider_call, *args):
             if provider_call == ProviderCall.get_network_status:
                 return SimpleNamespace(running=True)
-            if provider_call == ProviderCall.get_models_to_load:
+            if provider_call == ProviderCall.get_layer_models:
                 return mock_models
             return None
 
@@ -210,7 +210,7 @@ class TestDashboardComponent(unittest.TestCase):
         host_model_calls = [
             call
             for call in loader.call_provider.call_args_list
-            if call[0][0] == ProviderCall.host_model
+            if call[0][0] == ProviderCall.host_layer_model
         ]
         self.assertEqual(len(host_model_calls), 2)
         self.assertEqual(host_model_calls[0][0][1].model_id, "model1")

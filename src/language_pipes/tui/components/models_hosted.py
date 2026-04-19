@@ -84,7 +84,7 @@ class ModelsHosted:
                 m for i, m in enumerate(self.models_to_load) if i != config_idx
             ]
             self.loader.call_provider(
-                ProviderCall.save_models_to_load, self.models_to_load
+                ProviderCall.save_layer_models, self.models_to_load
             )
 
         self.confirm.open(
@@ -166,7 +166,7 @@ class ModelsHosted:
                     if self._current_model_running():
                         self.loader.call_provider(ProviderCall.shutdown_models, model.model_id)
                     else:
-                        self.loader.call_provider(ProviderCall.host_model, model)
+                        self.loader.call_provider(ProviderCall.host_layer_model, model)
                 self.state = ModelsHostedState.List
             elif self.option_idx == 2:
                 self.state = ModelsHostedState.List
@@ -198,12 +198,12 @@ class ModelsHosted:
             # Replacing existing model
             self.models_to_load[self.editing_config_idx] = model
 
-        self.loader.call_provider(ProviderCall.save_models_to_load, self.models_to_load)
+        self.loader.call_provider(ProviderCall.save_layer_models, self.models_to_load)
 
         if self._network_running():
 
             def on_apply():
-                self.loader.call_provider(ProviderCall.host_model, model)
+                self.loader.call_provider(ProviderCall.host_layer_model, model)
 
             def on_discard():
                 pass
@@ -358,7 +358,7 @@ class ModelsHosted:
         if not self._network_running():
             lines.extend(self._network_not_started_warning())
 
-        self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
+        self.models_to_load = self.loader.call_provider(ProviderCall.get_layer_models)
         models_status: Dict[str, List[ModelStatusInfo]] = self.loader.call_provider(ProviderCall.get_models_status)
 
         for i, model in enumerate(self.models_to_load):

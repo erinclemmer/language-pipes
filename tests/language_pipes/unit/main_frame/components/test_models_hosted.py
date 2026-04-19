@@ -47,8 +47,8 @@ class ModelsHostedTests(unittest.TestCase):
             [call[0] for call in loader.calls],
             [
                 ProviderCall.validate_device_name,
-                ProviderCall.save_models_to_load,
-                ProviderCall.host_model,
+                ProviderCall.save_layer_models,
+                ProviderCall.host_layer_model,
             ],
         )
         saved_models = loader.calls[1][1]

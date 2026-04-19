@@ -122,7 +122,7 @@ class Dashboard:
             self.change_nav("Network", "Configure")
         elif selected_option == "Load Models":
             for model in self.models_to_load:
-                self.loader.call_provider(ProviderCall.host_model, model)
+                self.loader.call_provider(ProviderCall.host_layer_model, model)
         elif selected_option == "Unload Models":
             for model in self.models_to_load:
                 self.loader.call_provider(ProviderCall.shutdown_models, model.model_id)
@@ -187,7 +187,7 @@ class Dashboard:
         return False
 
     def get_view(self) -> Tuple[List[str], List[str]]:
-        self.models_to_load = self.loader.call_provider(ProviderCall.get_models_to_load)
+        self.models_to_load = self.loader.call_provider(ProviderCall.get_layer_models)
         self.network_config = self.loader.call_provider(ProviderCall.get_network_config)
         self.router_status = self.loader.call_provider(ProviderCall.get_network_status)
         self.job_serv_running = self.loader.call_provider(ProviderCall.oai_server_running)

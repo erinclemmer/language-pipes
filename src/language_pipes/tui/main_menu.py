@@ -67,7 +67,7 @@ def new_config(window: TuiWindow) -> Optional[str]:
 
 
 def handle_file_load(
-    window: TuiWindow, left_bound: int, termsize: Tuple[int, int], config_file: Path
+    window: TuiWindow, left_bound: int, termsize: Tuple[int, int], config_file: Path, auto_start: bool
 ):
     from language_pipes.tui.content_provider.content_provider import ContentProvider
     from language_pipes.tui.content_provider.network_provider import NetworkProvider
@@ -109,16 +109,18 @@ def handle_file_load(
         ProviderCall.get_model_manager_logs: content_provider.model_provider.get_model_manager_logs,
         ProviderCall.is_port_available: ContentProvider.is_port_available,
 
-        ProviderCall.host_model: content_provider.model_provider.host_model,
-        ProviderCall.get_models_to_load: lambda: ModelProvider.get_models_to_load(
+        ProviderCall.host_layer_model: content_provider.model_provider.host_model,
+        ProviderCall.get_layer_models: lambda: ModelProvider.get_layer_models(
             config_file
         ),
-        ProviderCall.save_models_to_load: lambda m: ModelProvider.save_models_to_load(
+        ProviderCall.save_layer_models: lambda m: ModelProvider.save_layer_models(
             config_file, m
         ),
+        ProviderCall.get_end_models: lambda: ModelProvider.get_end_models(config_file),
+        ProviderCall.save_end_models: lambda em: ModelProvider.save_end_models(config_file, em),
         ProviderCall.validate_device_name: ModelProvider.validate_device_name,
         ProviderCall.get_models_status: content_provider.model_provider.get_models_status,
-        ProviderCall.shutdown_models: content_provider.model_provider.shutdown_models,
+        ProviderCall.shutdown_models: content_provider.model_provider.shutdown_layer_models,
 
         
         ProviderCall.get_pipes_connected: content_provider.pipe_provider.get_connected_pipes,
@@ -138,13 +140,16 @@ def handle_file_load(
     }
 
     from language_pipes.tui.frame.main_frame import MainFrame
-    frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers)
+    frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers, auto_start=auto_start)
     action = frame.run()
     if action == "exit":
         return "exit"
     return None
 
 def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start: bool):
+    if config_file is None:
+        auto_start = False
+
     with open("src/language_pipes/tui/banner.txt", "r") as f:
         banner_text = f.read()
 
@@ -203,7 +208,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
         else:
             config_path = config_dir / (config_file + ".toml")
         
-        res = handle_file_load(window, left_bound + 10, termsize, config_path)
+        res = handle_file_load(window, left_bound + 10, termsize, config_path, auto_start)
         if res == "exit":
             exit()
         if res is None:
@@ -217,7 +222,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
         
         config_path = config_dir / (new_config_file + ".toml")
         config_path.touch()
-        res = handle_file_load(window, left_bound + 10, termsize, config_path)
+        res = handle_file_load(window, left_bound + 10, termsize, config_path, auto_start)
         if res == "exit":
             exit()
         if res is None:
@@ -235,7 +240,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
         config_file, cmd = res
         config_path = config_dir / (config_file + ".toml")
         if cmd == 0:
-            res = handle_file_load(window, left_bound, termsize, config_path)
+            res = handle_file_load(window, left_bound, termsize, config_path, auto_start)
             if res == "exit":
                 exit()
             if res is None:

@@ -34,11 +34,14 @@ class ProviderCall(Enum):
     get_model_manager_logs = "get_model_manager_logs"
 
     # Models / Hosted
-    get_models_to_load = "get_models_to_load"
-    save_models_to_load = "save_models_to_load"
+    get_layer_models = "get_models_to_load"
+    save_layer_models = "save_models_to_load"
+    get_end_models = "get_end_models"
+    save_end_models = "save_end_models"
     validate_device_name = "validate_device_name"
     get_models_status = "get_models_status"
-    host_model = "host_model"
+    host_layer_model = "host_layer_model"
+    host_end_model = "host_end_model"
     shutdown_models = "shutdown_models"
 
     # Pipes
