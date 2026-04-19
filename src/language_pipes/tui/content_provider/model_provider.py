@@ -15,7 +15,7 @@ from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.distributed_state_network.util import stop_thread
-from language_pipes.util.config import default_model_dir, default_config_dir
+from language_pipes.util.config import default_model_dir, default_app_dir
 
 
 class ModelDownloadProgress(tqdm):
@@ -218,7 +218,7 @@ class ModelProvider:
 
     @staticmethod
     def get_globals() -> Dict:
-        global_path = Path(default_config_dir()) / "globals.toml"
+        global_path = Path(default_app_dir()) / "globals.toml"
         if not os.path.exists(global_path):
             with open(global_path, "w", encoding="utf-8") as f:
                 toml.dump({}, f)
@@ -227,7 +227,7 @@ class ModelProvider:
 
     @staticmethod
     def save_globals(data: Dict):
-        global_path = Path(default_config_dir()) / "globals.toml"
+        global_path = Path(default_app_dir()) / "globals.toml"
         if not os.path.exists(global_path):
             return
         with open(global_path, "w", encoding="utf-8") as f:

@@ -34,7 +34,7 @@ class MainMenuVersionTests(unittest.TestCase):
             patch("language_pipes.tui.main_menu.TuiWindow", _FakeWindow),
             patch("language_pipes.tui.main_menu.load_libraries", lambda window: None),
             patch(
-                "language_pipes.tui.main_menu.default_config_dir",
+                "language_pipes.tui.main_menu.default_app_dir",
                 return_value="/tmp/language-pipes",
             ),
             patch(

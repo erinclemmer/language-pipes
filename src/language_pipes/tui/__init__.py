@@ -1,4 +1,6 @@
+from pathlib import Path
 from shutil import get_terminal_size
+from typing import Optional
 
 from language_pipes.tui.util.screen_utils import (
     enable_vt_mode,
@@ -6,7 +8,7 @@ from language_pipes.tui.util.screen_utils import (
     exit_vt_mode,
 )
 
-def initialize_tui():
+def initialize_tui(config_file: Optional[str], auto_start: bool):
     fd_in = None
     old_in_attrs = None
     entered_alt_screen = False
@@ -19,7 +21,7 @@ def initialize_tui():
 
         from language_pipes.tui.main_menu import main_menu
 
-        main_menu((term_size.columns, term_size.lines))
+        main_menu((term_size.columns, term_size.lines), config_file, auto_start)
     finally:
         if entered_alt_screen:
             exit_vt_mode()

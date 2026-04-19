@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
-from language_pipes.util.config import default_config_dir, default_model_dir
+from language_pipes.util.config import default_app_dir, default_model_dir
 from language_pipes.util.env_props import get_env_config
 
 def apply_env_overrides(data: Dict[str, Any], cli_args: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -118,7 +118,7 @@ class LpConfig:
         
         app_dir = data.get('app_dir', None)
         if app_dir is None:
-            app_dir = default_config_dir()
+            app_dir = default_app_dir()
         
         model_dir = data.get('model_dir', None)
         if model_dir is None:

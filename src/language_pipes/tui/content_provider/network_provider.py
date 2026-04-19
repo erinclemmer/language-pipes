@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Callable, Tuple
 
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.distributed_state_network.util import stop_thread
-from language_pipes.util.config import default_config_dir
+from language_pipes.util.config import default_app_dir
 
 from language_pipes.distributed_state_network.handler import DSNodeServer
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
@@ -125,8 +125,8 @@ class NetworkProvider:
             data = toml.load(f)
         return DSNodeConfig(
             node_id=data.get("node_id", ""),
-            credential_dir=default_config_dir() + "/credentials",
-            logging_dir=default_config_dir() + "/logs",
+            credential_dir=default_app_dir() + "/credentials",
+            logging_dir=default_app_dir() + "/logs",
             port=data.get("peer_port", 5000),
             network_ip=data.get("network_ip", NetworkProvider.detect_network_ip()),
             aes_key=data.get("aes_key", None),
@@ -154,21 +154,21 @@ class NetworkProvider:
 
     @staticmethod
     def get_registered_node_ids() -> List[str]:
-        cred_dir = default_config_dir() + "/credentials"
+        cred_dir = default_app_dir() + "/credentials"
         if not os.path.exists(cred_dir):
             return []
         return os.listdir(cred_dir)
     
     @staticmethod
     def delete_node_id(node_id: str):
-        cred_dir = default_config_dir() + "/credentials"
+        cred_dir = default_app_dir() + "/credentials"
         path = cred_dir + "/" + node_id
         if os.path.exists(path):
             shutil.rmtree(path)
 
     @staticmethod
     def save_new_node_id(node_id: str):
-        cred_dir = default_config_dir() + "/credentials"
+        cred_dir = default_app_dir() + "/credentials"
         cred_manager = CredentialManager(cred_dir, node_id)
         cred_manager.generate_keys()
 

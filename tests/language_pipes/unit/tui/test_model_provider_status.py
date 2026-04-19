@@ -66,7 +66,7 @@ def install_stub_modules():
 
     util_config = types.ModuleType("language_pipes.util.config")
     util_config.default_model_dir = lambda: "/tmp/models"
-    util_config.default_config_dir = lambda: "/tmp/config"
+    util_config.default_app_dir = lambda: "/tmp/config"
     sys.modules.setdefault("language_pipes.util.config", util_config)
 
 

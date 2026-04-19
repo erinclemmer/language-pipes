@@ -8,8 +8,8 @@ from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.util.prompt import prompt, select_option, prompt_bool
 from language_pipes.util.config import (
     get_config_files,
-    default_config_dir,
-    default_model_dir,
+    get_app_dir,
+    get_model_dir
 )
 from language_pipes.cli import VERSION
 from language_pipes.tui.frame.provider_calls import ProviderCall
@@ -144,30 +144,30 @@ def handle_file_load(
         return "exit"
     return None
 
-
-def main_menu(termsize: Tuple[int, int]):
+def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start: bool):
     with open("src/language_pipes/tui/banner.txt", "r") as f:
         banner_text = f.read()
 
-    app_dir = default_config_dir()
-    model_dir = default_model_dir()
+    app_dir = get_app_dir()
+    model_dir = get_model_dir()
+
     if not os.path.exists(app_dir):
-        Path(app_dir).mkdir(parents=True)
-
-    config_dir = str(Path(app_dir) / "configs")
-    if not os.path.exists(config_dir):
-        Path(config_dir).mkdir(parents=True)
-
-    cred_dir = str(Path(app_dir) / "credentials")
-    if not os.path.exists(cred_dir):
-        Path(cred_dir).mkdir(parents=True)
-
-    log_dir = str(Path(app_dir) / "logs")
-    if not os.path.exists(log_dir):
-        Path(log_dir).mkdir(parents=True)
+        app_dir.mkdir(parents=True)
 
     if not os.path.exists(model_dir):
-        Path(model_dir).mkdir(parents=True)
+        model_dir.mkdir(parents=True)
+
+    config_dir = app_dir / "configs"
+    if not os.path.exists(config_dir):
+        config_dir.mkdir(parents=True)
+
+    cred_dir = app_dir / "credentials"
+    if not os.path.exists(cred_dir):
+        cred_dir.mkdir(parents=True)
+
+    log_dir = app_dir / "logs"
+    if not os.path.exists(log_dir):
+        log_dir.mkdir(parents=True)
 
     left_bound = int((termsize[0] / 2.0) - 40.0)
     window = TuiWindow((80, termsize[1]), (left_bound, 0))
@@ -177,7 +177,7 @@ def main_menu(termsize: Tuple[int, int]):
     load_libraries(window)
 
     main_menu_options = ["New Configuration"]
-    if len(get_config_files(default_config_dir() + "/configs")) > 0:
+    if len(get_config_files(config_dir)) > 0:
         main_menu_options.append("Load Configuration")
 
     main_menu_options.append("Exit")
@@ -195,12 +195,27 @@ def main_menu(termsize: Tuple[int, int]):
         t.start()
         t.join()
 
-    if cmd == "New Configuration":
-        config_file = new_config(window)
-        if config_file is None or config_file == "":
+    if config_file is not None:
+        # Because the window has been initialized we need to assume that the config file is a valid path
+        config_path: Optional[Path] = None
+        if ".toml" in config_file:
+            config_path = Path(config_file)
+        else:
+            config_path = config_dir / (config_file + ".toml")
+        
+        res = handle_file_load(window, left_bound + 10, termsize, config_path)
+        if res == "exit":
+            exit()
+        if res is None:
+            return restart()
+
+    elif cmd == "New Configuration":
+        new_config_file = new_config(window)
+        if new_config_file is None or new_config_file == "":
             restart()
             return
-        config_path = Path(default_config_dir(), "configs", config_file + ".toml")
+        
+        config_path = config_dir / (new_config_file + ".toml")
         config_path.touch()
         res = handle_file_load(window, left_bound + 10, termsize, config_path)
         if res == "exit":
@@ -211,14 +226,14 @@ def main_menu(termsize: Tuple[int, int]):
     if cmd == "Load Configuration":
         window.remove_all()
         window.paint()
-        configs = get_config_files(str(Path(default_config_dir(), "configs")))
+        configs = get_config_files(config_dir)
         res = select_option(
             (left_bound + 2, 0), configs, TermText("Select Configuration"), True
         )
         if res is None:
             return restart()
         config_file, cmd = res
-        config_path = Path(default_config_dir(), "configs", config_file + ".toml")
+        config_path = config_dir / (config_file + ".toml")
         if cmd == 0:
             res = handle_file_load(window, left_bound, termsize, config_path)
             if res == "exit":

@@ -1,6 +1,10 @@
 import argparse
 from importlib import resources
+import os
+from pathlib import Path
+from typing import Optional
 from language_pipes.config_args import ConfigurationArgs
+from language_pipes.util.config import get_app_dir
 
 VERSION = (
     resources.files("language_pipes")
@@ -49,15 +53,28 @@ def build_parser() -> argparse.ArgumentParser:
 
     return parser
 
+def validate_config_arg(config_arg: str):
+    config_path: Optional[Path] = None
+    if ".toml" in config_arg:
+        config_path = Path(config_arg)
+    else:
+        config_path = get_app_dir() / "configs" / (config_arg + ".toml")
+
+    return os.path.exists(config_path)
+
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args() if argv is None else parser.parse_args(argv)
 
     if args.command is None:
+        if args.config is not None and not validate_config_arg(args.config):
+            print(f"ERROR: {args.config} is not a valid path or saved configuration")
+            exit()
+
         from language_pipes.tui import initialize_tui
 
-        initialize_tui()
-        pass
+        initialize_tui(args.config, getattr(args, "start", False))
+        
     elif args.command == "run":
         config_args = ConfigurationArgs(args)
         # Start headless
