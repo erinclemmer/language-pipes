@@ -1,7 +1,7 @@
 from typing import Callable, List
 
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.components.confirm import Confirm
-from language_pipes.content_loader import ContentLoader, ProviderCall
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 from language_pipes.tui.components.network_form.util import validate_address, validate_port
@@ -14,15 +14,15 @@ class BootstrapNodesEditor(ListEditor[Endpoint]):
     new_address_valid: bool
     new_port_valid: bool
 
-    def __init__(self, loader: ContentLoader, confirm: Confirm, exit_editor: Callable):
-        super().__init__(loader, confirm, exit_editor)
+    def __init__(self, provider: ContentProvider, confirm: Confirm, exit_editor: Callable):
+        super().__init__(provider, confirm, exit_editor)
 
     # ------------------------------------------------------------------
     # ListEditor abstract implementation
     # ------------------------------------------------------------------
 
     def load_items(self) -> List[Endpoint]:
-        config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+        config = self.provider.network_provider.get_network_config()
         return config.bootstrap_nodes
 
     def reset_input_fields(self) -> None:
@@ -40,9 +40,9 @@ class BootstrapNodesEditor(ListEditor[Endpoint]):
 
     def on_save_new(self, discard: Callable) -> None:
         def save_node():
-            config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+            config = self.provider.network_provider.get_network_config()
             config.bootstrap_nodes.append(Endpoint(self.new_node_address, int(self.new_node_port)))
-            self.loader.call_provider(ProviderCall.save_network_config, config)
+            self.provider.network_provider.save_network_config(config)
             self.restart()
 
         self.confirm.open(
@@ -58,9 +58,9 @@ class BootstrapNodesEditor(ListEditor[Endpoint]):
 
     def on_delete_existing(self, item: Endpoint) -> None:
         def on_apply():
-            config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+            config = self.provider.network_provider.get_network_config()
             config.bootstrap_nodes = [n for i, n in enumerate(self.items) if i != self.select_idx]
-            self.loader.call_provider(ProviderCall.save_network_config, config)
+            self.provider.network_provider.save_network_config(config)
             self.restart()
 
         def on_discard():

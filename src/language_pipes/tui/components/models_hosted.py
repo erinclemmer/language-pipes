@@ -16,7 +16,7 @@ class ModelsHostedState(Enum):
 
 # TODO: Whenever we change a configuration and the model is running, restart the model
 class ModelsHosted:
-    loader: ContentLoader
+    provider: ContentProvider
     confirm: Confirm
     exit_page: Callable
     is_focused: Callable
@@ -38,12 +38,12 @@ class ModelsHosted:
 
     def __init__(
         self,
-        loader: ContentLoader,
+        provider: ContentProvider,
         confirm: Confirm,
         exit_page: Callable,
         is_focoused: Callable,
     ):
-        self.loader = loader
+        self.provider = provider
         self.confirm = confirm
         self.exit_page = exit_page
         self.is_focused = is_focoused
@@ -83,7 +83,7 @@ class ModelsHosted:
             self.models_to_load = [
                 m for i, m in enumerate(self.models_to_load) if i != config_idx
             ]
-            self.loader.call_provider(
+            self.provider.call_provider(
                 ProviderCall.save_layer_models, self.models_to_load
             )
 
@@ -164,19 +164,19 @@ class ModelsHosted:
                 model = self.get_editing_model()
                 if model is not None:
                     if self._current_model_running():
-                        self.loader.call_provider(ProviderCall.shutdown_models, model.model_id)
+                        self.provider.call_provider(ProviderCall.shutdown_models, model.model_id)
                     else:
-                        self.loader.call_provider(ProviderCall.host_layer_model, model)
+                        self.provider.call_provider(ProviderCall.host_layer_model, model)
                 self.state = ModelsHostedState.List
             elif self.option_idx == 2:
                 self.state = ModelsHostedState.List
 
     def _network_running(self) -> bool:
-        network_status = self.loader.call_provider(ProviderCall.get_network_status)
+        network_status = self.provider.call_provider(ProviderCall.get_network_status)
         return network_status is not None and network_status.running
 
     def add_model(self):
-        valid_device_name = self.loader.call_provider(
+        valid_device_name = self.provider.call_provider(
             ProviderCall.validate_device_name, self.edit_device_name
         )
         if (
@@ -198,12 +198,12 @@ class ModelsHosted:
             # Replacing existing model
             self.models_to_load[self.editing_config_idx] = model
 
-        self.loader.call_provider(ProviderCall.save_layer_models, self.models_to_load)
+        self.provider.call_provider(ProviderCall.save_layer_models, self.models_to_load)
 
         if self._network_running():
 
             def on_apply():
-                self.loader.call_provider(ProviderCall.host_layer_model, model)
+                self.provider.call_provider(ProviderCall.host_layer_model, model)
 
             def on_discard():
                 pass
@@ -258,7 +258,7 @@ class ModelsHosted:
         model = self.get_editing_model()
         if model is None:
             return False
-        return len(self.loader.call_provider(ProviderCall.get_models_status).get(model.model_id, [])) > 0
+        return len(self.provider.call_provider(ProviderCall.get_models_status).get(model.model_id, [])) > 0
         
     def get_options_view(self) -> List[str]:
         model = self.get_editing_model()
@@ -291,11 +291,11 @@ class ModelsHosted:
     def get_choosing_model_view(self) -> List[str]:
         lines = ["Choose Model to Host", ""]
 
-        network_status = self.loader.call_provider(ProviderCall.get_network_status)
+        network_status = self.provider.call_provider(ProviderCall.get_network_status)
         if network_status is None or not network_status.running:
             lines.extend(self._network_not_started_warning())
 
-        self.installed_models = self.loader.call_provider(
+        self.installed_models = self.provider.call_provider(
             ProviderCall.get_installed_models
         )
         for i, model in enumerate(self.installed_models):
@@ -335,7 +335,7 @@ class ModelsHosted:
 
         name_cursor = "|" if self.edit_idx == 2 else " "
         lines.append(f"   Device: {self.edit_device_name}{name_cursor}")
-        if len(self.edit_device_name) > 0 and not self.loader.call_provider(
+        if len(self.edit_device_name) > 0 and not self.provider.call_provider(
             ProviderCall.validate_device_name, self.edit_device_name
         ):
             lines.append("[ERROR] Invalid device name")
@@ -358,8 +358,8 @@ class ModelsHosted:
         if not self._network_running():
             lines.extend(self._network_not_started_warning())
 
-        self.models_to_load = self.loader.call_provider(ProviderCall.get_layer_models)
-        models_status: Dict[str, List[ModelStatusInfo]] = self.loader.call_provider(ProviderCall.get_models_status)
+        self.models_to_load = self.provider.call_provider(ProviderCall.get_layer_models)
+        models_status: Dict[str, List[ModelStatusInfo]] = self.provider.call_provider(ProviderCall.get_models_status)
 
         for i, model in enumerate(self.models_to_load):
             lines.append(format_model_line(

@@ -7,12 +7,12 @@ from language_pipes.tui.util.kb_utils import PressedKey
 
 
 class JobsActive:
-    loader: ContentLoader
+    provider: ContentProvider
     exit_page: Callable
     is_focused: Callable[[], bool]
 
-    def __init__(self, loader: ContentLoader, exit_page: Callable, is_focused: Callable):
-        self.loader = loader
+    def __init__(self, provider: ContentProvider, exit_page: Callable, is_focused: Callable):
+        self.provider = provider
         self.exit_page = exit_page
         self.is_focused = is_focused
 
@@ -23,7 +23,7 @@ class JobsActive:
     def get_view(self) -> List[str]:
         lines = ["Active Jobs:", ""]
 
-        jobs: List[MetaJob] = self.loader.call_provider(ProviderCall.get_active_jobs)
+        jobs: List[MetaJob] = self.provider.call_provider(ProviderCall.get_active_jobs)
         for job in jobs:
             lines.extend([
                 f"Model ID:      {job.model_id}",

@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Generic, List, TypeVar
 
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
-from language_pipes.content_loader import ContentLoader
 
 T = TypeVar("T")
 
@@ -31,7 +31,7 @@ class ListEditor(ABC, Generic[T]):
     """
 
     confirm: Confirm
-    loader: ContentLoader
+    provider: ContentProvider
     exit_editor: Callable
 
     select_idx: int
@@ -39,10 +39,10 @@ class ListEditor(ABC, Generic[T]):
     items: List[T]
     adding: bool
 
-    def __init__(self, loader: ContentLoader, confirm: Confirm, exit_editor: Callable):
+    def __init__(self, provider: ContentProvider, confirm: Confirm, exit_editor: Callable):
         self.exit_editor = exit_editor
         self.confirm = confirm
-        self.loader = loader
+        self.provider = provider
         self.restart()
 
     # ------------------------------------------------------------------

@@ -8,19 +8,19 @@ from language_pipes.content_provider.network_provider import RouterStatus
 from language_pipes.content_provider.provider_calls import ProviderCall
 
 class NetworkStatus:
-    loader: ContentLoader
+    provider: ContentProvider
     status: Optional[RouterStatus]
     exit_page: Callable
     is_focused: Callable
 
-    def __init__(self, loader: ContentLoader, exit_page: Callable, is_focused: Callable):
-        self.loader = loader
+    def __init__(self, provider: ContentProvider, exit_page: Callable, is_focused: Callable):
+        self.provider = provider
         self.exit_page = exit_page
         self.is_focused = is_focused
         self.status = None
 
     def start(self):
-        self.status = self.loader.call_provider(ProviderCall.get_network_status)
+        self.status = self.provider.call_provider(ProviderCall.get_network_status)
 
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.Enter:
@@ -29,20 +29,20 @@ class NetworkStatus:
             self.exit_page()
 
     def on_enter(self):
-        status: RouterStatus = self.loader.call_provider(ProviderCall.get_network_status)
+        status: RouterStatus = self.provider.call_provider(ProviderCall.get_network_status)
         if status is not None and status.running:
-            self.loader.call_provider(ProviderCall.stop_network)
+            self.provider.call_provider(ProviderCall.stop_network)
         else:
-            if self.loader.call_provider(ProviderCall.is_port_available, self.config.port):
-                self.loader.call_provider(ProviderCall.start_network)
+            if self.provider.call_provider(ProviderCall.is_port_available, self.config.port):
+                self.provider.call_provider(ProviderCall.start_network)
     
     def get_view(self) -> List[str]:
-        self.config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
-        self.status: Optional[RouterStatus] = self.loader.call_provider(ProviderCall.get_network_status)
+        self.config: DSNodeConfig = self.provider.network_provider.get_network_config()
+        self.status: Optional[RouterStatus] = self.provider.call_provider(ProviderCall.get_network_status)
         l_cursor = "|>" if self.is_focused() else "  "
         r_cursor = "<|" if self.is_focused() else "  "
         btn_text = f" {l_cursor} Start Network Server {r_cursor}"
-        if not self.loader.call_provider(ProviderCall.is_port_available, self.config.port):
+        if not self.provider.call_provider(ProviderCall.is_port_available, self.config.port):
             btn_text = f"Warning: Can't start server, port {self.config.port} is not available"
         lines = ["[X] Server Stopped", "", btn_text]
         if self.status is not None:

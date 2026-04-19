@@ -18,7 +18,7 @@ from language_pipes.tui.components.models_installed import ModelsInstalled
 from language_pipes.tui.components.network_form.network_form import NetworkForm
 
 class PageRouter:
-    loader: ContentLoader
+    provider: ContentProvider
     confirm: Confirm
     nav: NavState
 
@@ -34,32 +34,32 @@ class PageRouter:
 
     def __init__(
         self,
-        loader: ContentLoader,
+        provider: ContentProvider,
         confirm: Confirm,
         nav: NavState,
         state: FrameState,
         change_nav: Callable,
     ):
         self.nav = nav
-        self.dashboard = Dashboard(loader, self.exit_page, self.is_focused, change_nav)
-        self.home_activity = HomeActivity(loader, self.exit_page, self.is_focused)
-        self.network_status = NetworkStatus(loader, self.exit_page, self.is_focused)
-        self.network_peers = NetworkPeers(loader, self.exit_page, self.is_focused)
+        self.dashboard = Dashboard(provider, self.exit_page, self.is_focused, change_nav)
+        self.home_activity = HomeActivity(provider, self.exit_page, self.is_focused)
+        self.network_status = NetworkStatus(provider, self.exit_page, self.is_focused)
+        self.network_peers = NetworkPeers(provider, self.exit_page, self.is_focused)
         self.network_form = NetworkForm(
-            loader, state, confirm, change_nav, self.exit_page, self.is_focused
+            provider, state, confirm, change_nav, self.exit_page, self.is_focused
         )
         self.models_installed = ModelsInstalled(
-            loader, confirm, self.exit_page, self.is_focused
+            provider, confirm, self.exit_page, self.is_focused
         )
         self.models_hosted = ModelsHosted(
-            loader, confirm, self.exit_page, self.is_focused
+            provider, confirm, self.exit_page, self.is_focused
         )
-        self.pipes_connected = PipesConnected(loader, self.exit_page, self.is_focused)
-        self.pipes_complete = PipesComplete(loader, self.exit_page, self.is_focused)
-        self.pipes_incomplete = PipesIncomplete(loader, self.exit_page, self.is_focused)
+        self.pipes_connected = PipesConnected(provider, self.exit_page, self.is_focused)
+        self.pipes_complete = PipesComplete(provider, self.exit_page, self.is_focused)
+        self.pipes_incomplete = PipesIncomplete(provider, self.exit_page, self.is_focused)
 
-        self.jobs_server = JobsServer(loader, confirm, self.exit_page, self.is_focused)
-        self.jobs_active = JobsActive(loader, self.exit_page, self.is_focused)
+        self.jobs_server = JobsServer(provider, confirm, self.exit_page, self.is_focused)
+        self.jobs_active = JobsActive(provider, self.exit_page, self.is_focused)
 
     def is_focused(self):
         return self.nav.focus_depth == 2

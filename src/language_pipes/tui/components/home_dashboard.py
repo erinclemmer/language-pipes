@@ -64,19 +64,19 @@ class Dashboard:
 
     def __init__(
         self,
-        loader: Any,
+        provider: Any,
         exit_page: Callable,
         is_focused: Callable,
         change_nav: Callable,
     ):
-        self.loader = loader
+        self.provider = provider
         self.exit_page = exit_page
         self.is_focused = is_focused
         self.change_nav = change_nav
         self.router_status = None
-        self.network_config = self.loader.call_provider(ProviderCall.get_network_config)
+        self.network_config = self.provider.network_provider.get_network_config()
         self.selected_idx = 0
-        self.oai_port = self.loader.call_provider(ProviderCall.get_oai_port)
+        self.oai_port = self.provider.call_provider(ProviderCall.get_oai_port)
         self.job_serv_running = False
         self.models_to_load = []
         self.models_status = { }
@@ -84,10 +84,10 @@ class Dashboard:
     def network_port_available(self) -> bool:
         if self.network_config is None:
             return True
-        return self.loader.call_provider(ProviderCall.is_port_available, self.network_config.port)
+        return self.provider.call_provider(ProviderCall.is_port_available, self.network_config.port)
 
     def job_port_available(self) -> bool:
-        return self.loader.call_provider(ProviderCall.is_port_available, self.oai_port)
+        return self.provider.call_provider(ProviderCall.is_port_available, self.oai_port)
 
     def on_prev(self):
         self.selected_idx -= 1
@@ -115,32 +115,32 @@ class Dashboard:
             return
         
         if selected_option == "Start Network Server":
-            self.loader.call_provider(ProviderCall.start_network)
+            self.provider.call_provider(ProviderCall.start_network)
         elif selected_option == "Stop Network Server":
-            self.loader.call_provider(ProviderCall.stop_network)
+            self.provider.call_provider(ProviderCall.stop_network)
         elif selected_option == "Configure Network Server":
             self.change_nav("Network", "Configure")
         elif selected_option == "Load Models":
             for model in self.models_to_load:
-                self.loader.call_provider(ProviderCall.host_layer_model, model)
+                self.provider.call_provider(ProviderCall.host_layer_model, model)
         elif selected_option == "Unload Models":
             for model in self.models_to_load:
-                self.loader.call_provider(ProviderCall.shutdown_models, model.model_id)
+                self.provider.call_provider(ProviderCall.shutdown_models, model.model_id)
         elif selected_option == "Configure Models":
             self.change_nav("Models", "Hosted")
         elif selected_option == "Start Job Server":
-            api_keys = self.loader.call_provider(ProviderCall.get_api_keys)
-            self.loader.call_provider(ProviderCall.start_oai_server, (self.oai_port, api_keys))
+            api_keys = self.provider.call_provider(ProviderCall.get_api_keys)
+            self.provider.call_provider(ProviderCall.start_oai_server, (self.oai_port, api_keys))
         elif selected_option == "Stop Job Server":
-            self.loader.call_provider(ProviderCall.stop_oai_server)
+            self.provider.call_provider(ProviderCall.stop_oai_server)
         elif selected_option == "Configure Job Server":
             self.change_nav("Jobs", "Server")
         elif selected_option == "Show Logs":
             self.change_nav("Home", "Activity")
 
     def _get_ram_usage(self) -> str:
-        used_ram = self.loader.call_provider(ProviderCall.get_used_system_ram)
-        total_ram = self.loader.call_provider(ProviderCall.get_total_system_ram)
+        used_ram = self.provider.call_provider(ProviderCall.get_used_system_ram)
+        total_ram = self.provider.call_provider(ProviderCall.get_total_system_ram)
         
         return f"System RAM: {used_ram:.1f}/{total_ram:.1f}GB"
 
@@ -187,11 +187,11 @@ class Dashboard:
         return False
 
     def get_view(self) -> Tuple[List[str], List[str]]:
-        self.models_to_load = self.loader.call_provider(ProviderCall.get_layer_models)
-        self.network_config = self.loader.call_provider(ProviderCall.get_network_config)
-        self.router_status = self.loader.call_provider(ProviderCall.get_network_status)
-        self.job_serv_running = self.loader.call_provider(ProviderCall.oai_server_running)
-        self.oai_port = self.loader.call_provider(ProviderCall.get_oai_port)
+        self.models_to_load = self.provider.call_provider(ProviderCall.get_layer_models)
+        self.network_config = self.provider.network_provider.get_network_config()
+        self.router_status = self.provider.call_provider(ProviderCall.get_network_status)
+        self.job_serv_running = self.provider.call_provider(ProviderCall.oai_server_running)
+        self.oai_port = self.provider.call_provider(ProviderCall.get_oai_port)
 
         lines = ["   Options:", ""]
         right_panel = [self._get_ram_usage(), ""]
@@ -222,8 +222,8 @@ class Dashboard:
         if len(self.models_to_load) > 0:
             right_panel.append("Models:")
 
-        self.models_status = self.loader.call_provider(ProviderCall.get_models_status)
-        jobs: List[MetaJob] = self.loader.call_provider(ProviderCall.get_active_jobs)
+        self.models_status = self.provider.call_provider(ProviderCall.get_models_status)
+        jobs: List[MetaJob] = self.provider.call_provider(ProviderCall.get_active_jobs)
         for model in self.models_to_load:
             model_statuses = self.models_status.get(model.model_id, [])
             pipe_ids = [p.pipe_id for p in model_statuses]

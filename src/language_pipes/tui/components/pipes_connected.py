@@ -7,16 +7,16 @@ from language_pipes.content_provider.provider_calls import ProviderCall
 from language_pipes.tui.components.view_pipe import format_pipe_view
 
 class PipesConnected:
-    loader: ContentLoader
+    provider: ContentProvider
     pipes_connected: List[MetaPipe]
 
     def __init__(
         self,
-        loader: ContentLoader,
+        provider: ContentProvider,
         exit_page: Callable,
         is_focused: Callable,
     ):
-        self.loader = loader
+        self.provider = provider
         self.exit_page = exit_page
         self.is_focused = is_focused
 
@@ -25,7 +25,7 @@ class PipesConnected:
             self.exit_page()
 
     def get_view(self) -> List[str]:
-        self.pipes_connected = self.loader.call_provider(ProviderCall.get_pipes_connected)
+        self.pipes_connected = self.provider.call_provider(ProviderCall.get_pipes_connected)
         if self.pipes_connected is None:
             return ["Network Not Connected", "Connect to the network to view connected pipes"]
         if len(self.pipes_connected) == 0:

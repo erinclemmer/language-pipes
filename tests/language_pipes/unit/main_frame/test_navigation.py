@@ -104,10 +104,10 @@ class TestNavigation(unittest.TestCase):
     def test_r_key_refreshes_view(self):
         """Pressing 'r' should trigger a content refresh (invalidate cache)."""
         # Pre-populate cache
-        self.frame.loader._cache[("Network", "Configure")] = {"state": "cached"}
+        self.frame.provider._cache[("Network", "Configure")] = {"state": "cached"}
         _simulate_keys(self.frame, [(PressedKey.Alpha, "r")])
         # After refresh, the cache entry should be updated (force=True replaces it)
-        cached = self.frame.loader._cache.get(("Network", "Configure"))
+        cached = self.frame.provider._cache.get(("Network", "Configure"))
         # The refreshed value should no longer be our injected one
         if cached is not None:
             self.assertNotEqual(cached.get("state"), "cached")

@@ -22,7 +22,7 @@ class TestDashboardComponent(unittest.TestCase):
         total_ram=16.0,
         models_to_load=None,
     ):
-        loader = Mock()
+        provider = Mock()
 
         def call_provider(provider_call, *args):
             if provider_call == ProviderCall.get_network_config:
@@ -39,9 +39,9 @@ class TestDashboardComponent(unittest.TestCase):
                 return {}
             return None
 
-        loader.call_provider.side_effect = call_provider
+        provider.call_provider.side_effect = call_provider
         return Dashboard(
-            loader, exit_page or Mock(), lambda: True, change_nav or Mock()
+            provider, exit_page or Mock(), lambda: True, change_nav or Mock()
         )
 
     def test_dashboard_renders_network_on_when_running(self):
@@ -157,20 +157,20 @@ class TestDashboardComponent(unittest.TestCase):
         self.assertEqual(dashboard.selected_idx, 0)
 
     def test_dashboard_enter_starts_network_from_dashboard(self):
-        loader = Mock()
-        loader.call_provider.return_value = None
+        provider = Mock()
+        provider.call_provider.return_value = None
         change_nav = Mock()
-        dashboard = Dashboard(loader, Mock(), lambda: True, change_nav)
+        dashboard = Dashboard(provider, Mock(), lambda: True, change_nav)
 
         dashboard.on_key(PressedKey.Enter, "")
 
-        loader.call_provider.assert_any_call(ProviderCall.get_network_status)
-        loader.call_provider.assert_any_call(ProviderCall.start_network)
+        provider.call_provider.assert_any_call(ProviderCall.get_network_status)
+        provider.call_provider.assert_any_call(ProviderCall.start_network)
         change_nav.assert_not_called()
 
     def test_dashboard_enter_hosts_models_when_running(self):
         change_nav = Mock()
-        loader = Mock()
+        provider = Mock()
 
         # Create mock models to load
         mock_models = [
@@ -189,10 +189,10 @@ class TestDashboardComponent(unittest.TestCase):
                 return mock_models
             return None
 
-        loader.call_provider = Mock(side_effect=call_provider)
+        provider.call_provider = Mock(side_effect=call_provider)
 
         dashboard = Dashboard(
-            loader=loader,
+            provider=provider,
             exit_page=lambda: None,
             is_focused=lambda: True,
             change_nav=change_nav,
@@ -203,13 +203,13 @@ class TestDashboardComponent(unittest.TestCase):
 
         # Should call host_model for each model
         self.assertEqual(
-            loader.call_provider.call_count, 4
+            provider.call_provider.call_count, 4
         )  # get_network_status, get_models_to_load, host_model x2
 
         # Verify host_model was called with each model
         host_model_calls = [
             call
-            for call in loader.call_provider.call_args_list
+            for call in provider.call_provider.call_args_list
             if call[0][0] == ProviderCall.host_layer_model
         ]
         self.assertEqual(len(host_model_calls), 2)

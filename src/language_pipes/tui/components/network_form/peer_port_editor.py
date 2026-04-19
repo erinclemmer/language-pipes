@@ -1,27 +1,28 @@
 from typing import Callable
 
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
-from language_pipes.content_loader import ContentLoader, ProviderCall
+
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.tui.components.network_form.util import validate_port
 
 class PeerPortEditor:
     confirm: Confirm
-    loader: ContentLoader
+    provider: ContentProvider
     exit_editor: Callable
 
     peer_port_str: str
     valid_port: bool
 
-    def __init__(self, loader: ContentLoader, confirm: Confirm, exit_editor: Callable):
+    def __init__(self, provider: ContentProvider, confirm: Confirm, exit_editor: Callable):
         self.exit_editor = exit_editor
         self.confirm = confirm
-        self.loader = loader
+        self.provider = provider
         self.restart()
 
     def restart(self):
-        config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+        config: DSNodeConfig = self.provider.network_provider.get_network_config()
         self.peer_port_str = str(config.port)
         self.validate_port()
 
@@ -46,9 +47,9 @@ class PeerPortEditor:
             )
 
     def save_port(self):
-        config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+        config: DSNodeConfig = self.provider.network_provider.get_network_config()
         config.port = int(self.peer_port_str)
-        self.loader.call_provider(ProviderCall.save_network_config, config)
+        self.provider.network_provider.save_network_config(config)
         self.exit_editor()
 
     def on_char(self, ch: str):

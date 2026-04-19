@@ -22,7 +22,7 @@ class FrameLayout:
 
     nav_window: NavWindow
     nav_state: NavState
-    loader: ContentLoader
+    provider: ContentProvider
     exit_confirm: ExitConfirm
     edit_confirm: Confirm
     state: FrameState
@@ -33,7 +33,7 @@ class FrameLayout:
         self,
         window: TuiWindow,
         nav: NavState,
-        loader: ContentLoader,
+        provider: ContentProvider,
         exit_confirm: ExitConfirm,
         edit_confirm: Confirm,
         state: FrameState,
@@ -41,7 +41,7 @@ class FrameLayout:
     ):
         self.nav_state = nav
         self.window = window
-        self.loader = loader
+        self.provider = provider
         self.exit_confirm = exit_confirm
         self.edit_confirm = edit_confirm
         self.page_router = page_router

@@ -17,7 +17,7 @@ class JobsServerState(Enum):
 
 class JobsServer:
     confirm: Confirm
-    loader: ContentLoader
+    provider: ContentProvider
     exit_page: Callable
     is_focused: Callable[[], bool]
 
@@ -32,8 +32,8 @@ class JobsServer:
     edit_oai_port: str
     new_api_key: str
 
-    def __init__(self, loader: ContentLoader, confirm: Confirm, exit_page: Callable, is_focused: Callable):
-        self.loader = loader
+    def __init__(self, provider: ContentProvider, confirm: Confirm, exit_page: Callable, is_focused: Callable):
+        self.provider = provider
         self.confirm = confirm
         self.exit_page = exit_page
         self.is_focused = is_focused
@@ -42,8 +42,8 @@ class JobsServer:
         self.key_idx = 0
         self.type_idx = 0
         self.state = JobsServerState.Top
-        self.oai_port = self.loader.call_provider(ProviderCall.get_oai_port)
-        self.api_keys = self.loader.call_provider(ProviderCall.get_api_keys)
+        self.oai_port = self.provider.call_provider(ProviderCall.get_oai_port)
+        self.api_keys = self.provider.call_provider(ProviderCall.get_api_keys)
         self.edit_oai_port = str(self.oai_port)
 
     def on_key(self, key: PressedKey, ch: str):
@@ -66,7 +66,7 @@ class JobsServer:
         if self.state == JobsServerState.Keys and self.key_idx < len(self.api_keys):
             def on_apply():
                 self.api_keys = [key for key in self.api_keys if key != self.api_keys[self.key_idx]]
-                self.loader.call_provider(ProviderCall.set_api_keys, self.api_keys)
+                self.provider.call_provider(ProviderCall.set_api_keys, self.api_keys)
 
             self.confirm.open(
                 f"Delete {self.api_keys[self.key_idx]}?",
@@ -106,7 +106,7 @@ class JobsServer:
                 self.state = JobsServerState.Keys
             elif self.focus_idx == 2:
                 if self.server_running:
-                    self.loader.call_provider(ProviderCall.stop_oai_server)
+                    self.provider.call_provider(ProviderCall.stop_oai_server)
                 else:
                     self.save_and_run()
         elif self.state == JobsServerState.Keys:
@@ -123,21 +123,21 @@ class JobsServer:
                 self.state = JobsServerState.Keys
         elif self.state == JobsServerState.KeyGen:
             self.api_keys.append(self.new_api_key)
-            self.loader.call_provider(ProviderCall.set_api_keys, self.api_keys)
+            self.provider.call_provider(ProviderCall.set_api_keys, self.api_keys)
             self.state = JobsServerState.Keys
         elif self.state == JobsServerState.TypeKey:
             if len(self.new_api_key) > 0:
                 self.api_keys.append(self.new_api_key)
-                self.loader.call_provider(ProviderCall.set_api_keys, self.api_keys)
+                self.provider.call_provider(ProviderCall.set_api_keys, self.api_keys)
                 self.state = JobsServerState.Keys
     
     def save_and_run(self):
         if not self.validate_oai_port():
             return
         
-        self.loader.call_provider(ProviderCall.set_oai_port, int(self.edit_oai_port))
-        self.loader.call_provider(ProviderCall.set_api_keys, self.api_keys)
-        self.loader.call_provider(ProviderCall.start_oai_server, (int(self.edit_oai_port), self.api_keys))
+        self.provider.call_provider(ProviderCall.set_oai_port, int(self.edit_oai_port))
+        self.provider.call_provider(ProviderCall.set_api_keys, self.api_keys)
+        self.provider.call_provider(ProviderCall.start_oai_server, (int(self.edit_oai_port), self.api_keys))
 
     def on_prev(self):
         if self.state == JobsServerState.Top and not self.server_running:
@@ -228,7 +228,7 @@ class JobsServer:
 
     def get_top_view(self) -> List[str]:
         port_cursor = "|" if self.focus_idx == 0 and self.is_focused() else ""
-        self.server_running = self.loader.call_provider(ProviderCall.oai_server_running)
+        self.server_running = self.provider.call_provider(ProviderCall.oai_server_running)
         port_string = f"   Port: {self.edit_oai_port}{port_cursor}" if not self.server_running else f"   Running Server on port {self.edit_oai_port}"
         lines = [
             "Jobs Server:", "",
@@ -256,10 +256,10 @@ class JobsServer:
             r_cursor = "<|" if self.focus_idx == 2 and self.is_focused() else "  "
             btn_label = "Stop Server" if self.server_running else "Start Server"
             lines.append(f"{l_cursor} {btn_label} {r_cursor}")
-        elif not self.loader.call_provider(ProviderCall.is_port_available, self.oai_port):
+        elif not self.provider.call_provider(ProviderCall.is_port_available, self.oai_port):
             lines.append(f"   Warning: Can't start server, port {self.oai_port} is not available")
 
-        logs: List[Tuple[float, str]] = self.loader.call_provider(ProviderCall.get_oai_logs)
+        logs: List[Tuple[float, str]] = self.provider.call_provider(ProviderCall.get_oai_logs)
         lines.extend(["", "Logs:"])
 
         if len(logs) > 5:
@@ -272,11 +272,11 @@ class JobsServer:
         return lines
     
     def _network_running(self) -> bool:
-        network_status = self.loader.call_provider(ProviderCall.get_network_status)
+        network_status = self.provider.call_provider(ProviderCall.get_network_status)
         return network_status is not None and network_status.running
 
     def can_start_server(self) -> bool:
-        return self.loader.call_provider(ProviderCall.is_port_available, self.oai_port) and self.validate_oai_port() and self._network_running()
+        return self.provider.call_provider(ProviderCall.is_port_available, self.oai_port) and self.validate_oai_port() and self._network_running()
     
     def validate_oai_port(self) -> bool:
         try:

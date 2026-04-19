@@ -7,15 +7,15 @@ from language_pipes.distributed_state_network.objects.state_packet import StateP
 
 
 class NetworkPeers:
-    loader: ContentLoader
+    provider: ContentProvider
     exit_page: Callable
     is_focused: Callable
     peers: Dict[str, StatePacket]
 
     def __init__(
-        self, loader: ContentLoader, exit_page: Callable, is_focused: Callable
+        self, provider: ContentProvider, exit_page: Callable, is_focused: Callable
     ):
-        self.loader = loader
+        self.provider = provider
         self.exit_page = exit_page
         self.is_focused = is_focused
         self.peers = {}
@@ -25,7 +25,7 @@ class NetworkPeers:
             self.exit_page()
 
     def get_view(self) -> List[str]:
-        self.peers = self.loader.call_provider(ProviderCall.list_peers)
+        self.peers = self.provider.call_provider(ProviderCall.list_peers)
         if not self.peers:
             return ["Network Peers:", "", "No peers connected"]
         lines = ["Network Peers:", ""]

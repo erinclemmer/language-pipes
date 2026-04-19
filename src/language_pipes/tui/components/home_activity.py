@@ -2,18 +2,19 @@ import time
 from typing import Callable, List, Optional, Tuple
 
 from language_pipes.content_loader import ContentLoader
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.content_provider.network_provider import RouterStatus
 from language_pipes.content_provider.provider_calls import ProviderCall
 from language_pipes.tui.util.kb_utils import PressedKey
 
 
 class HomeActivity:
-    loader: ContentLoader
+    provider: ContentProvider
     exit_page: Callable
     is_focused: Callable[[], bool]
 
-    def __init__(self, loader: ContentLoader, exit_page: Callable, is_focused: Callable):
-        self.loader = loader
+    def __init__(self, provider: ContentProvider, exit_page: Callable, is_focused: Callable):
+        self.provider = provider
         self.exit_page = exit_page
         self.is_focused = is_focused
 
@@ -25,13 +26,13 @@ class HomeActivity:
         lines = ["Logs:", ""]
 
         logs: List[Tuple[float, str]] = []
-        network_status: Optional[RouterStatus] = self.loader.call_provider(ProviderCall.get_network_status)
+        network_status: Optional[RouterStatus] = self.provider.call_provider(ProviderCall.get_network_status)
         if network_status is not None:
             logs.extend(network_status.logs)
         
-        logs.extend(self.loader.call_provider(ProviderCall.get_oai_logs))
+        logs.extend(self.provider.call_provider(ProviderCall.get_oai_logs))
 
-        logs.extend(self.loader.call_provider(ProviderCall.get_model_manager_logs))
+        logs.extend(self.provider.call_provider(ProviderCall.get_model_manager_logs))
         
         logs.sort(key=lambda x: x[0])
 

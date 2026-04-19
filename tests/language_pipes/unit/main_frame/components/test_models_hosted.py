@@ -33,8 +33,8 @@ class _FakeConfirm:
 
 class ModelsHostedTests(unittest.TestCase):
     def test_add_model_saves_and_hosts(self):
-        loader = _FakeLoader()
-        hosted = ModelsHosted(loader, _FakeConfirm(), lambda: None, lambda: True)
+        provider = _FakeLoader()
+        hosted = ModelsHosted(provider, _FakeConfirm(), lambda: None, lambda: True)
         hosted.editing_model = True
         hosted.edit_model_id = "org/model"
         hosted.edit_device_name = "cpu"
@@ -44,17 +44,17 @@ class ModelsHostedTests(unittest.TestCase):
         hosted.add_model()
 
         self.assertEqual(
-            [call[0] for call in loader.calls],
+            [call[0] for call in provider.calls],
             [
                 ProviderCall.validate_device_name,
                 ProviderCall.save_layer_models,
                 ProviderCall.host_layer_model,
             ],
         )
-        saved_models = loader.calls[1][1]
+        saved_models = provider.calls[1][1]
         self.assertEqual(len(saved_models), 1)
         self.assertEqual(saved_models[0].model_id, "org/model")
-        self.assertEqual(loader.calls[2][1].model_id, "org/model")
+        self.assertEqual(provider.calls[2][1].model_id, "org/model")
 
 
 class ModelProviderTests(unittest.TestCase):

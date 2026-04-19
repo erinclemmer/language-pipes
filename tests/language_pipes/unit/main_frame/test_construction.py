@@ -40,7 +40,7 @@ class TestMainFrameConstruction(unittest.TestCase):
         self.assertIsInstance(self.frame.confirm, Confirm)
 
     def test_loader_created(self):
-        self.assertIsInstance(self.frame.loader, ContentLoader)
+        self.assertIsInstance(self.frame.provider, ContentLoader)
 
     def test_key_handler_created(self):
         self.assertIsInstance(self.frame.key_handler, FrameKeyHandler)
@@ -62,13 +62,13 @@ class TestMainFrameConstruction(unittest.TestCase):
         self.assertFalse(self.frame.state.running)
 
     def test_providers_none_by_default(self):
-        """When no providers are passed, loader.providers should be None."""
-        self.assertIsNone(self.frame.loader.providers)
+        """When no providers are passed, provider.providers should be None."""
+        self.assertIsNone(self.frame.provider.providers)
 
     def test_providers_forwarded_to_loader(self):
         providers = {"fake": lambda: None}
         frame = _make_main_frame(providers=providers)
-        self.assertIs(frame.loader.providers, providers)
+        self.assertIs(frame.provider.providers, providers)
 
     def test_exit_confirm_not_open(self):
         self.assertFalse(self.frame.exit_confirm.is_open)

@@ -1,7 +1,8 @@
 from typing import Callable, List
 
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.components.confirm import Confirm
-from language_pipes.content_loader import ContentLoader, ProviderCall
+
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.tui.components.network_form.list_editor import ListEditor
 
@@ -9,9 +10,9 @@ from language_pipes.tui.components.network_form.list_editor import ListEditor
 class NodeIdEditor(ListEditor[str]):
     new_node_id: str
 
-    def __init__(self, loader: ContentLoader, confirm: Confirm, exit_editor: Callable):
+    def __init__(self, provider: ContentProvider, confirm: Confirm, exit_editor: Callable):
         self.selected_node_id = None
-        super().__init__(loader, confirm, exit_editor)
+        super().__init__(provider, confirm, exit_editor)
 
     # ------------------------------------------------------------------
     # Expose registering_node_id as an alias for the base adding flag
@@ -41,7 +42,7 @@ class NodeIdEditor(ListEditor[str]):
     # ------------------------------------------------------------------
 
     def load_items(self) -> List[str]:
-        return self.loader.call_provider(ProviderCall.get_registered_node_ids)
+        return self.provider.network_provider.get_registered_node_ids()
 
     def reset_input_fields(self) -> None:
         self.new_node_id = ""
@@ -54,10 +55,10 @@ class NodeIdEditor(ListEditor[str]):
 
     def on_save_new(self, discard: Callable) -> None:
         def save_node_id():
-            config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+            config: DSNodeConfig = self.provider.network_provider.get_network_config()
             config.node_id = self.new_node_id
-            self.loader.call_provider(ProviderCall.save_new_node_id, self.new_node_id)
-            self.loader.call_provider(ProviderCall.save_network_config, config)
+            self.provider.network_provider.save_new_node_id(self.new_node_id)
+            self.provider.network_provider.save_network_config(config)
             self.confirm.close()
             self.exit_editor()
 
@@ -72,9 +73,9 @@ class NodeIdEditor(ListEditor[str]):
         selected_node_id = item
 
         def use_node_id():
-            config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+            config: DSNodeConfig = self.provider.network_provider.get_network_config()
             config.node_id = selected_node_id
-            self.loader.call_provider(ProviderCall.save_network_config, config)
+            self.provider.network_provider.save_network_config(config)
             self.confirm.close()
             self.exit_editor()
 
@@ -87,7 +88,7 @@ class NodeIdEditor(ListEditor[str]):
 
     def on_delete_existing(self, item: str) -> None:
         def on_apply():
-            self.loader.call_provider(ProviderCall.delete_node_id, item)
+            self.provider.network_provider.delete_node_id(item)
             self.restart()
 
         def on_discard():

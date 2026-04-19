@@ -1,10 +1,11 @@
 from enum import Enum
 from typing import Callable, Optional, List, Dict, Any
 
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
-from language_pipes.content_loader import ContentLoader, ProviderCall
+
 from language_pipes.content_provider.network_provider import RouterStatus
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.tui.frame.tips import TIPS
@@ -26,11 +27,11 @@ class NetworkKeyEditorState(Enum):
 class NetworkForm:
     confirm: Confirm
     state: FrameState
-    loader: ContentLoader
+    provider: ContentProvider
 
     def __init__(
         self,
-        loader: ContentLoader,
+        provider: ContentProvider,
         state: FrameState,
         confirm: Confirm,
         change_nav: Callable,
@@ -38,7 +39,7 @@ class NetworkForm:
         is_focused: Callable,
     ):
         self.state = state
-        self.loader = loader
+        self.provider = provider
         self.confirm = confirm
         self.change_nav = change_nav
         self.exit_page = exit_page
@@ -52,15 +53,15 @@ class NetworkForm:
         self.network_key = None
         self.network_key_input = ""
         self.network_key_valid = False
-        self.node_id_editor = NodeIdEditor(loader, confirm, self.exit_field_editor)
+        self.node_id_editor = NodeIdEditor(provider, confirm, self.exit_field_editor)
         self.network_ip_editor = NetworkIpEditor(
-            loader, confirm, self.exit_field_editor
+            provider, confirm, self.exit_field_editor
         )
-        self.peer_port_editor = PeerPortEditor(loader, confirm, self.exit_field_editor)
+        self.peer_port_editor = PeerPortEditor(provider, confirm, self.exit_field_editor)
         self.bootstrap_nodes_editor = BootstrapNodesEditor(
-            loader, confirm, self.exit_field_editor
+            provider, confirm, self.exit_field_editor
         )
-        self.whitelist_editor = WhitelistEditor(loader, confirm, self.exit_field_editor)
+        self.whitelist_editor = WhitelistEditor(provider, confirm, self.exit_field_editor)
         self.start()
 
     def restart_field_editors(self):
@@ -103,9 +104,7 @@ class NetworkForm:
         self.field_editor_visible = False
 
     def get_edit_fields(self) -> List[Dict[str, Optional[Any]]]:
-        cfg: DSNodeConfig = self.loader.call_provider(
-            ProviderCall.get_network_config
-        )
+        cfg = self.provider.network_provider.get_network_config()
 
         key_label = "*" * 10 if cfg.aes_key is not None else ""
         return [
@@ -175,9 +174,7 @@ class NetworkForm:
         if reset_select:
             self.network_key_select_idx = 0
         self.network_key_state = NetworkKeyEditorState.LIST
-        config: DSNodeConfig = self.loader.call_provider(
-            ProviderCall.get_network_config
-        )
+        config = self.provider.network_provider.get_network_config()
         self.network_key = config.aes_key
         self.network_key_input = ""
         self.network_key_valid = False
@@ -213,7 +210,7 @@ class NetworkForm:
         if self.network_key_state != NetworkKeyEditorState.INPUT:
             return
         self.network_key_input = self.network_key_input[:-1]
-        self.network_key_valid = self.loader.call_provider(
+        self.network_key_valid = self.provider.call_provider(
             ProviderCall.validate_aes_key, self.network_key_input
         )
 
@@ -221,32 +218,24 @@ class NetworkForm:
         if self.network_key_state != NetworkKeyEditorState.INPUT:
             return
         self.network_key_input += ch
-        self.network_key_valid = self.loader.call_provider(
-            ProviderCall.validate_aes_key, self.network_key_input
-        )
-
+        self.network_key_valid = self.provider.network_provider.validate_aes_key(self.network_key_input)
+        
     def save_network_key_input(self):
-        config: DSNodeConfig = self.loader.call_provider(
-            ProviderCall.get_network_config
-        )
+        config = self.provider.network_provider.get_network_config()
         config.aes_key = self.network_key_input
-        self.loader.call_provider(ProviderCall.save_network_config, config)
+        self.provider.network_provider.save_network_config(config)
         self.exit_field_editor()
 
     def generate_network_key(self):
-        config: DSNodeConfig = self.loader.call_provider(
-            ProviderCall.get_network_config
-        )
-        config.aes_key = self.loader.call_provider(ProviderCall.generate_aes_key)
-        self.loader.call_provider(ProviderCall.save_network_config, config)
+        config = self.provider.network_provider.get_network_config()
+        config.aes_key = self.provider.network_provider.generate_aes_key()
+        self.provider.network_provider.save_network_config(config)
         self.exit_field_editor()
 
     def delete_network_key(self):
-        config: DSNodeConfig = self.loader.call_provider(
-            ProviderCall.get_network_config
-        )
+        config = self.provider.network_provider.get_network_config()
         config.aes_key = None
-        self.loader.call_provider(ProviderCall.save_network_config, config)
+        self.provider.network_provider.save_network_config(config)
         self.exit_field_editor()
 
     def on_network_key_enter(self):
@@ -371,11 +360,9 @@ class NetworkForm:
     def get_view(self) -> List[str]:
         if self.field_editor_visible:
             return self.get_editor_lines()
-        if not self.is_focused() and self.loader.provider_available(
-            ProviderCall.get_network_config
-        ):
+        if not self.is_focused():
             preview = self.show_preview(
-                self.loader.call_provider(ProviderCall.get_network_config)
+                self.provider.network_provider.get_network_config()
             )
             if preview is not None:
                 return preview
@@ -466,14 +453,12 @@ class NetworkForm:
         return error
 
     def on_exit(self):
-        status: RouterStatus = self.loader.call_provider(
-            ProviderCall.get_network_status
-        )
+        status = self.provider.network_provider.get_network_status()
         if status is not None and status.running:
             return
 
         def on_apply():
-            self.loader.call_provider(ProviderCall.start_network)
+            self.provider.network_provider.start_network()
             self.change_nav("Network", "Status")
 
         self.confirm.open(

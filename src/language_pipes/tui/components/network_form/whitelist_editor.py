@@ -1,22 +1,23 @@
 from typing import Callable, List
 
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.components.confirm import Confirm
-from language_pipes.content_loader import ContentLoader, ProviderCall
+
 from language_pipes.tui.components.network_form.list_editor import ListEditor
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 
 class WhitelistEditor(ListEditor[str]):
     new_node_id: str
 
-    def __init__(self, loader: ContentLoader, confirm: Confirm, exit_editor: Callable):
-        super().__init__(loader, confirm, exit_editor)
+    def __init__(self, provider: ContentProvider, confirm: Confirm, exit_editor: Callable):
+        super().__init__(provider, confirm, exit_editor)
 
     # ------------------------------------------------------------------
     # ListEditor abstract implementation
     # ------------------------------------------------------------------
 
     def load_items(self) -> List[str]:
-        config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+        config: DSNodeConfig = self.provider.network_provider.get_network_config()
         return config.whitelist_node_ids
 
     def reset_input_fields(self) -> None:
@@ -30,9 +31,9 @@ class WhitelistEditor(ListEditor[str]):
 
     def on_save_new(self, discard: Callable) -> None:
         def save_node():
-            config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+            config: DSNodeConfig = self.provider.network_provider.get_network_config()
             config.whitelist_node_ids.append(self.new_node_id)
-            self.loader.call_provider(ProviderCall.save_network_config, config)
+            self.provider.network_provider.save_network_config(config)
             self.restart()
 
         self.confirm.open(
@@ -48,9 +49,9 @@ class WhitelistEditor(ListEditor[str]):
 
     def on_delete_existing(self, item: str) -> None:
         def on_apply():
-            config: DSNodeConfig = self.loader.call_provider(ProviderCall.get_network_config)
+            config: DSNodeConfig = self.provider.network_provider.get_network_config()
             config.whitelist_node_ids = [n for i, n in enumerate(self.items) if i != self.select_idx]
-            self.loader.call_provider(ProviderCall.save_network_config, config)
+            self.provider.network_provider.save_network_config(config)
             self.restart()
 
         def on_discard():

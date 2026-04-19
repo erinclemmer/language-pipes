@@ -36,17 +36,17 @@ class MainFrame:
         self.shutdown = False
         self.state = FrameState()
         self.exit_confirm = ExitConfirm()
-        self.loader = ContentLoader(providers)
+        self.provider = ContentLoader(providers)
         self.confirm = Confirm()
         self.nav = NavState(self.TOP_HEADERS, self.SIDE_OPTIONS_BY_TAB)
         self.page_router = PageRouter(
-            self.loader, self.confirm, self.nav, self.state, self.change_nav
+            self.provider, self.confirm, self.nav, self.state, self.change_nav
         )
         self.network_form = self.page_router.network_form
         self.layout = FrameLayout(
             self.window,
             self.nav,
-            self.loader,
+            self.provider,
             self.exit_confirm,
             self.confirm,
             self.state,
@@ -62,13 +62,13 @@ class MainFrame:
             self.auto_start()
 
     def auto_start(self):
-        self.loader.call_provider(ProviderCall.start_network)
-        self.loader.call_provider(ProviderCall.start_oai_server)
-        for model in self.loader.call_provider(ProviderCall.get_layer_models):
-            self.loader.call_provider(ProviderCall.host_layer_model, model.model_id)
+        self.provider.call_provider(ProviderCall.start_network)
+        self.provider.call_provider(ProviderCall.start_oai_server)
+        for model in self.provider.call_provider(ProviderCall.get_layer_models):
+            self.provider.call_provider(ProviderCall.host_layer_model, model.model_id)
         
-        for model in self.loader.call_provider(ProviderCall.get_end_models):
-            self.loader.call_provider(ProviderCall.host_end_model, model)
+        for model in self.provider.call_provider(ProviderCall.get_end_models):
+            self.provider.call_provider(ProviderCall.host_end_model, model)
 
     def change_nav(self, tab: str, section: str):
         self.nav.set_tab(tab)
@@ -89,7 +89,7 @@ class MainFrame:
     def shutdown_frame(self):
         self.layout._teardown_windows()
         self.shutdown = True
-        self.loader.call_provider(ProviderCall.shutdown)
+        self.provider.call_provider(ProviderCall.shutdown)
 
     def run(self) -> str:
         self.state.startup()
