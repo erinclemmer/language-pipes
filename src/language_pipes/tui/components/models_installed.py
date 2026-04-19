@@ -1,9 +1,9 @@
 from typing import List, Callable, Optional
 
+from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.content_provider.model_provider import ModelProvider
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
-from language_pipes.content_loader import ContentLoader
-from language_pipes.content_provider.provider_calls import ProviderCall
 
 class ModelsInstalled:
     provider: ContentProvider
@@ -87,7 +87,7 @@ class ModelsInstalled:
         
         if self.entering_token:
             def apply_token():
-                self.provider.call_provider(ProviderCall.save_hf_token, self.token_string)
+                ModelProvider.save_hf_token(self.token_string)
                 self.entering_token = False
                 self.token_string = ""
                 self.download_new_model()
@@ -128,11 +128,11 @@ class ModelsInstalled:
             self.new_model_id = ""
 
     def stop_download(self):
-        self.provider.call_provider(ProviderCall.stop_model_download)
+        self.provider.model_provider.stop_model_download()
         self.downloading_model = False
 
     def download_new_model(self, check_token: bool = True):
-        token: Optional[str] = self.provider.call_provider(ProviderCall.get_hf_token)
+        token = ModelProvider.get_hf_token()
         if token is None and check_token:
             def use_key():
                 self.entering_token = True
@@ -144,7 +144,7 @@ class ModelsInstalled:
                 on_discard=dont_use_key
             )
         else:
-            self.provider.call_provider(ProviderCall.start_download, self.new_model_id)
+            self.provider.model_provider.start_download(self.new_model_id)
             self.downloading_model = True
 
     def on_delete(self):
@@ -153,7 +153,7 @@ class ModelsInstalled:
         model_name = self.installed_models[self.focus_idx]
         self.confirm.open(
             f"Delete {model_name}?",
-            on_apply=lambda: self.provider.call_provider(ProviderCall.delete_installed_model, model_name),
+            on_apply=lambda: self.provider.model_provider.delete_installed_model(model_name),
             on_discard=lambda:None
         )
 
@@ -199,7 +199,7 @@ class ModelsInstalled:
             lines.extend([
                 f"Downloading {model_id}...", ""
             ])
-            self.download_status = self.provider.call_provider(ProviderCall.check_download_progress)
+            self.download_status = self.provider.model_provider.check_download_progress()
             if self.download_status is not None:
                 lines.append(self.download_status)
                 if "SUCCESS" in self.download_status or "ERROR" in self.download_status:
@@ -210,7 +210,7 @@ class ModelsInstalled:
         return lines
 
     def get_list_view(self):
-        self.installed_models = self.provider.call_provider(ProviderCall.get_installed_models)
+        self.installed_models = self.provider.model_provider.get_installed_models()
         lines = ["Installed Models:", ""]
         for i, model in enumerate(self.installed_models):
             l_cursor = " |>" if i == self.focus_idx and self.is_focused() else "   "

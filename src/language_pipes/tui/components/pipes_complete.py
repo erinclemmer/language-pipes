@@ -1,9 +1,8 @@
 from typing import List, Callable
 
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.tui.util.kb_utils import PressedKey
-from language_pipes.content_loader import ContentLoader
-from language_pipes.content_provider.provider_calls import ProviderCall
 from language_pipes.tui.components.view_pipe import format_pipe_view
 
 class PipesComplete:
@@ -25,12 +24,12 @@ class PipesComplete:
             self.exit_page()
 
     def get_view(self) -> List[str]:
-        self.network_pipes = self.provider.call_provider(ProviderCall.get_network_pipes)
-        if self.network_pipes is None:
+        network_pipes = self.provider.pipe_provider.get_network_pipes()
+        if network_pipes is None:
             return ["Network Not Connected", "Connect to the network to view available pipes"]
 
         pipes_to_show = []
-        for pipe in self.network_pipes:
+        for pipe in network_pipes:
             if pipe.is_complete(0):
                pipes_to_show.append(pipe)
                 

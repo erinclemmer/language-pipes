@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import List
 
 from language_pipes.tui.components.top_nav import TopNav
 from language_pipes.tui.tui import TuiWindow, TermText

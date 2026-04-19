@@ -1,8 +1,7 @@
 from typing import List, Dict, Callable
 
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.util.kb_utils import PressedKey
-from language_pipes.content_loader import ContentLoader
-from language_pipes.content_provider.provider_calls import ProviderCall
 from language_pipes.distributed_state_network.objects.state_packet import StatePacket
 
 
@@ -25,7 +24,7 @@ class NetworkPeers:
             self.exit_page()
 
     def get_view(self) -> List[str]:
-        self.peers = self.provider.call_provider(ProviderCall.list_peers)
+        self.peers = self.provider.network_provider.get_peers()
         if not self.peers:
             return ["Network Peers:", "", "No peers connected"]
         lines = ["Network Peers:", ""]

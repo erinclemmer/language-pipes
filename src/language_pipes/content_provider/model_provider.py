@@ -217,7 +217,7 @@ class ModelProvider:
     @staticmethod
     def get_hf_token() -> Optional[str]:
         cfg = GlobalConfig.from_file()
-        return cfg.hf_token
+        return os.environ.get("LP_HUGGINGFACE_TOKEN", cfg.hf_token)
 
     @staticmethod
     def save_hf_token(token: str):
