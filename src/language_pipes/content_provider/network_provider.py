@@ -60,7 +60,7 @@ class NetworkProvider:
         self.router_thread = Thread(target=start_router, args=())
         self.router_thread.start()
 
-    def stop_router(self):
+    def stop_network(self):
         if self.router_starting or self.router_stopping:
             return
         rtr = self.get_router()

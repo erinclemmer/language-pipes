@@ -1,10 +1,7 @@
 import time
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Tuple
 
-from language_pipes.content_loader import ContentLoader
 from language_pipes.content_provider.content_provider import ContentProvider
-from language_pipes.content_provider.network_provider import RouterStatus
-from language_pipes.content_provider.provider_calls import ProviderCall
 from language_pipes.tui.util.kb_utils import PressedKey
 
 
@@ -26,13 +23,13 @@ class HomeActivity:
         lines = ["Logs:", ""]
 
         logs: List[Tuple[float, str]] = []
-        network_status: Optional[RouterStatus] = self.provider.call_provider(ProviderCall.get_network_status)
+        network_status = self.provider.network_provider.get_network_status()
         if network_status is not None:
             logs.extend(network_status.logs)
         
-        logs.extend(self.provider.call_provider(ProviderCall.get_oai_logs))
+        logs.extend(self.provider.job_provider.get_oai_logs())
 
-        logs.extend(self.provider.call_provider(ProviderCall.get_model_manager_logs))
+        logs.extend(self.provider.model_provider.get_model_manager_logs())
         
         logs.sort(key=lambda x: x[0])
 

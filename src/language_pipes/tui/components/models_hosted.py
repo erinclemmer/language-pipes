@@ -1,12 +1,13 @@
 from enum import Enum
 from typing import List, Callable, Optional, Dict
 
+import torch
+
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.components.hosted_models_view import format_model_line
-from language_pipes.content_loader import ContentLoader
-from language_pipes.content_provider.provider_calls import ProviderCall
-from language_pipes.content_provider.model_provider import ModelToLoad, ModelStatusInfo
+from language_pipes.content_provider.model_provider import ModelProvider, ModelToLoad, ModelStatusInfo
 
 class ModelsHostedState(Enum):
     List = 'list'
@@ -83,9 +84,7 @@ class ModelsHosted:
             self.models_to_load = [
                 m for i, m in enumerate(self.models_to_load) if i != config_idx
             ]
-            self.provider.call_provider(
-                ProviderCall.save_layer_models, self.models_to_load
-            )
+            self.provider.model_provider.save_layer_models(self.models_to_load)
 
         self.confirm.open(
             "Remove this model?", on_apply=on_apply, on_discard=lambda: None
@@ -131,9 +130,8 @@ class ModelsHosted:
         self.state = ModelsHostedState.Edit
         model = self.get_editing_model()
         self.edit_model_id = model.model_id if model is not None else ""
-        self.edit_load_ends = model.load_ends if model is not None else False
-        self.edit_device_name = model.device if model is not None else ""
-        self.edit_device_memory = str(model.max_memory) if model is not None else ""
+        self.edit_device_name = str(model.device) if model is not None else ""
+        self.edit_device_memory = str(model.memory) if model is not None else ""
         # Store config index for when we save
         if model is not None and self.model_idx < len(self.models_to_load):
             self.editing_config_idx = 0
@@ -164,21 +162,19 @@ class ModelsHosted:
                 model = self.get_editing_model()
                 if model is not None:
                     if self._current_model_running():
-                        self.provider.call_provider(ProviderCall.shutdown_models, model.model_id)
+                        self.provider.model_provider.shutdown_layer_models(model.model_id)
                     else:
-                        self.provider.call_provider(ProviderCall.host_layer_model, model)
+                        self.provider.model_provider.host_layer_model(model)
                 self.state = ModelsHostedState.List
             elif self.option_idx == 2:
                 self.state = ModelsHostedState.List
 
     def _network_running(self) -> bool:
-        network_status = self.provider.call_provider(ProviderCall.get_network_status)
+        network_status = self.provider.network_provider.get_network_status()
         return network_status is not None and network_status.running
 
     def add_model(self):
-        valid_device_name = self.provider.call_provider(
-            ProviderCall.validate_device_name, self.edit_device_name
-        )
+        valid_device_name = ModelProvider.validate_device_name(self.edit_device_name)
         if (
             not self.validate_memory()
             or not valid_device_name
@@ -187,9 +183,8 @@ class ModelsHosted:
             return
         model = ModelToLoad(
             model_id=self.edit_model_id,
-            load_ends=self.edit_load_ends,
-            device=self.edit_device_name,
-            max_memory=float(self.edit_device_memory),
+            device=torch.device(self.edit_device_name),
+            memory=float(self.edit_device_memory),
         )
         if self.editing_config_idx is None:
             # Adding new model
@@ -198,12 +193,12 @@ class ModelsHosted:
             # Replacing existing model
             self.models_to_load[self.editing_config_idx] = model
 
-        self.provider.call_provider(ProviderCall.save_layer_models, self.models_to_load)
+        self.provider.model_provider.save_layer_models(self.models_to_load)
 
         if self._network_running():
 
             def on_apply():
-                self.provider.call_provider(ProviderCall.host_layer_model, model)
+                self.provider.model_provider.host_layer_model(model)
 
             def on_discard():
                 pass
@@ -258,7 +253,7 @@ class ModelsHosted:
         model = self.get_editing_model()
         if model is None:
             return False
-        return len(self.provider.call_provider(ProviderCall.get_models_status).get(model.model_id, [])) > 0
+        return len(self.provider.model_provider.get_models_status().get(model.model_id, [])) > 0
         
     def get_options_view(self) -> List[str]:
         model = self.get_editing_model()
@@ -291,13 +286,11 @@ class ModelsHosted:
     def get_choosing_model_view(self) -> List[str]:
         lines = ["Choose Model to Host", ""]
 
-        network_status = self.provider.call_provider(ProviderCall.get_network_status)
+        network_status = self.provider.network_provider.get_network_status()
         if network_status is None or not network_status.running:
             lines.extend(self._network_not_started_warning())
 
-        self.installed_models = self.provider.call_provider(
-            ProviderCall.get_installed_models
-        )
+        self.installed_models = self.provider.model_provider.get_installed_models()
         for i, model in enumerate(self.installed_models):
             l_cursor = "|>" if self.choose_model_idx == i else "  "
             r_cursor = "<|" if self.choose_model_idx == i else "  "
@@ -335,9 +328,7 @@ class ModelsHosted:
 
         name_cursor = "|" if self.edit_idx == 2 else " "
         lines.append(f"   Device: {self.edit_device_name}{name_cursor}")
-        if len(self.edit_device_name) > 0 and not self.provider.call_provider(
-            ProviderCall.validate_device_name, self.edit_device_name
-        ):
+        if len(self.edit_device_name) > 0 and not ModelProvider.validate_device_name(self.edit_device_name):
             lines.append("[ERROR] Invalid device name")
 
         memory_cursor = "|" if self.edit_idx == 3 else ""
@@ -358,8 +349,8 @@ class ModelsHosted:
         if not self._network_running():
             lines.extend(self._network_not_started_warning())
 
-        self.models_to_load = self.provider.call_provider(ProviderCall.get_layer_models)
-        models_status: Dict[str, List[ModelStatusInfo]] = self.provider.call_provider(ProviderCall.get_models_status)
+        self.models_to_load = self.provider.model_provider.get_layer_models()
+        models_status = self.provider.model_provider.get_models_status()
 
         for i, model in enumerate(self.models_to_load):
             lines.append(format_model_line(

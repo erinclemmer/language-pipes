@@ -59,7 +59,7 @@ class ContentProvider:
     
     def shutdown(self):
         if self.router is not None:
-            self.network_provider.stop_router()
+            self.network_provider.stop_network()
             self.set_router(None)
         
         self.model_manager.stop()

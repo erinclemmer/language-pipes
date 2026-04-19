@@ -6,7 +6,7 @@ from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 
-from language_pipes.content_provider.network_provider import RouterStatus
+from language_pipes.content_provider.network_provider import NetworkProvider
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.tui.frame.tips import TIPS
 from language_pipes.tui.components.network_form.node_id_editor import NodeIdEditor
@@ -210,9 +210,7 @@ class NetworkForm:
         if self.network_key_state != NetworkKeyEditorState.INPUT:
             return
         self.network_key_input = self.network_key_input[:-1]
-        self.network_key_valid = self.provider.call_provider(
-            ProviderCall.validate_aes_key, self.network_key_input
-        )
+        self.network_key_valid = NetworkProvider.validate_aes_key(self.network_key_input)
 
     def on_network_key_char(self, ch: str):
         if self.network_key_state != NetworkKeyEditorState.INPUT:

@@ -37,11 +37,9 @@ def format_model_line(
 ) -> str:
     l_cursor = "|>" if selected else "  "
     r_cursor = "<|" if selected else "  "
-    ends_string = "Yes" if model.load_ends else "No"
     lines = [
         f"{l_cursor} {model.model_id} {r_cursor} ",
-        f"       Max Memory: {model.max_memory}GB",
-        f"       Load Ends: {ends_string}"
+        f"       Max Memory: {model.memory}GB"
     ]
     has_ends = len([m for m in running if m.end_model]) > 0
     

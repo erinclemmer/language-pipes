@@ -1,10 +1,7 @@
 from typing import Callable, List
 
-from language_pipes.content_loader import ContentLoader
-from language_pipes.content_provider.job_provider import MetaJob
-from language_pipes.content_provider.provider_calls import ProviderCall
 from language_pipes.tui.util.kb_utils import PressedKey
-
+from language_pipes.content_provider.content_provider import ContentProvider
 
 class JobsActive:
     provider: ContentProvider
@@ -23,7 +20,7 @@ class JobsActive:
     def get_view(self) -> List[str]:
         lines = ["Active Jobs:", ""]
 
-        jobs: List[MetaJob] = self.provider.call_provider(ProviderCall.get_active_jobs)
+        jobs = self.provider.job_provider.get_active_jobs()
         for job in jobs:
             lines.extend([
                 f"Model ID:      {job.model_id}",
