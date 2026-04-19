@@ -1,5 +1,5 @@
-from typing import Dict, List, Optional
 from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 
@@ -28,6 +28,16 @@ class DSNodeConfig:
             [Endpoint.from_json(e) for e in data["bootstrap_nodes"]],
             data["whitelist_node_ids"] if "whitelist_node_ids" in data and data["whitelist_node_ids"] is not None else [],
         )
+
+    def to_dict(self):
+        return {
+            "node_id": self.node_id,
+            "port": self.port,
+            "network_ip": self.network_ip,
+            "aes_key": self.aes_key,
+            "whitelist_ips": self.whitelist_ips,
+            "whitelist_node_ids": self.whitelist_node_ids
+        }
 
     def to_string(self) -> str:
         lines = []

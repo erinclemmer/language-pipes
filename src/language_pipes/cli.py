@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import Optional
 from language_pipes.config_args import ConfigurationArgs
+from language_pipes.runner import LpRunner
 from language_pipes.util.config import get_app_dir
 
 VERSION = (
@@ -72,12 +73,23 @@ def main(argv=None):
 
     if args.command is None:
         from language_pipes.tui import initialize_tui
-        initialize_tui(args.config, getattr(args, "start", False))
+        
+        config_args = ConfigurationArgs(args)
+        initialize_tui(config_args.config_file, config_args.auto_start)
         
     elif args.command == "run":
         config_args = ConfigurationArgs(args)
-        # Start headless
-        pass
+        config_file = config_args.config_file
+        if config_file is None:
+            print("ERROR: --config param required")
+            return
+        
+        if ".toml" in config_file and not os.path.exists(config_file):
+            print(f"ERROR: {config_file} not found")
+            return
+
+        LpRunner(Path(config_file))
+        
     elif args.command == "config":
         config_args = ConfigurationArgs(args)
         # Validate config

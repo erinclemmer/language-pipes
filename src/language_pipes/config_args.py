@@ -1,14 +1,16 @@
 import toml
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 class ConfigurationArgs:
-    config_file: str
+    config_file: Optional[str]
+    auto_start: bool
     set_overrides: Dict[str, str]
     layer_models: List[str]
     end_models: List[str]
 
     def __init__(self, args):
-        self.config_file = args.config
+        self.config_file = getattr(args, "config", None)
+        self.auto_start = getattr(args, "start", False)
         self.set_overrides = self.parse_set_overrides(getattr(args, "set_overrides", []))
         self.layer_models = self.parse_layer_models(getattr(args, "layer_models", []))
         self.end_models = getattr(args, "end_models", [])
