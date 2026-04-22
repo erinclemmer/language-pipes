@@ -1,6 +1,7 @@
 from typing import Callable, Optional, List
 
-from language_pipes.pipes.pipe_manager import PipeManager, MetaPipe
+from language_pipes.pipes.pipe_manager import PipeManager
+from language_pipes.pipes.meta_pipe import MetaPipe
 
 class PipeProvider:
     get_pipe_manager: Callable[[], Optional[PipeManager]]

@@ -1,23 +1,26 @@
+from pathlib import Path
+
 import torch
-from typing import Optional
+from typing import Callable, List
 
 from language_pipes.pipes.pipe import Pipe
 from language_pipes.config import LpConfig
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_data import JobData
-from language_pipes.jobs.job_processor import JobContext, JobProcessor, JobState
-from language_pipes.util.enums import ComputeStep, JobStatus
+from language_pipes.jobs.job_processor import JobContext, JobProcessor
+from language_pipes.util.enums import ComputeStep
 
-class FakeLogger:
-    def __init__(self):
-        self.messages = []
-
-    def info(self, message):
-        self.messages.append(("info", message))
-
-    def error(self, message):
-        self.messages.append(("error", message))
-
+def make_job_data() -> JobData:
+    return JobData(
+        state=torch.tensor([]),
+        cache_position=torch.tensor([]),
+        position_ids=torch.tensor([]),
+        causal_mask=torch.tensor([]),
+        position_embeddings=None,
+        position_embeddings_local=None,
+        position_embeddings_global=None,
+        sliding_causal_mask=None
+    )
 
 class FakeEndModel:
     def __init__(self, num_local_layers: int = 0):
@@ -37,7 +40,7 @@ class FakeEndModel:
         if job.compute_step == ComputeStep.TOKENIZE:
             self.calls.append("tokenize")
         self.calls.append("compute_embed")
-        job.data = JobData()
+        job.data = make_job_data()
         job.data.state = torch.zeros((1, 1))
         job.next_step()
 
@@ -69,9 +72,9 @@ class FakeModel:
         self.loaded = True
         self.num_hidden_layers = num_hidden_layers
 
-    def process_job(self, job, logger):
+    def process_job(self, job):
         if job.data is None:
-            job.data = JobData()
+            job.data = make_job_data()
         job.set_layer(torch.zeros((1, 1)), self.end_layer + 1, self.num_hidden_layers)
 
 class TrackingModel(FakeModel):
@@ -79,26 +82,12 @@ class TrackingModel(FakeModel):
         super().__init__(node_id, start_layer, end_layer, virtual=virtual, num_hidden_layers=num_hidden_layers)
         self.processed = False
 
-    def process_job(self, job, logger):
+    def process_job(self, job):
         self.processed = True
-        super().process_job(job, logger)
+        super().process_job(job)
 
 def make_config(node_id="node-a", prefill_chunk_size=2):
-    return LpConfig(
-        logging_level="INFO",
-        app_dir=".",
-        model_dir="./models",
-        oai_port=None,
-        node_id=node_id,
-        layer_models=[],
-        end_models=None,
-        max_pipes=1,
-        model_validation=False,
-        prefill_chunk_size=prefill_chunk_size,
-        num_local_layers=0,
-        huggingface_token=None,
-        api_keys=[]
-    )
+    return LpConfig()
 
 def mock_complete(a):
     pass
@@ -126,12 +115,11 @@ class ProcessorWrapper(JobProcessor):
         self.states.append(self.state)
         return super()._transition()
 
-def make_processor(job=None, pipe: Optional[Pipe]=None, end_model=None, config=None, logger=None):
+def make_processor(job, pipe, end_model):
     """Helper to create a JobProcessor with sensible defaults."""
     return ProcessorWrapper(
         JobContext(
-            config=config or make_config(),
-            logger=logger or FakeLogger(),
+            node_id="node-1",
             job=job,
             pipe=pipe,
             end_model=end_model,
@@ -177,6 +165,27 @@ class FakeStateNetworkNode:
     def peers(self):
         return self._peers
 
+    def stop(self):
+        pass
+
+    def is_shut_down(self):
+        return False
+    
+    def send_to_node(self, node_id: str, data: bytes):
+        pass
+
+    def set_receive_cb(self, cb: Callable):
+        pass
+
+    def set_update_cb(self, cb: Callable):
+        pass
+
+    def set_disconnect_cb(self, cb: Callable):
+        pass
+
+    def receive_data(self, data: bytes):
+        pass
+
     def connection_from_node(self, node_id: str):
         return FakeConnection("127.0.0.1")
 
@@ -188,13 +197,15 @@ class FakeStateNetworkNode:
         self._data[(peer_id, "models")] = json.dumps([m.to_json() for m in models])
 
 class PipeWrapper(Pipe):
+    segments: List[FakeModel]
+
     def __init__(self, node_id: str, model_id: str, segments: List[FakeModel]):
         router = FakeStateNetworkNode(node_id)
-        super().__init__(router, None, model_id, "")
+        super().__init__(router, None, model_id, Path(""))
         self.calls = []
-        self.segments = segments
+        self.segments = segments # type: ignore
     
-    def tokenizer():
+    def tokenizer(self):
         self.calls.append("tokenizer")
         def t(x):
             return "res"
@@ -203,5 +214,5 @@ class PipeWrapper(Pipe):
     def send_job(self, job, node_id):
         self.calls.append("send job")
 
-    def empty():
+    def empty(self):
         pass
