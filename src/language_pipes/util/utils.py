@@ -61,9 +61,9 @@ def tensor_to_bytes(t: torch.Tensor | None) -> bytes:
     
     return header + data
 
-def bytes_to_tensor(b: bytes) -> torch.Tensor | None:
+def bytes_to_tensor(b: bytes) -> torch.Tensor:
     if b == b'':
-        return None
+        return torch.Tensor([])
     
     if b[0] == 0xff:
         # Fallback format

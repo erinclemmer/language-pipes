@@ -5,7 +5,7 @@ from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.pipes.router_pipes import RouterPipes
 
 from language_pipes.modeling.model_manager import ModelManager
-from language_pipes.util.config import default_model_dir
+from language_pipes.util.config import get_model_dir
 
 class PipeManager:
     router_pipes: RouterPipes
@@ -24,7 +24,7 @@ class PipeManager:
             meta_pipe=meta_pipe,
             layer_models=self.model_manager.models,
             router=self.router_pipes.router,
-            model_dir=default_model_dir()
+            model_dir=get_model_dir()
         )
 
     def get_pipe_by_pipe_id(self, pipe_id: str) -> Optional[Pipe]:

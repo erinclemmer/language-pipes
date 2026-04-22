@@ -26,7 +26,6 @@ class StaticAutoModel:
 
         input_seq = input_ids.clone()
 
-        state = LLmComputationState()
         
         past_seen_tokens = cache.get_seq_length()
 
@@ -35,28 +34,40 @@ class StaticAutoModel:
         else:
             input_seq = input_seq[:, past_seen_tokens - 1:past_seen_tokens]
         
-        state.state = input_embedder(input_seq.to(device))
+        hidden_state = input_embedder(input_seq.to(device))
 
         L = input_seq.size()[1]
         
-        state.cache_position = torch.arange(
+        cache_position = torch.arange(
             past_seen_tokens, end=past_seen_tokens + L, device=device
         )
         
-        state.position_ids = state.cache_position.unsqueeze(0)
+        position_ids = cache_position.unsqueeze(0)
 
         mask_kwargs = { # pyright: ignore[reportUnknownVariableType]
             "config": config,
-            "inputs_embeds": state.state.detach(),
+            "inputs_embeds": hidden_state.detach(),
             # Let transformers build the default causal/sliding masks.
             "attention_mask": None,
-            "cache_position": state.cache_position,
+            "cache_position": cache_position,
             "past_key_values": cache,
-            "position_ids": state.position_ids
+            "position_ids": position_ids
         }
         
-        state.causal_mask["full_attention"] = create_causal_mask(**mask_kwargs) # type: ignore
-        state.causal_mask["sliding_attention"] = None # type: ignore
+        causal_mask = {
+            "full_attention": create_causal_mask(**mask_kwargs),
+            "sliding_attention": None
+        }
+
+        state = LLmComputationState(
+            state=hidden_state,
+            cache_position=cache_position,
+            position_ids=position_ids,
+            causal_mask=causal_mask,
+            position_embeddings=None,
+            position_embeddings_local=None,
+            position_embeddings_global=None
+        )
 
         match config.model_type: # pyright: ignore[reportMatchNotExhaustive]
             case "qwen3":
