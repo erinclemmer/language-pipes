@@ -5,6 +5,7 @@ models/
 .vscode/
 certs/
 credentials/
+logs/
 config.toml
 *.key
 todo.txt
