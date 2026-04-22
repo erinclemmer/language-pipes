@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..
 from language_pipes.jobs.job_processor import JobState
 from language_pipes.util.enums import ComputeStep
 
-from util import make_processor, make_job, make_config, FakeEndModel, FakeModel, PipeWrapper
+from util import make_processor, make_job, FakeEndModel, FakeModel, PipeWrapper
 
 class TestEmbedState(unittest.TestCase):
     """Tests for the _state_embed method."""
@@ -21,14 +21,16 @@ class TestEmbedState(unittest.TestCase):
             return False
 
         job = make_job(update=fail_update)
+        job.origin_node_id = "node-1"
         job.compute_step = ComputeStep.EMBED
         job.prompt_tokens = 2
         job.current_token = 0
+        job.prefill_chunk_size = 1
         job.init_chunking()
 
         processor = make_processor(
             job=job,
-            config=make_config(prefill_chunk_size=1),
+            pipe=None,
             end_model=FakeEndModel(),
         )
 
@@ -39,6 +41,7 @@ class TestEmbedState(unittest.TestCase):
 
     def test_transitions_to_done_when_model_missing(self):
         job = make_job()
+        job.origin_node_id = "node-1"
         job.compute_step = ComputeStep.EMBED
         job.prompt_tokens = 1
 
@@ -56,6 +59,7 @@ class TestEmbedState(unittest.TestCase):
 
     def test_transitions_to_send_for_remote_layer(self):
         job = make_job()
+        job.origin_node_id = "node-1"
         job.compute_step = ComputeStep.EMBED
         job.prompt_tokens = 1
 
@@ -70,6 +74,7 @@ class TestEmbedState(unittest.TestCase):
 
     def test_transitions_to_process_layers_for_local_layer(self):
         job = make_job()
+        job.origin_node_id = "node-1"
         job.compute_step = ComputeStep.EMBED
         job.prompt_tokens = 1
 
@@ -87,6 +92,7 @@ class TestEmbedState(unittest.TestCase):
 
     def test_transitions_to_process_layers_for_prefill(self):
         job = make_job()
+        job.origin_node_id = "node-1"
         job.compute_step = ComputeStep.EMBED
 
         model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
@@ -108,6 +114,7 @@ class TestEmbedState(unittest.TestCase):
 
     def test_transitions_to_process_layers_for_num_local_layers(self):
         job = make_job()
+        job.origin_node_id = "node-1"
         job.compute_step = ComputeStep.EMBED
 
         virtual_model = FakeModel("node-a", 0, 0, virtual=True, num_hidden_layers=2)
@@ -127,6 +134,7 @@ class TestEmbedState(unittest.TestCase):
 
     def test_transitions_to_send_without_local_layers(self):
         job = make_job()
+        job.origin_node_id = "node-1"
         job.compute_step = ComputeStep.EMBED
         virtual_model = FakeModel("node-a", 0, 0, virtual=True, num_hidden_layers=2)
         local_model = FakeModel("node-a", 1, 1, virtual=False, num_hidden_layers=2)
@@ -146,8 +154,7 @@ class TestEmbedState(unittest.TestCase):
     def test_transitions_to_send_for_misaligned_layers(self):
         """Allow starting computation for a layer not at the start layer of a model"""
         job = make_job()
-        config = make_config()
-        config.num_local_layers = 1
+        job.origin_node_id = "node-1"
         job.compute_step = ComputeStep.EMBED
         virtual_model = FakeModel("node-a", 0, 1, True, 2)
         end_model = FakeEndModel(num_local_layers=1)
@@ -155,7 +162,6 @@ class TestEmbedState(unittest.TestCase):
 
         processor = make_processor(
             job=job,
-            config=config,
             pipe=pipe,
             end_model=end_model
         )
@@ -181,7 +187,9 @@ class TestEmbedPrefillIntegration(unittest.TestCase):
             return False
 
         job = make_job(update=fail_update, complete=complete)
+        job.origin_node_id = "node-1"
         job.compute_step = ComputeStep.TOKENIZE
+        job.prefill_chunk_size = 1
         end_model = FakeEndModel()
         model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
         pipe = PipeWrapper("node-a", "model-a", [model])
@@ -189,7 +197,6 @@ class TestEmbedPrefillIntegration(unittest.TestCase):
         processor = make_processor(
             job=job,
             pipe=pipe,
-            config=make_config(prefill_chunk_size=1),
             end_model=end_model,
         )
 

@@ -1,16 +1,14 @@
 import os
 import sys
-import torch
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'src'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tests', 'language_pipes', 'unit'))
 
-from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_processor import JobState
 from language_pipes.util.enums import ComputeStep
 
-from util import make_processor, make_job, make_config, FakeModel, PipeWrapper
+from util import make_processor, make_job, make_job_data, FakeModel, PipeWrapper
 
 class TestSendState(unittest.TestCase):
     """Tests for the _state_send method."""
@@ -19,8 +17,7 @@ class TestSendState(unittest.TestCase):
         job = make_job()
         job.compute_step = ComputeStep.LAYER
         job.current_layer = 0
-        job.data = JobData()
-        job.data.state = torch.zeros((1, 1))
+        job.data = make_job_data()
 
         virtual_model = FakeModel("node-b", 0, 0, virtual=True, num_hidden_layers=2)
         local_model = FakeModel("node-a", 1, 1, virtual=False, num_hidden_layers=2)
@@ -36,15 +33,13 @@ class TestSendState(unittest.TestCase):
         job = make_job(origin_node_id="node-b")
         job.compute_step = ComputeStep.TOKENIZE
         job.current_layer = 0
-        job.data = JobData()
-        job.data.state = torch.zeros((1, 1))
+        job.data = make_job_data()
 
         next_model = FakeModel("node-c", 0, 0, virtual=False, num_hidden_layers=1)
         pipe = PipeWrapper("node-a", "model-a", [next_model])
         processor = make_processor(
             job=job,
             pipe=pipe,
-            config=make_config(node_id="node-a"),
             end_model=None,
         )
 
