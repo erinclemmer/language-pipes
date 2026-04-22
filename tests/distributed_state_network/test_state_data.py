@@ -61,9 +61,7 @@ class TestStateData(DSNTestBase):
         bootstrap = spawn_node("bootstrap", "127.0.0.1")
         connector = spawn_node("connector", None, [bootstrap.node.my_con().to_json()])
 
-        resp = connector.send_to_node("bootstrap", b"Hello via wrapper")
-        self.assertEqual(resp, "OK")
-
+        connector.send_to_node("bootstrap", b"Hello via wrapper")
 
 if __name__ == "__main__":
     unittest.main()

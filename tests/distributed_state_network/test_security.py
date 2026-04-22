@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import sys
 import time
 import shutil
@@ -17,7 +18,7 @@ class TestSecurity(DSNTestBase):
     def test_bad_aes_key(self):
         """Invalid AES key should raise an error"""
         try:
-            DSNodeServer.start(DSNodeConfig("bad key test", "", 8080, None, "bad.key", [], [], []))
+            DSNodeServer.start(DSNodeConfig("bad key test", Path("logs"), Path("credentials"), 8080, None, "bad.key", [], [], []))
             self.fail("Should throw error before this")
         except Exception as e:
             print(e)
@@ -26,7 +27,7 @@ class TestSecurity(DSNTestBase):
         """Legacy 32-byte [IV|KEY] material should be rejected."""
         legacy_hex = (os.urandom(32)).hex()
         with self.assertRaises(ValueError):
-            DSNodeServer.start(DSNodeConfig("legacy key test", "credentials", 8080, None, legacy_hex, [], [], []))
+            DSNodeServer.start(DSNodeConfig("legacy key test", Path("logs"), Path("credentials"), 8080, None, legacy_hex, [], [], []))
 
     def test_whitelist_node_ids_allows_configured_node_id(self):
         """Nodes should communicate when peer node_id is whitelisted."""

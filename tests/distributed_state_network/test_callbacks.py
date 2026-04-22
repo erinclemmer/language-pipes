@@ -31,7 +31,7 @@ class TestCallbacks(DSNTestBase):
         def on_update():
             callback_called.append(True)
         
-        node1 = spawn_node("node-1", "127.0.0.1", [], None, on_update)
+        node1 = spawn_node("node-1", "127.0.0.1", [], [], None, on_update)
         node2 = spawn_node("node-2", None, [node1.node.my_con().to_json()])
         
         node2.node.update_data("key", "value")

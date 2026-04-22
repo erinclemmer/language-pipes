@@ -39,6 +39,7 @@ class NetworkJobTests(unittest.TestCase):
             data_hash=b"",
             compute_step=ComputeStep.LAYER,
             times=[layer_time],
+            chunk_size=8
         )
 
         restored, _ = NetworkJob.from_bytes(job.to_bytes())
