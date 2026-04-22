@@ -7,7 +7,7 @@ from typing import List, Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'tests', 'language_pipes', 'unit'))
 
-from language_pipes.config import LpConfig, LayerModel
+from language_pipes.config import LpConfig, ModelToLoad
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata
@@ -30,7 +30,7 @@ def make_metadata():
 
 def make_config(
     node_id="node-a",
-    layer_models: Optional[List[LayerModel]] = None,
+    layer_models: Optional[List[ModelToLoad]] = None,
     end_models: Optional[List[str]] = None,
     num_local_layers:int = 0,
     max_pipes=2,
@@ -41,21 +41,15 @@ def make_config(
         layer_models = []
     if end_models is None:
         end_models = []
-    return LpConfig(
-        logging_level="INFO",
-        app_dir=".",
-        model_dir="./models",
-        oai_port=None,
-        node_id=node_id,
-        layer_models=layer_models,
-        end_models=end_models,
-        max_pipes=max_pipes,
-        num_local_layers=num_local_layers,
-        model_validation=model_validation,
-        prefill_chunk_size=6,
-        huggingface_token=None,
-        api_keys=[]
-    )
+    config = LpConfig()
+    config.network_config.node_id = node_id
+    if layer_models is not None:
+        config.layer_models = layer_models
+
+    if end_models is not None:
+        config.end_models = end_models
+
+    return config
 
 
 class FakeLlmModel:
@@ -113,7 +107,7 @@ class FakeLlmModel:
 class FakeEndModel:
     """Mock EndModel for testing without loading real models."""
     
-    def __init__(self, num_local_layers: int, model_dir: str, model_id: str, device: str, hf_token: str = None):
+    def __init__(self, num_local_layers: int, model_dir: str, model_id: str, device: str, hf_token: Optional[str] = None):
         self.model_dir = model_dir
         self.model_id = model_id
         self.device = device
@@ -265,7 +259,7 @@ class ModelManagerTests(unittest.TestCase):
         mock_llm_model_class.from_id.return_value = fake_model
 
         logger = FakeLogger()
-        layer_model = LayerModel(
+        layer_model = ModelToLoad(
             id="model-1",
             device="cpu",
             max_memory=1.0
@@ -288,7 +282,7 @@ class ModelManagerTests(unittest.TestCase):
         mock_llm_model_class.from_id.return_value = fake_model
 
         logger = FakeLogger()
-        layer_model = LayerModel(
+        layer_model = ModelToLoad(
             id="model-1",
             device="cpu",
             max_memory=1.0
@@ -314,7 +308,7 @@ class ModelManagerTests(unittest.TestCase):
         mock_llm_model_class.from_id.return_value = fake_model
 
         logger = FakeLogger()
-        layer_model = LayerModel(
+        layer_model = ModelToLoad(
             id="model-1",
             device="cpu",
             max_memory=10.0
@@ -345,7 +339,7 @@ class ModelManagerTests(unittest.TestCase):
         mock_llm_model_class.from_id.side_effect = create_model
 
         logger = FakeLogger()
-        layer_model = LayerModel(
+        layer_model = ModelToLoad(
             id="model-1",
             device="cpu",
             max_memory=10.0
@@ -375,12 +369,12 @@ class ModelManagerTests(unittest.TestCase):
         mock_llm_model_class.from_id.side_effect = create_model
 
         logger = FakeLogger()
-        layer_model_1 = LayerModel(
+        layer_model_1 = ModelToLoad(
             id="model-1",
             device="cpu",
             max_memory=10.0
         )
-        layer_model_2 = LayerModel(
+        layer_model_2 = ModelToLoad(
             id="model-2",
             device="cpu",
             max_memory=10.0
@@ -419,7 +413,7 @@ class ModelManagerTests(unittest.TestCase):
         mock_llm_model_class.from_id.return_value = fake_model
 
         logger = FakeLogger()
-        layer_model = LayerModel(
+        layer_model = ModelToLoad(
             id="model-1",
             device="cpu",
             max_memory=10.0
@@ -530,7 +524,7 @@ class ModelManagerTests(unittest.TestCase):
         mock_llm_model_class.from_id.return_value = fake_model
 
         logger = FakeLogger()
-        layer_model = LayerModel(
+        layer_model = ModelToLoad(
             id="model-1",
             device="cpu",
             max_memory=10.0
@@ -556,7 +550,7 @@ class ModelManagerTests(unittest.TestCase):
         mock_llm_model_class.from_id.return_value = fake_model
 
         logger = FakeLogger()
-        layer_model = LayerModel(
+        layer_model = ModelToLoad(
             id="model-1",
             device="cpu",
             max_memory=10.0

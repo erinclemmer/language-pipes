@@ -38,7 +38,7 @@ class HelloPacket(SignedPacket):
             bts.write_bytes(b'')
         bts.write_int(self.connection.port)
         bts.write_bytes(self.ecdsa_public_key)
-        if include_signature:
+        if include_signature and self.ecdsa_signature is not None:
             bts.write_bytes(self.ecdsa_signature)
         # Add detected address (empty string if None)
         bts.write_string(self.detected_address or "")

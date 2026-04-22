@@ -1,15 +1,15 @@
+from pathlib import Path
 from time import sleep
 from threading import Thread
 from typing import Dict, List, Optional, Tuple
 
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.tui import TuiWindow
 from language_pipes.tui.util.kb_utils import read_key
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.frame.layout import FrameLayout
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
-from language_pipes.content_loader import ContentLoader
-from language_pipes.content_provider.provider_calls import ProviderCall
 from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.frame.frame_key_handler import FrameKeyHandler
 from language_pipes.tui.frame.page_router import PageRouter
@@ -29,14 +29,14 @@ class MainFrame:
         self,
         size: Tuple[int, int],
         pos: Tuple[int, int],
-        providers: Optional[object] = None,
+        config_file: Path,
         auto_start: Optional[bool] = None
     ):
         self.window = TuiWindow(size, pos)
         self.shutdown = False
         self.state = FrameState()
         self.exit_confirm = ExitConfirm()
-        self.provider = ContentLoader(providers)
+        self.provider = ContentProvider(config_file)
         self.confirm = Confirm()
         self.nav = NavState(self.TOP_HEADERS, self.SIDE_OPTIONS_BY_TAB)
         self.page_router = PageRouter(
@@ -62,13 +62,13 @@ class MainFrame:
             self.auto_start()
 
     def auto_start(self):
-        self.provider.call_provider(ProviderCall.start_network)
-        self.provider.call_provider(ProviderCall.start_oai_server)
-        for model in self.provider.call_provider(ProviderCall.get_layer_models):
-            self.provider.call_provider(ProviderCall.host_layer_model, model.model_id)
+        self.provider.network_provider.start_network()
+        self.provider.job_provider.start_oai_server()
+        for model in self.provider.model_provider.get_layer_models():
+            self.provider.model_provider.host_layer_model(model)
         
-        for model in self.provider.call_provider(ProviderCall.get_end_models):
-            self.provider.call_provider(ProviderCall.host_end_model, model)
+        for model in self.provider.model_provider.get_end_models():
+            self.provider.model_provider.host_end_model(model)
 
     def change_nav(self, tab: str, section: str):
         self.nav.set_tab(tab)
@@ -89,7 +89,7 @@ class MainFrame:
     def shutdown_frame(self):
         self.layout._teardown_windows()
         self.shutdown = True
-        self.provider.call_provider(ProviderCall.shutdown)
+        self.provider.shutdown()
 
     def run(self) -> str:
         self.state.startup()

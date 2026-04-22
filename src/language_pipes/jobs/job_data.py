@@ -65,15 +65,18 @@ class JobData:
         job_data.position_ids = bytes_to_tensor(bts.read_bytes())
         pe0 = bytes_to_tensor(bts.read_bytes())
         pe1 = bytes_to_tensor(bts.read_bytes())
-        job_data.position_embeddings = (pe0, pe1) if pe0 is not None else None
+        if pe0 is not None and pe1 is not None:
+            job_data.position_embeddings = (pe0, pe1) if pe0 is not None else None
         
         pel0 = bytes_to_tensor(bts.read_bytes())
         pel1 = bytes_to_tensor(bts.read_bytes())
-        job_data.position_embeddings_local = (pel0, pel1) if pel0 is not None else None
+        if pel0 is not None and pel1 is not None:
+            job_data.position_embeddings_local = (pel0, pel1) if pel0 is not None else None
         
         peg0 = bytes_to_tensor(bts.read_bytes())
         peg1 = bytes_to_tensor(bts.read_bytes())
-        job_data.position_embeddings_global = (peg0, peg1) if peg0 is not None else None
+        if peg0 is not None and peg1 is not None:
+            job_data.position_embeddings_global = (peg0, peg1) if peg0 is not None else None
     
         return job_data
 
@@ -82,7 +85,7 @@ class JobData:
         current_hash = hashlib.sha256(data).digest()
         return current_hash == state_hash
 
-def move_position_embeddings(t: Optional[Tuple[torch.Tensor, torch.Tensor]], device: str) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
+def move_position_embeddings(t: Optional[Tuple[torch.Tensor, torch.Tensor]], device: torch.device) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
     if t is None:
         return None
     if str(t[0].device) == device:
@@ -94,14 +97,14 @@ def move_position_embeddings(t: Optional[Tuple[torch.Tensor, torch.Tensor]], dev
 
 def computationStateToJobData(data: LLmComputationState) -> JobData:
     job_data = JobData()
-    job_data.state = maybeTo(data.state, 'cpu')
-    job_data.position_ids = maybeTo(data.position_ids, 'cpu')
-    job_data.position_embeddings = move_position_embeddings(data.position_embeddings, 'cpu')
-    job_data.position_embeddings_local = move_position_embeddings(data.position_embeddings_local, 'cpu')
-    job_data.position_embeddings_global = move_position_embeddings(data.position_embeddings_global, 'cpu')
-    job_data.cache_position = maybeTo(data.cache_position, 'cpu')
-    job_data.causal_mask = maybeTo(data.causal_mask["full_attention"], 'cpu')
-    job_data.sliding_causal_mask = maybeTo(data.causal_mask["sliding_attention"], 'cpu')
+    job_data.state = maybeTo(data.state, torch.device('cpu'))
+    job_data.position_ids = maybeTo(data.position_ids, torch.device('cpu'))
+    job_data.position_embeddings = move_position_embeddings(data.position_embeddings, torch.device('cpu'))
+    job_data.position_embeddings_local = move_position_embeddings(data.position_embeddings_local, torch.device('cpu'))
+    job_data.position_embeddings_global = move_position_embeddings(data.position_embeddings_global, torch.device('cpu'))
+    job_data.cache_position = maybeTo(data.cache_position, torch.device('cpu'))
+    job_data.causal_mask = maybeTo(data.causal_mask["full_attention"], torch.device('cpu'))
+    job_data.sliding_causal_mask = maybeTo(data.causal_mask["sliding_attention"], torch.device('cpu'))
     return job_data
 
 def jobDataToComputationState(data: JobData, device: torch.device) -> LLmComputationState:
@@ -120,9 +123,14 @@ def jobDataToComputationState(data: JobData, device: torch.device) -> LLmComputa
     }
     return state
 
+def maybeDetach(t: Optional[torch.Tensor]) -> Optional[torch.Tensor]:
+    if t is None:
+        return None
+    return t.detach()
+
 def detachCompState(state: LLmComputationState) -> LLmComputationState:
-    state.state = state.state.detach()
-    state.position_ids = state.position_ids.detach()
+    state.state = maybeDetach(state.state)
+    state.position_ids = maybeDetach(state.position_ids)
     if state.position_embeddings is not None:
         state.position_embeddings = (state.position_embeddings[0].detach(), state.position_embeddings[1].detach())
     if state.position_embeddings_local is not None:
@@ -130,7 +138,7 @@ def detachCompState(state: LLmComputationState) -> LLmComputationState:
     if state.position_embeddings_global is not None:
         state.position_embeddings_global = (state.position_embeddings_global[0].detach(), state.position_embeddings_global[1].detach())
     
-    state.cache_position = state.cache_position.detach()
+    state.cache_position = maybeDetach(state.cache_position)
     state.causal_mask = {
         "full_attention": state.causal_mask["full_attention"].detach() if state.causal_mask["full_attention"] is not None else None,
         "sliding_attention": state.causal_mask["sliding_attention"].detach() if state.causal_mask["sliding_attention"] is not None else None

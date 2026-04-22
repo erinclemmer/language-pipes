@@ -1,10 +1,9 @@
 from typing import Tuple
 
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.frame.nav_window import NavWindow
 from language_pipes.tui.tui import TermText, TuiWindow
-from language_pipes.tui.util.screen_utils import Color
 from language_pipes.tui.frame.nav_state import NavState
-from language_pipes.content_loader import ContentLoader
 from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState

@@ -1,9 +1,9 @@
 import os
+from typing import Optional
 import torch
 from pathlib import Path
 
-from language_pipes.config import default_model_dir
-from language_pipes.util.config import get_config_files
+from language_pipes.util.config import get_config_files, get_model_dir
 
 def prompt(message: str, default=None, required=False) -> str | None:
     """Prompt user for input with optional default value."""
@@ -83,7 +83,7 @@ def prompt_choice(message: str, choices: list, default=None) -> str | None:
             return value
         print(f"  Please choose from: {choices_str}")
 
-def prompt_number_choice(message: str, choices: list, default=None, required=False) -> str:
+def prompt_number_choice(message: str, choices: list, default=None, required=False) -> Optional[str]:
     print(message)
     for i, choice  in enumerate(choices):
         print(f"[{i}] {choice}")
@@ -111,13 +111,13 @@ def prompt_number_choice(message: str, choices: list, default=None, required=Fal
 def prompt_continue():
     prompt("Press Enter to continue...")
 
-def get_available_models(models_dir: str | None = None) -> list:
+def get_available_models(models_dir: Path | None = None) -> list:
     """Get list of available models from ~/.cache/language_pipes/models.
     
     Returns a list of model IDs in the format 'org/model' (e.g., 'Qwen/Qwen3-1.7B').
     """
     if models_dir is None:
-        models_dir = default_model_dir()
+        models_dir = get_model_dir()
     
     models = []
     if not os.path.exists(models_dir):
@@ -132,7 +132,6 @@ def get_available_models(models_dir: str | None = None) -> list:
                     models.append(f"{org}/{model}")
     
     return sorted(models)
-
 
 def prompt_model_id(message: str, required=False) -> str | None:
     """Prompt user to select a model ID from available models or enter a custom one.
@@ -173,8 +172,8 @@ def prompt_model_id(message: str, required=False) -> str | None:
         # No local models available, prompt for custom ID directly
         return prompt(message, required=required)
 
-def select_config(app_dir: str) -> str | None:
-    config_dir = str(Path(app_dir) / "configs")
+def select_config(app_dir: Path) -> Path | None:
+    config_dir = app_dir / "configs"
     existing_configs = get_config_files(config_dir)
 
     if len(existing_configs) > 0:
@@ -186,7 +185,7 @@ def select_config(app_dir: str) -> str | None:
         print("No configs found...")
         return None
 
-    return str(Path(config_dir) / load_config)
+    return config_dir / load_config
 
 def show_banner(text: str):
     print("\n" + "=" * 50)

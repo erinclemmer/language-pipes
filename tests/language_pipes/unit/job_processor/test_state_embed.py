@@ -24,7 +24,7 @@ class TestEmbedState(unittest.TestCase):
         job.compute_step = ComputeStep.EMBED
         job.prompt_tokens = 2
         job.current_token = 0
-        job.init_chunking(chunk_size=1)
+        job.init_chunking()
 
         processor = make_processor(
             job=job,

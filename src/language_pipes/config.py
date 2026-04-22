@@ -34,6 +34,7 @@ class LpConfig:
     api_keys: List[str]
     layer_models: List[ModelToLoad]
     end_models: List[str]
+    num_local_layers: int
 
     network_config: DSNodeConfig
 

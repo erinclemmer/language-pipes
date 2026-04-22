@@ -152,7 +152,7 @@ def raise_exception(logger, msg: str):
     logger.exception(msg)
     raise Exception(msg)
 
-def maybeTo(t: Optional[torch.Tensor], device: str) -> Optional[torch.Tensor]:
+def maybeTo(t: Optional[torch.Tensor], device: torch.device) -> Optional[torch.Tensor]:
     if t is None:
         return None
     if str(t.device) == device:

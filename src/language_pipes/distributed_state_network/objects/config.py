@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
@@ -6,8 +7,8 @@ from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 @dataclass(frozen=False)
 class DSNodeConfig:
     node_id: str
-    logging_dir: str
-    credential_dir: str
+    logging_dir: Path
+    credential_dir: Path
     port: int
     network_ip: Optional[str]
     aes_key: Optional[str]
@@ -19,8 +20,8 @@ class DSNodeConfig:
     def from_dict(data: Dict) -> 'DSNodeConfig':
         return DSNodeConfig(
             data["node_id"], 
-            data["credential_dir"] if "credential_dir" in data else "credentials",
-            data["logging_dir"] if "logging_dir" in data else "logs",
+            Path(data["credential_dir"]) if "credential_dir" in data else Path("credentials"),
+            Path(data["logging_dir"]) if "logging_dir" in data else Path("logs"),
             data["port"],
             data["network_ip"] if "network_ip" in data else None, 
             data["aes_key"] if "aes_key" in data else None, 

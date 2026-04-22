@@ -23,7 +23,7 @@ class Pipe:
             router: StateNetworkNode,
             pipe_id: Optional[str],
             model_id: str,
-            model_dir: str
+            model_dir: Path
         ):
         self.router = router
         self.model_id = model_id
@@ -47,8 +47,8 @@ class Pipe:
     def tokenize(self, prompt: Optional[str], messages: List[ChatMessage]) -> List[int]:
         tokenizer: AutoTokenizer = self.tokenizer()
         if prompt is None:
-            prompt = tokenizer.apply_chat_template([m.to_json() for m in messages], tokenize=False, add_generation_prompt=True, chat_template=tokenizer.chat_template)
-        return [int(t) for t in tokenizer.encode(prompt, return_tensors='pt')[0].numpy()]
+            prompt = tokenizer.apply_chat_template([m.to_json() for m in messages], tokenize=False, add_generation_prompt=True, chat_template=tokenizer.chat_template) # type: ignore
+        return [int(t) for t in tokenizer.encode(prompt, return_tensors='pt')[0].numpy()] # type: ignore
 
     def get_layer(self, layer: int, need_physical: bool = False) -> Optional[LlmModel]:
         for segment in self.segments:
@@ -86,7 +86,7 @@ class Pipe:
         meta_pipe: MetaPipe, 
         layer_models: List[LlmModel], 
         router: StateNetworkNode,
-        model_dir: str
+        model_dir: Path
     ) -> 'Pipe':
         p = Pipe(
             model_id=meta_pipe.model_id, 

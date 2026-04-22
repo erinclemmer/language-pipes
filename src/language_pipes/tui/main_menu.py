@@ -4,7 +4,6 @@ from pathlib import Path
 from threading import Thread
 from typing import Tuple, Optional
 
-from language_pipes.content_provider.providers import get_providers
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.util.prompt import prompt, select_option, prompt_bool
 from language_pipes.util.config import (
@@ -71,10 +70,9 @@ def handle_file_load(
 ):
     window.remove_all()
     window.paint()
-    providers = get_providers(config_file)
 
     from language_pipes.tui.frame.main_frame import MainFrame
-    frame = MainFrame((80, termsize[1]), (left_bound, 0), providers=providers, auto_start=auto_start)
+    frame = MainFrame((80, termsize[1]), (left_bound, 0), config_file=config_file, auto_start=auto_start)
     action = frame.run()
     if action == "exit":
         return "exit"

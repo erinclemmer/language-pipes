@@ -1,14 +1,14 @@
 import torch
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 class LLmComputationState:
-    state: torch.Tensor
-    position_embeddings: Tuple[torch.Tensor, torch.Tensor]
-    position_embeddings_local: torch.Tensor
-    position_embeddings_global: torch.Tensor
-    position_ids: torch.Tensor
-    cache_position: torch.Tensor
-    causal_mask: Dict[str, torch.Tensor]
+    state: Optional[torch.Tensor]
+    position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]]
+    position_embeddings_local: Optional[Tuple[torch.Tensor, torch.Tensor]]
+    position_embeddings_global: Optional[Tuple[torch.Tensor, torch.Tensor]]
+    position_ids: Optional[torch.Tensor]
+    cache_position: Optional[torch.Tensor]
+    causal_mask: Dict[str, Optional[torch.Tensor]]
 
     def __init__(self):
         self.state = None # type: ignore
