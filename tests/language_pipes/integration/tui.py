@@ -12,7 +12,7 @@ from language_pipes.cli import main
 
 class OpenAITests(unittest.TestCase):
     def test_tui(self):
-        main(["--config", "node-1"])
+        main(["--config", "node-1", "--start"])
 
 if __name__ == '__main__':
     unittest.main()

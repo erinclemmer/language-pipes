@@ -63,6 +63,11 @@ class MainFrame:
 
     def auto_start(self):
         self.provider.network_provider.start_network()
+        sleep(2)
+        status = self.provider.network_provider.get_network_status()
+        if status is not None and not status.running:
+            return
+        
         self.provider.job_provider.start_oai_server()
         for model in self.provider.model_provider.get_layer_models():
             self.provider.model_provider.host_layer_model(model)

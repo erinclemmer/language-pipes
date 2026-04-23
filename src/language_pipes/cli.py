@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("-v", "--version", action="version", version=VERSION)
     parser.add_argument("-c", "--config", help="Load configuration from TOML file")
-    parser.add_argument("-s", "--start", help="Start running all configured services immediately", default=False)
+    parser.add_argument("--start", help="Start running all configured services immediately", default=False, action="store_true")
 
     subparsers = parser.add_subparsers(dest="command")
     
