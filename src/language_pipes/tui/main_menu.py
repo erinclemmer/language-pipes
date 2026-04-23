@@ -113,18 +113,6 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
     window.paint()
     load_libraries(window)
 
-    main_menu_options = ["New Configuration"]
-    if len(get_config_files(config_dir)) > 0:
-        main_menu_options.append("Load Configuration")
-
-    main_menu_options.append("Exit")
-
-    res = select_option((left_bound + 10, 10), main_menu_options)
-    if res is None or res == "Exit":
-        exit()
-
-    cmd = res[0]
-
     def restart():
         window.remove_all()
         window.paint()
@@ -146,7 +134,19 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
         if res is None:
             return restart()
 
-    elif cmd == "New Configuration":
+    main_menu_options = ["New Configuration"]
+    if len(get_config_files(config_dir)) > 0:
+        main_menu_options.append("Load Configuration")
+
+    main_menu_options.append("Exit")
+
+    res = select_option((left_bound + 10, 10), main_menu_options)
+    if res is None or res == "Exit":
+        exit()
+
+    cmd = res[0]
+
+    if cmd == "New Configuration":
         new_config_file = new_config(window)
         if new_config_file is None or new_config_file == "":
             restart()

@@ -34,7 +34,7 @@ class TestSecurity(DSNTestBase):
         bootstrap = spawn_node("bootstrap", "127.0.0.1", whitelist_node_ids=["connector"])
         connector = spawn_node(
             "connector",
-            None,
+            "127.0.0.1",
             [bootstrap.node.my_con().to_json()],
             whitelist_node_ids=["bootstrap"]
         )

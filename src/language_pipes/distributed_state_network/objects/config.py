@@ -19,14 +19,14 @@ class DSNodeConfig:
     @staticmethod
     def from_dict(data: Dict) -> 'DSNodeConfig':
         return DSNodeConfig(
-            data["node_id"], 
+            data["node_id"] if "node_id" in data else "", 
             Path(data["credential_dir"]) if "credential_dir" in data else Path("credentials"),
             Path(data["logging_dir"]) if "logging_dir" in data else Path("logs"),
-            data["port"],
+            data["port"] if "port" in data else 0,
             data["network_ip"] if "network_ip" in data else None, 
             data["aes_key"] if "aes_key" in data else None, 
             data["whitelist_ips"] if "whitelist_ips" in data and data["whitelist_ips"] is not None else [],
-            [Endpoint.from_json(e) for e in data["bootstrap_nodes"]],
+            [Endpoint.from_json(e) for e in data["bootstrap_nodes"]] if "bootstrap_nodes" in data else [],
             data["whitelist_node_ids"] if "whitelist_node_ids" in data and data["whitelist_node_ids"] is not None else [],
         )
 

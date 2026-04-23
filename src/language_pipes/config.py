@@ -7,6 +7,7 @@ import toml
 import torch
 
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.util.config import get_app_dir
 
 @dataclass
 class ModelToLoad:
@@ -141,7 +142,9 @@ class LpConfig:
         cfg.layer_models = [ModelToLoad.from_dict(o) for o in data.get("layer_models", [])]
         cfg.end_models = data.get("end_models", [])
         cfg.network_config = DSNodeConfig.from_dict({
-            "node_id": data.get("node_id", ""),
+            "credential_dir": str(get_app_dir() / "credentials"),
+            "logging_dir": str(get_app_dir() / "logs"),
+            "node_id": data.get("node_id", None),
             "aes_key": data.get("network_key", None),
             "network_ip": data.get("network_ip", None),
             "port": data.get("peer_port", 5000),

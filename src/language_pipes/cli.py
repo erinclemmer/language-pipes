@@ -21,24 +21,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument("-v", "--version", action="version", version=VERSION)
-    parser.add_argument("-c", "config", help="Load configuration from TOML file")
-    parser.add_argument("-s", "start", help="Start running all configured services immediately", default=False)
+    parser.add_argument("-c", "--config", help="Load configuration from TOML file")
+    parser.add_argument("-s", "--start", help="Start running all configured services immediately", default=False)
 
     subparsers = parser.add_subparsers(dest="command")
     
     # Run
     run_parser = subparsers.add_parser("run", help="Start Language Pipes as a stdout stream without the TUI")
     
-    run_parser.add_argument("-c", "config", help="Load configuration from TOML file", required=True)
-    run_parser.add_argument("-s", "set", help="Override config property by its TOML key name. Repeatable", dest="set_overrides", action="append", metavar="KEY=VALUE")
+    run_parser.add_argument("set", help="Override config property by its TOML key name. Repeatable", action="append", metavar="RUN_KEY=VALUE")
 
     run_parser.add_argument("layer-models", help="Models to host", nargs="*", metavar="MODEL")
     run_parser.add_argument("end-models", help="Model IDs for which to load end models", nargs="*", metavar="END")
 
     # Config
     config_parser = subparsers.add_parser("config", help="Verify configuration file and flags")
-    config_parser.add_argument("-c", "config", help="Configuration file to resolve")
-    config_parser.add_argument("-s", "set", help="Override a property (same as run)", dest="set_overrides", action="append", metavar="KEY=VALUE")
+    config_parser.add_argument("set", help="Override a property (same as run)", action="append", metavar="CONFIG_KEY=VALUE")
     
     config_parser.add_argument("layer-models", help="Models to host", nargs="*", metavar="MODEL")
     config_parser.add_argument("end-models", help="Model IDs for which to load end models", nargs="*", metavar="END")

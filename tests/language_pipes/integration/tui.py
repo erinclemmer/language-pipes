@@ -11,11 +11,8 @@ from language_pipes.cli import main
 
 
 class OpenAITests(unittest.TestCase):
-    def test_cli(self):
-        main([])
-
     def test_tui(self):
-        main(["tui"])
+        main(["--config", "node-1"])
 
 if __name__ == '__main__':
     unittest.main()

@@ -58,7 +58,7 @@ class MainFrame:
         self.layout._init_layout(size, pos)
         self._init_view()
         self.layout._render_all()
-        if self.auto_start:
+        if auto_start:
             self.auto_start()
 
     def auto_start(self):
