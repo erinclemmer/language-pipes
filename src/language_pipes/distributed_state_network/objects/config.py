@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
+from language_pipes.distributed_state_network.util.aes import AES_KEY_LENGTH
 
 @dataclass(frozen=False)
 class DSNodeConfig:
@@ -39,6 +40,12 @@ class DSNodeConfig:
             "whitelist_ips": self.whitelist_ips,
             "whitelist_node_ids": self.whitelist_node_ids
         }
+
+    def aes_key_is_valid(self) -> bool:
+        if self.aes_key is None:
+            return False
+        key = bytes.fromhex(self.aes_key)
+        return len(key) == AES_KEY_LENGTH * 2
 
     def to_string(self) -> str:
         lines = []

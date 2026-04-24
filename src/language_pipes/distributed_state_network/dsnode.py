@@ -100,12 +100,12 @@ class DSNode:
         if self.config.aes_key is None:
             return None
         key = bytes.fromhex(self.config.aes_key)
-        if len(key) != AES_KEY_LENGTH:
+        if len(key) != AES_KEY_LENGTH * 2:
             raise ValueError(
                 f"Invalid AES key length ({len(key)} bytes). Expected {AES_KEY_LENGTH} bytes."
             )
         return key
-
+    
     def _is_ip_whitelisted(self, ip: Optional[str]) -> bool:
         if len(self.config.whitelist_ips) == 0:
             return True

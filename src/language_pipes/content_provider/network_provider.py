@@ -55,6 +55,9 @@ class NetworkProvider:
         if config.node_id is None:
             return
         
+        if not config.aes_key_is_valid():
+            return
+        
         self.router_starting = True
         def start_router():
             self.set_router(DSNodeServer.start(config))

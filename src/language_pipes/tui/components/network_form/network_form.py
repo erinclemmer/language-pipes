@@ -320,7 +320,7 @@ class NetworkForm:
 
     def get_network_key_show_lines(self) -> List[str]:
         key = self.network_key or ""
-        return ["Network Key", "", key[:32], key[32:]]
+        return ["Network Key", "", key]
 
     def get_network_key_lines(self) -> List[str]:
         if self.network_key_state == NetworkKeyEditorState.LIST:

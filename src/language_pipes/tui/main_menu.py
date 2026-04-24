@@ -78,12 +78,22 @@ def handle_file_load(
         return "exit"
     return None
 
+
+BANNER = r"""
+ _                                                   ____   _
+| |                                                 |  __`\(_)                
+| |     __ _  ___   ___  _   _  __ _  __ _  ___     | |__) | |_ __   ___  ___ 
+| |    / _` |/ _ \ / _ `| | | |/ _` |/ _` |/ _ \    |  ___/| | '_ \ / _ \/ __|
+| |___| (_| | | | | (_| | |_| | (_| | (_| |  __/    | |    | | |_) |  __/\__ \
+|______\__,_|_| |_|\__, |\__,_|\__,_|\__, |\___|    |_|    |_| .__/ \___||___/
+                    __/ |            __/ |                   | |              
+                   |___/            |___/                    |_|      
+"""
+
+
 def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start: bool):
     if config_file is None:
         auto_start = False
-
-    with open("src/language_pipes/tui/banner.txt", "r") as f:
-        banner_text = f.read()
 
     app_dir = get_app_dir()
     model_dir = get_model_dir()
@@ -108,7 +118,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
 
     left_bound = int((termsize[0] / 2.0) - 40.0)
     window = TuiWindow((80, termsize[1]), (left_bound, 0))
-    window.add_text(TermText(banner_text), (0, 0))
+    window.add_text(TermText(BANNER), (0, 0))
     window.add_text(TermText(f"Version {VERSION}"), (0, 7))
     window.paint()
     load_libraries(window)
@@ -116,7 +126,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
     def restart():
         window.remove_all()
         window.paint()
-        t = Thread(target=main_menu, args=(termsize,))
+        t = Thread(target=main_menu, args=(termsize, None, False, ))
         t.start()
         t.join()
 
@@ -132,7 +142,8 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
         if res == "exit":
             exit()
         if res is None:
-            return restart()
+            restart()
+            return
 
     main_menu_options = ["New Configuration"]
     if len(get_config_files(config_dir)) > 0:
