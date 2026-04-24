@@ -30,7 +30,7 @@ class NetworkStatus:
     def on_enter(self):
         status = self.provider.network_provider.get_network_status()
         if status is not None and status.running:
-            self.provider.network_provider.stop_network()
+            self.provider.stop_network()
         else:
             if ContentProvider.is_port_available(self.config.port):
                 self.provider.network_provider.start_network()

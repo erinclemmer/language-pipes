@@ -70,10 +70,10 @@ class MainFrame:
         
         self.provider.job_provider.start_oai_server()
         for model in self.provider.model_provider.get_layer_models():
-            self.provider.model_provider.host_layer_model(model)
+            self.provider.model_provider.load_layer_model(model)
         
         for model in self.provider.model_provider.get_end_models():
-            self.provider.model_provider.host_end_model(model)
+            self.provider.model_provider.load_end_model(model)
 
     def change_nav(self, tab: str, section: str):
         self.nav.set_tab(tab)

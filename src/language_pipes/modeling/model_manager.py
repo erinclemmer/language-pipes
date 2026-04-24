@@ -13,24 +13,24 @@ from language_pipes.modeling.end_model import EndModel
 from language_pipes.util.config import get_model_dir
 
 class ModelManager:
-    models: List[LlmModel]
+    layer_models: List[LlmModel]
     end_models: List[EndModel]
     logs: List[Tuple[float, str]]
     pipes_hosted: Dict[str, List[str]]
 
     def __init__(self):
-        self.models = []
+        self.layer_models = []
         self.logs = []
         self.end_models = []
         self.pipes_hosted = { }
 
     def stop(self):
         self.logs.append((time.time(), "Stopping models"))
-        for m in self.models:
+        for m in self.layer_models:
             m.cleanup_tensors()
         for m in self.end_models:
             m.clean_up()
-        self.models = []
+        self.layer_models = []
         self.end_models = []
 
     def get_end_model(self, model_id: str) -> Optional[EndModel]:
@@ -95,7 +95,7 @@ class ModelManager:
                     self.pipes_hosted[model_id].append(model.pipe_id)
                     router_pipes.add_model_to_network(model.to_meta())
                     models_to_load.append(model)
-                    self.models.append(model)
+                    self.layer_models.append(model)
 
         if len(self.pipes_hosted[model_id]) < max_pipes:
             new_pipe = MetaPipe(str(uuid4()), model_id, [])
@@ -104,7 +104,7 @@ class ModelManager:
             if model is not None:
                 router_pipes.add_model_to_network(model.to_meta())
                 models_to_load.append(model)
-                self.models.append(model)
+                self.layer_models.append(model)
 
         for m in models_to_load:
             self.logs.append((time.time(), f"Loading model {m.model_id} on {m.device}, Layers {m.start_layer}-{m.end_layer}"))
@@ -113,7 +113,7 @@ class ModelManager:
 
     def refresh_pipes_hosted(self):
         self.pipes_hosted = { }
-        for model in self.models:
+        for model in self.layer_models:
             if model.model_id not in self.pipes_hosted:
                 self.pipes_hosted[model.model_id] = []
             if model.pipe_id not in self.pipes_hosted[model.model_id]:
@@ -121,7 +121,7 @@ class ModelManager:
 
     def shutdown_layer_models(self, router_pipes: RouterPipes, model_id: str):
         to_remove = []
-        for model in self.models:
+        for model in self.layer_models:
             if model.model_id == model_id:
                 model.cleanup_tensors()
                 router_pipes.remove_model(model.to_meta())
@@ -129,7 +129,7 @@ class ModelManager:
                 self.logs.append((time.time(), f"Stopping model {model.model_id} on {model.device}"))
 
         for m_id in to_remove:
-            self.models = [m for m in self.models if m.process_id != m_id]
+            self.layer_models = [m for m in self.layer_models if m.process_id != m_id]
 
         self.refresh_pipes_hosted()
         gc.collect()

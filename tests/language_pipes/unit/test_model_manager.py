@@ -128,7 +128,7 @@ class ModelManagerTests(unittest.TestCase):
         """Test ModelManager initializes correctly with no layer models."""
         manager = ModelManager()
 
-        self.assertEqual(len(manager.models), 0)
+        self.assertEqual(len(manager.layer_models), 0)
         self.assertEqual(len(manager.end_models), 0)
         self.assertEqual(len(manager.pipes_hosted), 0)
 
@@ -137,13 +137,13 @@ class ModelManagerTests(unittest.TestCase):
         manager = ModelManager()
         # Manually add some fake models
         fake_model = FakeLlmModel("model-1", "node-a", "pipe-1", torch.device("cpu"))
-        manager.models.append(fake_model)  # type: ignore[arg-type]
+        manager.layer_models.append(fake_model)  # type: ignore[arg-type]
         fake_end_model = FakeEndModel(0, Path("models"), "model-1", "cpu")
         manager.end_models.append(fake_end_model)  # type: ignore[arg-type]
 
         manager.stop()
 
-        self.assertEqual(len(manager.models), 0)
+        self.assertEqual(len(manager.layer_models), 0)
         self.assertEqual(len(manager.end_models), 0)
 
     def test_get_end_model_returns_matching_model(self):
@@ -214,8 +214,8 @@ class ModelManagerTests(unittest.TestCase):
         manager = ModelManager()
         manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, max_pipes=1)
 
-        self.assertEqual(len(manager.models), 1)
-        self.assertEqual(manager.models[0].start_layer, 0)
+        self.assertEqual(len(manager.layer_models), 1)
+        self.assertEqual(manager.layer_models[0].start_layer, 0)
         self.assertEqual(len(manager.end_models), 0)
 
     @patch('language_pipes.modeling.model_manager.EndModel', FakeEndModel)
@@ -233,8 +233,8 @@ class ModelManagerTests(unittest.TestCase):
         manager.load_end_model("model-1", "cpu", 1)
         manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=1, max_pipes=1)
 
-        self.assertEqual(len(manager.models), 1)
-        self.assertEqual(manager.models[0].start_layer, 1)
+        self.assertEqual(len(manager.layer_models), 1)
+        self.assertEqual(manager.layer_models[0].start_layer, 1)
         self.assertEqual(len(manager.end_models), 1)
         self.assertEqual(len(manager.end_models[0].layers), 1)
 
@@ -426,7 +426,7 @@ class ModelManagerTests(unittest.TestCase):
         manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, max_pipes=1)
 
         # All models in the manager should be loaded
-        for model in manager.models:
+        for model in manager.layer_models:
             self.assertTrue(model.loaded)
 
     @patch('language_pipes.modeling.model_manager.EndModel', FakeEndModel)

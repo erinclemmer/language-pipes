@@ -22,7 +22,7 @@ class PipeManager:
     def _get_pipe_from_meta(self, meta_pipe: MetaPipe) -> Pipe:
         return Pipe.from_meta(
             meta_pipe=meta_pipe,
-            layer_models=self.model_manager.models,
+            layer_models=self.model_manager.layer_models,
             router=self.router_pipes.router,
             model_dir=get_model_dir()
         )

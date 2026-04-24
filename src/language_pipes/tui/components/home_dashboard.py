@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Optional, Dict, Tuple
+from typing import Callable, List, Optional, Dict, Tuple
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
@@ -117,15 +117,15 @@ class Dashboard:
         if selected_option == "Start Network Server":
             self.provider.network_provider.start_network()
         elif selected_option == "Stop Network Server":
-            self.provider.network_provider.stop_network()
+            self.provider.stop_network()
         elif selected_option == "Configure Network Server":
             self.change_nav("Network", "Configure")
         elif selected_option == "Load Models":
             for model in self.models_to_load:
-                self.provider.model_provider.host_layer_model(model)
+                self.provider.model_provider.load_layer_model(model)
         elif selected_option == "Unload Models":
             for model in self.models_to_load:
-                self.provider.model_provider.shutdown_layer_models(model.model_id)
+                self.provider.model_provider.unload_layer_models(model.model_id)
         elif selected_option == "Configure Models":
             self.change_nav("Models", "Hosted")
         elif selected_option == "Start Job Server":

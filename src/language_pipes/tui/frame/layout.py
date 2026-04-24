@@ -81,7 +81,7 @@ class FrameLayout:
 
         if self.edit_confirm.is_open:
             self.window.update_text(
-                self.content_id, TermText(self.edit_confirm.render())
+                self.content_id, TermText("\n" * 3 + self.edit_confirm.render())
             )
             return
 
@@ -129,6 +129,12 @@ class FrameLayout:
         self.window.update_text(self.footer_id, TermText(self._footer_text()))
 
     def _render_all(self):
+        if self.exit_confirm.is_open:
+            self.window.show_txt(self.exit_confirm_id)
+            self._render_exit_confirm()
+        else:
+            self.window.hide_txt(self.exit_confirm_id)
+        
         if self.nav_state.focus_depth == 2:
             self._sync_navigation()
             self._render_content()
@@ -136,11 +142,6 @@ class FrameLayout:
             self._render_content()    
             self._sync_navigation()
         
-        if self.exit_confirm.is_open:
-            self.window.show_txt(self.exit_confirm_id)
-            self._render_exit_confirm()
-        else:
-            self.window.hide_txt(self.exit_confirm_id)
         self._render_footer()
 
         self.window.paint()

@@ -162,9 +162,9 @@ class ModelsHosted:
                 model = self.get_editing_model()
                 if model is not None:
                     if self._current_model_running():
-                        self.provider.model_provider.shutdown_layer_models(model.model_id)
+                        self.provider.model_provider.unload_layer_models(model.model_id)
                     else:
-                        self.provider.model_provider.host_layer_model(model)
+                        self.provider.model_provider.load_layer_model(model)
                 self.state = ModelsHostedState.List
             elif self.option_idx == 2:
                 self.state = ModelsHostedState.List
@@ -198,7 +198,7 @@ class ModelsHosted:
         if self._network_running():
 
             def on_apply():
-                self.provider.model_provider.host_layer_model(model)
+                self.provider.model_provider.load_layer_model(model)
 
             def on_discard():
                 pass

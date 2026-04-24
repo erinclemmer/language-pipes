@@ -20,8 +20,8 @@ class DSNodeConfig:
     def from_dict(data: Dict) -> 'DSNodeConfig':
         return DSNodeConfig(
             data["node_id"] if "node_id" in data else "", 
-            Path(data["credential_dir"]) if "credential_dir" in data else Path("credentials"),
             Path(data["logging_dir"]) if "logging_dir" in data else Path("logs"),
+            Path(data["credential_dir"]) if "credential_dir" in data else Path("credentials"),
             data["port"] if "port" in data else 0,
             data["network_ip"] if "network_ip" in data else None, 
             data["aes_key"] if "aes_key" in data else None, 

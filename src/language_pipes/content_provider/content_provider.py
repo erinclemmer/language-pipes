@@ -45,6 +45,13 @@ class ContentProvider:
             self.router_pipes = None
             self.pipe_manager = None
 
+    def stop_network(self):
+        if self.router is None:
+            return
+        self.model_provider.unload_all_models()
+        self.job_provider.stop_oai_server()
+        self.network_provider._stop_network()
+
     @staticmethod
     def get_total_system_ram() -> float:
         return psutil.virtual_memory().total / (1024**3)
@@ -59,7 +66,7 @@ class ContentProvider:
     
     def shutdown(self):
         if self.router is not None:
-            self.network_provider.stop_network()
+            self.stop_network()
             self.set_router(None)
         
         self.model_manager.stop()

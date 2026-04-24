@@ -104,7 +104,7 @@ class ModelProvider:
         # Initialize with empty lists for all known model_ids
         known_model_ids = set(self.get_model_manager().pipes_hosted.keys())
         known_model_ids.update(
-            model.model_id for model in self.get_model_manager().models
+            model.model_id for model in self.get_model_manager().layer_models
         )
         known_model_ids.update(
             model.model_id for model in self.get_model_manager().end_models
@@ -115,7 +115,7 @@ class ModelProvider:
 
         mm: ModelManager = self.get_model_manager()
         # Add status for each model instance
-        for model in mm.models:
+        for model in mm.layer_models:
             model: LlmModel = model
             status = ModelStatus.Running if model.loaded else ModelStatus.Starting
             status_by_model[model.model_id].append(
@@ -214,17 +214,7 @@ class ModelProvider:
             return None
         return str(ModelDownloadProgress.latest_instance)
 
-    @staticmethod
-    def get_hf_token() -> Optional[str]:
-        cfg = GlobalConfig.from_file()
-        return os.environ.get("LP_HUGGINGFACE_TOKEN", cfg.hf_token)
-
-    @staticmethod
-    def save_hf_token(token: str):
-        cfg = GlobalConfig.from_file()
-        return cfg
-
-    def host_layer_model(self, model: ModelToLoad):
+    def load_layer_model(self, model: ModelToLoad):
         rp = self.get_router_pipes()
         if rp is None:
             return
@@ -241,13 +231,13 @@ class ModelProvider:
 
         Thread(target=host_layer_model, args=()).start()
 
-    def host_end_model(self, model_id: str):
+    def load_end_model(self, model_id: str):
         def host_end_model():
             self.get_model_manager().load_end_model(model_id, "cpu", 0)
 
         Thread(target=host_end_model, args=()).start()
 
-    def shutdown_layer_models(self, model_id: str):
+    def unload_layer_models(self, model_id: str):
         rp = self.get_router_pipes()
         if rp is None:
             return
@@ -255,7 +245,15 @@ class ModelProvider:
             self.get_model_manager().shutdown_layer_models(rp, model_id)
         Thread(target=shutdown_layer_models, args=()).start()
 
-    def shutdown_end_model(self, model_id: str):
+    def unload_all_models(self):
+        mm = self.get_model_manager()
+        for m in mm.layer_models:
+            self.unload_layer_models(m.model_id)
+
+        for m in mm.end_models:
+            self.unload_end_model(m.model_id)
+
+    def unload_end_model(self, model_id: str):
         def shutdown_end_model():
             self.get_model_manager().shutdown_end_model(model_id)
         Thread(target=shutdown_end_model, args=()).start()
@@ -285,3 +283,13 @@ class ModelProvider:
             return True
         except RuntimeError:
             return False
+
+    @staticmethod
+    def get_hf_token() -> Optional[str]:
+        cfg = GlobalConfig.from_file()
+        return os.environ.get("LP_HUGGINGFACE_TOKEN", cfg.hf_token)
+
+    @staticmethod
+    def save_hf_token(token: str):
+        cfg = GlobalConfig.from_file()
+        return cfg
