@@ -82,8 +82,6 @@ class FrameLayout:
         )
 
         if self.alert.is_open:
-            self.window.hide_txt(self.content_id)
-            self.window.show_txt(self.content_id)
             self.window.hide_txt(self.seperator_column_id)
             self.window.hide_txt(self.right_panel_id)
             self.window.update_text(

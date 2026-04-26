@@ -2,6 +2,7 @@ from typing import List
 
 from language_pipes.tui.util.kb_utils import PressedKey
 
+# TODO: Maybe limit alert time to 5 seconds
 class Alert:
     is_open: bool
     messages: List[str]
