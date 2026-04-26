@@ -1,6 +1,7 @@
 from typing import Tuple
 
 from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.tui.components.alert import Alert
 from language_pipes.tui.frame.nav_window import NavWindow
 from language_pipes.tui.tui import TermText, TuiWindow
 from language_pipes.tui.frame.nav_state import NavState
@@ -35,12 +36,14 @@ class FrameLayout:
         provider: ContentProvider,
         exit_confirm: ExitConfirm,
         edit_confirm: Confirm,
+        alert: Alert,
         state: FrameState,
         page_router: PageRouter,
     ):
         self.nav_state = nav
         self.window = window
         self.provider = provider
+        self.alert = alert
         self.exit_confirm = exit_confirm
         self.edit_confirm = edit_confirm
         self.page_router = page_router

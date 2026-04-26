@@ -4,6 +4,7 @@ from threading import Thread
 from typing import Dict, List, Optional, Tuple
 
 from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.tui.components.alert import Alert
 from language_pipes.tui.tui import TuiWindow
 from language_pipes.tui.util.kb_utils import read_key
 from language_pipes.tui.frame.nav_state import NavState
@@ -38,6 +39,7 @@ class MainFrame:
         self.exit_confirm = ExitConfirm()
         self.provider = ContentProvider(config_file)
         self.confirm = Confirm()
+        self.alert = Alert()
         self.nav = NavState(self.TOP_HEADERS, self.SIDE_OPTIONS_BY_TAB)
         self.page_router = PageRouter(
             self.provider, self.confirm, self.nav, self.state, self.change_nav

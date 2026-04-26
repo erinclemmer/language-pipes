@@ -1,5 +1,4 @@
 import os
-import toml
 import shutil
 from pathlib import Path
 from threading import Thread

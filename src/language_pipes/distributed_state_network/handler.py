@@ -197,6 +197,12 @@ class DSNodeServer(StateNetworkNode):
     def generate_key() -> str:
         return generate_aes_key().hex()
 
+
+    # Connection Errors:
+    #   Node ID ECDSA mismatch
+    #   Network Key Mismatch
+    #   Connection to node failed
+    #   Not in whitelist
     @staticmethod 
     def start(
         config: DSNodeConfig, 
