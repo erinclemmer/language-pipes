@@ -15,7 +15,7 @@ from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.distributed_state_network.objects.state_packet import StatePacket
 from language_pipes.distributed_state_network.util.key_manager import CredentialManager
 
-AES_KEY_LEN = 32
+AES_KEY_LEN = 16
 
 @dataclass
 class RouterStatus:

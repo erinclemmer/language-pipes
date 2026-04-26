@@ -45,7 +45,7 @@ class DSNodeConfig:
         if self.aes_key is None:
             return False
         key = bytes.fromhex(self.aes_key)
-        return len(key) == AES_KEY_LENGTH * 2
+        return len(key) == AES_KEY_LENGTH
 
     def to_string(self) -> str:
         lines = []

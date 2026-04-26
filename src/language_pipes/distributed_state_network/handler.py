@@ -121,7 +121,10 @@ class DSNodeServer(StateNetworkNode):
 
             # Decrypt the data
             if self.config.aes_key is not None:
-                data = self.node.decrypt_data(data)
+                try:
+                    data = self.node.decrypt_data(data)
+                except Exception:
+                    return 401, b"Connection Error: Missing or incorrect encryption key"
             
             if len(data) < 1:
                 return 400, None

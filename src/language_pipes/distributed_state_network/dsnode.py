@@ -103,7 +103,7 @@ class DSNode:
         if self.config.aes_key is None:
             return None
         key = bytes.fromhex(self.config.aes_key)
-        if len(key) != AES_KEY_LENGTH * 2:
+        if len(key) != AES_KEY_LENGTH:
             raise ValueError(
                 f"Invalid AES key length ({len(key)} bytes). Expected {AES_KEY_LENGTH} bytes."
             )
@@ -302,7 +302,7 @@ class DSNode:
         try:
             content = self.send_http_request(con, MSG_HELLO, payload)
         except Exception as e:
-            if e.args[0] == 505:
+            if e.args[0] == 505 or e.args[0] == 401:
                 self.create_alert(e.args[1])
                 self.add_log(e.args[1])
             elif "HTTP request to" in e.args[0]:
