@@ -233,7 +233,7 @@ class DSNode:
                 return self.send_http_request(endpoint, msg_type, payload, retries + 1)
             else:
                 raise Exception(f"HTTP request to {endpoint.to_string()} timed out")
-        except requests.exceptions.RequestException as e:
+        except requests.exceptions.RequestException:
             if retries < 2:
                 time.sleep(0.5)
                 return self.send_http_request(endpoint, msg_type, payload, retries + 1)
@@ -319,6 +319,7 @@ class DSNode:
         if pkt.version != self.version:
             msg = f"HELLO => {pkt.node_id} (Version mismatch \"{pkt.version}\" != \"{self.version}\")"
             self.add_log(msg, "ERROR")
+            self.create_alert(f"Version mismatch \"{pkt.version}\" (connecting version) != \"{self.version}\" (this node's version)")
             raise Exception(505)  # Version not supported
 
         # Store the peer's public key
@@ -347,6 +348,7 @@ class DSNode:
         if pkt.version != self.version:
             msg = f"HELLO => {pkt.node_id} (Version mismatch \"{pkt.version}\" != \"{self.version}\")"
             self.add_log(msg, "ERROR")
+            self.create_alert(f"Network version mismatch \"{pkt.version}\" ({pkt.node_id}) != \"{self.version}\" ({self.config.node_id})")
             raise Exception(505)  # Version not supported
 
         self.cred_manager.ensure_public(pkt.node_id, pkt.ecdsa_public_key)

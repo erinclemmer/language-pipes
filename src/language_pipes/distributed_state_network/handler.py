@@ -2,7 +2,6 @@ import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from dataclasses import replace
-import time
 from typing import Callable, List, Optional, Tuple, cast
 from language_pipes.distributed_state_network.dsnode import DSNode
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
@@ -10,7 +9,7 @@ from language_pipes.distributed_state_network.util.aes import generate_aes_key
 from language_pipes.distributed_state_network.util import stop_thread
 from language_pipes.network_protocol import StateNetworkNode
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 
 # Message type constants
 MSG_HELLO = 1
