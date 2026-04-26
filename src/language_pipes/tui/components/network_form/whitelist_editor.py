@@ -24,7 +24,7 @@ class WhitelistEditor(ListEditor[str]):
         self.new_node_id = ""
 
     def is_input_valid(self) -> bool:
-        return True
+        return len(self.new_node_id) > 0
 
     def input_field_count(self) -> int:
         return 1

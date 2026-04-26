@@ -124,7 +124,7 @@ class DSNodeServer(StateNetworkNode):
                 try:
                     data = self.node.decrypt_data(data)
                 except Exception:
-                    return 401, b"Connection Error: Missing or incorrect encryption key"
+                    return 401, b"Missing or incorrect encryption key"
             
             if len(data) < 1:
                 return 400, None
@@ -205,10 +205,7 @@ class DSNodeServer(StateNetworkNode):
 
 
     # Connection Errors:
-    #   Version mismatch
     #   Node ID ECDSA mismatch
-    #   Network Key Mismatch
-    #   Connection to node failed
     #   Not in whitelist
     @staticmethod 
     def start(

@@ -160,8 +160,12 @@ class Dashboard:
                 state_label = f"Running\n{self.network_config.node_id}@{self.network_config.network_ip}:{self.router_status.port}"
             else:
                 state_label = self.router_status.state
+
+        encryption_text = ""
+        if self.router_status is not None and self.router_status.encrypted:
+            encryption_text = "\nEncrypted connection"
         
-        return f"{state_label}{peer_text}"
+        return f"{state_label}{peer_text}{encryption_text}"
 
     def _format_model_line(self, model: ModelToLoad, running: List[ModelStatusInfo], jobs: List[MetaJob]) -> List[str]:
         lines = [

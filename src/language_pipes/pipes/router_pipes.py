@@ -42,7 +42,7 @@ class RouterPipes:
         current_models = [MetaModel.from_dict(m) for m in json.loads(models_string)]
         matching_models = [m for m in current_models if m.process_id == model.process_id]
         if len(matching_models) < 1:
-            raise Exception("Could not update model")
+            return
         current_models.remove(matching_models[0])
         current_models.append(model)
         self.router.update_data(
@@ -55,7 +55,7 @@ class RouterPipes:
         current_models = [MetaModel.from_dict(m) for m in json.loads(models_string)]
         matching_models = [m for m in current_models if m.process_id == model.process_id]
         if len(matching_models) < 1:
-            raise Exception("Could not update model")
+            return
         current_models.remove(matching_models[0])
         self.router.update_data(
             'models',

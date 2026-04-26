@@ -25,6 +25,7 @@ class RouterStatus:
     num_peers: int
     logs: List[Tuple[float, str]]
     port: int
+    encrypted: bool
 
 class NetworkProvider:
     router_thread: Optional[Thread]
@@ -104,7 +105,8 @@ class NetworkProvider:
                 running=False,
                 num_peers=0,
                 logs=[],
-                port=rtr.config.port
+                port=rtr.config.port,
+                encrypted=False
             )
 
         if self.router_stopping:
@@ -114,7 +116,8 @@ class NetworkProvider:
                 running=False,
                 num_peers=0 if rtr is None else len(rtr.node.node_states.keys()) - 1,
                 logs=[] if rtr is None else rtr.node.logs,
-                port=rtr.config.port
+                port=rtr.config.port,
+                encrypted=False
             )
         
         return RouterStatus(
@@ -123,7 +126,8 @@ class NetworkProvider:
             running=True,
             num_peers=len(rtr.node.node_states.keys()) - 1,
             logs=rtr.node.logs,
-            port=rtr.config.port
+            port=rtr.config.port,
+            encrypted=rtr.config.aes_key is not None
         )
     
     def reset_router_logs(self):

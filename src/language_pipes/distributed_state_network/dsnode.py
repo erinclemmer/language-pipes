@@ -131,7 +131,7 @@ class DSNode:
 
     def ensure_node_id_allowed(self, node_id: Optional[str]):
         if not self._is_node_id_whitelisted(node_id):
-            raise Exception(401, "Node ID not in whitelist")
+            raise Exception(401, f"{node_id} not in {self.config.node_id}'s whitelist")
 
     def ensure_endpoint_allowed(self, endpoint: Endpoint):
         self.ensure_ip_allowed(endpoint.address)
@@ -303,8 +303,9 @@ class DSNode:
             content = self.send_http_request(con, MSG_HELLO, payload)
         except Exception as e:
             if e.args[0] == 505 or e.args[0] == 401:
-                self.create_alert(e.args[1])
-                self.add_log(e.args[1])
+                msg = f"Network Error: {e.args[1]}"
+                self.create_alert(msg)
+                self.add_log(msg)
             elif "HTTP request to" in e.args[0]:
                 msg = f"Connection to {con.address}:{con.port} failed"
                 self.create_alert(msg)
