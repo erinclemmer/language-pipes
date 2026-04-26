@@ -2,6 +2,7 @@ import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from dataclasses import replace
+import time
 from typing import Callable, List, Optional, Tuple, cast
 from language_pipes.distributed_state_network.dsnode import DSNode
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
@@ -71,13 +72,15 @@ class DSNodeServer(StateNetworkNode):
     node: DSNode
     thread: Optional[threading.Thread]
     http_server: Optional[_DSNodeHTTPServer]
+    create_alert: Callable[[str], None]
 
     def __init__(
         self, 
         config: DSNodeConfig,
+        create_alert: Callable[[str], None],
         disconnect_callback: Optional[Callable] = None,
         update_callback: Optional[Callable] = None,
-        receive_callback: Optional[Callable] = None
+        receive_callback: Optional[Callable] = None,
     ):
         detected_ip = self._detect_local_ip() or config.network_ip
         self.network_ip = detected_ip
@@ -85,9 +88,10 @@ class DSNodeServer(StateNetworkNode):
         self.running = False
         self.thread = None
         self.http_server = None
+        self.create_alert = create_alert
         
         # Create DSNode
-        self.node = DSNode(self.config, VERSION, disconnect_callback, update_callback, receive_callback)
+        self.node = DSNode(self.config, VERSION, create_alert, disconnect_callback, update_callback, receive_callback)
 
     def _detect_local_ip(self) -> Optional[str]:
         """Best-effort local network IP detection."""
@@ -206,11 +210,12 @@ class DSNodeServer(StateNetworkNode):
     @staticmethod 
     def start(
         config: DSNodeConfig, 
+        create_alert: Callable[[str], None],
         disconnect_callback: Optional[Callable] = None, 
         update_callback: Optional[Callable] = None,
         receive_callback: Optional[Callable] = None
     ) -> 'DSNodeServer':
-        n = DSNodeServer(config, disconnect_callback, update_callback, receive_callback)
+        n = DSNodeServer(config, create_alert, disconnect_callback, update_callback, receive_callback)
         n.thread = threading.Thread(target=n._serve_forever, daemon=True, args=(config.port, ))
         n.thread.start()
 

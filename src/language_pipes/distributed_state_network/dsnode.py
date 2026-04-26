@@ -43,11 +43,13 @@ class DSNode:
     node_states: Dict[str, StatePacket]
     shutting_down: bool
     logs: List[Tuple[float, str]]
+    create_alert: Callable[[str], None]
 
     def __init__(
             self, 
             config: DSNodeConfig,
             version: str,
+            create_alert: Callable[[str], None],
             disconnect_callback: Optional[Callable] = None,
             update_callback: Optional[Callable] = None,
             receive_callback: Optional[Callable] = None
@@ -55,6 +57,7 @@ class DSNode:
         self.config = config
         self.version = version
         self.shutting_down = False
+        self.create_alert = create_alert
         self.logs = []
         
         self.cred_manager = CredentialManager(config.credential_dir, config.node_id)

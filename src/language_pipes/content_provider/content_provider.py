@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import psutil
-from typing import Optional 
+from typing import Callable, Optional 
 
 from language_pipes.util.utils import is_port_available
 from language_pipes.pipes.pipe_manager import PipeManager
@@ -23,16 +23,18 @@ class ContentProvider:
     pipe_provider: PipeProvider
     job_provider: JobProvider
     config_file: Path
+    create_alert: Callable[[str], None]
 
-    def __init__(self, config_file: Path):
+    def __init__(self, config_file: Path, create_alert: Callable[[str], None]):
         self.router = None
         self.router_pipes = None
         self.pipe_manager = None
         self.model_manager = ModelManager()
         self.config_file = config_file
+        self.create_alert = create_alert
 
         self.model_provider = ModelProvider(config_file, lambda: self.model_manager, lambda: self.router_pipes)
-        self.network_provider = NetworkProvider(config_file, lambda: self.router, self.set_router)
+        self.network_provider = NetworkProvider(config_file, lambda: self.router, self.set_router, self.create_alert)
         self.pipe_provider = PipeProvider(lambda: self.pipe_manager)
         self.job_provider = JobProvider(config_file, lambda: self.router_pipes, lambda: self.model_manager, lambda: self.pipe_manager)
 

@@ -33,14 +33,22 @@ class NetworkProvider:
     config_file: Path
 
     get_router: Callable[[], Optional[DSNodeServer]]
+    create_alert: Callable[[str], None]
 
-    def __init__(self, config_file: Path, get_router: Callable, set_router: Callable):
+    def __init__(
+        self, 
+        config_file: Path, 
+        get_router: Callable, 
+        set_router: Callable,
+        create_alert: Callable[[str], None]
+    ):
         self.router_starting = False
         self.router_stopping = False
         self.router_thread = None
         self.config_file = config_file
         self.get_router = get_router
         self.set_router = set_router
+        self.create_alert = create_alert
         self.set_router(None)
 
     # Network / Status
@@ -59,7 +67,7 @@ class NetworkProvider:
         
         self.router_starting = True
         def start_router():
-            self.set_router(DSNodeServer.start(config))
+            self.set_router(DSNodeServer.start(config, self.create_alert))
             self.router_starting = False
         self.router_thread = Thread(target=start_router, args=())
         self.router_thread.start()

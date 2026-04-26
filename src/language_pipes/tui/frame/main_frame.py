@@ -37,9 +37,9 @@ class MainFrame:
         self.shutdown = False
         self.state = FrameState()
         self.exit_confirm = ExitConfirm()
-        self.provider = ContentProvider(config_file)
-        self.confirm = Confirm()
         self.alert = Alert()
+        self.provider = ContentProvider(config_file, self.alert.create_alert)
+        self.confirm = Confirm()
         self.nav = NavState(self.TOP_HEADERS, self.SIDE_OPTIONS_BY_TAB)
         self.page_router = PageRouter(
             self.provider, self.confirm, self.nav, self.state, self.change_nav
@@ -51,6 +51,7 @@ class MainFrame:
             self.provider,
             self.exit_confirm,
             self.confirm,
+            self.alert,
             self.state,
             self.page_router,
         )
