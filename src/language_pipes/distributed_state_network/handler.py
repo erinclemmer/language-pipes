@@ -203,6 +203,7 @@ class DSNodeServer(StateNetworkNode):
 
 
     # Connection Errors:
+    #   Version mismatch
     #   Node ID ECDSA mismatch
     #   Network Key Mismatch
     #   Connection to node failed

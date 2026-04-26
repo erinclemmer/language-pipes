@@ -16,10 +16,12 @@ class Alert:
     def get_lines(self) -> List[str]:
         if len(self.messages) == 0:
             return []
+        
         lines = [
+            "Alert:",
             self.messages[0],
             "",
-            "Esc/Enter: close confirmation"
+            "Esc/Enter: close alert"
         ]
         return lines
 

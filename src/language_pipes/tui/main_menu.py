@@ -119,7 +119,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
     left_bound = int((termsize[0] / 2.0) - 40.0)
     window = TuiWindow((80, termsize[1]), (left_bound, 0))
     window.add_text(TermText(BANNER), (0, 0))
-    window.add_text(TermText(f"Version {VERSION}"), (0, 7))
+    window.add_text(TermText(f"Version {VERSION}"), (0, 8))
     window.paint()
     load_libraries(window)
 

@@ -166,7 +166,6 @@ class DSNode:
                 del self.node_states[node_id]
             if node_id in self.address_book:    
                 del self.address_book[node_id]
-            self.add_log(f"{node_id} disconnected", "INFO")
         
         for node_id in self.node_states.copy().keys():
             if node_id not in self.node_states or node_id == self.config.node_id:
@@ -178,6 +177,9 @@ class DSNode:
             except Exception:
                 if node_id in self.node_states:  # double check if something has changed since the ping request started
                     remove(node_id)
+                    msg = f"{node_id} has disconnected"
+                    self.create_alert(msg)
+                    self.add_log(msg)
                     if self.disconnect_cb is not None:
                         self.disconnect_cb()
 
@@ -318,8 +320,6 @@ class DSNode:
             msg = f"HELLO => {pkt.node_id} (Version mismatch \"{pkt.version}\" != \"{self.version}\")"
             self.add_log(msg, "ERROR")
             raise Exception(505)  # Version not supported
-        
-        self.add_log(f"{pkt.node_id} connected", "INFO")
 
         # Store the peer's public key
         self.cred_manager.ensure_public(pkt.node_id, pkt.ecdsa_public_key)
@@ -351,6 +351,9 @@ class DSNode:
 
         self.cred_manager.ensure_public(pkt.node_id, pkt.ecdsa_public_key)
         self.write_address_book(pkt.node_id, Endpoint(detected_address, pkt.connection.port))
+        alrt_msg = f"{pkt.node_id} has connnected"
+        self.create_alert(alrt_msg)
+        self.add_log(alrt_msg)
 
         if pkt.node_id not in self.node_states:
             self.init_state(pkt.node_id)
