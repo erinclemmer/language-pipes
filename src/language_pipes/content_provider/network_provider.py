@@ -62,7 +62,7 @@ class NetworkProvider:
         if config.node_id is None:
             return
         
-        if not config.aes_key_is_valid():
+        if config.aes_key is not None and not config.aes_key_is_valid():
             return
         
         self.router_starting = True

@@ -14,6 +14,8 @@ class Alert:
         self.is_open = False
 
     def get_lines(self) -> List[str]:
+        if len(self.messages) == 0:
+            return []
         lines = [
             self.messages[0],
             "",

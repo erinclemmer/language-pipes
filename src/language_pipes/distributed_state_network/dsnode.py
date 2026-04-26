@@ -236,7 +236,7 @@ class DSNode:
                 time.sleep(0.5)
                 return self.send_http_request(endpoint, msg_type, payload, retries + 1)
             else:
-                raise Exception(f"HTTP request to {endpoint.to_string()} failed: {e}")
+                raise Exception(f"HTTP request to {endpoint.to_string()} failed")
 
     def send_request_to_node(self, node_id: str, msg_type: int, payload: bytes) -> bytes:
         self.ensure_node_id_allowed(node_id)
@@ -300,6 +300,10 @@ class DSNode:
         try:
             content = self.send_http_request(con, MSG_HELLO, payload)
         except Exception as e:
+            if "HTTP request to" in e.args[0]:
+                msg = f"Connection to {con.address}:{con.port} failed"
+                self.create_alert(msg)
+                self.logs.append((time.time(), msg))
             if len(e.args) > 1:
                 code, msg = e.args
                 if msg == "Node ID not in whitelist":
