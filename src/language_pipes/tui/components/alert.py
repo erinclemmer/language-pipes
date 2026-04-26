@@ -4,33 +4,29 @@ from language_pipes.tui.util.kb_utils import PressedKey
 
 class Alert:
     is_open: bool
-    message: str
+    messages: List[str]
     
     def __init__(self) -> None:
         self.is_open = False
-        self.message = "Apply these changes?"
-        
-    def open(
-        self, 
-        message: str
-    ) -> None:
-        self.is_open = True
-        self.message = message
+        self.messages = []
 
     def close(self) -> None:
         self.is_open = False
 
     def get_lines(self) -> List[str]:
         lines = [
-            self.message,
+            self.messages[0],
             "",
             "Esc/Enter: close confirmation"
         ]
         return lines
 
-    def handle_key(self, key: PressedKey) -> str:
-        if key == PressedKey.Enter:
-            return "confirm"
-        if key == PressedKey.Escape:
-            return "confirm"
-        return "nop"
+    def handle_key(self, key: PressedKey):
+        if key == PressedKey.Enter or key == PressedKey.Escape:
+            self.messages.pop(0)
+            if len(self.messages) == 0:
+                self.is_open = False
+    
+    def create_alert(self, message: str):
+        self.is_open = True
+        self.messages.append(message)

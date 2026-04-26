@@ -10,7 +10,6 @@ from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.frame.page_router import PageRouter
 
-
 class FrameLayout:
     footer_id: int
     status_id: int
@@ -81,6 +80,11 @@ class FrameLayout:
         self.window.update_text(
             self.content_bg_id, TermText(self._content_blank_block())
         )
+
+        if self.alert.is_open:
+            self.window.update_text(
+                self.content_id, TermText("\n" * 3 + "\n".join(self.alert.get_lines()))
+            )
 
         if self.edit_confirm.is_open:
             self.window.update_text(

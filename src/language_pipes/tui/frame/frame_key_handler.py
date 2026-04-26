@@ -20,6 +20,7 @@ class FrameKeyHandler:
         self.nav = layout.nav_state
         self.confirm = layout.edit_confirm
         self.exit_confirm = layout.exit_confirm
+        self.alert = layout.alert
         self.page_router = page_router
 
         self.layout = layout
@@ -62,6 +63,10 @@ class FrameKeyHandler:
             res = self.exit_confirm.handle_key(key)
             if res == "confirm" or res == "cancel":
                 self._resolve_exit_choice()
+            return
+
+        if self.alert.is_open:
+            self.alert.handle_key(key)
             return
 
         if self.confirm.is_open:
