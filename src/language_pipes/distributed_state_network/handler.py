@@ -9,7 +9,7 @@ from language_pipes.distributed_state_network.util.aes import generate_aes_key
 from language_pipes.distributed_state_network.util import stop_thread
 from language_pipes.network_protocol import StateNetworkNode
 
-VERSION = "0.8.0"
+VERSION = "0.9.0"
 
 # Message type constants
 MSG_HELLO = 1

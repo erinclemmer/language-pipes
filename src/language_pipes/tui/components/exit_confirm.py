@@ -4,7 +4,7 @@ from language_pipes.tui.util.kb_utils import PressedKey
 
 
 class ExitConfirm:
-    OPTIONS: List[str] = ["Return to menu", "Exit TUI", "Cancel"]
+    OPTIONS: List[str] = ["Return to menu", "Exit Program", "Cancel"]
 
     is_open: bool
     choice_idx: int

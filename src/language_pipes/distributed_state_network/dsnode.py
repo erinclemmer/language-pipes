@@ -302,7 +302,10 @@ class DSNode:
         try:
             content = self.send_http_request(con, MSG_HELLO, payload)
         except Exception as e:
-            if "HTTP request to" in e.args[0]:
+            if e.args[0] == 505:
+                self.create_alert(e.args[1])
+                self.add_log(e.args[1])
+            elif "HTTP request to" in e.args[0]:
                 msg = f"Connection to {con.address}:{con.port} failed"
                 self.create_alert(msg)
                 self.logs.append((time.time(), msg))
@@ -317,9 +320,9 @@ class DSNode:
         
         # Verify version compatibility
         if pkt.version != self.version:
-            msg = f"HELLO => {pkt.node_id} (Version mismatch \"{pkt.version}\" != \"{self.version}\")"
+            msg = f"Network version mismatch \"{pkt.version}\" ({pkt.node_id}) != \"{self.version}\" ({self.config.node_id})"
             self.add_log(msg, "ERROR")
-            self.create_alert(f"Version mismatch \"{pkt.version}\" (connecting version) != \"{self.version}\" (this node's version)")
+            self.create_alert(msg)
             raise Exception(505)  # Version not supported
 
         # Store the peer's public key
@@ -346,10 +349,10 @@ class DSNode:
         self.ensure_node_id_allowed(pkt.node_id)
         self.add_log(f"{pkt.node_id} connected", "INFO")
         if pkt.version != self.version:
-            msg = f"HELLO => {pkt.node_id} (Version mismatch \"{pkt.version}\" != \"{self.version}\")"
+            msg = f"Network version mismatch \"{pkt.version}\" ({pkt.node_id}) != \"{self.version}\" ({self.config.node_id})"
             self.add_log(msg, "ERROR")
-            self.create_alert(f"Network version mismatch \"{pkt.version}\" ({pkt.node_id}) != \"{self.version}\" ({self.config.node_id})")
-            raise Exception(505)  # Version not supported
+            self.create_alert(msg)
+            raise Exception(505, msg)  # Version not supported
 
         self.cred_manager.ensure_public(pkt.node_id, pkt.ecdsa_public_key)
         self.write_address_book(pkt.node_id, Endpoint(detected_address, pkt.connection.port))

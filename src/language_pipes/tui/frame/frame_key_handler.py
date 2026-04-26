@@ -33,7 +33,7 @@ class FrameKeyHandler:
             self.state.exit_tui = False
             self.state.running = False
             return
-        if choice == "Exit TUI":
+        if choice == "Exit Program":
             self.state.exit_tui = True
             self.state.running = False
             return
