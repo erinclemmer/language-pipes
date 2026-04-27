@@ -42,7 +42,7 @@ class PageRouter:
     ):
         self.nav = nav
         self.dashboard = Dashboard(provider, self.exit_page, self.is_focused, change_nav)
-        self.home_activity = HomeActivity(provider, self.exit_page, self.is_focused)
+        self.home_activity = HomeActivity(provider, self.exit_page, self.is_focused, change_nav)
         self.network_status = NetworkStatus(provider, self.exit_page, self.is_focused)
         self.network_peers = NetworkPeers(provider, self.exit_page, self.is_focused)
         self.network_form = NetworkForm(

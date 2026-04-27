@@ -238,5 +238,5 @@ class Dashboard:
         return lines, right_panel
 
     def get_footer(self) -> str:
-        return " Arrows U/D: Move              Enter: Select                      Esc: Back "
+        return " Arrows U/D: Move              Enter: Select                      Esc: Menu "
                                                                                

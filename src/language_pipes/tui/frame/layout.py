@@ -52,6 +52,7 @@ class FrameLayout:
         self.page_router = page_router
         self.state = state
         self.status_text = ""
+        
         def handle_resize(signum, frame):
             size_obj = shutil.get_terminal_size()
             size = (size_obj.columns, size_obj.lines)

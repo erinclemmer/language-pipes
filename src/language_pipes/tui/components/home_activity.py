@@ -9,18 +9,22 @@ class HomeActivity:
     provider: ContentProvider
     exit_page: Callable
     is_focused: Callable[[], bool]
+    change_nav: Callable[[str, str], None]
 
-    def __init__(self, provider: ContentProvider, exit_page: Callable, is_focused: Callable):
+    def __init__(self, provider: ContentProvider, exit_page: Callable, is_focused: Callable, change_nav: Callable):
         self.provider = provider
         self.exit_page = exit_page
         self.is_focused = is_focused
+        self.change_nav = change_nav
 
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.Escape:
             self.exit_page()
+        if key == PressedKey.Enter:
+            self.change_nav("Home", "Dashboard")
     
     def get_view(self) -> List[str]:
-        lines = ["Logs:", ""]
+        lines = ["Activity:"]
 
         logs: List[Tuple[float, str]] = []
         network_status = self.provider.network_provider.get_network_status()
@@ -43,4 +47,4 @@ class HomeActivity:
         return lines
     
     def get_footer(self) -> str:
-        return ""
+        return " Enter: Dashboard                                                 Esc: Menu "
