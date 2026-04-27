@@ -1,5 +1,4 @@
 import shutil
-import signal
 from typing import Tuple
 
 from language_pipes.cli import VERSION
@@ -22,6 +21,7 @@ class FrameLayout:
     
     status_text: str
     content_area_size: Tuple[int, int]
+    last_term_size: Tuple[int, int]
 
     nav_window: NavWindow
     nav_state: NavState
@@ -52,13 +52,16 @@ class FrameLayout:
         self.page_router = page_router
         self.state = state
         self.status_text = ""
-        
-        def handle_resize(signum, frame):
-            size_obj = shutil.get_terminal_size()
-            size = (size_obj.columns, size_obj.lines)
-            self.window.update_position((int(size[0] / 2.0) - 40, 0))
+        size_obj = shutil.get_terminal_size()
+        self.last_term_size = (size_obj.columns, size_obj.lines)
 
-        signal.signal(signal.SIGWINCH, handle_resize)
+    def _update_window_position(self):
+        size_obj = shutil.get_terminal_size()
+        size = (size_obj.columns, size_obj.lines)
+        if size[0] == self.last_term_size[0] and size[1] == self.last_term_size[1]:
+            return
+        self.last_term_size = size
+        self.window.update_position((int(size[0] / 2.0) - 40, 0))
 
     def _init_layout(self, size: Tuple[int, int], pos: Tuple[int, int]):
         self.content_area_size = (max(1, size[0]), max(1, size[1]))
@@ -151,6 +154,7 @@ class FrameLayout:
         self.window.update_text(self.footer_id, TermText(self._footer_text()))
 
     def _render_all(self):
+        self._update_window_position()
         if self.exit_confirm.is_open:
             self.window.show_txt(self.exit_confirm_id)
             self._render_exit_confirm()

@@ -1,6 +1,5 @@
-from pathlib import Path
-from shutil import get_terminal_size
 from typing import Optional
+from shutil import get_terminal_size
 
 from language_pipes.tui.util.screen_utils import (
     enable_vt_mode,
