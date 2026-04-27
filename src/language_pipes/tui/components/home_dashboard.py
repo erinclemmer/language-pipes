@@ -10,32 +10,35 @@ from language_pipes.content_provider.model_provider import ModelStatus, ModelToL
 
 class Dashboard:
     def _get_options(self) -> List[str]:
-        opts = []
+        run_opts = []
+        config_opts = []
 
         if self.router_status is None or self.router_status.state == "stopped":
             if self.network_config.node_id != "" and self.network_port_available():
-                opts.append("Start Network Server")
-            opts.append("Configure Network Server")
+                run_opts.append("Start Network Server")
+            config_opts.append("Configure Network Server")
 
         if self.router_status is not None and self.router_status.state == "running":
-            opts.append("Stop Network Server")
-            opts.append("Configure Network Server")
+            run_opts.append("Stop Network Server")
+            config_opts.append("Configure Network Server")
             if self.job_serv_running:
-                opts.append("Stop Job Server")
+                run_opts.append("Stop Job Server")
             elif self.job_port_available():
-                opts.append("Start Job Server")
-            opts.append("Configure Job Server")
+                run_opts.append("Start Job Server")
+            config_opts.append("Configure Job Server")
             if len(self.models_to_load) > 0:
                 if self._has_active_model():
-                    opts.append("Unload Models")
+                    run_opts.append("Unload Models")
                 elif not self._models_are_starting():
-                    opts.append("Load Models")
+                    run_opts.append("Load Models")
 
-            opts.append("Configure Models")
+            config_opts.append("Configure Models")
 
-            opts.append("Show Logs")
+            config_opts.append("Show Logs")
 
-        return opts
+        run_opts.extend(config_opts)
+
+        return run_opts
 
     def _get_selected_option(self) -> Optional[str]:
         opts = self._get_options()
