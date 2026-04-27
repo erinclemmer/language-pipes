@@ -38,7 +38,10 @@ def print_pos(row: int, col: int, s: str, fg: Optional['Color'] = None, bg: Opti
     write(f"{ESC}{row + 1};{col + 1}H{s}")
 
 def move_cursor(row: int, col: int):
-    write(f"{ESC}{row + 1};{col + 1}H")
+    try:
+        write(f"{ESC}{row + 1};{col + 1}H")
+    except Exception:
+        pass
 
 class CursorTypes(Enum):
     Default = 1

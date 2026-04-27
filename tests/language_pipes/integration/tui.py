@@ -9,7 +9,6 @@ sys.path.append(os.path.join(cd, 'src'))
 
 from language_pipes.cli import main
 
-
 class OpenAITests(unittest.TestCase):
     def test_main_menu(self):
         main([])

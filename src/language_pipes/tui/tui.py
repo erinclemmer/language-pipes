@@ -197,7 +197,23 @@ class TuiWindow(TuiGrid):
             txtObj.position = pos
 
         self._update_grid()
+
+    def update_position(self, pos: Tuple[int, int]):
+        shown =  [o.id for o in self.text_objects if not o.hidden]
+        
+        self.hide_all()
+        self.clear_screen()
+        self.paint()
+        self.position = pos
+        for tid in shown:
+            self.show_txt(tid)
+        self.paint()
     
+    def clear_screen(self):
+        for x in range(0, self.size[0]):
+            for y in range(0, self.size[1]):
+                self.set_cell((x, y), TermText(" "))
+
     def _update_grid(self):
         for obj in self.text_objects:
             if obj.hidden:

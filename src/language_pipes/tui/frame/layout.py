@@ -1,3 +1,5 @@
+import shutil
+import signal
 from typing import Tuple
 
 from language_pipes.cli import VERSION
@@ -50,6 +52,12 @@ class FrameLayout:
         self.page_router = page_router
         self.state = state
         self.status_text = ""
+        def handle_resize(signum, frame):
+            size_obj = shutil.get_terminal_size()
+            size = (size_obj.columns, size_obj.lines)
+            self.window.update_position((int(size[0] / 2.0) - 40, 0))
+
+        signal.signal(signal.SIGWINCH, handle_resize)
 
     def _init_layout(self, size: Tuple[int, int], pos: Tuple[int, int]):
         self.content_area_size = (max(1, size[0]), max(1, size[1]))
