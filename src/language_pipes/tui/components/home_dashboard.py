@@ -14,7 +14,7 @@ class Dashboard:
         config_opts = []
 
         if self.router_status is None or self.router_status.state == "stopped":
-            if self.network_config.node_id != "" and self.network_port_available():
+            if self.network_config.node_id is not None and self.network_config.node_id != "" and self.network_port_available():
                 run_opts.append("Start Network Server")
             config_opts.append("Configure Network Server")
 
@@ -238,4 +238,5 @@ class Dashboard:
         return lines, right_panel
 
     def get_footer(self) -> str:
-        return "Arrows U/D: Move   Enter: Select   Esc: Back"
+        return " Arrows U/D: Move              Enter: Select                      Esc: Back "
+                                                                               

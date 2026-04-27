@@ -1,14 +1,16 @@
 from typing import Tuple
 
-from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.cli import VERSION
 from language_pipes.tui.components.alert import Alert
-from language_pipes.tui.frame.nav_window import NavWindow
 from language_pipes.tui.tui import TermText, TuiWindow
 from language_pipes.tui.frame.nav_state import NavState
-from language_pipes.tui.components.exit_confirm import ExitConfirm
+from language_pipes.tui.frame.nav_window import NavWindow
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.frame.page_router import PageRouter
+from language_pipes.tui.components.exit_confirm import ExitConfirm
+from language_pipes.content_provider.content_provider import ContentProvider
+
 
 class FrameLayout:
     footer_id: int
@@ -60,6 +62,7 @@ class FrameLayout:
         self.right_panel_id = self.window.add_text(TermText(""), (40, 0))
         self.footer_id = self.window.add_text(TermText(""), (2, size[1] - 2))
         self.exit_confirm_id = self.window.add_text(TermText(""), (0, 4))
+        self.about_id = self.window.add_text(TermText(f"Language Pipes {VERSION}"), (size[0] - 23, size[1] - 4))
         self.seperator_column_id = self.window.add_text(TermText("|\n"*(size[1] - 3)), (38, 0))
 
         self.nav_window = NavWindow(self.window, self.nav_state, size, pos)

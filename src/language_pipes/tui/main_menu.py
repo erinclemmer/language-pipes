@@ -138,7 +138,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
         else:
             config_path = config_dir / (config_file + ".toml")
         
-        res = handle_file_load(window, left_bound + 10, termsize, config_path, auto_start)
+        res = handle_file_load(window, left_bound, termsize, config_path, auto_start)
         if res == "exit":
             exit()
         if res is None:
@@ -151,7 +151,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
 
     main_menu_options.append("Exit")
 
-    res = select_option((left_bound + 10, 10), main_menu_options)
+    res = select_option((left_bound, 10), main_menu_options)
     if res is None or res == "Exit":
         exit()
 
@@ -165,7 +165,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
         
         config_path = config_dir / (new_config_file + ".toml")
         config_path.touch()
-        res = handle_file_load(window, left_bound + 10, termsize, config_path, auto_start)
+        res = handle_file_load(window, left_bound, termsize, config_path, auto_start)
         if res == "exit":
             exit()
         if res is None:
