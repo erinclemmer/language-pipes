@@ -155,6 +155,7 @@ class FrameLayout:
         self.window.update_text(self.footer_id, TermText(self._footer_text()))
 
     def _render_all(self):
+        self.nav_window.top_nav.sync_state(self.provider.state)
         self._update_window_position()
         if self.exit_confirm.is_open:
             self.window.show_txt(self.exit_confirm_id)

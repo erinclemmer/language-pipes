@@ -1,7 +1,7 @@
 from typing import List
 
+from language_pipes.content_provider.content_provider import ProviderState
 from language_pipes.tui.tui import TuiWindow, TermText
-from language_pipes.tui.util.screen_utils import Color
 
 class TopNav:
     def __init__(self, window: TuiWindow, headers: List[str]):
@@ -10,6 +10,7 @@ class TopNav:
         self.header_ids: List[int] = []
         self.header_positions: List[int] = []
         self.is_focused = True
+        self._last_provider_state = None
 
         for i, h in enumerate(self.headers):
             header_x = 5 + i * 12
@@ -22,17 +23,35 @@ class TopNav:
 
         self._update_styles()
 
+    def sync_state(self, state: ProviderState):
+        for hid in self.header_ids:
+            txt = self.window.get_text(hid)
+            if txt.text.value in state.visible_headers:
+                self.window.show_txt(hid)
+            else:
+                self.window.hide_txt(hid)
+        self._last_provider_state = state
+    
+    def header_visible(self, hdr: str) -> bool:
+        if self._last_provider_state is None:
+            return True
+        return hdr in self._last_provider_state.visible_headers
+
     def hide(self):
         self.window.hide_txt(self.l_cursor_id)
         self.window.hide_txt(self.r_cursor_id)
         for hid in self.header_ids:
-            self.window.hide_txt(hid)
+            txt = self.window.get_text(hid)
+            if self.header_visible(txt.text.value):
+                self.window.hide_txt(hid)
 
     def show(self):
         self.window.show_txt(self.l_cursor_id)
         self.window.show_txt(self.r_cursor_id)
         for hid in self.header_ids:
-            self.window.show_txt(hid)
+            txt = self.window.get_text(hid)
+            if self.header_visible(txt.text.value):
+                self.window.show_txt(hid)
 
     def _update_styles(self):
         for i, header_id in enumerate(self.header_ids):
@@ -49,14 +68,6 @@ class TopNav:
         else:
             self.window.update_text(self.l_cursor_id, TermText(" "), (selected_x - 1, 1))
             self.window.update_text(self.r_cursor_id, TermText(" "), (selected_x + len(selected_header), 1))
-
-    def move_next(self):
-        self.focused_idx = (self.focused_idx + 1) % len(self.headers)
-        self._update_styles()
-
-    def move_prev(self):
-        self.focused_idx = (self.focused_idx - 1) % len(self.headers)
-        self._update_styles()
 
     def set_focus(self, is_focused: bool):
         if is_focused == self.is_focused:

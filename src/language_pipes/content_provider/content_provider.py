@@ -1,7 +1,8 @@
+from dataclasses import dataclass
 from pathlib import Path
 
 import psutil
-from typing import Callable, Optional 
+from typing import Callable, List, Optional 
 
 from language_pipes.util.utils import is_port_available
 from language_pipes.pipes.pipe_manager import PipeManager
@@ -12,6 +13,10 @@ from language_pipes.distributed_state_network.handler import DSNodeServer
 from language_pipes.content_provider.pipe_provider import PipeProvider
 from language_pipes.content_provider.model_provider import ModelProvider
 from language_pipes.content_provider.network_provider import NetworkProvider
+
+@dataclass
+class ProviderState:
+    visible_headers: List[str]
 
 class ContentProvider:
     router: Optional[DSNodeServer]
@@ -32,11 +37,17 @@ class ContentProvider:
         self.model_manager = ModelManager()
         self.config_file = config_file
         self.create_alert = create_alert
+        self.state = ProviderState([])
 
         self.model_provider = ModelProvider(config_file, lambda: self.model_manager, lambda: self.router_pipes)
         self.network_provider = NetworkProvider(config_file, lambda: self.router, self.set_router, self.create_alert)
         self.pipe_provider = PipeProvider(lambda: self.pipe_manager)
         self.job_provider = JobProvider(config_file, lambda: self.router_pipes, lambda: self.model_manager, lambda: self.pipe_manager)
+
+    def sync_provider_state(self):
+        self.state.visible_headers = ["Home", "Network", "Models"]
+        if self.router is not None and self.router.running:
+            self.state.visible_headers.extend(["Pipes", "Jobs"])
 
     def set_router(self, router: Optional[DSNodeServer]):
         self.router = router

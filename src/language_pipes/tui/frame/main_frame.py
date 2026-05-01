@@ -91,6 +91,7 @@ class MainFrame:
         while True:
             if self.shutdown:
                 return
+            self.provider.sync_provider_state()
             self.layout._render_all()
             sleep(1)
 

@@ -1,20 +1,7 @@
-"""
-NavState: tracks which tab and side-nav section is currently active.
-"""
 from typing import Dict, List
 from language_pipes.tui.components.side_nav import SideNav
 
 class NavState:
-    """
-    Holds the navigation cursor positions for the top-tab bar and the
-    per-tab side-nav, plus the current focus depth.
-
-    Focus depths:
-      0 – top-nav bar is active
-      1 – side-nav is active
-      2 – content pane is active
-    """
-
     TOP_HEADERS: List[str]
     SIDE_OPTIONS_BY_TAB: Dict[str, List[str]]
 
@@ -36,10 +23,6 @@ class NavState:
         self.side_idx_by_tab = {tab: 0 for tab in top_headers}
         self.content_cursor_idx = 0
 
-    # ------------------------------------------------------------------
-    # Derived helpers
-    # ------------------------------------------------------------------
-
     def active_tab(self) -> str:
         return self.TOP_HEADERS[self.active_top_idx]
 
@@ -58,10 +41,6 @@ class NavState:
 
     def active_view_key(self):
         return self.active_tab(), self.active_side_option()
-
-    # ------------------------------------------------------------------
-    # Mutations
-    # ------------------------------------------------------------------
 
     def tab_next(self) -> None:
         self.active_top_idx = (self.active_top_idx + 1) % len(self.TOP_HEADERS)
