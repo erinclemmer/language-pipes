@@ -1,6 +1,5 @@
 from typing import Dict, List, Optional
 from language_pipes.content_provider.content_provider import ProviderState
-from language_pipes.tui.components.side_nav import SideNav
 
 class NavState:
     top_headers: List[str]
