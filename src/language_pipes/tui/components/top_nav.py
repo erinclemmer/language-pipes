@@ -38,11 +38,7 @@ class TopNav:
         for i, header_id in enumerate(self.header_ids):
             self.window.update_text(
                 header_id,
-                TermText(
-                    self.headers[i],
-                    fg=Color.Cyan if i == self.focused_idx else None,
-                    bold=(self.is_focused and i == self.focused_idx),
-                ),
+                TermText(self.headers[i]),
             )
 
         selected_x = self.header_positions[self.focused_idx]

@@ -1,5 +1,3 @@
-import sys
-
 from typing import Tuple, Optional, List
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.util.kb_utils import read_key, PressedKey

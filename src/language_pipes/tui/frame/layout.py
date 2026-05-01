@@ -11,6 +11,7 @@ from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.frame.page_router import PageRouter
 from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.tui.util.text import make_footer_text
 
 
 class FrameLayout:
@@ -179,15 +180,13 @@ class FrameLayout:
         
     def _footer_text(self) -> str:
         if self.exit_confirm.is_open:
-            return "Arrows U/D: Navigate   Enter: Select   Esc: Cancel"
+            return make_footer_text(["Arrows U/D: Navigate", "Enter: Select", "Esc: Cancel"])
         if self.edit_confirm.is_open:
-            return "Arrows U/D: Change choice   Enter: Select   Esc: Cancel"
+            return make_footer_text(["Arrows U/D: Change choice", "Enter: Select", "Esc: Cancel"])
         if self.nav_state.focus_depth == 0:
-            return "Arrows L/R: Switch Tab   Enter: Side Nav   Esc: Back/Quit Options   q: Exit"
+            return make_footer_text(["Arrows L/R: Switch Tab", "Enter: Select Tab", "Esc: Quit Program"])
         if self.nav_state.focus_depth == 1:
-            return (
-                "Arrows U/D: Switch Section   Enter: Content   Esc: Top Tabs   q: Exit"
-            )
+            return make_footer_text(["Arrows U/D: Move", "Enter: Select Page", "Esc: Top Tabs"])
         if self.nav_state.focus_depth == 2:
             page = self.page_router.get_page()
             if page is not None:

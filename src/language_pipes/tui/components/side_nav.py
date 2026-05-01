@@ -55,11 +55,7 @@ class SideNav:
         for i, option_id in enumerate(self.option_ids):
             self.window.update_text(
                 option_id,
-                TermText(
-                    self.options[i],
-                    fg=Color.Cyan if i == self.focused_idx else None,
-                    bold=(i == self.focused_idx)
-                ),
+                TermText(self.options[i]),
                 (5 + self.top_nav.focused_idx * 12, (i * 2) + 4)
             )
         self._update_cursor()
