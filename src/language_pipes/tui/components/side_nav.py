@@ -1,82 +1,55 @@
 from typing import List
 
 from language_pipes.tui.components.top_nav import TopNav
+from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.tui import TuiWindow, TermText
 
 class SideNav:
     window: TuiWindow
-    focused_idx: int
-    is_focused: bool
+    top_nav: TopNav
+    state: NavState
     options: List[str]
     option_ids: List[int]
-    l_cursor_id: int
+    cursor_id: int
     r_cursor_id: int
 
     def __init__(
             self,
             window: TuiWindow,
             top_nav: TopNav,
-            options: List[str]
+            state: NavState
         ):
         self.window = window
         self.top_nav = top_nav
+        self.state = state
         self.options = []
         self.option_ids = []
-        self.focused_idx = 0
-        self.is_focused = False
+        
+        self.cursor_id = self.window.add_text(TermText(" "), (0, 0))
 
-        self.l_cursor_id = self.window.add_text(TermText(" "), (0, 0))
-
-        self.set_options(options)
+        self.set_options(state.active_side_options())
 
     def hide(self):
-        self.window.hide_txt(self.l_cursor_id)
+        self.window.hide_txt(self.cursor_id)
         for oid in self.option_ids:
             self.window.hide_txt(oid)
 
     def show(self):
-        self.window.show_txt(self.l_cursor_id)
+        self.window.show_txt(self.cursor_id)
         for oid in self.option_ids:
             self.window.show_txt(oid)
 
     def _cursor_y(self) -> int:
-        return (self.focused_idx * 2) + 4
+        return (self.state.side_idx * 2) + 4
 
-    def _update_cursor(self):
+    def update_cursor(self):
         if len(self.options) == 0:
-            self.window.update_text(self.l_cursor_id, TermText(" "))
+            self.window.update_text(self.cursor_id, TermText(" "))
             return
 
-        l_cursor = "|>" if self.is_focused else " "
-        self.window.update_text(self.l_cursor_id, TermText(l_cursor), (2 + self.top_nav.focused_idx * 12, self._cursor_y()))
-
-    def _update_option_styles(self):
-        for i, option_id in enumerate(self.option_ids):
-            self.window.update_text(
-                option_id,
-                TermText(self.options[i]),
-                (5 + self.top_nav.focused_idx * 12, (i * 2) + 4)
-            )
-        self._update_cursor()
-
-    def move_next(self):
-        if len(self.options) == 0:
-            return
-        self.focused_idx = (self.focused_idx + 1) % len(self.options)
-        self._update_option_styles()
-
-    def move_prev(self):
-        if len(self.options) == 0:
-            return
-        self.focused_idx = (self.focused_idx - 1) % len(self.options)
-        self._update_option_styles()
-
-    def set_focus(self, is_focused: bool):
-        if is_focused == self.is_focused:
-            return
-        
-        self.is_focused = is_focused
-        self._update_option_styles()
+        l_cursor = "|>" if self.state.focus_depth == 1 else " "
+        x = self.top_nav.header_positions[self.state.active_top_idx]
+        self.window.update_text(self.cursor_id, TermText(l_cursor), (x, self._cursor_y()))
 
     def set_options(self, options: List[str]):
         if options == self.options:
@@ -87,9 +60,7 @@ class SideNav:
 
         self.options = options
         self.option_ids = []
-        self.focused_idx = min(self.focused_idx, len(options) - 1) if len(options) > 0 else 0
 
+        x = self.top_nav.header_positions[self.state.active_top_idx]
         for i, opt in enumerate(options):
-            self.option_ids.append(self.window.add_text(TermText(opt), (3, (i * 2) + 4)))
-
-        self._update_option_styles()
+            self.option_ids.append(self.window.add_text(TermText(opt), (x, (i * 2) + 4)))

@@ -25,7 +25,7 @@ class NavWindow:
         self.side_nav = SideNav(
             window,
             self.top_nav,
-            self.nav_state.active_side_options()
+            self.nav_state
         )
 
     def hide_overlay(self):
@@ -35,9 +35,6 @@ class NavWindow:
         self.window.show_txt(self.bar_id)
 
     def sync(self, exit_confirm: ExitConfirm, edit_confirm: Confirm):
-        active_options = self.nav_state.active_side_options()
-        self.side_nav.set_options(active_options)
-
         self.top_nav.sync_headers()
 
         interactive_overlay_open = exit_confirm.is_open or edit_confirm.is_open
@@ -45,10 +42,9 @@ class NavWindow:
         self.top_nav.set_focus(
             self.nav_state.focus_depth == 0 and not interactive_overlay_open
         )
-
-        self.side_nav.set_focus(
-            self.nav_state.focus_depth == 1 and not interactive_overlay_open
-        )
+        
+        self.side_nav.set_options(self.nav_state.active_side_options())
+        self.side_nav.update_cursor()
 
         if self.nav_state.focus_depth == 0:
             self.top_nav.show()

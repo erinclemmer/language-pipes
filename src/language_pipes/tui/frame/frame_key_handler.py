@@ -8,16 +8,18 @@ from language_pipes.tui.frame.page_router import PageRouter
 
 
 class FrameKeyHandler:
-    nav: NavState
     confirm: Confirm
-    state: FrameState
     layout: FrameLayout
     exit_confirm: ExitConfirm
     page_router: PageRouter
 
+    nav_state: NavState
+    frame_state: FrameState
+
     def __init__(self, layout: FrameLayout, page_router: PageRouter):
-        self.state = layout.state
-        self.nav = layout.nav_state
+        self.frame_state = layout.state
+        self.nav_state = layout.nav_state
+
         self.confirm = layout.edit_confirm
         self.exit_confirm = layout.exit_confirm
         self.alert = layout.alert
@@ -30,12 +32,12 @@ class FrameKeyHandler:
         self.exit_confirm.close()
 
         if choice == "Return to menu":
-            self.state.exit_tui = False
-            self.state.running = False
+            self.frame_state.exit_tui = False
+            self.frame_state.running = False
             return
         if choice == "Exit Program":
-            self.state.exit_tui = True
-            self.state.running = False
+            self.frame_state.exit_tui = True
+            self.frame_state.running = False
             return
 
     def _handle_confirm_key(self, key: PressedKey):
@@ -71,11 +73,11 @@ class FrameKeyHandler:
 
         if self.confirm.is_open:
             if self._handle_confirm_key(key):
-                self.nav.focus_shallower()
+                self.nav_state.focus_shallower()
             return
 
         current_page = self.page_router.get_page()
-        if self.nav.focus_depth == 2 and current_page is not None:
+        if self.nav_state.focus_depth == 2 and current_page is not None:
             current_page.on_key(key, ch)
             return
 
@@ -84,30 +86,30 @@ class FrameKeyHandler:
             return
 
         if key == PressedKey.Escape:
-            if self.nav.focus_depth > 0:
-                self.nav.focus_shallower()
+            if self.nav_state.focus_depth > 0:
+                self.nav_state.focus_shallower()
             else:
                 self._open_exit_confirm()
             return
 
         if key == PressedKey.Enter:
-            if self.nav.focus_depth < 1:
-                self.nav.focus_deeper()
+            if self.nav_state.focus_depth < 1:
+                self.nav_state.focus_deeper()
             else:
-                self.nav.focus_deeper()
+                self.nav_state.focus_deeper()
                 self.activate_selection()
             return
 
-        if self.nav.focus_depth == 0:
+        if self.nav_state.focus_depth == 0:
             if key == PressedKey.ArrowRight:
-                self.nav.tab_next()
+                self.nav_state.tab_next()
             elif key == PressedKey.ArrowLeft:
-                self.nav.tab_prev()
+                self.nav_state.tab_prev()
             return
 
-        if self.nav.focus_depth == 1:
+        if self.nav_state.focus_depth == 1:
             if key == PressedKey.ArrowDown:
-                self.layout.nav_window.side_next()
+                self.nav_state.side_next()
             elif key == PressedKey.ArrowUp:
-                self.layout.nav_window.side_prev()
+                self.nav_state.side_prev()
             return
