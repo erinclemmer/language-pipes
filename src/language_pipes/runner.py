@@ -1,16 +1,21 @@
 from time import sleep
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from language_pipes.config import LpConfig
 from language_pipes.content_provider.content_provider import ContentProvider
 
 class LpRunner:
+    alerts: List[str]
+
     def __init__(self, config_file: Path, overrides: Dict[str, Any]):
         config = LpConfig.from_file(config_file)
         config.apply_overrides(overrides)
 
-        self.provider = ContentProvider(config_file)
+        def create_alert(alert: str):
+            self.alerts.append(alert)
+
+        self.provider = ContentProvider(config_file, create_alert)
 
         self.provider.network_provider.start_network(config.network_config)
         self.provider.job_provider.start_oai_server(config)
@@ -36,6 +41,10 @@ class LpRunner:
             for log in self.provider.model_provider.get_model_manager_logs():
                 print(log)
 
+            for alert in self.alerts:
+                print(alert)
+
+            self.alerts = []
             self.provider.network_provider.reset_router_logs()
             self.provider.job_provider.reset_oai_logs()
             self.provider.model_provider.reset_model_manager_logs()

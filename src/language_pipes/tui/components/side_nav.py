@@ -48,7 +48,7 @@ class SideNav:
             return
 
         l_cursor = "|>" if self.state.focus_depth == 1 else " "
-        x = self.top_nav.header_positions[self.state.active_top_idx]
+        x = self.top_nav.header_positions[self.state.top_idx]
         self.window.update_text(self.cursor_id, TermText(l_cursor), (x, self._cursor_y()))
 
     def set_options(self, options: List[str]):
@@ -61,6 +61,6 @@ class SideNav:
         self.options = options
         self.option_ids = []
 
-        x = self.top_nav.header_positions[self.state.active_top_idx]
+        x = self.top_nav.header_positions[self.state.top_idx]
         for i, opt in enumerate(options):
             self.option_ids.append(self.window.add_text(TermText(opt), (x, (i * 2) + 4)))

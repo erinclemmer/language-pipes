@@ -81,7 +81,7 @@ class MainFrame:
     def change_nav(self, tab: str, section: str):
         self.nav.set_tab(tab)
         self.layout._sync_navigation()
-        self.nav.set_side_nav(self.layout.nav_window.side_nav, section)
+        self.nav.set_side_nav(section)
 
     def _init_view(self):
         self.change_nav("Home", "Dashboard")
