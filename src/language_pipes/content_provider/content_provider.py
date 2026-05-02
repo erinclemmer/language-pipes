@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import psutil
-from typing import Callable, List, Optional 
+from typing import Callable, List, Optional, Dict 
 
 from language_pipes.util.utils import is_port_available
 from language_pipes.pipes.pipe_manager import PipeManager
@@ -17,6 +17,7 @@ from language_pipes.content_provider.network_provider import NetworkProvider
 @dataclass
 class ProviderState:
     visible_headers: List[str]
+    visible_sub_menu: Dict[str, List[str]]
 
 class ContentProvider:
     router: Optional[DSNodeServer]
@@ -37,7 +38,7 @@ class ContentProvider:
         self.model_manager = ModelManager()
         self.config_file = config_file
         self.create_alert = create_alert
-        self.state = ProviderState([])
+        self.state = ProviderState([], {})
 
         self.model_provider = ModelProvider(config_file, lambda: self.model_manager, lambda: self.router_pipes)
         self.network_provider = NetworkProvider(config_file, lambda: self.router, self.set_router, self.create_alert)
@@ -49,6 +50,31 @@ class ContentProvider:
         self.state.visible_headers = ["Home", "Network", "Models"]
         if self.router is not None and self.router.running:
             self.state.visible_headers.extend(["Pipes", "Jobs"])
+
+        self.state.visible_sub_menu = {
+            "Home": ["Dashboard", "Activity"]
+        }
+
+        network_paths = []
+        network_config = self.network_provider.get_network_config()
+        if network_config.node_id is not None:
+            network_paths.append("Status")
+        
+        if self.router is not None and self.router.running:
+            network_paths.append("Peers")
+        
+        network_paths.append("Configure")
+
+        self.state.visible_sub_menu["Network"] = network_paths
+
+        model_paths = []
+
+        if self.router is not None and self.router.running:
+            model_paths.append("Hosted")
+
+        model_paths.append("Installed")
+
+        self.state.visible_sub_menu["Models"] = model_paths
 
     def set_router(self, router: Optional[DSNodeServer]):
         self.router = router

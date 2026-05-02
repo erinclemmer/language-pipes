@@ -3,14 +3,14 @@ from typing import Tuple
 
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.components.exit_confirm import ExitConfirm
-from language_pipes.tui.components.side_nav import SideNav
+from language_pipes.tui.components.sub_nav import SubNav
 from language_pipes.tui.components.top_nav import TopNav
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.tui import TermText, TuiWindow
 
 class NavWindow:
     top_nav: TopNav
-    side_nav: SideNav
+    sub_nav: SubNav
     nav_state: NavState
 
     def __init__(self, window: TuiWindow, nav: NavState, size: Tuple[int, int], pos: Tuple[int, int]):
@@ -22,7 +22,7 @@ class NavWindow:
             window,
             self.nav_state
         )
-        self.side_nav = SideNav(
+        self.sub_nav = SubNav(
             window,
             self.top_nav,
             self.nav_state
@@ -43,20 +43,20 @@ class NavWindow:
             self.nav_state.focus_depth == 0 and not interactive_overlay_open
         )
         
-        self.side_nav.set_options(self.nav_state.active_side_options())
-        self.side_nav.update_cursor()
+        self.sub_nav.set_options(self.nav_state.active_sub_options())
+        self.sub_nav.update_cursor()
 
         if self.nav_state.focus_depth == 0:
             self.top_nav.show()
-            self.side_nav.hide()
+            self.sub_nav.hide()
             self.show_overlay()
         
         if self.nav_state.focus_depth == 1:
             self.top_nav.show()
-            self.side_nav.show()
+            self.sub_nav.show()
             self.show_overlay()
         
         if self.nav_state.focus_depth == 2:
             self.top_nav.hide()
-            self.side_nav.hide()
+            self.sub_nav.hide()
             self.hide_overlay()

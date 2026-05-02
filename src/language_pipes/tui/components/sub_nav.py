@@ -4,15 +4,14 @@ from language_pipes.tui.components.top_nav import TopNav
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.tui import TuiWindow, TermText
 
-class SideNav:
+class SubNav:
     window: TuiWindow
     top_nav: TopNav
     state: NavState
     options: List[str]
     option_ids: List[int]
     cursor_id: int
-    r_cursor_id: int
-
+    
     def __init__(
             self,
             window: TuiWindow,
@@ -27,7 +26,7 @@ class SideNav:
         
         self.cursor_id = self.window.add_text(TermText(" "), (0, 0))
 
-        self.set_options(state.active_side_options())
+        self.set_options(state.active_sub_options())
 
     def hide(self):
         self.window.hide_txt(self.cursor_id)
@@ -40,7 +39,7 @@ class SideNav:
             self.window.show_txt(oid)
 
     def _cursor_y(self) -> int:
-        return (self.state.side_idx * 2) + 4
+        return (self.state.sub_idx * 2) + 4
 
     def update_cursor(self):
         x = self.top_nav.header_positions[self.state.top_idx] - 3
