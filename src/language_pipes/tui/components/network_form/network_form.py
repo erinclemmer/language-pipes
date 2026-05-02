@@ -149,7 +149,8 @@ class NetworkForm:
 
     def _form_lines(self) -> List[str]:
         lines = ["Edit Network Configuration:"]
-        for idx, field in enumerate(self.get_edit_fields()):
+        edit_fields = self.get_edit_fields()
+        for idx, field in enumerate(edit_fields):
             l_cursor = (
                 "|>" if idx == self.edit_field_idx and self.is_focused() else "  "
             )
@@ -168,7 +169,7 @@ class NetworkForm:
         if res is not None and res[0] in TIPS["network"]["configure"]:
             tip = TIPS["network"]["configure"][res[0]]
 
-        lines.extend(["", tip])
+        lines.extend(["", "Tip:", tip])
         return lines
 
     def get_view(self) -> List[str]:
