@@ -39,7 +39,6 @@ class NetworkForm:
         self.change_nav = change_nav
         self.exit_page = exit_page
         self.is_focused = is_focused
-        self.edit_fields: List[Dict[str, Optional[Any]]] = []
         self.edit_field_idx = 0
         self.field_editor_visible = False
         self.network_key_editor = NetworkKeyEditor(provider, confirm, self.exit_field_editor)
@@ -88,10 +87,8 @@ class NetworkForm:
 
     def exit_field_editor(self):
         self.field_editor_visible = False
-        self.edit_fields = self.get_edit_fields()
-
+        
     def start(self) -> None:
-        self.edit_fields = self.get_edit_fields()
         self.edit_field_idx = 0
         self.field_editor_visible = False
 
@@ -99,72 +96,69 @@ class NetworkForm:
         cfg = self.provider.network_provider.get_network_config()
 
         key_label = "*" * 10 if cfg.aes_key is not None else ""
-        return [
+        fields = [
             {
                 "name": "node_id",
                 "label": "Node ID",
                 "value": str(cfg.node_id),
-                "error": None,
-            },
-            {
-                "name": "network_key",
-                "label": "Netwok Key",
-                "value": key_label,
-                "error": None,
-                "masked": True,
-            },
-            {
-                "name": "network_ip",
-                "label": "IP Address",
-                "value": cfg.network_ip,
-                "error": None,
-            },
-            {
-                "name": "peer_port",
-                "label": "Peer Port",
-                "value": cfg.port,
-                "error": None,
-            },
-            {
-                "name": "bootstrap_nodes",
-                "label": "Bootstrap Nodes",
-                "value": f"{len(cfg.bootstrap_nodes)} node(s)",
-            },
-            {
-                "name": "whitelist_node_ids",
-                "label": "Whitelist",
-                "value": f"{len(cfg.whitelist_node_ids)} node(s)",
-            },
+                "error": None if cfg.node_id is not None else "Node ID must be set",
+            }
         ]
 
-    def get_current_field(self) -> Optional[tuple[str, str]]:
-        if not self.edit_fields:
-            return None
+        if cfg.node_id is not None:
+            fields.extend([
+                {
+                    "name": "network_key",
+                    "label": "Netwok Key",
+                    "value": key_label,
+                    "error": None,
+                    "masked": True,
+                },
+                {
+                    "name": "network_ip",
+                    "label": "IP Address",
+                    "value": cfg.network_ip,
+                    "error": None,
+                },
+                {
+                    "name": "peer_port",
+                    "label": "Peer Port",
+                    "value": cfg.port,
+                    "error": None,
+                },
+                {
+                    "name": "bootstrap_nodes",
+                    "label": "Bootstrap Nodes",
+                    "value": f"{len(cfg.bootstrap_nodes)} node(s)",
+                },
+                {
+                    "name": "whitelist_node_ids",
+                    "label": "Whitelist",
+                    "value": f"{len(cfg.whitelist_node_ids)} node(s)",
+                },
+            ])
 
-        field = self.edit_fields[self.edit_field_idx]
+        return fields
+
+    def get_current_field(self) -> Optional[tuple[str, str]]:
+        field = self.get_edit_fields()[self.edit_field_idx]
         field_name = str(field.get("name", ""))
         raw = str(field.get("value", "")).strip()
         return field_name, raw
 
     def prev_field(self):
-        if not self.edit_fields:
-            return
         self.edit_field_idx = max(0, self.edit_field_idx - 1)
 
     def next_field(self):
-        if not self.edit_fields:
-            return
-        self.edit_field_idx = min(len(self.edit_fields) - 1, self.edit_field_idx + 1)
+        self.edit_field_idx = min(len(self.get_edit_fields()) - 1, self.edit_field_idx + 1)
 
     def enter_field(self):
-        if not self.edit_fields:
-            return
         self.field_editor_visible = True
         self.restart_field_editors()
 
     def _form_lines(self) -> List[str]:
         lines = ["Edit Network Configuration:"]
-        for idx, field in enumerate(self.edit_fields):
+        for idx, field in enumerate(self.get_edit_fields()):
             l_cursor = (
                 "|>" if idx == self.edit_field_idx and self.is_focused() else "  "
             )
