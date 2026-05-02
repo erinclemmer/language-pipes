@@ -32,7 +32,8 @@ class Dashboard:
                 elif not self._models_are_starting():
                     run_opts.append("Load Models")
 
-            config_opts.append("Configure Models")
+            config_opts.append("Configure Layer Models")
+            config_opts.append("Configure End Models")
 
             config_opts.append("Show Logs")
 
@@ -129,8 +130,10 @@ class Dashboard:
         elif selected_option == "Unload Models":
             for model in self.models_to_load:
                 self.provider.model_provider.unload_layer_models(model.model_id)
-        elif selected_option == "Configure Models":
-            self.change_nav("Models", "Hosted")
+        elif selected_option == "Configure Layer Models":
+            self.change_nav("Models", "Layer Models")
+        elif selected_option == "Configure End Models":
+            self.change_nav("Models", "End Models")
         elif selected_option == "Start Job Server":
             self.provider.job_provider.start_oai_server()
         elif selected_option == "Stop Job Server":

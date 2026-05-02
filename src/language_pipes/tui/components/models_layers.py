@@ -308,7 +308,7 @@ class ModelsLayerModels:
 
     def get_editor_view(self) -> List[str]:
         editing_model = self.get_editing_model()
-        header = "Editing Model" if editing_model is not None else "Adding new Model"
+        header = "Choosing Model" if editing_model is not None else "Creating Layer Model Configuration"
         lines = [header, ""]
 
         if not self._network_running():
@@ -317,35 +317,30 @@ class ModelsLayerModels:
         model_id_label = (
             self.edit_model_id if self.edit_model_id is not None else "Choose model..."
         )
-        model_id_line = f"Model ID: {model_id_label}"
 
-        load_ends_label = "Yes" if self.edit_load_ends else "No"
-        load_ends_line = f"Load Ends: {load_ends_label}"
+        l_cursor = "|>" if self.edit_idx == 0 else "  "
+        r_cursor = "<|" if self.edit_idx == 0 else "  "    
+        lines.append(f"{l_cursor} Model ID: {model_id_label} {r_cursor}")
 
-        for i, line in enumerate([model_id_line, load_ends_line]):
-            l_cursor = "|>" if self.edit_idx == i else "  "
-            r_cursor = "<|" if self.edit_idx == i else "  "
-            lines.append(f"{l_cursor} {line} {r_cursor}")
-
-        name_cursor = "|" if self.edit_idx == 2 else " "
+        name_cursor = "|" if self.edit_idx == 1 else " "
         lines.append(f"   Device: {self.edit_device_name}{name_cursor}")
         if len(self.edit_device_name) > 0 and not ModelProvider.validate_device_name(self.edit_device_name):
             lines.append("[ERROR] Invalid device name")
 
-        memory_cursor = "|" if self.edit_idx == 3 else ""
+        memory_cursor = "|" if self.edit_idx == 2 else ""
         lines.append(f"   Max Memory: {self.edit_device_memory}{memory_cursor} GB")
         if len(self.edit_device_memory) > 0 and not self.validate_memory():
             lines.append("[ERROR] Invalid memory amount")
 
-        l_cursor = "|>" if self.edit_idx == 4 else "  "
-        r_cursor = "<|" if self.edit_idx == 4 else "  "
+        l_cursor = "|>" if self.edit_idx == 3 else "  "
+        r_cursor = "<|" if self.edit_idx == 3 else "  "
         lines.append("")
         lines.append(f"{l_cursor} Save Model {r_cursor}")
 
         return lines
 
     def get_list_view(self) -> List[str]:
-        lines = ["Hosted Models", ""]
+        lines = ["Layer Models", ""]
 
         if not self._network_running():
             lines.extend(self._network_not_started_warning())
@@ -376,7 +371,9 @@ class ModelsLayerModels:
             else "  "
         )
         lines.append("")
-        lines.append(f" {l_cursor} Host New Model {r_cursor}")
+        lines.append(f" {l_cursor} Add Layer Model {r_cursor}")
+
+        lines.extend(["", "Tip: Layer models are segments of a model's transformer layers loaded\ninto memory on a device. Multiple nodes can each host different layer\nranges to distribute inference across machines."])
 
         return lines
 
