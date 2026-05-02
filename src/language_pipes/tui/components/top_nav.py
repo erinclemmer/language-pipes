@@ -11,14 +11,23 @@ class TopNav:
         self.state = state
         self.header_ids: List[int] = []
         self.header_positions: List[int] = []
-
-        for i, h in enumerate(self.ALL_HEADERS):
-            header_x = 5 + i * 12
-            self.header_positions.append(header_x)
-            self.header_ids.append(self.window.add_text(TermText(h), (header_x, 1)))
+        self.init_headers()
 
         self.l_cursor_id = self.window.add_text(TermText("["), (3, 1))
         self.r_cursor_id = self.window.add_text(TermText("]"), (3, 1))
+
+    def init_headers(self):
+        total_len = 0
+        for hdr in self.ALL_HEADERS:
+            total_len += len(hdr)
+
+        spacing = int((85 - total_len) / len(self.ALL_HEADERS) - 1)
+
+        current_pos = 5
+        for h in self.ALL_HEADERS:
+            self.header_ids.append(self.window.add_text(TermText(h), (current_pos, 1)))
+            self.header_positions.append(current_pos)
+            current_pos += len(h) + spacing
 
     def sync_headers(self):
         for hid in self.header_ids:

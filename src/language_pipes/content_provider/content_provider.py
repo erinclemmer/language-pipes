@@ -47,7 +47,7 @@ class ContentProvider:
         self.sync_provider_state()
 
     def sync_provider_state(self):
-        self.state.visible_headers = ["Home", "Network", "Models"]
+        self.state.visible_headers = ["Home", "Network", "Models", "Pipes", "Jobs"]
         if self.router is not None and self.router.running:
             self.state.visible_headers.extend(["Pipes", "Jobs"])
 
