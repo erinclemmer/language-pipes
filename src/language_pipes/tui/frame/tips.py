@@ -8,5 +8,10 @@ TIPS = {
             "bootstrap_nodes": "Bootstrap Nodes: A list of nodes that this node can reach to connect to\nthe rest of the network",
             "whitelist_node_ids": "Whitelist Node IDs: A list of nodes that this node is allowed to communicate\nwith. Keep the list empty to allow all nodes that pass authentication\nto communicate."
         }
+    },
+    "layer_models": {
+        "model_id": "Model ID: A HuggingFace model ID (e.g. Qwen/Qwen3-1.7B).\nThe model must be installed before it can be hosted.",
+        "device": "Device: The PyTorch device to load layers onto.\nExamples: cpu, cuda:0, cuda:1, etc.",
+        "max_memory": "Max Memory: The maximum amount of memory (in GB) to allocate for\nthis model's layers on the chosen device.\nHigher values allow more layers to be loaded on this node."
     }
 }
