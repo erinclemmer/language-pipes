@@ -43,6 +43,7 @@ class ContentProvider:
         self.network_provider = NetworkProvider(config_file, lambda: self.router, self.set_router, self.create_alert)
         self.pipe_provider = PipeProvider(lambda: self.pipe_manager)
         self.job_provider = JobProvider(config_file, lambda: self.router_pipes, lambda: self.model_manager, lambda: self.pipe_manager)
+        self.sync_provider_state()
 
     def sync_provider_state(self):
         self.state.visible_headers = ["Home", "Network", "Models"]

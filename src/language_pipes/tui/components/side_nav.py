@@ -43,13 +43,8 @@ class SideNav:
         return (self.state.side_idx * 2) + 4
 
     def update_cursor(self):
-        if len(self.options) == 0:
-            self.window.update_text(self.cursor_id, TermText(" "))
-            return
-
-        l_cursor = "|>" if self.state.focus_depth == 1 else " "
-        x = self.top_nav.header_positions[self.state.top_idx]
-        self.window.update_text(self.cursor_id, TermText(l_cursor), (x, self._cursor_y()))
+        x = self.top_nav.header_positions[self.state.top_idx] - 3
+        self.window.update_text(self.cursor_id, TermText("|>"), (x, self._cursor_y()))
 
     def set_options(self, options: List[str]):
         if options == self.options:
