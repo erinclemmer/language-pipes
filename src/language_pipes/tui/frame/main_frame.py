@@ -1,7 +1,7 @@
 from pathlib import Path
 from time import sleep
 from threading import Thread
-from typing import Dict, List, Optional, Tuple
+from typing import Optional, Tuple
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.components.alert import Alert
@@ -17,14 +17,6 @@ from language_pipes.tui.frame.page_router import PageRouter
 
 
 class MainFrame:
-    TOP_HEADERS = ["Home", "Network", "Models", "Pipes", "Jobs"]
-    SIDE_OPTIONS_BY_TAB: Dict[str, List[str]] = {
-        "Home": ["Dashboard", "Activity"],
-        "Network": ["Status", "Peers", "Configure"],
-        "Models": ["Hosted", "Installed"],
-        "Pipes": ["Connected", "Complete", "Incomplete"],
-        "Jobs": ["Server", "Active"]
-    }
 
     def __init__(
         self,
@@ -40,7 +32,7 @@ class MainFrame:
         self.alert = Alert()
         self.provider = ContentProvider(config_file, self.alert.create_alert)
         self.confirm = Confirm()
-        self.nav = NavState(self.TOP_HEADERS, self.SIDE_OPTIONS_BY_TAB)
+        self.nav = NavState()
         self.page_router = PageRouter(
             self.provider, self.confirm, self.nav, self.state, self.change_nav
         )

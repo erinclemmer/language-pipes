@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 from language_pipes.content_provider.content_provider import ProviderState
 
 class NavState:
@@ -9,13 +9,9 @@ class NavState:
     top_idx: int
     sub_idx: int
     
-    def __init__(
-        self,
-        top_headers: List[str],
-        side_options_by_tab: Dict[str, List[str]],
-    ):
-        self.top_headers = top_headers
-        self.sub_options = side_options_by_tab
+    def __init__(self):
+        self.top_headers = []
+        self.sub_options = { }
 
         self.focus_depth = 0
         self.top_idx = 0
@@ -25,11 +21,16 @@ class NavState:
         self.top_headers = state.visible_headers
         self.sub_options = state.visible_sub_menu
 
-    def active_tab(self) -> str:
+    def active_tab(self) -> Optional[str]:
+        if self.top_idx >= len(self.top_headers):
+            return None
         return self.top_headers[self.top_idx]
 
     def active_sub_options(self) -> List[str]:
-        return self.sub_options.get(self.active_tab(), ["Overview"])
+        active_tab = self.active_tab()
+        if active_tab is None:
+            return ["Overview"]
+        return self.sub_options.get(active_tab, ["Overview"])
 
     def active_side_option(self) -> str:
         options = self.active_sub_options()
