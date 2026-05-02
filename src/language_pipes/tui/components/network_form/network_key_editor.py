@@ -3,11 +3,11 @@
 from enum import Enum
 from typing import Callable, List, Optional
 
-from language_pipes.content_provider.content_provider import ContentProvider
-from language_pipes.content_provider.network_provider import NetworkProvider
-from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.util.text import make_footer_text
+from language_pipes.tui.components.confirm import Confirm
+from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.content_provider.network_provider import NetworkProvider
 
 class NetworkKeyEditorState(Enum):
     LIST = 0

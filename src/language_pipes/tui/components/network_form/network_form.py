@@ -1,18 +1,18 @@
 from typing import Callable, Optional, List, Dict, Any
 
-from language_pipes.content_provider.content_provider import ContentProvider
-from language_pipes.tui.components.network_form.network_key_editor import NetworkKeyEditor
+from language_pipes.tui.frame.tips import TIPS
+from language_pipes.tui.util.text import make_footer_text
+
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
-
-from language_pipes.tui.frame.tips import TIPS
+from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.components.network_form.node_id_editor import NodeIdEditor
 from language_pipes.tui.components.network_form.peer_port_editor import PeerPortEditor
 from language_pipes.tui.components.network_form.whitelist_editor import WhitelistEditor
 from language_pipes.tui.components.network_form.network_ip_editor import NetworkIpEditor
+from language_pipes.tui.components.network_form.network_key_editor import NetworkKeyEditor
 from language_pipes.tui.components.network_form.bootstrap_nodes_editor import BootstrapNodesEditor
-from language_pipes.tui.util.text import make_footer_text
 
 class NetworkForm:
     confirm: Confirm

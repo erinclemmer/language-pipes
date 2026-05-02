@@ -1,12 +1,11 @@
 from typing import Callable, List
 
-from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.tui.util.text import make_footer_text
 from language_pipes.tui.components.confirm import Confirm
-from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.tui.components.network_form.list_editor import ListEditor
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 from language_pipes.tui.components.network_form.util import validate_address, validate_port
-from language_pipes.tui.components.network_form.list_editor import ListEditor
-from language_pipes.tui.util.text import make_footer_text
 
 
 class BootstrapNodesEditor(ListEditor[Endpoint]):
