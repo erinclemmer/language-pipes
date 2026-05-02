@@ -8,7 +8,7 @@ from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.components.home_dashboard import Dashboard
 from language_pipes.tui.components.jobs_server import JobsServer
-from language_pipes.tui.components.models_hosted import ModelsHosted
+from language_pipes.tui.components.models_layers import ModelsLayerModels
 from language_pipes.tui.components.network_peers import NetworkPeers
 from language_pipes.tui.components.network_status import NetworkStatus
 from language_pipes.tui.components.pipes_complete import PipesComplete
@@ -27,7 +27,7 @@ class PageRouter:
     network_form: NetworkForm
 
     models_installed: ModelsInstalled
-    models_hosted: ModelsHosted
+    models_layer_models: ModelsLayerModels
 
     dashboard: Dashboard
     pipes_connected: PipesConnected
@@ -51,7 +51,7 @@ class PageRouter:
         self.models_installed = ModelsInstalled(
             provider, confirm, self.exit_page, self.is_focused
         )
-        self.models_hosted = ModelsHosted(
+        self.models_layer_models = ModelsLayerModels(
             provider, confirm, self.exit_page, self.is_focused
         )
         self.pipes_connected = PipesConnected(provider, self.exit_page, self.is_focused)
@@ -86,8 +86,8 @@ class PageRouter:
         
         if tab == "Models" and section == "Installed":
             return self.models_installed
-        if tab == "Models" and section == "Hosted":
-            return self.models_hosted
+        if tab == "Models" and section == "Layer Models":
+            return self.models_layer_models
         
         
         if tab == "Pipes" and section == "Connected":

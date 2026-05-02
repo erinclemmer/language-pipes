@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Callable, Optional, Dict
+from typing import List, Callable, Optional
 
 import torch
 
@@ -7,7 +7,8 @@ from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.components.hosted_models_view import format_model_line
-from language_pipes.content_provider.model_provider import ModelProvider, ModelToLoad, ModelStatusInfo
+from language_pipes.content_provider.model_provider import ModelProvider, ModelToLoad
+from language_pipes.tui.util.text import make_footer_text
 
 class ModelsHostedState(Enum):
     List = 'list'
@@ -16,7 +17,7 @@ class ModelsHostedState(Enum):
     ChooseModel = 'choose_model'
 
 # TODO: Whenever we change a configuration and the model is running, restart the model
-class ModelsHosted:
+class ModelsLayerModels:
     provider: ContentProvider
     confirm: Confirm
     exit_page: Callable
@@ -380,4 +381,4 @@ class ModelsHosted:
         return lines
 
     def get_footer(self) -> str:
-        return ""
+        return make_footer_text(["Arrows U/D: Move", "Enter: Select Option", "Delete: Remove", "Esc: Menu"])

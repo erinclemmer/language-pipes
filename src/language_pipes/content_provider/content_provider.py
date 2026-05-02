@@ -70,7 +70,7 @@ class ContentProvider:
         model_paths = []
 
         if self.router is not None and self.router.running:
-            model_paths.append("Hosted")
+            model_paths.extend(["Layer Models", "End Models"])
 
         model_paths.append("Installed")
 
