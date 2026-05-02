@@ -5,6 +5,7 @@ from language_pipes.tui.components.confirm import Confirm
 
 from language_pipes.tui.components.network_form.list_editor import ListEditor
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.tui.util.text import make_footer_text
 
 class WhitelistEditor(ListEditor[str]):
     new_node_id: str
@@ -71,10 +72,10 @@ class WhitelistEditor(ListEditor[str]):
         ]
 
     def input_footer(self) -> str:
-        return "[A-Z]: Type   Backspace: delete char   Esc: Discard   Enter: Accept"
+        return make_footer_text(["[A-Z]: Type", "Backspace: remove character", "Enter: Accept", "Esc: Discard"])
 
     def list_footer(self) -> str:
-        return "Arrows U/D: Change choice   Enter: Select   Esc: Back   Delete: Remove"
+        return make_footer_text(["Arrows U/D: Change choice", "Enter: Select", "Delete: Remove", "Esc: Back"])
 
     def list_header(self) -> str:
         return "Bootstrap Nodes:"

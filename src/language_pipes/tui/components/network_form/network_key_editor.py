@@ -7,6 +7,7 @@ from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.content_provider.network_provider import NetworkProvider
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.util.kb_utils import PressedKey
+from language_pipes.tui.util.text import make_footer_text
 
 class NetworkKeyEditorState(Enum):
     LIST = 0
@@ -177,7 +178,7 @@ class NetworkKeyEditor:
 
     def get_footer(self):
         if self.state == NetworkKeyEditorState.INPUT:
-            return "[A-Z]: Type key   Backspace: delete char   Esc: Back   Enter: Accept"
+            return make_footer_text(["[A-Z]: Type key", "Backspace: remove character", "Esc: Back", "Enter: Accept"])
         if self.state == NetworkKeyEditorState.SHOW:
             return "Enter/Esc: Back"
-        return "Arrows U/D: Change choice   Enter: Confirm   Esc: Back"
+        return make_footer_text(["Arrows U/D: Change Choice", "Enter: Confirm", "Esc: Back"])

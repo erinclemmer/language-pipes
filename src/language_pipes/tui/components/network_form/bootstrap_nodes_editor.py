@@ -6,6 +6,7 @@ from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 from language_pipes.tui.components.network_form.util import validate_address, validate_port
 from language_pipes.tui.components.network_form.list_editor import ListEditor
+from language_pipes.tui.util.text import make_footer_text
 
 
 class BootstrapNodesEditor(ListEditor[Endpoint]):
@@ -90,10 +91,10 @@ class BootstrapNodesEditor(ListEditor[Endpoint]):
         ]
 
     def input_footer(self) -> str:
-        return "[A-Z]: Type   Backspace: delete char   Esc: Discard   Enter: Accept"
+        return make_footer_text(["A-Z: Type", "Backspace: remove character", "Esc: Discard", "Enter: Accept"])
 
     def list_footer(self) -> str:
-        return "Arrows U/D: Change choice   Enter: Select   Esc: Back   Delete: Unregister"
+        return make_footer_text(["Arrows U/D: Change choice", "Enter: Select", "Delete: Unregister", "Esc: Back"])
 
     def list_header(self) -> str:
         return "Bootstrap Nodes:"

@@ -12,6 +12,7 @@ from language_pipes.tui.components.network_form.peer_port_editor import PeerPort
 from language_pipes.tui.components.network_form.whitelist_editor import WhitelistEditor
 from language_pipes.tui.components.network_form.network_ip_editor import NetworkIpEditor
 from language_pipes.tui.components.network_form.bootstrap_nodes_editor import BootstrapNodesEditor
+from language_pipes.tui.util.text import make_footer_text
 
 class NetworkForm:
     confirm: Confirm
@@ -179,7 +180,7 @@ class NetworkForm:
         if not self.is_focused():
             return ""
         if not self.field_editor_visible:
-            return "Arrows U/D: Change property to edit   Enter: Next   Esc: Back"
+            return make_footer_text(["Arrows U/D: Change property", "Enter: Select", "Esc: Menu"])
         res = self.get_current_field_editor()
         if res is None:
             return ""

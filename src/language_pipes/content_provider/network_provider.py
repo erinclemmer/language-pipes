@@ -147,7 +147,12 @@ class NetworkProvider:
 
     # Network / Configure
     def get_network_config(self) -> DSNodeConfig:
-        return LpConfig.from_file(self.config_file).network_config
+        cfg = LpConfig.from_file(self.config_file).network_config
+
+        if cfg.network_ip is None:
+            cfg.network_ip = NetworkProvider.detect_network_ip()
+        
+        return cfg
     
     def save_network_config(self, config: DSNodeConfig):
         cfg = LpConfig.from_file(self.config_file)
