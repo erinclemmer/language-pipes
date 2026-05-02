@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import Callable, Optional, List, Dict, Any
 
 from language_pipes.content_provider.content_provider import ContentProvider
@@ -12,12 +11,7 @@ from language_pipes.tui.components.network_form.node_id_editor import NodeIdEdit
 from language_pipes.tui.components.network_form.peer_port_editor import PeerPortEditor
 from language_pipes.tui.components.network_form.whitelist_editor import WhitelistEditor
 from language_pipes.tui.components.network_form.network_ip_editor import NetworkIpEditor
-from language_pipes.tui.components.network_form.bootstrap_nodes_editor import (
-    BootstrapNodesEditor,
-)
-
-
-
+from language_pipes.tui.components.network_form.bootstrap_nodes_editor import BootstrapNodesEditor
 
 class NetworkForm:
     confirm: Confirm
@@ -43,13 +37,9 @@ class NetworkForm:
         self.field_editor_visible = False
         self.network_key_editor = NetworkKeyEditor(provider, confirm, self.exit_field_editor)
         self.node_id_editor = NodeIdEditor(provider, confirm, self.exit_field_editor)
-        self.network_ip_editor = NetworkIpEditor(
-            provider, confirm, self.exit_field_editor
-        )
+        self.network_ip_editor = NetworkIpEditor(provider, confirm, self.exit_field_editor)
         self.peer_port_editor = PeerPortEditor(provider, confirm, self.exit_field_editor)
-        self.bootstrap_nodes_editor = BootstrapNodesEditor(
-            provider, confirm, self.exit_field_editor
-        )
+        self.bootstrap_nodes_editor = BootstrapNodesEditor(provider, confirm, self.exit_field_editor)
         self.whitelist_editor = WhitelistEditor(provider, confirm, self.exit_field_editor)
         self.start()
 
@@ -101,7 +91,7 @@ class NetworkForm:
                 "name": "node_id",
                 "label": "Node ID",
                 "value": str(cfg.node_id),
-                "error": None if cfg.node_id is not None else "Node ID must be set",
+                "error": None if cfg.node_id is not None else "Node ID must be set to start server",
             }
         ]
 
@@ -225,17 +215,6 @@ class NetworkForm:
             return
         return res.on_key(key, ch)
 
-    def _open_edit_confirm(
-        self,
-        message: str,
-        *,
-        on_apply: Callable[[], None],
-        on_discard: Callable[[], None],
-    ) -> None:
-        self._pending_apply = on_apply
-        self._pending_discard = on_discard
-        self.confirm.open(message, on_apply, on_discard)
-
     # Returns string on error
     def validate_current_field(self) -> Optional[str]:
         res = self.get_current_field()
@@ -257,17 +236,3 @@ class NetworkForm:
                 error = "bootstrap_port must be an integer"
 
         return error
-
-    def on_exit(self):
-        status = self.provider.network_provider.get_network_status()
-        if status is not None and status.running:
-            return
-
-        def on_apply():
-            self.provider.network_provider.start_network()
-            self.change_nav("Network", "Status")
-
-        self.confirm.open(
-            "Start connection to network?", on_apply=on_apply, on_discard=lambda: None
-        )
-

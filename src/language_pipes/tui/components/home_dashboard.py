@@ -167,8 +167,12 @@ class Dashboard:
         encryption_text = ""
         if self.router_status is not None and self.router_status.encrypted:
             encryption_text = "\nEncrypted connection"
+
+        warning_text = ""
+        if self.network_config.node_id is None:
+            warning_text = "\nWarning: Node ID must be set to start\nnetwork server, open network config."
         
-        return f"{state_label}{peer_text}{encryption_text}"
+        return f"{state_label}{peer_text}{encryption_text}{warning_text}"
 
     def _format_model_line(self, model: ModelToLoad, running: List[ModelStatusInfo], jobs: List[MetaJob]) -> List[str]:
         lines = [
