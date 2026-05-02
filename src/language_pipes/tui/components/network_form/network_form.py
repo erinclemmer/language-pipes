@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Callable, Optional, List, Dict, Any
 
 from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.tui.components.network_form.network_key_editor import NetworkKeyEditor
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
@@ -18,10 +19,6 @@ from language_pipes.tui.components.network_form.bootstrap_nodes_editor import (
 )
 
 
-class NetworkKeyEditorState(Enum):
-    LIST = 0
-    INPUT = 1
-    SHOW = 2
 
 
 class NetworkForm:
@@ -47,12 +44,7 @@ class NetworkForm:
         self.edit_fields: List[Dict[str, Optional[Any]]] = []
         self.edit_field_idx = 0
         self.field_editor_visible = False
-        self.network_key_select_idx = 0
-        self.network_key_max_idx = 1
-        self.network_key_state = NetworkKeyEditorState.LIST
-        self.network_key = None
-        self.network_key_input = ""
-        self.network_key_valid = False
+        self.network_key_editor = NetworkKeyEditor(provider, confirm, self.exit_field_editor)
         self.node_id_editor = NodeIdEditor(provider, confirm, self.exit_field_editor)
         self.network_ip_editor = NetworkIpEditor(
             provider, confirm, self.exit_field_editor
@@ -71,6 +63,7 @@ class NetworkForm:
         self.network_ip_editor.restart()
         self.peer_port_editor.restart()
         self.whitelist_editor.restart()
+        self.network_key_editor.restart()
 
     def get_current_field_editor(self):
         res = self.get_current_field()
@@ -83,6 +76,8 @@ class NetworkForm:
             return self.network_ip_editor
         if current_field == "peer_port":
             return self.peer_port_editor
+        if current_field == "network_key":
+            return self.network_key_editor
         if current_field == "bootstrap_nodes":
             return self.bootstrap_nodes_editor
         if current_field == "whitelist_node_ids":
@@ -170,59 +165,9 @@ class NetworkForm:
         self.field_editor_visible = True
         self.restart_field_editors()
 
-    def restart_network_key_editor(self, reset_select: bool = True):
-        if reset_select:
-            self.network_key_select_idx = 0
-        self.network_key_state = NetworkKeyEditorState.LIST
-        config = self.provider.network_provider.get_network_config()
-        self.network_key = config.aes_key
-        self.network_key_input = ""
-        self.network_key_valid = False
-        self.network_key_max_idx = 3 if self.network_key not in (None, "") else 1
-
-    def network_key_back(self) -> bool:
-        exit_field_editor = self.network_key_state == NetworkKeyEditorState.LIST
-        self.restart_network_key_editor(False)
-        return exit_field_editor
-
     def is_editing_network_key(self) -> bool:
         res = self.get_current_field()
         return res is not None and res[0] == "network_key"
-
-    def get_network_key_footer(self) -> str:
-        if self.network_key_state == NetworkKeyEditorState.INPUT:
-            return (
-                "[A-Z]: Type key   Backspace: delete char   Esc: Back   Enter: Accept"
-            )
-        if self.network_key_state == NetworkKeyEditorState.SHOW:
-            return "Enter/Esc: Back"
-        return "Arrows U/D: Change choice   Enter: Confirm   Esc: Back"
-
-    def on_network_key_prev(self):
-        self.network_key_select_idx = max(0, self.network_key_select_idx - 1)
-
-    def on_network_key_next(self):
-        self.network_key_select_idx = min(
-            self.network_key_max_idx, self.network_key_select_idx + 1
-        )
-
-    def on_network_key_backspace(self):
-        if self.network_key_state != NetworkKeyEditorState.INPUT:
-            return
-        self.network_key_input = self.network_key_input[:-1]
-        self.network_key_valid = NetworkProvider.validate_aes_key(self.network_key_input)
-
-    def on_network_key_char(self, ch: str):
-        if self.network_key_state != NetworkKeyEditorState.INPUT:
-            return
-        self.network_key_input += ch
-        self.network_key_valid = self.provider.network_provider.validate_aes_key(self.network_key_input)
-        
-    def save_network_key_input(self):
-        config = self.provider.network_provider.get_network_config()
-        config.aes_key = self.network_key_input
-        self.provider.network_provider.save_network_config(config)
-        self.exit_field_editor()
 
     def generate_network_key(self):
         config = self.provider.network_provider.get_network_config()
@@ -358,12 +303,6 @@ class NetworkForm:
     def get_view(self) -> List[str]:
         if self.field_editor_visible:
             return self.get_editor_lines()
-        if not self.is_focused():
-            preview = self.show_preview(
-                self.provider.network_provider.get_network_config()
-            )
-            if preview is not None:
-                return preview
         return self._form_lines()
 
     def get_footer(self) -> str:
@@ -463,22 +402,3 @@ class NetworkForm:
             "Start connection to network?", on_apply=on_apply, on_discard=lambda: None
         )
 
-    @staticmethod
-    def show_preview(payload: DSNodeConfig) -> Optional[List[str]]:
-        if not isinstance(payload, DSNodeConfig):
-            return None
-
-        key_text = ""
-        if payload.aes_key not in (None, ""):
-            key_text = "*" * 10
-
-        details = [
-            f"- node_id: {payload.node_id}",
-            f"- network_key: {key_text}",
-            f"- IP Address: {payload.network_ip}",
-            f"- Peer Port: {payload.port}",
-            f"- Bootstrap Nodes: {len(payload.bootstrap_nodes)} node(s)",
-            f"- Whitelist: {len(payload.whitelist_node_ids)} node(s)",
-        ]
-
-        return details

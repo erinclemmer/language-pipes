@@ -12,10 +12,6 @@ class WhitelistEditor(ListEditor[str]):
     def __init__(self, provider: ContentProvider, confirm: Confirm, exit_editor: Callable):
         super().__init__(provider, confirm, exit_editor)
 
-    # ------------------------------------------------------------------
-    # ListEditor abstract implementation
-    # ------------------------------------------------------------------
-
     def load_items(self) -> List[str]:
         config: DSNodeConfig = self.provider.network_provider.get_network_config()
         return config.whitelist_node_ids
