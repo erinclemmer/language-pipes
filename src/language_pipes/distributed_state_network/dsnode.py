@@ -178,7 +178,6 @@ class DSNode:
                 if node_id in self.node_states:  # double check if something has changed since the ping request started
                     remove(node_id)
                     msg = f"{node_id} has disconnected"
-                    self.create_alert(msg)
                     self.add_log(msg)
                     if self.disconnect_cb is not None:
                         self.disconnect_cb()
@@ -348,7 +347,6 @@ class DSNode:
         self.ensure_ip_allowed(detected_address)
         pkt = HelloPacket.from_bytes(data)
         self.ensure_node_id_allowed(pkt.node_id)
-        self.add_log(f"{pkt.node_id} connected", "INFO")
         if pkt.version != self.version:
             msg = f"Network version mismatch \"{pkt.version}\" ({pkt.node_id}) != \"{self.version}\" ({self.config.node_id})"
             self.add_log(msg, "ERROR")
@@ -357,9 +355,8 @@ class DSNode:
 
         self.cred_manager.ensure_public(pkt.node_id, pkt.ecdsa_public_key)
         self.write_address_book(pkt.node_id, Endpoint(detected_address, pkt.connection.port))
-        alrt_msg = f"{pkt.node_id} has connnected"
-        self.create_alert(alrt_msg)
-        self.add_log(alrt_msg)
+        if pkt.node_id != self.config.node_id:
+            self.add_log(f"{pkt.node_id} has connnected")
 
         if pkt.node_id not in self.node_states:
             self.init_state(pkt.node_id)
