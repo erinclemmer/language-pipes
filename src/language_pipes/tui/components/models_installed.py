@@ -60,6 +60,9 @@ class ModelsInstalled:
                 )
             else:
                 self.installing_model = False
+                self.entering_token = False
+        elif self.entering_token:
+            self.entering_token = False
         else:
             self.exit_page()
             
@@ -93,16 +96,19 @@ class ModelsInstalled:
                 self.download_new_model()
 
             def discard_token():
+                self.download_new_model()
                 self.entering_token = False
                 self.token_string = ""
 
             self.confirm.open(
-                f"Use this token?\n{self.token_string}",
+                f"Save this token?\n{self.token_string}",
                 on_apply=apply_token,
                 on_discard=discard_token
             )
             return
         elif self.downloading_model:
+            if not self.can_download():
+                return
             if self.download_status is not None and ("SUCCESS" in self.download_status or "ERROR" in self.download_status):
                 if "ERROR" in self.download_status:
                     self.downloading_model = False
@@ -132,19 +138,19 @@ class ModelsInstalled:
         self.downloading_model = False
 
     def download_new_model(self, check_token: bool = True):
-        token = ModelProvider.get_hf_token()
+        token = ModelProvider.get_hf_env_token()
         if token is None and check_token:
             def use_key():
                 self.entering_token = True
             def dont_use_key():
                 self.download_new_model(False)
             self.confirm.open(
-                "Use Huggingface API Key?",
+                "Use Huggingface API Key?\nAPI Keys allow you to download gated models and better rate limits.",
                 on_apply=use_key,
                 on_discard=dont_use_key
             )
         else:
-            self.provider.model_provider.start_download(self.new_model_id)
+            self.provider.model_provider.start_download(self.new_model_id, token)
             self.downloading_model = True
 
     def on_delete(self):
@@ -188,12 +194,30 @@ class ModelsInstalled:
         ]
         return lines
 
+    def can_download(self):
+        if self.new_model_id == "":
+            return False
+        
+        try:
+            self.new_model_id.index("")
+        except ValueError:
+            return False
+        return True
+
     def get_installing_view(self) -> List[str]:
         model_id = self.new_model_id[-40:] if len(self.new_model_id) > 40 else self.new_model_id
         lines = [
             "Install New Model:", "", 
             "Type the huggingface model ID from huggingface.co", ""
         ]
+
+        cfg_key = ModelProvider.get_hf_config_token()
+        if cfg_key is not None:
+            lines.extend(["API key loaded from configuration", ""])
+        
+        env_key = ModelProvider.get_hf_env_token()
+        if env_key is not None:
+            lines.extend(["API key loaded from environment", ""])        
 
         if self.downloading_model:
             lines.extend([
@@ -206,11 +230,22 @@ class ModelsInstalled:
                     lines.extend(["", "Press Enter to continue..."])
         else:
             lines.extend([f"Model ID: {model_id}|", ""])
+            if self.new_model_id == "":
+                lines.append("!Warning: Model ID empty")
+            else:
+                try:
+                    self.new_model_id.index("/")
+                except ValueError:
+                    lines.append("!Warning: model name must be in [organization]/[model] format")
+                
+            if env_key is None and cfg_key is None:
+                lines.extend(["", "TIP: Set the LP_HUGGINGFACE_TOKEN environment variable to load the\nAPI key from environment. Otherwise you can set it in the next screen.\nCreate an access token at https://huggingface.co/settings/tokens"])
 
         return lines
 
     def get_list_view(self):
         self.installed_models = self.provider.model_provider.get_installed_models()
+        
         lines = ["Installed Models:", ""]
         for i, model in enumerate(self.installed_models):
             l_cursor = " |>" if i == self.focus_idx and self.is_focused() else "   "

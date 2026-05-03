@@ -166,7 +166,7 @@ class ModelProvider:
             return
         shutil.rmtree(model_dir)
 
-    def start_download(self, model_id: str):
+    def start_download(self, model_id: str, token: Optional[str] = None):
         if self.download_model_thread is not None:
             return
         clone_dir = get_model_dir() / model_id / "data"
@@ -179,7 +179,7 @@ class ModelProvider:
                 snapshot_download(
                     repo_id=model_id,
                     local_dir=clone_dir,
-                    token=self.get_hf_token(),
+                    token=token,
                     tqdm_class=ModelDownloadProgress,
                 )
             except errors.RepositoryNotFoundError:
@@ -193,7 +193,9 @@ class ModelProvider:
                 error = True
             self.download_model_thread = None
             self.downloading_to_folder = None
-            if not error:
+            if error:
+                shutil.rmtree(get_model_dir() / model_id)
+            else:
                 self.download_message = "[SUCCESS] Download complete"
 
         self.download_model_thread = Thread(target=download_model, args=())
@@ -286,9 +288,13 @@ class ModelProvider:
             return False
 
     @staticmethod
-    def get_hf_token() -> Optional[str]:
+    def get_hf_env_token() -> Optional[str]:
+        return os.environ.get("LP_HUGGINGFACE_TOKEN", None)
+
+    @staticmethod
+    def get_hf_config_token() -> Optional[str]:
         cfg = GlobalConfig.from_file()
-        return os.environ.get("LP_HUGGINGFACE_TOKEN", cfg.hf_token)
+        return cfg.hf_token
 
     @staticmethod
     def save_hf_token(token: str):
