@@ -119,10 +119,10 @@ class ModelManager:
             if model.pipe_id not in self.pipes_hosted[model.model_id]:
                 self.pipes_hosted[model.model_id].append(model.pipe_id)
 
-    def shutdown_layer_models(self, router_pipes: RouterPipes, model_id: str):
+    def shutdown_layer_models(self, router_pipes: RouterPipes, model_id: str, device: torch.device):
         to_remove = []
         for model in self.layer_models:
-            if model.model_id == model_id:
+            if model.model_id == model_id and model.device == device:
                 model.cleanup_tensors()
                 router_pipes.remove_model(model.to_meta())
                 to_remove.append(model.process_id)

@@ -129,7 +129,7 @@ class Dashboard:
                 self.provider.model_provider.load_layer_model(model)
         elif selected_option == "Unload Models":
             for model in self.models_to_load:
-                self.provider.model_provider.unload_layer_models(model.model_id)
+                self.provider.model_provider.unload_layer_models(model.model_id, model.device)
         elif selected_option == "Configure Layer Models":
             self.change_nav("Models", "Layer Models")
         elif selected_option == "Configure End Models":

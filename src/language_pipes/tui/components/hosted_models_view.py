@@ -38,7 +38,7 @@ def format_model_line(
     l_cursor = "|>" if selected else "  "
     r_cursor = "<|" if selected else "  "
     lines = [
-        f"{l_cursor} {model.model_id} {r_cursor} ",
+        f"{l_cursor} {model.model_id} on {model.device} {r_cursor} ",
         f"       Max Memory: {model.memory}GB"
     ]
     has_ends = len([m for m in running if m.end_model]) > 0

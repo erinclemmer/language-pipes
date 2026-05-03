@@ -2,6 +2,7 @@ import io
 import os
 import shutil
 from enum import Enum
+import torch
 from tqdm.auto import tqdm
 from pathlib import Path
 from threading import Thread
@@ -237,18 +238,18 @@ class ModelProvider:
 
         Thread(target=host_end_model, args=()).start()
 
-    def unload_layer_models(self, model_id: str):
+    def unload_layer_models(self, model_id: str, device: torch.device):
         rp = self.get_router_pipes()
         if rp is None:
             return
         def shutdown_layer_models():
-            self.get_model_manager().shutdown_layer_models(rp, model_id)
+            self.get_model_manager().shutdown_layer_models(rp, model_id, device)
         Thread(target=shutdown_layer_models, args=()).start()
 
     def unload_all_models(self):
         mm = self.get_model_manager()
         for m in mm.layer_models:
-            self.unload_layer_models(m.model_id)
+            self.unload_layer_models(m.model_id, m.device)
 
         for m in mm.end_models:
             self.unload_end_model(m.model_id)

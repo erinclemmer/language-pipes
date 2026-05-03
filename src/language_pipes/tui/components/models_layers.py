@@ -82,6 +82,9 @@ class ModelsLayerModels:
         model_to_delete = self.models_to_load[self.model_idx]
 
         def on_apply():
+            if self._current_model_running():
+                self.provider.model_provider.unload_layer_models(model_to_delete.model_id, model_to_delete.device)
+            
             models_to_load = []
             for m in self.models_to_load:
                 if m.model_id == model_to_delete.model_id and str(m.device) == str(model_to_delete.device):
@@ -91,8 +94,12 @@ class ModelsLayerModels:
             self.models_to_load = models_to_load
             self.provider.model_provider.save_layer_models(self.models_to_load)
 
+        running_text = ""
+        if self._current_model_running():
+            running_text = "\nThis will unload the model from memory"
+
         self.confirm.open(
-            f"Remove {model_to_delete.model_id} on {model_to_delete.device}?", on_apply=on_apply, on_discard=lambda: None
+            f"Remove {model_to_delete.model_id} on {model_to_delete.device}?{running_text}", on_apply=on_apply, on_discard=lambda: None
         )
 
     def on_backspace(self):
@@ -123,7 +130,7 @@ class ModelsLayerModels:
             self.exit_page()
 
     def _reset_editor(self):
-        self.editing_config_idx = 0
+        self.edit_idx = 0
         self.edit_device_memory = ""
         self.edit_device_name = ""
         self.edit_load_ends = False
@@ -165,7 +172,7 @@ class ModelsLayerModels:
                 model = self.get_editing_model()
                 if model is not None:
                     if self._current_model_running():
-                        self.provider.model_provider.unload_layer_models(model.model_id)
+                        self.provider.model_provider.unload_layer_models(model.model_id, model.device)
                     else:
                         self.provider.model_provider.load_layer_model(model)
                 self.state = LayerModelsState.List
@@ -176,10 +183,27 @@ class ModelsLayerModels:
         network_status = self.provider.network_provider.get_network_status()
         return network_status is not None and network_status.running
 
+
+    def _get_ram_usage(self) -> str:
+        used_ram = self.provider.get_used_system_ram()
+        total_ram = self.provider.get_total_system_ram()
+        
+        return f"System RAM: {used_ram:.1f}/{total_ram:.1f}GB"
+
+    def has_model_already(self, model_id: Optional[str], device: str) -> bool:
+        if model_id is None:
+            return False
+        
+        for m in self.models_to_load:
+            if m.model_id == model_id and str(m.device) == device:
+                return True
+        return False
+
     def can_save(self):
         return self.validate_memory()\
             and self.valid_device()\
-            and self.valid_model_id()
+            and self.valid_model_id()\
+            and (not self.is_adding_model() or not self.has_model_already(self.edit_model_id, self.edit_device_name))
 
     def add_model(self):
         if not self.can_save() or self.edit_model_id is None:
@@ -273,7 +297,7 @@ class ModelsLayerModels:
         model = self.get_editing_model()
         if model is None:
             return ["ERROR"]
-        lines = [f"Options for {model.model_id}"]
+        lines = [f"Options for {model.model_id} on {model.device}"]
         options = [
             "Edit Model", 
             "Unload Model" if self._current_model_running() else "Load Model", 
@@ -283,6 +307,17 @@ class ModelsLayerModels:
             l_cursor = "|>" if i == self.option_idx else "  "
             r_cursor = "<|" if i == self.option_idx else "  "
             lines.append(f"{l_cursor} {opt} {r_cursor}")
+
+        lines.append("")
+        if self.option_idx == 0:
+            lines.append("Help: Edit model configuration")
+
+        if self.option_idx == 1 and not self._current_model_running():
+            lines.append(f"Help: Load model into {model.device} memory using {model.memory}GB")
+        
+        if self.option_idx == 1 and self._current_model_running():
+            lines.append(f"Help: Unload the model from {model.device} memory")
+
         return lines
 
     def validate_memory(self):
@@ -325,6 +360,9 @@ class ModelsLayerModels:
     def valid_device(self) -> bool:
         return ModelProvider.validate_device_name(self.edit_device_name)
 
+    def is_adding_model(self) -> bool:
+        return self.model_idx == len(self.models_to_load)
+
     def get_editor_view(self) -> List[str]:
         editing_model = self.get_editing_model()
         header = "Choosing Model" if editing_model is not None else "Creating Layer Model Configuration"
@@ -355,6 +393,9 @@ class ModelsLayerModels:
             if not self.validate_memory():
                 lines.append("   !Warning: Invalid memory amount")
 
+        if self.is_adding_model() and self.has_model_already(self.edit_model_id, self.edit_device_name):
+            lines.append("   !Warning: Model ID / Device Combination already in configuration")
+
         if self.can_save():
             l_cursor = "|>" if self.edit_idx == 3 else "  "
             r_cursor = "<|" if self.edit_idx == 3 else "  "
@@ -375,7 +416,7 @@ class ModelsLayerModels:
         return lines
 
     def get_list_view(self) -> List[str]:
-        lines = ["Layer Models", ""]
+        lines = ["Layer Models", "", self._get_ram_usage(), ""]
 
         if not self._network_running():
             lines.extend(self._network_not_started_warning())
@@ -424,5 +465,7 @@ class ModelsLayerModels:
                 return make_footer_text(["Arrows U/D: Move", "Enter: Save Layer Model", "Esc: Back"])
         elif self.state == LayerModelsState.ChooseModel:
             return make_footer_text(["Arrows U/D: Move", "Enter: Select Model", "Esc: Back"])
+        elif self.state == LayerModelsState.Options:
+            return make_footer_text(["Arrows U/D: Move", "Enter: Select Option", "Esc: Back"])
 
         return ""
