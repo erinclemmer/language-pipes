@@ -79,16 +79,20 @@ class ModelsLayerModels:
             return
 
         # Convert display index to config index
-        config_idx = self.models_to_load[self.model_idx]
+        model_to_delete = self.models_to_load[self.model_idx]
 
         def on_apply():
-            self.models_to_load = [
-                m for i, m in enumerate(self.models_to_load) if i != config_idx
-            ]
+            models_to_load = []
+            for m in self.models_to_load:
+                if m.model_id == model_to_delete.model_id and str(m.device) == str(model_to_delete.device):
+                    continue
+                models_to_load.append(m)
+
+            self.models_to_load = models_to_load
             self.provider.model_provider.save_layer_models(self.models_to_load)
 
         self.confirm.open(
-            "Remove this model?", on_apply=on_apply, on_discard=lambda: None
+            f"Remove {model_to_delete.model_id} on {model_to_delete.device}?", on_apply=on_apply, on_discard=lambda: None
         )
 
     def on_backspace(self):
