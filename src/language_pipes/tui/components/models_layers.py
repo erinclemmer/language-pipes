@@ -34,7 +34,6 @@ class ModelsLayerModels:
     installed_models: List[str]
     
     edit_model_id: Optional[str] # Editor: ID of model
-    edit_load_ends: bool # Editor: Load ends
     edit_device_name: str # Editor: name
     edit_device_memory: str # Editor: Max memory
     editing_config_idx: Optional[int]  # Config index being edited, None if adding new
@@ -95,17 +94,17 @@ class ModelsLayerModels:
     def on_backspace(self):
         if self.state != LayerModelsState.Edit:
             return
-        if self.edit_idx == 2:
+        if self.edit_idx == 1:
             self.edit_device_name = self.edit_device_name[:-1]
-        if self.edit_idx == 3:
+        if self.edit_idx == 2:
             self.edit_device_memory = self.edit_device_memory[:-1]
 
     def on_char(self, ch: str):
         if self.state != LayerModelsState.Edit:
             return
-        if self.edit_idx == 2:
+        if self.edit_idx == 1:
             self.edit_device_name += ch
-        if self.edit_idx == 3:
+        if self.edit_idx == 2:
             self.edit_device_memory += ch
 
     def on_escape(self):
@@ -153,9 +152,7 @@ class ModelsLayerModels:
         elif self.state == LayerModelsState.Edit:
             if self.edit_idx == 0:
                 self.state = LayerModelsState.ChooseModel
-            elif self.edit_idx == 1:
-                self.edit_load_ends = not self.edit_load_ends
-            elif self.edit_idx == 4:
+            elif self.edit_idx == 3:
                 self.add_model()
         elif self.state == LayerModelsState.Options:
             if self.option_idx == 0:
@@ -207,7 +204,7 @@ class ModelsLayerModels:
                 pass
 
             self.confirm.open(
-                "Host model now?", on_apply=on_apply, on_discard=on_discard
+                "Load layer model now?", on_apply=on_apply, on_discard=on_discard
             )
         self.state = LayerModelsState.List
         self._reset_editor()
@@ -346,13 +343,13 @@ class ModelsLayerModels:
             name_cursor = "|" if self.edit_idx == 1 else " "
             lines.append(f"   Device: {self.edit_device_name}{name_cursor}")
             if not self.valid_device():
-                lines.append("[ERROR] Invalid device name")
+                lines.append("   !Warning: Invalid device name")
 
         if self.valid_model_id() and self.valid_device():
             memory_cursor = "|" if self.edit_idx == 2 else ""
             lines.append(f"   Max Memory: {self.edit_device_memory}{memory_cursor} GB")
-            if len(self.edit_device_memory) > 0 and not self.validate_memory():
-                lines.append("[ERROR] Invalid memory amount")
+            if not self.validate_memory():
+                lines.append("   !Warning: Invalid memory amount")
 
         if self.can_save():
             l_cursor = "|>" if self.edit_idx == 3 else "  "
@@ -414,12 +411,14 @@ class ModelsLayerModels:
     def get_footer(self) -> str:
         if self.state == LayerModelsState.List:
             return make_footer_text(["Arrows U/D: Move", "Enter: Select Option", "Delete: Remove", "Esc: Menu"])
-        if self.state == LayerModelsState.Edit:
+        elif self.state == LayerModelsState.Edit:
             if self.edit_idx == 0:
                 return make_footer_text(["Arrows U/D: Move", "Enter: Change Model", "Esc: Back"])
             elif self.edit_idx == 1 or self.edit_idx == 2:
                 return make_footer_text(["Arrows U/D: Move", "[A-Z]: Type", "Esc: Back"])
             elif self.edit_idx == 3:
                 return make_footer_text(["Arrows U/D: Move", "Enter: Save Layer Model", "Esc: Back"])
-            
+        elif self.state == LayerModelsState.ChooseModel:
+            return make_footer_text(["Arrows U/D: Move", "Enter: Select Model", "Esc: Back"])
+
         return ""

@@ -59,6 +59,9 @@ class TopNav:
     def set_focus(self, is_focused: bool):
         selected_x = self.header_positions[self.state.top_idx]
         selected_header = self.state.active_tab()
+        if selected_header is None:
+            return
+    
         if is_focused:
             self.window.update_text(self.l_cursor_id, TermText("["), (selected_x - 1, 1))
             self.window.update_text(self.r_cursor_id, TermText("]"), (selected_x + len(selected_header), 1))
