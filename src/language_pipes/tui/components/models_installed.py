@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import List, Callable, Optional
 
 from language_pipes.content_provider.content_provider import ContentProvider
@@ -5,16 +6,20 @@ from language_pipes.content_provider.model_provider import ModelProvider
 from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 
+class ModelsInstalledState(Enum):
+    LIST = "LIST"
+    DOWNLOAD = "DOWNLOAD"
+    API_KEY = "API_KEY"
+
 class ModelsInstalled:
     provider: ContentProvider
     confirm: Confirm
     exit_page: Callable
     is_focused: Callable
+    state: ModelsInstalledState
+    downloading: bool
     installed_models: List[str]
     focus_idx: int
-    installing_model: bool
-    downloading_model: bool
-    entering_token: bool
     
     new_model_id: str
     token_string: str
@@ -27,9 +32,8 @@ class ModelsInstalled:
         self.focus_idx = 0
         self.exit_page = exit_page
         self.is_focused = is_focused
-        self.installing_model = False
-        self.downloading_model = False
-        self.entering_token = False
+        self.state = ModelsInstalledState.LIST
+        self.downloading = False
         self.new_model_id = ""
         self.token_string = ""
         self.download_status = None
@@ -51,53 +55,51 @@ class ModelsInstalled:
             self.on_escape()
 
     def on_escape(self):
-        if self.installing_model:
-            if self.downloading_model:
+        if self.state == ModelsInstalledState.DOWNLOAD:
+            if self.downloading:
                 self.confirm.open(
                     "Stop Current Download?",
                     on_apply=self.stop_download,
                     on_discard=lambda:None
                 )
             else:
-                self.installing_model = False
-                self.entering_token = False
-        elif self.entering_token:
-            self.entering_token = False
+                self.state = ModelsInstalledState.LIST
+        elif self.state == ModelsInstalledState.API_KEY:
+            self.state = ModelsInstalledState.DOWNLOAD
         else:
             self.exit_page()
             
     def on_backspace(self):
-        if self.downloading_model:
+        if self.downloading:
             return
         
-        if self.entering_token:
+        if self.state == ModelsInstalledState.API_KEY:
             self.token_string = self.token_string[:-1]
-        elif self.installing_model:
+        elif self.state == ModelsInstalledState.DOWNLOAD:
             self.new_model_id = self.new_model_id[:-1]
         
     def on_char(self, ch: str):
-        if self.downloading_model:
+        if self.downloading:
             return
         
-        if self.entering_token:
+        if self.state == ModelsInstalledState.API_KEY:
             self.token_string += ch
-        elif self.installing_model:
+        elif self.state == ModelsInstalledState.DOWNLOAD:
             self.new_model_id += ch
 
     def on_enter(self):
         if self.focus_idx != len(self.installed_models):
             return
         
-        if self.entering_token:
+        if self.state == ModelsInstalledState.API_KEY:
             def apply_token():
                 ModelProvider.save_hf_token(self.token_string)
-                self.entering_token = False
-                self.token_string = ""
-                self.download_new_model()
+                self.state = ModelsInstalledState.DOWNLOAD
+                self.start_download(self.token_string)
 
             def discard_token():
                 self.download_new_model()
-                self.entering_token = False
+                self.state = ModelsInstalledState.DOWNLOAD
                 self.token_string = ""
 
             self.confirm.open(
@@ -106,15 +108,11 @@ class ModelsInstalled:
                 on_discard=discard_token
             )
             return
-        elif self.downloading_model:
-            if not self.can_download():
-                return
+        elif self.downloading:
             if self.download_status is not None and ("SUCCESS" in self.download_status or "ERROR" in self.download_status):
-                if "ERROR" in self.download_status:
-                    self.downloading_model = False
+                self.downloading = False
                 if "SUCCESS" in self.download_status:
-                    self.downloading_model = False
-                    self.installing_model = False
+                    self.state = ModelsInstalledState.LIST
             else:
                 self.confirm.open(
                     "Stop Current Download?",
@@ -123,35 +121,41 @@ class ModelsInstalled:
                 )
             return
         
-        if self.installing_model:
+        if self.state == ModelsInstalledState.DOWNLOAD:
             self.confirm.open(
                 f"Download {self.new_model_id}",
                 on_apply=self.download_new_model,
                 on_discard=lambda:None
             )
         else:
-            self.installing_model = True
+            self.state = ModelsInstalledState.DOWNLOAD
             self.new_model_id = ""
 
     def stop_download(self):
         self.provider.model_provider.stop_model_download()
-        self.downloading_model = False
+        self.downloading = False
 
-    def download_new_model(self, check_token: bool = True):
-        token = ModelProvider.get_hf_env_token()
+    def download_new_model(self, token: Optional[str] = None, check_token: bool = True):
+        cfg_token = ModelProvider.get_hf_config_token()
+        if token is None:
+            token = cfg_token
+        
         if token is None and check_token:
-            def use_key():
-                self.entering_token = True
+            def enter_key():
+                self.state = ModelsInstalledState.API_KEY
             def dont_use_key():
-                self.download_new_model(False)
+                self.download_new_model()
             self.confirm.open(
-                "Use Huggingface API Key?\nAPI Keys allow you to download gated models and better rate limits.",
-                on_apply=use_key,
+                "Enter Huggingface API Key?\nAPI Keys allow you to download gated models and better rate limits.",
+                on_apply=enter_key,
                 on_discard=dont_use_key
             )
         else:
             self.provider.model_provider.start_download(self.new_model_id, token)
-            self.downloading_model = True
+
+    def start_download(self, token: Optional[str] = None):
+        self.provider.model_provider.start_download(self.new_model_id, token)
+        self.downloading = True
 
     def on_delete(self):
         if self.focus_idx < 0 or self.focus_idx >= len(self.installed_models):
@@ -164,7 +168,7 @@ class ModelsInstalled:
         )
 
     def on_next(self):
-        if self.downloading_model or self.entering_token:
+        if self.state != ModelsInstalledState.LIST:
             return
         
         self.focus_idx += 1
@@ -172,16 +176,16 @@ class ModelsInstalled:
             self.focus_idx = 0
 
     def on_prev(self):
-        if self.downloading_model or self.entering_token:
+        if self.state != ModelsInstalledState.LIST:
             return
         self.focus_idx -= 1
         if self.focus_idx < 0:
             self.focus_idx = len(self.installed_models)
 
     def get_view(self) -> List[str]:
-        if self.entering_token:
+        if self.state == ModelsInstalledState.API_KEY:
             return self.get_token_view()
-        elif self.installing_model:
+        elif self.state == ModelsInstalledState.DOWNLOAD:
             return self.get_installing_view()
         else:
             return self.get_list_view()
@@ -190,7 +194,9 @@ class ModelsInstalled:
         token_string = self.token_string[-40:] if len(self.token_string) > 40 else self.token_string
         lines = [
             "Type or paste to enter a huggingface API key", "",
-            f"API Key |> {token_string}|"
+            f"API Key |> {token_string}|",
+            "",
+            "Create an access token at https://huggingface.co/settings/tokens"
         ]
         return lines
 
@@ -213,13 +219,9 @@ class ModelsInstalled:
 
         cfg_key = ModelProvider.get_hf_config_token()
         if cfg_key is not None:
-            lines.extend(["API key loaded from configuration", ""])
+            lines.extend(["Global API Key loaded", ""])
         
-        env_key = ModelProvider.get_hf_env_token()
-        if env_key is not None:
-            lines.extend(["API key loaded from environment", ""])        
-
-        if self.downloading_model:
+        if self.downloading:
             lines.extend([
                 f"Downloading {model_id}...", ""
             ])
@@ -238,8 +240,8 @@ class ModelsInstalled:
                 except ValueError:
                     lines.append("!Warning: model name must be in [organization]/[model] format")
                 
-            if env_key is None and cfg_key is None:
-                lines.extend(["", "TIP: Set the LP_HUGGINGFACE_TOKEN environment variable to load the\nAPI key from environment. Otherwise you can set it in the next screen.\nCreate an access token at https://huggingface.co/settings/tokens"])
+            if cfg_key is None:
+                lines.extend(["", "TIP: Create an access token at https://huggingface.co/settings/tokens"])
 
         return lines
 

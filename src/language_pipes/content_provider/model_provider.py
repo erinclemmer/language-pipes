@@ -288,10 +288,6 @@ class ModelProvider:
             return False
 
     @staticmethod
-    def get_hf_env_token() -> Optional[str]:
-        return os.environ.get("LP_HUGGINGFACE_TOKEN", None)
-
-    @staticmethod
     def get_hf_config_token() -> Optional[str]:
         cfg = GlobalConfig.from_file()
         return cfg.hf_token
