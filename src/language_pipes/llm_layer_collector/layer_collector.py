@@ -58,6 +58,11 @@ class LlmLayerCollector:
             layer_prefix = "model.language_model.layers."
             norm_layer_name = "model.language_model.norm.weight"
 
+        if self.config.model_type == "gemma3_text":
+            layer_prefix = "language_model.model.layers."
+            input_embedding_layer_name = "language_model.embed_tokens.weight"
+            norm_layer_name = "language_model.model.norm.weight"
+
         if "_attn_implementation" not in self.config:
             self.config._attn_implementation = "sdpa"  # pyright: ignore[reportPrivateUsage]
         self.num_layers = self.config.num_hidden_layers

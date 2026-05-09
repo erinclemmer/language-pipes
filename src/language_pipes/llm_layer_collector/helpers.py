@@ -47,6 +47,9 @@ def get_config(model_dir: Path) -> PretrainedConfig:
                 "mrope_section": [16, 24, 24],
             }
 
+    if config.model_type == "gemma3":
+        config = config.text_config
+
     with torch.device('meta'):
         meta_model = AutoModelForCausalLM.from_config(config)
     return meta_model.config

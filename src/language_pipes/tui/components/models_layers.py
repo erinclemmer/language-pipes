@@ -261,6 +261,8 @@ class ModelsLayerModels:
             self.option_idx += 1
             if self.option_idx > 2:
                 self.option_idx = 0
+        elif self.state == LayerModelsState.ChooseModel:
+            self.choose_model_idx = (self.choose_model_idx + 1) % len(self.installed_models)
 
     def on_prev(self):
         if self.state == LayerModelsState.Edit:
@@ -276,6 +278,8 @@ class ModelsLayerModels:
             self.option_idx -= 1
             if self.option_idx < 0:
                 self.option_idx = 2
+        elif self.state == LayerModelsState.ChooseModel:
+            self.choose_model_idx = (self.choose_model_idx - 1) % len(self.installed_models)
 
     def get_view(self) -> List[str]:
         if self.state == LayerModelsState.ChooseModel:
