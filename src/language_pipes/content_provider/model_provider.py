@@ -295,4 +295,5 @@ class ModelProvider:
     @staticmethod
     def save_hf_token(token: str):
         cfg = GlobalConfig.from_file()
-        return cfg
+        cfg.hf_token = token
+        cfg.save()
