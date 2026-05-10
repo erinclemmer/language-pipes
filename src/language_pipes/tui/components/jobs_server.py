@@ -6,6 +6,7 @@ from typing import Callable, List, Tuple
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.util.kb_utils import PressedKey
+from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 
 class JobsServerState(Enum):
     Top = 'top'
@@ -189,7 +190,7 @@ class JobsServer:
         if len(self.new_api_key) == 0:
             lines.append("WARNING: Key is empty, cannot save")
 
-        lines.append("Press Enter to Accept key or Escape to go back")
+        lines.append("Press Enter to Accept key or Escape to discard key")
 
         return lines
 
@@ -204,9 +205,7 @@ class JobsServer:
     def get_ask_key_type_view(self) -> List[str]:
         lines = ["Add New Key:", ""]
         for i, opt in enumerate(['Generate', 'Enter Manually', 'Back']):
-            l_cursor = "|>" if self.type_idx == i else "  "
-            r_cursor = "<|" if self.type_idx == i else "  "
-            lines.append(f"{l_cursor} {opt} {r_cursor}")
+            lines.append(make_selectable_text(opt, self.type_idx == i))
 
         return lines
 
@@ -214,14 +213,10 @@ class JobsServer:
         lines = ["API Keys:", ""]
 
         for i, key in enumerate(self.api_keys):
-            l_cursor = "|>" if self.key_idx == i else "  "
-            r_cursor = "<|" if self.key_idx == i else "  "
-            lines.append(f"* {l_cursor} {key} {r_cursor}")
+            lines.append(make_selectable_text(key, self.key_idx == i))
         
         lines.append("")
-        l_cursor = "|>" if self.key_idx == len(self.api_keys) else "  "
-        r_cursor = "<|" if self.key_idx == len(self.api_keys) else "  "
-        lines.append(f"{l_cursor} Add new key {r_cursor}")
+        lines.append(make_selectable_text("Add new key", self.key_idx == len(self.api_keys)))
 
         return lines
 
@@ -237,10 +232,7 @@ class JobsServer:
         if not self.validate_oai_port():
             lines.append("   Error: Invalid port value")
         
-        l_cursor = "|>" if self.focus_idx == 1 and self.is_focused() else "  "
-        r_cursor = "<|" if self.focus_idx == 1 and self.is_focused() else "  "
-
-        lines.append(f"{l_cursor} {len(self.api_keys)} api key(s) {r_cursor}")
+        lines.append(make_selectable_text(f"{len(self.api_keys)} api key(s)", self.focus_idx == 1))
         if len(self.api_keys) == 0:
             lines.extend(["   INFO: No API keys set, authentication not required", ""])
 
@@ -251,12 +243,12 @@ class JobsServer:
             lines.extend(["   INFO: Stop server to edit port and API Keys", ""])
         
         if self.can_start_server():
-            l_cursor = "|>" if self.focus_idx == 2 and self.is_focused() else "  "
-            r_cursor = "<|" if self.focus_idx == 2 and self.is_focused() else "  "
-            btn_label = "Stop Server" if self.server_running else "Start Server"
-            lines.append(f"{l_cursor} {btn_label} {r_cursor}")
-        elif not ContentProvider.is_port_available(self.oai_port):
+            lines.append(make_selectable_text("Start Server", self.focus_idx == 2))
+        elif not self.server_running and not ContentProvider.is_port_available(self.oai_port):
             lines.append(f"   Warning: Can't start server, port {self.oai_port} is not available")
+
+        if self.server_running:
+            lines.append(make_selectable_text("Stop Server", True))
 
         logs: List[Tuple[float, str]] = self.provider.job_provider.get_oai_logs()
         lines.extend(["", "Logs:"])
@@ -285,4 +277,28 @@ class JobsServer:
             return False
 
     def get_footer(self) -> str:
+        if self.state == JobsServerState.Top and self.focus_idx == 0 and not self.server_running:
+            return make_footer_text(["Arrows U/D: Move", "[0-9]: Type Port", "Backspace: Remove character", "Esc: Menu"])
+        
+        if self.state == JobsServerState.Top and self.focus_idx == 1 and not self.server_running:
+            return make_footer_text(["Arrows U/D: Move", "Enter: Change API keys", "Esc: Menu"])
+        
+        if self.state == JobsServerState.Top and self.focus_idx == 2 and not self.server_running:
+            return make_footer_text(["Arrows U/D: Move", "Enter: Start Server", "Esc: Menu"])
+        
+        if self.state == JobsServerState.Top and self.server_running:
+            return make_footer_text(["Enter: Stop Server", "Esc: Menu"])
+
+        if self.state == JobsServerState.Keys and self.key_idx == len(self.api_keys):
+            return make_footer_text(["Arrows U/D: Move", "Enter: Add new key", "Esc: Back"])
+        
+        if self.state == JobsServerState.Keys and self.key_idx < len(self.api_keys):
+            return make_footer_text(["Arrows U/D: Move", "Delete: Remove API key", "Esc: Back"])
+
+        if self.state == JobsServerState.AddKeyType:
+            return make_footer_text(["Arrows U/D: Move", "Enter: Select option", "Esc: Back"])
+
+        if self.state == JobsServerState.KeyGen:
+            return make_footer_text(["Enter: Accept key", "Escape: Discard key"])
+
         return ""

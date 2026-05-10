@@ -43,4 +43,4 @@ class PipesComplete:
         return lines
 
     def get_footer(self) -> str:
-        return "Esc: Back"
+        return "Esc: Menu"

@@ -227,7 +227,11 @@ class Dashboard:
         if self.router_status is not None and self.router_status.state == "running":
             if self.job_serv_running or self.job_port_available():
                 job_str = f"running on port {self.oai_port}" if self.job_serv_running else "stopped"
-                right_panel.extend([f"Job Server: {job_str}", ""])
+                right_panel.append(f"Job Server: {job_str}")
+                api_keys = self.provider.job_provider.get_api_keys()
+                if len(api_keys) > 0:
+                    right_panel.append(f"{len(api_keys)} API Key(s)")
+                right_panel.append("")
             else:
                 right_panel.extend([f"Warning:\nJob port {self.oai_port} is not available", ""])
 
