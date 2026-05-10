@@ -282,7 +282,7 @@ class ModelProvider:
     def validate_device_name(device: str) -> bool:
         try:
             import torch
-            torch.device(device)
+            torch.device(device) # type: ignore
             return True
         except RuntimeError:
             return False

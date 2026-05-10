@@ -13,3 +13,8 @@ def make_footer_text(items: List[str]) -> str:
         if i < len(items) - 1:
             footer += (" " * spacing)
     return footer
+
+def make_selectable_text(text: str, text_idx: int, selected_idx: int) -> str:
+    l_cursor = "|>" if text_idx == selected_idx else "  "
+    r_cursor = "<|" if text_idx == selected_idx else "  "
+    return f"{l_cursor} {text} {r_cursor}"

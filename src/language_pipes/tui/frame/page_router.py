@@ -3,6 +3,7 @@ from typing import Callable
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.components.home_activity import HomeActivity
 from language_pipes.tui.components.jobs_active import JobsActive
+from language_pipes.tui.components.models_end import ModelsEndModels
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
@@ -54,6 +55,9 @@ class PageRouter:
         self.models_layer_models = ModelsLayerModels(
             provider, confirm, self.exit_page, self.is_focused
         )
+        self.models_end_models = ModelsEndModels(
+            provider, confirm, self.exit_page, self.is_focused
+        )
         self.pipes_connected = PipesConnected(provider, self.exit_page, self.is_focused)
         self.pipes_complete = PipesComplete(provider, self.exit_page, self.is_focused)
         self.pipes_incomplete = PipesIncomplete(provider, self.exit_page, self.is_focused)
@@ -88,7 +92,8 @@ class PageRouter:
             return self.models_installed
         if tab == "Models" and section == "Layer Models":
             return self.models_layer_models
-        
+        if tab == "Models" and section == "End Models":
+            return self.models_end_models
         
         if tab == "Pipes" and section == "Connected":
             return self.pipes_connected
