@@ -26,7 +26,7 @@ class Dashboard:
             elif self.job_port_available():
                 run_opts.append("Start Job Server")
             config_opts.append("Configure Job Server")
-            if len(self.models_to_load) > 0:
+            if len(self.layer_models) > 0:
                 if self._has_active_model():
                     run_opts.append("Unload Models")
                 elif not self._models_are_starting():
@@ -63,7 +63,7 @@ class Dashboard:
     selected_idx: int
     oai_port: int
     job_serv_running: bool
-    models_to_load: List[ModelToLoad]
+    layer_models: List[ModelToLoad]
     models_status: Dict[str, List[ModelStatusInfo]]
 
     def __init__(
@@ -82,7 +82,7 @@ class Dashboard:
         self.selected_idx = 0
         self.oai_port = self.provider.job_provider.get_oai_port()
         self.job_serv_running = False
-        self.models_to_load = []
+        self.layer_models = []
         self.models_status = { }
 
     def network_port_available(self) -> bool:
@@ -125,11 +125,15 @@ class Dashboard:
         elif selected_option == "Configure Network Server":
             self.change_nav("Network", "Configure")
         elif selected_option == "Load Models":
-            for model in self.models_to_load:
+            for model in self.layer_models:
                 self.provider.model_provider.load_layer_model(model)
+            for model in self.end_models:
+                self.provider.model_provider.load_end_model(model)
         elif selected_option == "Unload Models":
-            for model in self.models_to_load:
+            for model in self.layer_models:
                 self.provider.model_provider.unload_layer_models(model.model_id, model.device)
+            for model in self.end_models:
+                self.provider.model_provider.unload_end_model(model)
         elif selected_option == "Configure Layer Models":
             self.change_nav("Models", "Layer Models")
         elif selected_option == "Configure End Models":
@@ -201,7 +205,8 @@ class Dashboard:
         return False
 
     def get_view(self) -> Tuple[List[str], List[str]]:
-        self.models_to_load = self.provider.model_provider.get_layer_models()
+        self.layer_models = self.provider.model_provider.get_layer_models()
+        self.end_models = self.provider.model_provider.get_end_models()
         self.network_config = self.provider.network_provider.get_network_config()
         self.router_status = self.provider.network_provider.get_network_status()
         self.job_serv_running = self.provider.job_provider.oai_server_running()
@@ -233,13 +238,13 @@ class Dashboard:
             lines.extend([f"{l_cursor} {label} {r_cursor}", ""])
         lines.extend(["", ""])
 
-        if len(self.models_to_load) > 0:
+        if len(self.layer_models) > 0:
             right_panel.append("Layer Models:")
 
         self.models_status = self.provider.model_provider.get_models_status()
         jobs = self.provider.job_provider.get_active_jobs()
         models_loaded = 0
-        for model in self.models_to_load:
+        for model in self.layer_models:
             model_statuses = self.models_status.get(model.model_id, [])
             if len(model_statuses) == 0:
                 continue
