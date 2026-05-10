@@ -188,6 +188,8 @@ class Dashboard:
                 f"Job {j.job_id[:4]} from {j.origin_node_id}, Token: {j.current_token}"
             ])
 
+        lines.append("")
+
         return lines
 
     def _models_are_starting(self) -> bool:
@@ -232,15 +234,22 @@ class Dashboard:
         lines.extend(["", ""])
 
         if len(self.models_to_load) > 0:
-            right_panel.append("Models:")
+            right_panel.append("Layer Models:")
 
         self.models_status = self.provider.model_provider.get_models_status()
         jobs = self.provider.job_provider.get_active_jobs()
+        models_loaded = 0
         for model in self.models_to_load:
             model_statuses = self.models_status.get(model.model_id, [])
+            if len(model_statuses) == 0:
+                continue
             pipe_ids = [p.pipe_id for p in model_statuses]
             model_jobs = [j for j in jobs if j.pipe_id in pipe_ids]
             right_panel.extend(self._format_model_line(model, model_statuses, model_jobs))
+            models_loaded += 1
+
+        if models_loaded == 0:
+            right_panel.append("None Loaded")
         
         return lines, right_panel
 
