@@ -29,10 +29,6 @@ def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
     for key in pipe_strings.keys():
         lines.append(f"Pipe {key[:4]} >{pipe_strings[key]}<")
 
-    end_models = [m for m in running if m.end_model]
-    if len(end_models) > 0:
-        lines.append("End Model Loaded")
-
     return lines
 
 def format_model_line(

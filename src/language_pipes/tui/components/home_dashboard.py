@@ -7,6 +7,7 @@ from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.content_provider.network_provider import RouterStatus
 from language_pipes.tui.components.hosted_models_view import format_pipe_strings
 from language_pipes.content_provider.model_provider import ModelStatus, ModelToLoad, ModelStatusInfo
+from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 
 class Dashboard:
     def _get_options(self) -> List[str]:
@@ -232,10 +233,7 @@ class Dashboard:
 
         selected_option = self._get_selected_option()
         for label in self._get_options():
-            selected = self.is_focused() and label == selected_option
-            l_cursor = "|>" if selected else "  "
-            r_cursor = "<|" if selected else "  "
-            lines.extend([f"{l_cursor} {label} {r_cursor}", ""])
+            lines.extend([make_selectable_text(label, label == selected_option), ""])
         lines.extend(["", ""])
 
         if len(self.layer_models) > 0:
@@ -243,7 +241,7 @@ class Dashboard:
 
         self.models_status = self.provider.model_provider.get_models_status()
         jobs = self.provider.job_provider.get_active_jobs()
-        models_loaded = 0
+        l_models_loaded = 0
         for model in self.layer_models:
             model_statuses = self.models_status.get(model.model_id, [])
             if len(model_statuses) == 0:
@@ -251,13 +249,27 @@ class Dashboard:
             pipe_ids = [p.pipe_id for p in model_statuses]
             model_jobs = [j for j in jobs if j.pipe_id in pipe_ids]
             right_panel.extend(self._format_model_line(model, model_statuses, model_jobs))
-            models_loaded += 1
+            l_models_loaded += 1
 
-        if models_loaded == 0:
-            right_panel.append("None Loaded")
+        if l_models_loaded == 0:
+            right_panel.extend(["None Loaded", ""])
+
+        if len(self.end_models):
+            right_panel.append("End Models:")
+        
+        e_models_loaded = 0
+        for model in self.end_models:
+            model_statuses = self.models_status.get(model, [])
+            end_model_statuses = [s for s in model_statuses if s.end_model]
+            if len(end_model_statuses) == 0:
+                continue
+            right_panel.extend([model, ""])
+            e_models_loaded += 1
+
+        if e_models_loaded == 0:
+            right_panel.extend(["None Loaded", ""])
         
         return lines, right_panel
 
     def get_footer(self) -> str:
-        return " Arrows U/D: Move              Enter: Select                      Esc: Menu "
-                                                                               
+        return make_footer_text(["Arrows U/D: Move", "Enter: Select Option", "Esc: Menu"])

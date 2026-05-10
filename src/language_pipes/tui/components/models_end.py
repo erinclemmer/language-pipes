@@ -115,10 +115,10 @@ class ModelsEndModels:
 
         self.end_models = self.provider.model_provider.get_end_models()
         for i, m in enumerate(self.end_models):
-            line = make_selectable_text(m, i, self.list_idx)
+            line = make_selectable_text(m, i == self.list_idx)
             lines.extend([line, ""])
 
-        line = make_selectable_text("Add End Model", len(self.end_models), self.list_idx)
+        line = make_selectable_text("Add End Model", len(self.end_models) == self.list_idx)
         lines.append(line)
         
         return lines
@@ -128,7 +128,7 @@ class ModelsEndModels:
 
         self.installed_models = self.provider.model_provider.get_installed_models()
         for i, model in enumerate(self.available_models()):
-            lines.extend([make_selectable_text(model, i, self.choose_idx), ""])
+            lines.extend([make_selectable_text(model, i == self.choose_idx), ""])
 
         if len(self.installed_models) == 0:
             lines.append("No models installed, please install from the models/installed page")
