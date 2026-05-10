@@ -90,7 +90,6 @@ class TestProcessLayersState(unittest.TestCase):
         job = make_job()
         job.origin_node_id = "node-1"
         job.prompt_tokens = 24
-        job.prefill_chunk_size = 6
         job.init_chunking()
         job.compute_step = ComputeStep.LAYER
         job.current_layer = 0
@@ -112,7 +111,6 @@ class TestProcessLayersState(unittest.TestCase):
         job = make_job()
         job.origin_node_id = "node-1"
         job.prompt_tokens = 24
-        job.prefill_chunk_size = 6
         job.init_chunking()
         job.chunking.current_chunk = 5
         job.compute_step = ComputeStep.LAYER

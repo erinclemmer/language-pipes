@@ -50,7 +50,6 @@ class JobFactory:
             pipe_id=pipe.pipe_id, 
             model_id=pipe.model_id,
             temperature=temperature, 
-            prefill_chunk_size=32,
             top_k=top_k, 
             top_p=top_p, 
             min_p=min_p, 

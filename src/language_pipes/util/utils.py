@@ -167,3 +167,5 @@ def is_port_available(port: int) -> bool:
         except OSError:
             return False
         return True
+    
+CHUNK_SIZE = 32

@@ -177,7 +177,7 @@ class JobProcessor:
         
         job.set_last_update()
         job.timing_stats.add_embed_time(self.ctx.node_id)
-        end_model.compute_embed(job, job.prefill_chunk_size)
+        end_model.compute_embed(job)
         job.timing_stats.set_send_time()
         
         return get_next_state(self.ctx)

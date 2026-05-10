@@ -17,6 +17,7 @@ from language_pipes.jobs.job_data import computationStateToJobData
 
 from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.modeling.compute import compute_layers
+from language_pipes.util.utils import CHUNK_SIZE
 
 class EndModel:
     model_id: str
@@ -72,7 +73,7 @@ class EndModel:
         job.prompt_tokens = len(input_tokens)
         job.next_step()
 
-    def compute_embed(self, job: Job, prefill_chunk_size: int):
+    def compute_embed(self, job: Job):
         if job.compute_step != ComputeStep.EMBED and job.compute_step != ComputeStep.TOKENIZE:
             raise ValueError('Invalid step for embedding')
         if self.input_embedding is None:
@@ -80,7 +81,7 @@ class EndModel:
         
         comp_state = StaticAutoModel.compute_embedding(
             prompt_tokens=job.prompt_tokens,
-            chunk_size=prefill_chunk_size,
+            chunk_size=CHUNK_SIZE,
             input_embedder=self.input_embedding,
             input_ids=torch.tensor([job.input_ids]),
             config=self.collector.config,

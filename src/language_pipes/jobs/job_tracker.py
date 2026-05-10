@@ -92,7 +92,6 @@ class JobTracker:
             origin_node_id=network_job.origin_node_id,
             messages=[],
             model_id="",
-            prefill_chunk_size=network_job.prefill_chunk_size,
             pipe_id=network_job.pipe_id,
             data=network_job.data
         )

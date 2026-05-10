@@ -62,7 +62,6 @@ class Job:
             messages: List[ChatMessage],
             pipe_id: str,
             model_id: str,
-            prefill_chunk_size: int,
             data: Optional[JobData] = None,
             temperature: float = 1.0,
             top_k: int = 0,
@@ -86,12 +85,11 @@ class Job:
         self.data = data
         self.result = None
         self.input_ids = []
-        self.timing_stats = TimingStats(self.job_id, prefill_chunk_size)
+        self.timing_stats = TimingStats(self.job_id)
         self.prompt_tokens = 0
         self.current_token = 0
         self.stale = False
         self.messages = messages
-        self.prefill_chunk_size = prefill_chunk_size
 
         self.temperature = temperature
         self.top_k = top_k
@@ -118,7 +116,7 @@ class Job:
         pass
 
     def init_chunking(self):
-        self.chunking.init(self.prompt_tokens, self.prefill_chunk_size)
+        self.chunking.init(self.prompt_tokens)
 
     def set_layer(self, state: torch.Tensor, layer: int, num_hidden_layers: int):
         if self.compute_step != ComputeStep.LAYER:
@@ -209,7 +207,6 @@ class Job:
             pipe_id=self.pipe_id, 
             origin_node_id=self.origin_node_id, 
             current_layer=self.current_layer, 
-            chunk_size=self.prefill_chunk_size,
             data=self.data, 
             data_hash=data_hash, 
             compute_step=self.compute_step, 

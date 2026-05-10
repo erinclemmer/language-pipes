@@ -53,7 +53,6 @@ class TestValidatingState(unittest.TestCase):
         job.compute_step = ComputeStep.HEAD
         job.current_token = 0
         job.prompt_tokens = 4
-        job.prefill_chunk_size = 2
         job.init_chunking()
         job.data = make_job_data()
         model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
