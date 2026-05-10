@@ -20,7 +20,7 @@ def initialize_tui(config_file: Optional[str], auto_start: bool):
 
         from language_pipes.tui.main_menu import main_menu
 
-        main_menu((term_size.columns, term_size.lines), config_file, auto_start)
+        main_menu((term_size.columns, min(term_size.lines, 25)), config_file, auto_start)
     finally:
         if entered_alt_screen:
             exit_vt_mode()

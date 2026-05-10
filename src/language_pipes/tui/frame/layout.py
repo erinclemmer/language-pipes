@@ -16,6 +16,7 @@ from language_pipes.tui.util.text import make_footer_text
 
 class FrameLayout:
     footer_id: int
+    footer_bar_id: int
     status_id: int
     content_id: int
     content_bg_id: int
@@ -62,7 +63,12 @@ class FrameLayout:
         if size[0] == self.last_term_size[0] and size[1] == self.last_term_size[1]:
             return
         self.last_term_size = size
+        size = (size[0], min(size[1], 25))
         self.window.update_position((int(size[0] / 2.0) - 40, 0))
+        self.window.update_text(self.footer_id, None, (2, size[1] - 2))
+        self.window.update_text(self.footer_bar_id, None, (1, size[1] - 3))
+        self.window.update_text(self.seperator_column_id, TermText("|\n" * (size[1] - 3)), (38, 0))
+        self.window.update_text(self.about_id, None, (size[0] - 23, size[1] - 4))
 
     def _init_layout(self, size: Tuple[int, int], pos: Tuple[int, int]):
         self.content_area_size = (max(1, size[0]), max(1, size[1]))
@@ -70,7 +76,7 @@ class FrameLayout:
             TermText(self._content_blank_block()),
             (17, 4),
         )
-        self.window.add_text(TermText("_" * (size[0] - 2)), (1, size[1] - 3))
+        self.footer_bar_id = self.window.add_text(TermText("_" * (size[0] - 2)), (1, size[1] - 3))
         self.content_id = self.window.add_text(TermText(""), (0, 0))
         self.right_panel_id = self.window.add_text(TermText(""), (40, 0))
         self.footer_id = self.window.add_text(TermText(""), (2, size[1] - 2))
