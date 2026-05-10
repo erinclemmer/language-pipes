@@ -9,7 +9,7 @@ from language_pipes.tui.util.kb_utils import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.components.hosted_models_view import format_model_line
 from language_pipes.content_provider.model_provider import ModelProvider, ModelToLoad
-from language_pipes.tui.util.text import make_footer_text
+from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 
 class LayerModelsState(Enum):
     List = 'list'
@@ -249,35 +249,21 @@ class ModelsLayerModels:
     
     def on_next(self):
         if self.state == LayerModelsState.Edit:
-            self.edit_idx += 1
-            if self.edit_idx > self.max_edit_idx():
-                self.edit_idx = 0
+            self.edit_idx = (self.edit_idx + 1) % (self.max_edit_idx() + 1)
         elif self.state == LayerModelsState.List:
-            self.model_idx += 1
-            # +1 for the "Host New Model" button
-            if self.model_idx > len(self.models_to_load):
-                self.model_idx = 0
+            self.model_idx = (self.model_idx + 1) % (len(self.models_to_load) + 1)
         elif self.state == LayerModelsState.Options:
-            self.option_idx += 1
-            if self.option_idx > 2:
-                self.option_idx = 0
+            self.option_idx = (self.option_idx + 1) % 3
         elif self.state == LayerModelsState.ChooseModel:
             self.choose_model_idx = (self.choose_model_idx + 1) % len(self.installed_models)
 
     def on_prev(self):
         if self.state == LayerModelsState.Edit:
-            self.edit_idx -= 1
-            if self.edit_idx < 0:
-                self.edit_idx = self.max_edit_idx()
+            self.edit_idx = (self.edit_idx - 1) % (self.max_edit_idx() + 1)
         elif self.state == LayerModelsState.List:
-            self.model_idx -= 1
-            if self.model_idx < 0:
-                # +1 for the "Host New Model" button
-                self.model_idx = len(self.models_to_load)
+            self.model_idx = (self.model_idx - 1) % (len(self.models_to_load) + 1)
         elif self.state == LayerModelsState.Options:
-            self.option_idx -= 1
-            if self.option_idx < 0:
-                self.option_idx = 2
+            self.option_idx = (self.option_idx - 1) % 3
         elif self.state == LayerModelsState.ChooseModel:
             self.choose_model_idx = (self.choose_model_idx - 1) % len(self.installed_models)
 
@@ -345,9 +331,7 @@ class ModelsLayerModels:
 
         self.installed_models = self.provider.model_provider.get_installed_models()
         for i, model in enumerate(self.installed_models):
-            l_cursor = "|>" if self.choose_model_idx == i else "  "
-            r_cursor = "<|" if self.choose_model_idx == i else "  "
-            lines.append(f"{l_cursor} {model} {r_cursor}")
+            lines.extend([make_selectable_text(model, self.choose_model_idx == i), ""])
 
         return lines
 
@@ -379,9 +363,7 @@ class ModelsLayerModels:
             self.edit_model_id if self.valid_model_id() else "Choose model..."
         )
 
-        l_cursor = "|>" if self.edit_idx == 0 else "  "
-        r_cursor = "<|" if self.edit_idx == 0 else "  "    
-        lines.append(f"{l_cursor} Model ID: {model_id_label} {r_cursor}")
+        lines.append(make_selectable_text(f"Model ID: {model_id_label}", self.edit_idx == 0))    
         if not self.valid_model_id():
             lines.extend(["   ! Warning: Must choose model to load", ""])
 
@@ -401,10 +383,8 @@ class ModelsLayerModels:
             lines.append("   !Warning: Model ID / Device Combination already in configuration")
 
         if self.can_save():
-            l_cursor = "|>" if self.edit_idx == 3 else "  "
-            r_cursor = "<|" if self.edit_idx == 3 else "  "
             lines.append("")
-            lines.append(f"{l_cursor} Save Model {r_cursor}")
+            lines.append(make_selectable_text("Save Model", self.edit_idx == 3))
 
         tip_key = None
         if self.edit_idx == 0:
@@ -429,29 +409,13 @@ class ModelsLayerModels:
         models_status = self.provider.model_provider.get_models_status()
 
         for i, model in enumerate(self.models_to_load):
-            lines.append(format_model_line(
+            lines.extend([format_model_line(
                 model=model,
                 selected=self.model_idx == i and self.is_focused(),
                 running=models_status.get(model.model_id, [])
-            ))
-            
-        # Clamp model_idx to valid range (+1 for "Host New Model" button)
-        max_idx = len(self.models_to_load)
-        if self.model_idx > max_idx:
-            self.model_idx = max_idx
+            ), ""])
 
-        l_cursor = (
-            "|>"
-            if self.model_idx == len(self.models_to_load) and self.is_focused()
-            else "  "
-        )
-        r_cursor = (
-            "<|"
-            if self.model_idx == len(self.models_to_load) and self.is_focused()
-            else "  "
-        )
-        lines.append("")
-        lines.append(f" {l_cursor} Add Layer Model {r_cursor}")
+        lines.append(make_selectable_text("Add Layer Model", self.model_idx == len(self.models_to_load)))
 
         lines.extend(["", "Tip: Layer models are segments of a model's transformer layers loaded\ninto memory on a device. Multiple nodes can each host different layer\nranges to distribute inference across machines."])
 
