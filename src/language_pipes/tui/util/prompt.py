@@ -2,6 +2,7 @@ from typing import Tuple, Optional, List
 from language_pipes.tui.tui import TuiWindow, TermText
 from language_pipes.tui.util.kb_utils import read_key, PressedKey
 from language_pipes.tui.util.screen_utils import move_cursor, change_cursor, CursorTypes
+from language_pipes.tui.util.text import make_footer_text
 
 def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int], initial: str = "") -> Optional[str]:
     change_cursor(CursorTypes.Blinking_Bar)
@@ -59,16 +60,19 @@ def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int], initial: str 
 
 def select_option( 
         pos: Tuple[int, int],
+        height: int,
         options: List[str],
         msg: Optional[TermText] = None,
         allow_delete: bool = False
     ) -> Optional[Tuple[str, int]]:
     max_len = max([len(o) for o in options])
-    help_text = "[Arrows]: Navigate, [Enter]: Accept, [Esc]: Back"
+    help_text =  ""
     if allow_delete:
-        help_text += ", [Delete] Delete"
+        help_text = make_footer_text(["Arrows U/D: Move", "Enter: Select", "Delete: Delete", "Esc: Back"])
+    else:
+        help_text = make_footer_text(["Arrows U/D: Move", "Enter: Select", "Esc: Back"])
     width = max(max_len + 6, len(help_text), len(msg.value) if msg is not None else 0)
-    window = TuiWindow((width, len(options) * 2 + 5), pos)
+    window = TuiWindow((width, 25), pos)
 
     mid_point = width / 2
     option_ids = []
@@ -82,10 +86,7 @@ def select_option(
         l_bound = mid_point - (len(opt) / 2)
         option_ids.append(window.add_text(TermText(opt), (int(l_bound), top_bound + (i * 2))))
 
-    window.add_text(TermText(help_text), (
-        0, 
-        top_bound + (len(options) * 2) + 2
-    ))
+    window.add_text(TermText(help_text), (0, height))
 
     first_opt = window.get_text(option_ids[0])
     l_cursor_id = window.add_text(TermText("|>"), (first_opt.position[0] - 3, top_bound))
@@ -136,9 +137,9 @@ def select_option(
             ))
             window.paint()
 
-def prompt_bool(msg: TermText, pos: Tuple[int, int]) -> Optional[bool]:
+def prompt_bool(msg: TermText, pos: Tuple[int, int], height: int) -> Optional[bool]:
     res = select_option(
-        pos, ["Yes", "No"], msg
+        pos, height, ["Yes", "No"], msg
     )
     if res is None:
         return None

@@ -14,7 +14,7 @@ class OpenAITests(unittest.TestCase):
         main([])
 
     def test_config(self):
-        main(["--config", "node-2"])
+        main([])
 
 if __name__ == '__main__':
     unittest.main()

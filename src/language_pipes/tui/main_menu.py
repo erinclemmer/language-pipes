@@ -151,7 +151,9 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
 
     main_menu_options.append("Exit")
 
-    res = select_option((left_bound, 10), main_menu_options)
+    help_height = min(termsize[1] - 2, 23) - 10
+
+    res = select_option((left_bound, 10), help_height, main_menu_options)
     if res is None or res == "Exit":
         exit()
 
@@ -172,11 +174,9 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
             return restart()
 
     if cmd == "Load Configuration":
-        window.remove_all()
-        window.paint()
         configs = get_config_files(config_dir)
         res = select_option(
-            (left_bound + 2, 0), configs, TermText("Select Configuration"), True
+            (left_bound, 10), help_height, configs, TermText("Select Configuration"), True
         )
         if res is None:
             return restart()
@@ -189,7 +189,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
             if res is None:
                 return restart()
         if cmd == 1:
-            res = prompt_bool(TermText(f"Delete {config_file}?"), (left_bound + 2, 0))
+            res = prompt_bool(TermText(f"Delete {config_file}?"), (left_bound, 10), help_height)
             if res:
                 os.remove(str(config_path))
             return restart()
