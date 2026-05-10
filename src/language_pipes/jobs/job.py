@@ -5,6 +5,7 @@ from typing import Iterable, List, Optional
 import torch
 from promise import Promise
 from typing import Callable
+from transformers import PretrainedConfig
 from transformers.cache_utils import DynamicCache
 
 from language_pipes.jobs.job_data import JobData
@@ -62,6 +63,7 @@ class Job:
             messages: List[ChatMessage],
             pipe_id: str,
             model_id: str,
+            config: PretrainedConfig,
             data: Optional[JobData] = None,
             temperature: float = 1.0,
             top_k: int = 0,
@@ -100,7 +102,7 @@ class Job:
         
         self.current_layer = 0
 
-        self.cache = DynamicCache()
+        self.cache = DynamicCache(config=config)
         self.chunking = ChunkState(self.job_id)
         self.resolve = resolve
         self.update = update

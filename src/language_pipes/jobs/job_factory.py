@@ -49,6 +49,7 @@ class JobFactory:
             messages=messages, 
             pipe_id=pipe.pipe_id, 
             model_id=pipe.model_id,
+            config=end_model.collector.config,
             temperature=temperature, 
             top_k=top_k, 
             top_p=top_p, 
