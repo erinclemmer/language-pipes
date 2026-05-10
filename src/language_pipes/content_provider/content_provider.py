@@ -76,6 +76,12 @@ class ContentProvider:
 
         self.state.visible_sub_menu["Models"] = model_paths
 
+        if "Pipes" in self.state.visible_headers:
+            self.state.visible_sub_menu["Pipes"] = ["Connected", "Complete", "Incomplete"]
+
+        if "Jobs" in self.state.visible_headers:
+            self.state.visible_sub_menu["Jobs"] = ["Server", "Active"]
+
     def set_router(self, router: Optional[DSNodeServer]):
         self.router = router
         if router is not None:
