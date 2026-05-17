@@ -43,7 +43,7 @@ class LlmLayerCollector:
         input_embedding_layer_name: str = "model.embed_tokens.weight",
         norm_layer_name: str = "model.norm.weight",
         lm_head_name: str = "lm_head.weight",
-        dtype: torch.dtype = torch.float16,
+        dtype: torch.dtype = torch.bfloat16,
         device: torch.device = torch.device("cpu"),
     ):
         config_file_path = os.path.join(model_dir, "config.json")

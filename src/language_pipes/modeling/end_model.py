@@ -39,7 +39,7 @@ class EndModel:
             model_dir=model_path / "data",
             cache_file=os.path.join(model_path, 'cache.json'),
             device=torch.device(device),
-            dtype=torch.float16
+            dtype=torch.bfloat16
         )
         self.layers = []
         if num_local_layers > 0:

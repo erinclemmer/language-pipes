@@ -19,7 +19,7 @@ def get_avg_layer_size(model_path: Path) -> Tuple[int, str]:
         model_dir=model_path,
         cache_file=os.path.join(model_path, "..", "cache.json"),
         device=torch.device("cpu"),
-        dtype=torch.float16,
+        dtype=torch.bfloat16,
     )
 
     lyrs = collector.load_layer_set(0, 0)
@@ -42,18 +42,18 @@ def data_of_type(typ: ModelPartType, model_path: Path) -> Tuple[float, str]:
     hash = ""
     if typ == ModelPartType.EMBED:
         e = torch.nn.Embedding(config.vocab_size, config.hidden_size).to(
-            dtype=torch.float16
+            dtype=torch.bfloat16
         )
         size = size_of_tensor(e.weight)
         hash = tensor_hash(e.weight)
 
     if typ == ModelPartType.NORM:
-        n = AutoRMSNorm(config).to(dtype=torch.float16)
+        n = AutoRMSNorm(config).to(dtype=torch.bfloat16)
         size = size_of_tensor(n.cls.weight) # pyright: ignore[reportArgumentType]
         hash = tensor_hash(n.cls.weight) # pyright: ignore[reportArgumentType]
     if typ == ModelPartType.HEAD:
         h = torch.nn.Linear(config.hidden_size, config.vocab_size).to(
-            dtype=torch.float16
+            dtype=torch.bfloat16
         )
         size = size_of_tensor(h.weight)
         hash = tensor_hash(h.weight)

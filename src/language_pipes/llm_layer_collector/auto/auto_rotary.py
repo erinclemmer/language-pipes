@@ -27,7 +27,7 @@ class AutoRotaryEmbedding:
     def __init__(self, config: PretrainedConfig):
         self.config = config
         self.cls = getClass(config)(config)
-        self.cls.inv_freq = self.cls.inv_freq.to(torch.float16)
+        self.cls.inv_freq = self.cls.inv_freq.to(torch.bfloat16)
 
     def __call__(self, x: torch.Tensor, position_ids: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.cls(x, position_ids)

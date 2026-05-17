@@ -32,7 +32,7 @@ def bytes_to_int(b: bytes) -> int:
 
 # Fast tensor serialization: dtype code (1 byte) + ndim (1 byte) + shape (4 bytes each) + raw data
 _DTYPE_TO_CODE = {
-    torch.float32: 0, torch.float64: 1, torch.float16: 2,
+    torch.float32: 0, torch.float64: 1, torch.bfloat16: 2,
     torch.int32: 3, torch.int64: 4, torch.int16: 5, torch.int8: 6,
     torch.uint8: 7, torch.bool: 8, torch.bfloat16: 9,
 }

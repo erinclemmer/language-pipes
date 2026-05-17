@@ -70,7 +70,7 @@ class LlmModel:
                     model_dir=model_path / "data",
                     cache_file=os.path.join(model_path, 'cache.json'),
                     device=device,
-                    dtype=torch.float16 
+                    dtype=torch.bfloat16 
             )
             self.num_hidden_layers = self.collector.config.num_hidden_layers
             self.meta_data = LlmMetadata(model_path)
