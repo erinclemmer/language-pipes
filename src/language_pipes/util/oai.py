@@ -90,7 +90,7 @@ def send_initial_chunk(
         ]
     }
     data_bytes = json.dumps(msg).encode('utf-8')
-    handler.wfile.write(b'event: response.creatted\ndata: ' + data_bytes + b'\n\n')
+    handler.wfile.write(b'data: ' + data_bytes + b'\n\n')
     handler.wfile.flush()
 
 def send_update_chunk(
@@ -121,8 +121,22 @@ def send_update_chunk(
         return False # Stop job when pipe is broken
     return True
 
-def send_complete(handler: BaseHTTPRequestHandler):
+def send_complete(job: Job, created: float, handler: BaseHTTPRequestHandler):
+    final = {
+        "id": job.job_id,
+        "object": "chat.completion.chunk",
+        "created": int(created),
+        "model": job.model_id,
+        "choices": [
+            {
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop"
+            }
+        ]
+    }
     try:
+        handler.wfile.write(b'data: ' + json.dumps(final).encode('utf-8') + b'\n\n')
         handler.wfile.write(b'data: [DONE]\n\n')
         handler.wfile.flush()
     except BrokenPipeError as e:
@@ -153,7 +167,7 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
             _respond_json(handler, { "error": "no model ends available" })
         else:
             if req.stream:
-                send_complete(handler)
+                send_complete(job, created_at, handler)
             else:
                 _respond_json(handler, {
                     "id": job.job_id,
