@@ -32,7 +32,7 @@ class StaticAutoModel:
         if past_seen_tokens < prompt_tokens:
             input_seq = input_seq[:, past_seen_tokens:past_seen_tokens + chunk_size]
         else:
-            input_seq = input_seq[:, past_seen_tokens - 1:past_seen_tokens]
+            input_seq = input_seq[:, past_seen_tokens:past_seen_tokens + 1]
         
         hidden_state = input_embedder(input_seq.to(device))
 
