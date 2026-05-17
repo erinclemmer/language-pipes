@@ -77,14 +77,14 @@ def send_initial_chunk(
     handler: BaseHTTPRequestHandler
 ):
     msg = {
-        "id": job.job_id,
+        "id": f"chatcmpl-{job.job_id}",
         "object": "chat.completion.chunk",
         "created": int(created),
         "model": job.model_id,
         "choices": [
             {
                 "index": 0,
-                "delta": { },
+                "delta": {"role": "assistant", "content": ""},
                 "finish_reason": None
             }
         ]
@@ -101,7 +101,7 @@ def send_update_chunk(
     handler: BaseHTTPRequestHandler
 ):
     msg = {
-        "id": job.job_id,
+        "id": f"chatcmpl-{job.job_id}",
         "object": "chat.completion.chunk",
         "created": int(created),
         "model": job.model_id,
@@ -123,7 +123,7 @@ def send_update_chunk(
 
 def send_complete(job: Job, created: float, handler: BaseHTTPRequestHandler):
     final = {
-        "id": job.job_id,
+        "id": f"chatcmpl-{job.job_id}",
         "object": "chat.completion.chunk",
         "created": int(created),
         "model": job.model_id,
@@ -156,7 +156,6 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
         if not req.stream:
             return True
         return send_update_chunk(job, {
-            "role": "assistant",
             "content": job.delta
         }, created_at, None, handler)
         
@@ -170,7 +169,7 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
                 send_complete(job, created_at, handler)
             else:
                 _respond_json(handler, {
-                    "id": job.job_id,
+                    "id": f"chatcmpl-{job.job_id}",
                     "object": "chat.completion",
                     "created": int(created_at),
                     "model": job.model_id,
