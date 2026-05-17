@@ -93,7 +93,8 @@ class JobTracker:
             messages=[],
             model_id="",
             pipe_id=network_job.pipe_id,
-            data=network_job.data
+            data=network_job.data,
+            config=None
         )
         job.job_id = network_job.job_id
         

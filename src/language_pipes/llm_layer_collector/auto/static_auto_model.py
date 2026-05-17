@@ -29,8 +29,10 @@ class StaticAutoModel:
         
         past_seen_tokens = cache.get_seq_length()
 
-        if past_seen_tokens < prompt_tokens:
-            input_seq = input_seq[:, past_seen_tokens:past_seen_tokens + chunk_size]
+        remaining = prompt_tokens - past_seen_tokens
+        if remaining > 0:
+            take = min(chunk_size, remaining)
+            input_seq = input_seq[:, past_seen_tokens:past_seen_tokens + take]
         else:
             input_seq = input_seq[:, past_seen_tokens:past_seen_tokens + 1]
         

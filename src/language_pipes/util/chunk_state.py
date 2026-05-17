@@ -29,7 +29,7 @@ class ChunkState:
         return self.total_chunks > 1
 
     def has_more(self) -> bool:
-        return self.is_active() and self.current_chunk < self.total_chunks
+        return self.is_active() and self.current_chunk < self.total_chunks - 1
 
     def is_final(self) -> bool:
         return not self.is_active() or self.current_chunk == self.total_chunks - 1
