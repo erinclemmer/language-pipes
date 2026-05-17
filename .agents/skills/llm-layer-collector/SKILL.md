@@ -325,13 +325,50 @@ print('missing_keys=', len(res.missing_keys), 'unexpected_keys=', len(res.unexpe
 PY
 ```
 
-### 4) Gemma3-specific gotchas (learned)
+### 4) NaNs appearing partway through the layer stack (dtype instability)
+
+If `compute_layers` runs cleanly through the first several layers and then produces `NaN`/`Inf` partway through the stack, the most likely cause is **running the model in `float16`** rather than `bfloat16` or `float32`.
+
+Symptoms:
+
+- Forward pass starts fine, hidden-state magnitudes grow each layer, then one layer overflows and downstream layers produce all-NaN tensors.
+- Output is garbage tokens or `argmax` of NaN logits.
+- The failing layer index is roughly consistent across runs but shifts with prompt length / batch.
+
+Why this happens: newer architectures (notably **Gemma 3**, but also some Qwen/Phi variants) have activation magnitudes that exceed `float16`'s ~65k range. Residual additions accumulate across layers, eventually overflowing. `bfloat16` has the same 8-bit exponent as `float32`, so it tolerates the same dynamic range — no overflow.
+
+Fix: load layers in `torch.bfloat16` (or `torch.float32` if hardware lacks fast bf16). Check every `to(dtype=...)` and `get_shard_data(..., dtype=...)` call in the load path. A single sub-module left in fp16 (e.g. RMSNorm weights) is enough to reintroduce the overflow.
+
+Quick localizer to drop into `compute.py` during debugging:
+
+```python
+for i, lyr in enumerate(layers[start_layer:]):
+    comp_state.state = StaticAutoModel.compute_layer(lyr, comp_state, cache).detach()
+    if not torch.isfinite(comp_state.state).all():
+        attn_type = getattr(lyr.cls, "attention_type", "n/a")
+        max_abs = comp_state.state.abs().max().item()
+        raise RuntimeError(
+            f"NaN/Inf at layer {start_layer + i} "
+            f"(attn_type={attn_type}, dtype={comp_state.state.dtype}, max_abs={max_abs})"
+        )
+```
+
+If the failing layer is always a `sliding_attention` layer and dtype is already bf16/fp32, suspect the sliding-window mask (e.g. `state.causal_mask["sliding_attention"]` is `None` when it shouldn't be) before suspecting overflow.
+
+Hardware notes for `bfloat16`:
+
+- NVIDIA **Ampere (RTX 30xx, A100) and newer** — native tensor-core bf16, fast.
+- NVIDIA **Turing (RTX 20xx, T4) and older** — no native bf16 path; PyTorch emulates and it may be slower than fp16. Correctness is still fine. If too slow, fall back to `float32`.
+- Apple Silicon (MPS), AVX-512-BF16 CPUs (Sapphire Rapids, Zen 4+), and AMD MI200+ all support bf16 natively.
+- Check at runtime with `torch.cuda.is_bf16_supported()`.
+
+### 5) Gemma3-specific gotchas (learned)
 
 - **Input embedding must be scaled** using `Gemma3TextScaledWordEmbedding` (`embed_scale=sqrt(hidden_size)`), not plain `torch.nn.Embedding`.
 - **LM head should be bias-free** (`bias=False`) for this decoder-only setup.
 - Matching mask APIs alone is not enough if embedding behavior differs from HF architecture.
 
-### 5) GLM-4.1V-specific gotchas (learned)
+### 6) GLM-4.1V-specific gotchas (learned)
 
 - Some GLM-4.1V checkpoints (e.g. `zai-org/GLM-4.1V-9B-Thinking`) may ship `config.json` with `"rope_scaling": null`.
 - In current `transformers`, `Glm4vTextAttention.forward()` unconditionally accesses:
