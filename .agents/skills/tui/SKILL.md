@@ -1,3 +1,8 @@
+---
+name: tui
+description: Guide to the custom terminal UI primitives, rendering lifecycle, input handling, layout, and testing patterns in Language Pipes.
+---
+
 # Skill: custom_tui — Language Pipes terminal UI library
 
 ## Overview

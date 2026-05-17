@@ -1,3 +1,8 @@
+---
+name: distributed-state-network
+description: Reference for the Distributed State Network peer-to-peer HTTP protocol, packet formats, encryption, signatures, and implementation layout.
+---
+
 # Skill: distributed_state_network — Network Protocol
 
 ## Overview

@@ -1,3 +1,8 @@
+---
+name: main-frame
+description: Reference for MainFrame TUI architecture, key handling, form editing, NodeIdEditor flows, and related tests.
+---
+
 ## Skill: MainFrame TUI
 
 ### Architecture overview

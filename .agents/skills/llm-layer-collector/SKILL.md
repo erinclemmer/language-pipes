@@ -1,3 +1,8 @@
+---
+name: llm-layer-collector
+description: Guide for adding HuggingFace transformer model architecture support to the llm_layer_collector layer-loading and compute dispatch system.
+---
+
 # Skill: llm_layer_collector — Adding New Model Support
 
 ## Overview
