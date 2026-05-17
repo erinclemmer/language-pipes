@@ -48,7 +48,9 @@ def get_config(model_dir: Path) -> PretrainedConfig:
             }
 
     if config.model_type == "gemma3":
+        eos_token_ids = config.eos_token_id
         config = config.text_config
+        config.eos_token_id = eos_token_ids
 
     with torch.device('meta'):
         meta_model = AutoModelForCausalLM.from_config(config)
