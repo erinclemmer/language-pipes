@@ -153,6 +153,9 @@ class JobProcessor:
         # More tokens to generate - update and continue
         if not job.send_update():
             job.stale = True
+            job.status = JobStatus.COMPLETED
+            end_model.set_result(job)
+            job.complete()
             return JobState.DONE
 
         return JobState.EMBED
@@ -173,6 +176,10 @@ class JobProcessor:
             job.timing_stats.finalize_prefill_chunk()
             job.delta = ""
             if not job.send_update():
+                job.stale = True
+                job.status = JobStatus.COMPLETED
+                end_model.set_result(job)
+                job.complete()
                 return JobState.DONE
         
         job.set_last_update()

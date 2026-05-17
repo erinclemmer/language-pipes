@@ -117,7 +117,7 @@ def send_update_chunk(
     try:
         handler.wfile.write(b'data: ' + data_bytes + b'\n\n')
         handler.wfile.flush()
-    except BrokenPipeError:
+    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
         return False # Stop job when pipe is broken
     return True
 
@@ -139,7 +139,7 @@ def send_complete(job: Job, created: float, handler: BaseHTTPRequestHandler):
         handler.wfile.write(b'data: ' + json.dumps(final).encode('utf-8') + b'\n\n')
         handler.wfile.write(b'data: [DONE]\n\n')
         handler.wfile.flush()
-    except BrokenPipeError as e:
+    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError) as e:
         print(e)
 
 def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict):
