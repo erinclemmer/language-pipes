@@ -67,8 +67,25 @@ class ModelsEndModels:
             self.choose_idx = 0
 
     def on_enter(self):
-        if self.state == EndModelsState.LIST and self.list_idx == len(self.end_models):
-            self.state = EndModelsState.CHOOSE
+        if self.state == EndModelsState.LIST:
+            if self.list_idx == len(self.end_models):
+                self.state = EndModelsState.CHOOSE
+            elif self._is_loaded(self.end_models[self.list_idx]):
+                def on_apply():
+                    self.provider.model_provider.unload_end_model(self.end_models[self.list_idx])
+                self.confirm.open(
+                    f"Unload {self.end_models[self.list_idx]}",
+                    on_apply=on_apply,
+                    on_discard=lambda: None
+                )
+            else:
+                def on_apply():
+                    self.provider.model_provider.load_end_model(self.end_models[self.list_idx])
+                self.confirm.open(
+                    f"Load {self.end_models[self.list_idx]}",
+                    on_apply=on_apply,
+                    on_discard=lambda: None
+                )
         elif self.state == EndModelsState.CHOOSE and len(self.available_models()) > 0:
             self.state = EndModelsState.LIST
             selected_model = self.available_models()[self.choose_idx]
@@ -110,12 +127,23 @@ class ModelsEndModels:
         if self.state == EndModelsState.CHOOSE:
             return self.get_choose_view()
     
+    def _is_loaded(self, model_id: str):
+        model_statuses = self.provider.model_provider.get_models_status()
+        loaded_model = []
+        if model_id in model_statuses:
+            loaded_model = [s for s in model_statuses[model_id] if s.end_model]
+        
+        return len(loaded_model) > 0
+
     def get_list_view(self):
         lines = [self._get_ram_usage(), "", "End Models:", ""]
 
         self.end_models = self.provider.model_provider.get_end_models()
         for i, m in enumerate(self.end_models):
-            line = make_selectable_text(m, i == self.list_idx)
+            loaded_text = ""
+            if self._is_loaded(m):
+                loaded_text = " (Loaded)"
+            line = make_selectable_text(f"{m}{loaded_text}", i == self.list_idx)
             lines.extend([line, ""])
 
         line = make_selectable_text("Add End Model", len(self.end_models) == self.list_idx)
