@@ -189,8 +189,10 @@ class Dashboard:
         
         lines.extend(format_pipe_strings(running))
         for j in jobs:
+            token_text = f"Token: {j.current_token}" if j.current_token > 0 else ""
+            prompt_text = f"Prompt: {j.prompt_processed * 100.0:.0f}%" if j.current_token == 0 else ""
             lines.extend([
-                f"Job {j.job_id[:4]} from {j.origin_node_id}, Token: {j.current_token}"
+                f"Job {j.job_id[:4]} from {j.origin_node_id}, {token_text}{prompt_text}"
             ])
 
         lines.append("")
