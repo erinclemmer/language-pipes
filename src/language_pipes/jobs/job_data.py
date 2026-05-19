@@ -6,27 +6,33 @@ from typing import Dict, Optional, Tuple
 from language_pipes.util.byte_helper import ByteHelper
 from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 
-from language_pipes.util.utils import tensor_to_bytes, bytes_to_tensor, maybeTo
+from language_pipes.util.utils import tensor_to_bytes, bytes_to_tensor
 
-def write_tensor_dict(d: Dict[str, torch.Tensor]) -> bytes:
+def write_tensor_dict(d: Dict[str, Optional[torch.Tensor]]) -> bytes:
     bts = ByteHelper()
     bts.write_int(len(list(d.keys())))
     for key in d.keys():
         bts.write_string(key)
-        bts.write_bytes(tensor_to_bytes(d[key]))
+        if d[key] is None:
+            bts.write_int(0)
+        else:
+            bts.write_int(1)
+            bts.write_bytes(tensor_to_bytes(d[key]))
 
     return bts.get_bytes()
 
 
-def read_tensor_dict(bts: ByteHelper) -> Dict[str, torch.Tensor]:
+def read_tensor_dict(bts: ByteHelper) -> Dict[str, Optional[torch.Tensor]]:
     data = { }
     num_keys = bts.read_int()
     current_key = 0
     while current_key < num_keys:
         current_key += 1
         key = bts.read_string()
-        t = bytes_to_tensor(bts.read_bytes())
-        data[key] = t
+        if bts.read_int() == 1:
+            data[key] = bytes_to_tensor(bts.read_bytes())
+        else:
+            data[key] = None 
 
     return data
 
@@ -34,7 +40,7 @@ def read_tensor_dict(bts: ByteHelper) -> Dict[str, torch.Tensor]:
 class JobData:
     cache_position: torch.Tensor
     position_ids: torch.Tensor
-    causal_mask: Dict[str, torch.Tensor]
+    causal_mask: Dict[str, Optional[torch.Tensor]]
     position_embeddings: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
     state: torch.Tensor
 
@@ -97,9 +103,10 @@ def move_position_embeddings(t: Dict[str, Tuple[torch.Tensor, torch.Tensor]], de
     
     return t
 
-def move_causal_mask(t: Dict[str, torch.Tensor], device: torch.device) -> Dict[str, torch.Tensor]:
+def move_causal_mask(t: Dict[str, Optional[torch.Tensor]], device: torch.device) -> Dict[str, Optional[torch.Tensor]]:
     for key in t.keys():
-        t[key] = t[key].to(device)
+        if t[key] is not None:        
+            t[key] = t[key].to(device) # type: ignore
     
     return t
 
@@ -126,7 +133,8 @@ def detachCompState(state: LLmComputationState) -> LLmComputationState:
     state.position_ids = state.position_ids.detach()
     state.cache_position = state.cache_position.detach()
     for key in state.causal_mask.keys():
-        state.causal_mask[key] = state.causal_mask[key].detach()
+        if state.causal_mask[key] is not None:
+            state.causal_mask[key] = state.causal_mask[key].detach() # type: ignore
     
     for key in state.position_embeddings.keys():
         state.position_embeddings[key] = (state.position_embeddings[key][0].detach(), state.position_embeddings[key][1].detach())
