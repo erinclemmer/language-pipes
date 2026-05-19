@@ -75,7 +75,7 @@ class StaticAutoModel:
                 Qwen3Model.compute_embedding(state, config, mask_kwargs)
 
             case "llama":
-                LlamaModel.compute_embedding(state, config)
+                LlamaModel.compute_embedding(state, config, mask_kwargs)
             
             case "glm4v":
                 Glm4vModel.compute_embedding(state, config)
