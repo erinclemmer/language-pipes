@@ -106,6 +106,7 @@ class LlmModel:
                 job.current_layer,
                 job.data,
                 self.device, 
+                self.collector.config,
                 self.layers, 
                 job.cache,
             ), 

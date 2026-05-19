@@ -53,7 +53,7 @@ class EndModel:
         if job.data is None:
             raise Exception("Job did not have data")
         job.set_layer(
-            state=compute_layers(0, job.data, self.device, self.layers, job.cache),
+            state=compute_layers(0, job.data, self.device, self.collector.config, self.layers, job.cache),
             layer=len(self.layers),
             num_hidden_layers=self.collector.config.num_hidden_layers
         )

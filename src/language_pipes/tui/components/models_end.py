@@ -165,7 +165,7 @@ class ModelsEndModels:
 
     def get_footer(self) -> str:
         if self.state == EndModelsState.LIST and self.list_idx != len(self.end_models):
-            return make_footer_text(["Arrows U/D: Move", "Delete: Remove Model", "Esc: Menu"])
+            return make_footer_text(["Arrows U/D: Move", "Enter: load/unload", "Delete: Remove Model", "Esc: Menu"])
 
         if self.state == EndModelsState.LIST and self.list_idx == len(self.end_models):
             return make_footer_text(["Arrows U/D: Move", "Enter: Add End Model", "Esc: Menu"])

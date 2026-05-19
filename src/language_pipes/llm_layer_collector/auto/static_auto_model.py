@@ -66,13 +66,13 @@ class StaticAutoModel:
 
         match config.model_type: # pyright: ignore[reportMatchNotExhaustive]
             case "qwen3":
-                Qwen3Model.compute_embedding(state, config)
+                Qwen3Model.compute_embedding(state, config, mask_kwargs)
 
             case "phi3":
                 Phi3Model.compute_embedding(state, config)
                 
             case "qwen3_moe":
-                Qwen3Model.compute_embedding(state, config)
+                Qwen3Model.compute_embedding(state, config, mask_kwargs)
 
             case "llama":
                 LlamaModel.compute_embedding(state, config)
@@ -88,18 +88,19 @@ class StaticAutoModel:
     @staticmethod
     def compute_layer(
         layer: AutoDecoderLayer,
+        config: PretrainedConfig,
         state: LLmComputationState,
         cache: DynamicCache
     ) -> torch.Tensor:
         match layer.config.model_type: # pyright: ignore[reportMatchNotExhaustive]
             case "qwen3":
-                return Qwen3Model.compute_layer(layer, state, cache)
+                return Qwen3Model.compute_layer(layer, config, state, cache)
 
             case "phi3":
                 return Phi3Model.compute_layer(layer, state, cache)
             
             case "qwen3_moe":
-                return Qwen3Model.compute_layer(layer, state, cache)
+                return Qwen3Model.compute_layer(layer, config, state, cache)
             
             case "llama":
                 return LlamaModel.compute_layer(layer, state, cache)
