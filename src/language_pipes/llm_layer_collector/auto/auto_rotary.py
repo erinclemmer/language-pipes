@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 from transformers.configuration_utils import PretrainedConfig
@@ -29,5 +29,7 @@ class AutoRotaryEmbedding:
         self.cls = getClass(config)(config)
         self.cls.inv_freq = self.cls.inv_freq.to(torch.bfloat16)
 
-    def __call__(self, x: torch.Tensor, position_ids: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __call__(self, x: torch.Tensor, position_ids: torch.Tensor, layer_type: Optional[str] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+        if layer_type is not None:
+            return self.cls(x, position_ids, layer_type)
         return self.cls(x, position_ids)

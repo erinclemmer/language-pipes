@@ -55,20 +55,13 @@ class StaticAutoModel:
             "past_key_values": cache,
             "position_ids": position_ids
         }
-        
-        causal_mask = {
-            "full_attention": create_causal_mask(**mask_kwargs),
-            "sliding_attention": None
-        }
 
         state = LLmComputationState(
             state=hidden_state,
             cache_position=cache_position,
             position_ids=position_ids,
-            causal_mask=causal_mask,
-            position_embeddings=None,
-            position_embeddings_local=None,
-            position_embeddings_global=None
+            causal_mask={ },
+            position_embeddings={ }
         )
 
         match config.model_type: # pyright: ignore[reportMatchNotExhaustive]

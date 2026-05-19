@@ -20,7 +20,7 @@ class Gemma3Model:
         c: PretrainedConfig = copy.deepcopy(config)
         c.rope_theta = config.rope_local_base_freq
         c.rope_scaling = { "rope_type": "default" }
-        state.position_embeddings_local = AutoRotaryEmbedding(c)(state.state.detach(), state.position_ids)
+        state.position_embeddings = AutoRotaryEmbedding(c)(state.state.detach(), state.position_ids, )
         state.causal_mask["sliding_attention"] = create_sliding_window_causal_mask(**mask_kwargs)
         return state
 
@@ -32,7 +32,7 @@ class Gemma3Model:
     ) -> torch.Tensor:
         kwargs = { # pyright: ignore[reportUnknownVariableType]
             "hidden_states": state.state,
-            "position_embeddings_global": state.position_embeddings_global,
+            "position_embeddings": state.position_embeddings,
             "position_embeddings_local": state.position_embeddings_local,
             "attention_mask": state.causal_mask[layer.cls.attention_type], # pyright: ignore[reportArgumentType]
             "position_ids": state.position_ids,
