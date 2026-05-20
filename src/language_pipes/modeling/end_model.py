@@ -134,13 +134,13 @@ class EndModel:
         EndModel._add_stop_tokens(stop_tokens, self.tokenizer.convert_tokens_to_ids("<|eot_id|>"))
 
         job.set_output(head, stop_tokens)
-        job.delta = self.tokenizer.decode([job.input_ids[-1]], skip_special_tokens=True)
+        job.delta = self.tokenizer.decode([job.input_ids[-1]], skip_special_tokens=True, clean_up_tokenization_spaces=False)
 
     def set_result(self, job: Job):
         res_tokens = job.input_id_tensor()
         if res_tokens is None:
             raise Exception("Cannot decode result tensor: no input ids")
-        job.result = self.tokenizer.decode(res_tokens[job.prompt_tokens:], skip_special_tokens=True)
+        job.result = self.tokenizer.decode(res_tokens[job.prompt_tokens:], skip_special_tokens=True, clean_up_tokenization_spaces=False)
 
     def clean_up(self):
         del self.input_embedding

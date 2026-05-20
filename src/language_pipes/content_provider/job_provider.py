@@ -151,7 +151,7 @@ class JobProvider:
                 model_id=job.model_id,
                 current_token=job.current_token,
                 origin_node_id=job.origin_node_id,
-                prompt_processed=(job.chunking.current_chunk / job.chunking.total_chunks) if job.chunking.total_chunks > 0 else 0,
+                prompt_processed=(job.chunking.current_chunk / job.chunking.total_chunks) if job.chunking.total_chunks > 0 else 1,
                 last_update=time() - job.last_update
             ))
         

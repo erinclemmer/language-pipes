@@ -7,6 +7,7 @@ from typing import List, Tuple, Optional
 from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from language_pipes.llm_layer_collector import LlmLayerCollector
 
+from language_pipes.llm_layer_collector.load_layer import get_shard_data
 from language_pipes.util.utils import size_of_tensor, tensor_hash
 from language_pipes.util.enums import ModelPartType
 from language_pipes.llm_layer_collector.helpers import get_config
@@ -22,9 +23,13 @@ def get_avg_layer_size(model_path: Path) -> Tuple[int, str]:
         dtype=torch.bfloat16,
     )
 
-    lyrs = collector.load_layer_set(0, 0)
+    shard_data = get_shard_data(0, 0, torch.device('cpu'), collector.model_dir, collector.layer_prefix, collector.layer_files, torch.bfloat16)
+    total_size = 0
+    for key in collector.layer_files:
+        if (collector.layer_prefix + "0.") in key:
+            total_size += size_of_tensor(shard_data[key])
 
-    total_size = sum(size_of_tensor(p) for p in lyrs[0].cls.parameters())
+    lyrs = collector.load_layer_set(0, 0)
 
     hsh = ""
     if collector.config.model_type == "phi3":
