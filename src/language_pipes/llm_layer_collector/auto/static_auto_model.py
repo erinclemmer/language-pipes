@@ -78,7 +78,7 @@ class StaticAutoModel:
                 LlamaModel.compute_embedding(state, config, mask_kwargs)
             
             case "glm4v":
-                Glm4vModel.compute_embedding(state, config)
+                Glm4vModel.compute_embedding(state, config, mask_kwargs)
 
             case "gemma3_text":
                 Gemma3Model.compute_embedding(state, config, mask_kwargs)

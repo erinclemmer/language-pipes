@@ -54,4 +54,5 @@ def get_config(model_dir: Path) -> PretrainedConfig:
 
     with torch.device('meta'):
         meta_model = AutoModelForCausalLM.from_config(config)
+
     return meta_model.config
