@@ -79,9 +79,9 @@ def select_option(
     top_bound = 0
     if msg is not None:
         window.add_text(msg, (int(mid_point - len(msg.value) / 2), 0))
-        top_bound += 2
+        top_bound = 3
 
-    max_visible = max(1, (height - top_bound) // 2)
+    max_visible = max(1, (height - top_bound - 1) // 2)
     visible_count = min(max_visible, len(options))
 
     option_slots = []
@@ -90,7 +90,8 @@ def select_option(
 
     window.add_text(TermText(help_text), (0, height))
 
-    up_indicator_id = window.add_text(TermText(""), (int(mid_point), top_bound - 1 if top_bound > 0 else 0))
+    up_indicator_y = top_bound - 1 if top_bound > 0 else 0
+    up_indicator_id = window.add_text(TermText(""), (int(mid_point), up_indicator_y))
     down_indicator_id = window.add_text(TermText(""), (int(mid_point), top_bound + visible_count * 2 - 1))
 
     l_cursor_id = window.add_text(TermText("|>"), (0, top_bound))
