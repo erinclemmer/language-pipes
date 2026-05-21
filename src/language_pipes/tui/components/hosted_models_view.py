@@ -59,7 +59,7 @@ def format_model_line(
     model: ModelToLoad,
     selected: bool = False,
     running: List[ModelStatusInfo] = []
-) -> str:
+) -> List[str]:
     l_cursor = "|>" if selected else "  "
     r_cursor = "<|" if selected else "  "
     lines = [
@@ -79,4 +79,4 @@ def format_model_line(
     if has_ends:
         lines.append("       Ends loaded")
 
-    return "\n".join(lines)
+    return lines

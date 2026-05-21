@@ -409,11 +409,12 @@ class ModelsLayerModels:
         models_status = self.provider.model_provider.get_models_status()
 
         for i, model in enumerate(self.models_to_load):
-            lines.extend([format_model_line(
+            lines.extend(format_model_line(
                 model=model,
                 selected=self.model_idx == i and self.is_focused(),
                 running=models_status.get(model.model_id, [])
-            ), ""])
+            ))
+            lines.append("")
 
         lines.append(make_selectable_text("Add Layer Model", self.model_idx == len(self.models_to_load)))
 

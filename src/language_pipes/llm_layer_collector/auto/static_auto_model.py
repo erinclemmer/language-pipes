@@ -1,13 +1,11 @@
 import torch
 
 from transformers.cache_utils import DynamicCache
-from transformers.masking_utils import create_causal_mask # type: ignore
 from transformers.configuration_utils import PretrainedConfig
 
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 from language_pipes.llm_layer_collector.modeling.Qwen3Model import Qwen3Model
 from language_pipes.llm_layer_collector.modeling.LlamaModel import LlamaModel
-from language_pipes.llm_layer_collector.modeling.Glm4vModel import Glm4vModel
 from language_pipes.llm_layer_collector.modeling.Gemma3Model import Gemma3Model
 from language_pipes.llm_layer_collector.modeling.Phi3Model import Phi3Model
 from language_pipes.llm_layer_collector.state_obj import LLmComputationState

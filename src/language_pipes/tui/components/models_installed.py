@@ -168,9 +168,26 @@ class ModelsInstalled:
         if self.focus_idx < 0 or self.focus_idx >= len(self.installed_models):
             return
         model_name = self.installed_models[self.focus_idx]
+        def on_apply():
+            model_statuses = self.provider.model_provider.get_models_status()
+            if model_name in model_statuses:
+                models = model_statuses[model_name]
+                for m in models:
+                    if m.end_model:
+                        self.provider.model_provider.unload_end_model(model_name)
+                    else:
+                        self.provider.model_provider.unload_layer_models(model_name, m.device)
+            
+            layer_models = [m for m in self.provider.model_provider.get_layer_models() if m.model_id != model_name]
+            self.provider.model_provider.save_layer_models(layer_models)
+
+            end_models = [m for m in self.provider.model_provider.get_end_models() if m != model_name]
+            self.provider.model_provider.save_end_models(end_models)
+            
+            self.provider.model_provider.delete_installed_model(model_name)
         self.confirm.open(
             f"Delete {model_name}?",
-            on_apply=lambda: self.provider.model_provider.delete_installed_model(model_name),
+            on_apply=on_apply,
             on_discard=lambda:None
         )
 

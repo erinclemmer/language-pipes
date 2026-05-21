@@ -68,6 +68,7 @@ class ModelStatus(Enum):
 @dataclass
 class ModelStatusInfo:
     status: ModelStatus
+    device: torch.device
     pipe_id: str
     start_layer: int
     end_layer: int
@@ -122,6 +123,7 @@ class ModelProvider:
             status_by_model[model.model_id].append(
                 ModelStatusInfo(
                     status=status, 
+                    device=model.device,
                     start_layer=model.start_layer, 
                     end_layer=model.end_layer, 
                     end_model=False,
@@ -135,7 +137,7 @@ class ModelProvider:
             is_loaded = getattr(end_model, "loaded", True)
             status = ModelStatus.Running if is_loaded else ModelStatus.Starting
             status_by_model[end_model.model_id].append(
-                ModelStatusInfo(status=status, start_layer=-1, end_layer=-1, end_model=True, num_layers=0, pipe_id='')
+                ModelStatusInfo(status=status, device=end_model.device, start_layer=-1, end_layer=-1, end_model=True, num_layers=0, pipe_id='')
             )
 
         return status_by_model
