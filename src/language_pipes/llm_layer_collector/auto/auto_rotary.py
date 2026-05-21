@@ -7,15 +7,13 @@ from transformers.models.phi3.modeling_phi3 import Phi3RotaryEmbedding
 from transformers.models.qwen3.modeling_qwen3 import Qwen3RotaryEmbedding
 from transformers.models.gemma3.modeling_gemma3 import Gemma3RotaryEmbedding
 from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeRotaryEmbedding
-from transformers.models.glm4v.modeling_glm4v import Glm4vTextRotaryEmbedding
 
 mapper = { # pyright: ignore[reportUnknownVariableType]
     "llama": LlamaRotaryEmbedding,
     "phi3": Phi3RotaryEmbedding,
     "qwen3": Qwen3RotaryEmbedding,
     "gemma3_text": Gemma3RotaryEmbedding,
-    "qwen3_moe": Qwen3MoeRotaryEmbedding,
-    "glm4v": Glm4vTextRotaryEmbedding
+    "qwen3_moe": Qwen3MoeRotaryEmbedding
 }
 
 def getClass(config: PretrainedConfig) -> torch.nn.Module:

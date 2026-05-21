@@ -77,9 +77,6 @@ class StaticAutoModel:
             case "llama":
                 LlamaModel.compute_embedding(state, config, mask_kwargs)
             
-            case "glm4v":
-                Glm4vModel.compute_embedding(state, config, mask_kwargs)
-
             case "gemma3_text":
                 Gemma3Model.compute_embedding(state, config, mask_kwargs)
 
@@ -107,9 +104,6 @@ class StaticAutoModel:
 
             case "gemma3_text":
                 return Gemma3Model.compute_layer(layer, state, cache)
-            
-            case "glm4v":
-                return Glm4vModel.compute_layer(layer, state, cache)
             
         return torch.tensor([])
 

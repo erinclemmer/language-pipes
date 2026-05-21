@@ -102,7 +102,7 @@ class Job:
         
         self.current_layer = 0
 
-        self.cache = DynamicCache(config=config if config.model_type != "glm4v" else None)
+        self.cache = DynamicCache(config=config)
         self.chunking = ChunkState(self.job_id)
         self.resolve = resolve
         self.update = update

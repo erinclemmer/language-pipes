@@ -53,11 +53,6 @@ class LlmLayerCollector:
         config = get_config(model_dir)
         self.config = config
 
-        if self.config.model_type == "glm4v":
-            input_embedding_layer_name = "model.language_model.embed_tokens.weight"
-            layer_prefix = "model.language_model.layers."
-            norm_layer_name = "model.language_model.norm.weight"
-
         if self.config.model_type == "gemma3_text":
             layer_prefix = "language_model.model.layers."
             input_embedding_layer_name = "language_model.model.embed_tokens.weight"
