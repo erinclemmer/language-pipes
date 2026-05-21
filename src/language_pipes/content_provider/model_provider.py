@@ -236,6 +236,25 @@ class ModelProvider:
 
         Thread(target=host_layer_model, args=()).start()
 
+    def restart_layer_model(self, old_model: ModelToLoad, new_model: ModelToLoad):
+        rp = self.get_router_pipes()
+        if rp is None:
+            return
+
+        def restart_model():
+            model_manager = self.get_model_manager()
+            model_manager.shutdown_layer_models(rp, old_model.model_id, old_model.device)
+            model_manager.host_model(
+                node_id=rp.router.node_id(),
+                router_pipes=rp,
+                model_id=new_model.model_id,
+                max_memory=new_model.memory,
+                device=new_model.device,
+                first_layer=0,
+            )
+
+        Thread(target=restart_model, args=()).start()
+
     def load_end_model(self, model_id: str):
         def host_end_model():
             self.get_model_manager().load_end_model(model_id, "cpu", 0)

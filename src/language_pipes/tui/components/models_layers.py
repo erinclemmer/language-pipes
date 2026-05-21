@@ -17,7 +17,6 @@ class LayerModelsState(Enum):
     Edit = 'edit'
     ChooseModel = 'choose_model'
 
-# TODO: Whenever we change a configuration and the model is running, restart the model
 class ModelsLayerModels:
     provider: ContentProvider
     confirm: Confirm
@@ -146,7 +145,7 @@ class ModelsLayerModels:
         self.edit_device_memory = str(model.memory) if model is not None else ""
         # Store config index for when we save
         if model is not None and self.model_idx < len(self.models_to_load):
-            self.editing_config_idx = 0
+            self.editing_config_idx = self.model_idx
         else:
             self.editing_config_idx = None
 
@@ -208,11 +207,18 @@ class ModelsLayerModels:
     def add_model(self):
         if not self.can_save() or self.edit_model_id is None:
             return
+
+        previous_model = self.get_editing_model()
         
         model = ModelToLoad(
             model_id=self.edit_model_id,
             device=torch.device(self.edit_device_name),
             memory=float(self.edit_device_memory),
+        )
+        should_restart = (
+            previous_model is not None
+            and self._model_running(previous_model)
+            and self._model_config_changed(previous_model, model)
         )
         if self.editing_config_idx is None:
             # Adding new model
@@ -222,6 +228,12 @@ class ModelsLayerModels:
             self.models_to_load[self.editing_config_idx] = model
 
         self.provider.model_provider.save_layer_models(self.models_to_load)
+
+        if should_restart and previous_model is not None:
+            self.provider.model_provider.restart_layer_model(previous_model, model)
+            self.state = LayerModelsState.List
+            self._reset_editor()
+            return
 
         if self._network_running():
 
@@ -281,7 +293,21 @@ class ModelsLayerModels:
         model = self.get_editing_model()
         if model is None:
             return False
-        return len(self.provider.model_provider.get_models_status().get(model.model_id, [])) > 0
+        return self._model_running(model)
+
+    def _model_running(self, model: ModelToLoad) -> bool:
+        return any(
+            str(status.device) == str(model.device)
+            for status in self.provider.model_provider.get_models_status().get(model.model_id, [])
+        )
+
+    @staticmethod
+    def _model_config_changed(old_model: ModelToLoad, new_model: ModelToLoad) -> bool:
+        return (
+            old_model.model_id != new_model.model_id
+            or str(old_model.device) != str(new_model.device)
+            or old_model.memory != new_model.memory
+        )
         
     def get_options_view(self) -> List[str]:
         model = self.get_editing_model()
