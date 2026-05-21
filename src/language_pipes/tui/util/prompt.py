@@ -58,7 +58,7 @@ def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int], initial: str 
             done()
             return None
 
-def select_option( 
+def select_option(
         pos: Tuple[int, int],
         height: int,
         options: List[str],
@@ -75,40 +75,82 @@ def select_option(
     window = TuiWindow((width, 25), pos)
 
     mid_point = width / 2
-    option_ids = []
 
     top_bound = 0
     if msg is not None:
         window.add_text(msg, (int(mid_point - len(msg.value) / 2), 0))
         top_bound += 2
 
-    for i, opt in enumerate(options):
-        l_bound = mid_point - (len(opt) / 2)
-        option_ids.append(window.add_text(TermText(opt), (int(l_bound), top_bound + (i * 2))))
+    max_visible = max(1, (height - top_bound) // 2)
+    visible_count = min(max_visible, len(options))
+
+    option_slots = []
+    for j in range(visible_count):
+        option_slots.append(window.add_text(TermText(""), (0, top_bound + j * 2)))
 
     window.add_text(TermText(help_text), (0, height))
 
-    first_opt = window.get_text(option_ids[0])
-    l_cursor_id = window.add_text(TermText("|>"), (first_opt.position[0] - 3, top_bound))
-    r_cursor_id = window.add_text(TermText("<|"), (first_opt.position[0] + len(first_opt.text.value) + 1, top_bound))
-    
-    window.paint()
+    up_indicator_id = window.add_text(TermText(""), (int(mid_point), top_bound - 1 if top_bound > 0 else 0))
+    down_indicator_id = window.add_text(TermText(""), (int(mid_point), top_bound + visible_count * 2 - 1))
+
+    l_cursor_id = window.add_text(TermText("|>"), (0, top_bound))
+    r_cursor_id = window.add_text(TermText("<|"), (0, top_bound))
+
     selection_idx = 0
+    scroll_offset = 0
+
+    def render():
+        nonlocal scroll_offset
+        if selection_idx < scroll_offset:
+            scroll_offset = selection_idx
+        elif selection_idx >= scroll_offset + visible_count:
+            scroll_offset = selection_idx - visible_count + 1
+
+        for j, slot_id in enumerate(option_slots):
+            option_i = scroll_offset + j
+            if option_i < len(options):
+                opt = options[option_i]
+                l_bound = int(mid_point - (len(opt) / 2))
+                window.update_text(slot_id, TermText(opt), (l_bound, top_bound + j * 2))
+            else:
+                window.update_text(slot_id, TermText(""), (0, top_bound + j * 2))
+
+        window.update_text(up_indicator_id, TermText("^" if scroll_offset > 0 else ""))
+        window.update_text(
+            down_indicator_id,
+            TermText("v" if scroll_offset + visible_count < len(options) else "")
+        )
+
+        visible_idx = selection_idx - scroll_offset
+        opt_slot = window.get_text(option_slots[visible_idx])
+        window.update_text(l_cursor_id, None, (
+            opt_slot.position[0] - 3,
+            top_bound + visible_idx * 2
+        ))
+        window.update_text(r_cursor_id, None, (
+            opt_slot.position[0] + len(opt_slot.text.value) + 1,
+            top_bound + visible_idx * 2
+        ))
+        window.paint()
+
+    render()
     while True:
         key, _ = read_key()
         update = False
-    
+
         if key == PressedKey.ArrowUp:
             update = True
             selection_idx = selection_idx - 1
             if selection_idx == -1:
                 selection_idx = len(options) - 1
+                scroll_offset = max(0, len(options) - visible_count)
         if key == PressedKey.ArrowDown:
             update = True
             selection_idx = selection_idx + 1
             if selection_idx == len(options):
                 selection_idx = 0
-        
+                scroll_offset = 0
+
         if key == PressedKey.Escape:
             window.remove_all()
             window.paint()
@@ -125,17 +167,7 @@ def select_option(
             return options[selection_idx], 1
 
         if update:
-            opt = window.get_text(option_ids[selection_idx])
-            level = selection_idx * 2
-            window.update_text(l_cursor_id, None, (
-                opt.position[0] - 3,
-                top_bound + level
-            ))
-            window.update_text(r_cursor_id, None, (
-                opt.position[0] + len(opt.text.value) + 1,
-                top_bound + level
-            ))
-            window.paint()
+            render()
 
 def prompt_bool(msg: TermText, pos: Tuple[int, int], height: int) -> Optional[bool]:
     res = select_option(
