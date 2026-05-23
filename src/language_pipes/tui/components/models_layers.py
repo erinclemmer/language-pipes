@@ -361,7 +361,7 @@ class ModelsLayerModels:
         for i, model in enumerate(self.installed_models):
             entries.append([make_selectable_text(model, self.choose_model_idx == i), ""])
 
-        lines.extend(make_window_text(entries, self.choose_model_idx, 17))
+        lines.extend(make_window_text(entries, self.choose_model_idx, 14))
 
         return lines
 

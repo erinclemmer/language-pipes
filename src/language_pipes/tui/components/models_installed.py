@@ -280,7 +280,7 @@ class ModelsInstalled:
         
         entries.append([make_selectable_text("Install New Model", self.focus_idx == len(self.installed_models))])
 
-        lines.extend(make_window_text(entries, self.focus_idx, 17))
+        lines.extend(make_window_text(entries, self.focus_idx, 14))
 
         return lines
     

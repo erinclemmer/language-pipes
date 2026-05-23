@@ -70,4 +70,8 @@ def make_window_text(entries: List[List[str]], selected_idx: int, max_height: in
         out.extend(entries[i])
     if end < len(entries) - 1:
         out.append("           V")
+
+    if len(out) < max_height:
+        out.append("")
+
     return out

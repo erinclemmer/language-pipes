@@ -150,10 +150,13 @@ class ModelsEndModels:
         line = make_selectable_text("Add End Model", len(self.end_models) == self.list_idx)
         entries.append([line, ""])
         
-        lines.extend(make_window_text(entries, self.list_idx, 14))
+        lines.extend(make_window_text(entries, self.list_idx, 10))
 
         lines.extend([
-            "Tip: "
+            "",
+            "Tip: End models hold the embedding and output head of a model and",
+            "keep text data on this trusted node. Load one to serve a model's",
+            "text-handling side while layer models run on peers across the network."
         ])
 
         return lines
