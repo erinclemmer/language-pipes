@@ -64,6 +64,7 @@ class ModelManager:
         if num_layers_to_load > -1 and end_layer != -1 and start_layer != -1:
             new_model.start_layer = start_layer
             new_model.end_layer = end_layer
+            new_model.ram_used = new_model.meta_data.avg_layer_size * (new_model.end_layer - new_model.start_layer)
         else:
             new_model = None
         return available_memory, new_model

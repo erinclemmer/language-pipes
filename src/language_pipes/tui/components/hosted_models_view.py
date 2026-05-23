@@ -1,5 +1,6 @@
 from typing import List, Dict
 from language_pipes.content_provider.model_provider import ModelStatusInfo, ModelToLoad, ModelStatus
+from language_pipes.tui.util.text import make_selectable_text
 
 def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
     pipes: Dict[str, List[ModelStatusInfo]] = { }
@@ -51,7 +52,9 @@ def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
     
     lines = []
     for key in pipe_strings.keys():
-        lines.append(f"Pipe {key[:4]} >{norm_pipe_strings[key]}<")
+        pipe = pipes[key]
+        ram_used = sum([m.ram_used for m in pipe]) / 10**9
+        lines.append(f"Pipe {key[:4]} >{norm_pipe_strings[key]}< ({ram_used:.2f}GB)")
 
     return lines
 
@@ -60,14 +63,11 @@ def format_model_line(
     selected: bool = False,
     running: List[ModelStatusInfo] = []
 ) -> List[str]:
-    l_cursor = "|>" if selected else "  "
-    r_cursor = "<|" if selected else "  "
+    line = make_selectable_text(f"{model.model_id} on {model.device}", selected)
     lines = [
-        f"{l_cursor} {model.model_id} on {model.device} {r_cursor} ",
+        line,
         f"       Max Memory: {model.memory}GB"
     ]
-    has_ends = len([m for m in running if m.end_model]) > 0
-    
     if len(running) == 0:
         lines.append("       Not Running")
     
@@ -75,8 +75,5 @@ def format_model_line(
 
     for pipe in pipe_strings:
         lines.append(f"       {pipe}")
-
-    if has_ends:
-        lines.append("       Ends loaded")
 
     return lines

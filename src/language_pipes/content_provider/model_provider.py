@@ -75,6 +75,7 @@ class ModelStatusInfo:
     end_layer: int
     num_layers: int
     end_model: bool
+    ram_used: float
 
 class ModelProvider:
     download_model_thread: Optional[Thread]
@@ -129,7 +130,8 @@ class ModelProvider:
                     end_layer=model.end_layer, 
                     end_model=False,
                     num_layers=model.num_hidden_layers,
-                    pipe_id=model.pipe_id
+                    pipe_id=model.pipe_id,
+                    ram_used=model.ram_used
                 )
             )
 
@@ -138,7 +140,7 @@ class ModelProvider:
             is_loaded = end_model.loaded
             status = ModelStatus.Running if is_loaded else ModelStatus.Starting
             status_by_model[end_model.model_id].append(
-                ModelStatusInfo(status=status, device=end_model.device, start_layer=-1, end_layer=-1, end_model=True, num_layers=0, pipe_id='')
+                ModelStatusInfo(status=status, device=end_model.device, start_layer=-1, end_layer=-1, end_model=True, num_layers=0, pipe_id='', ram_used=0)
             )
 
         return status_by_model

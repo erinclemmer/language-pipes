@@ -36,6 +36,7 @@ class LlmModel:
     end_layer: int
     loaded: bool
     num_hidden_layers: int
+    ram_used: int
 
     def __init__(
             self,
@@ -50,6 +51,7 @@ class LlmModel:
             num_hidden_layers: Optional[int] = None
     ):
         self.node_id = node_id
+        self.ram_used = 0
         self.model_id = model_id
         self.pipe_id = pipe_id
         self.loaded = False
