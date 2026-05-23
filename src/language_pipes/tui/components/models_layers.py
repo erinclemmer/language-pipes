@@ -298,7 +298,7 @@ class ModelsLayerModels:
 
     def _model_running(self, model: ModelToLoad) -> bool:
         return any(
-            str(status.device) == str(model.device)
+            not status.end_model and str(status.device) == str(model.device)
             for status in self.provider.model_provider.get_models_status().get(model.model_id, [])
         )
 
@@ -425,7 +425,7 @@ class ModelsLayerModels:
             max_memory_line += f"   Max Memory: {self.edit_device_memory}{memory_cursor} GB "
             if not self.validate_memory():
                 max_memory_line += "(Warning: Invalid memory amount)"
-            elif self.edit_model_id is not None:
+            elif len(self.edit_device_memory) > 0 and self.edit_model_id is not None:
                 max_memory_line += self.get_num_layers()
 
         if len(max_memory_line) > 0:

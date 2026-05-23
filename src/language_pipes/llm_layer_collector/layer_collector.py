@@ -77,15 +77,33 @@ class LlmLayerCollector:
         if not os.path.exists(self.cache_file):
             return self._build_cache()
         with open(self.cache_file, "r", encoding="utf-8") as f:
-            self.layer_files = json.load(f)
+            data = json.load(f)
+            self.layer_files = data["layer_files"]
+            self.layer_prefix = data["layer_prefix"]
+            self.input_embedding_layer_name = data["input_embed_name"]
+            self.norm_layer_name = data["norm_name"]
 
     # Use model.safetensors.index.json by default if it exists
     def _build_cache(self):
         self.layer_files = build_cache_data(
             self.model_dir, self.shard_pattern, self.device
         )
+
+        for key in self.layer_files.keys():
+            if "layers.0" in key and "vision_tower" not in key:
+                self.layer_prefix = key.split("layers.0")[0] + "layers."
+            if "embed_tokens." in key:
+                self.input_embedding_layer_name = key
+            if "norm." in key:
+                self.norm_layer_name = key
+
         with open(self.cache_file, "w", encoding="utf-8") as f:
-            json.dump(self.layer_files, f, indent=4)
+            json.dump({
+                "layer_files": self.layer_files,
+                "layer_prefix": self.layer_prefix,
+                "input_embed_name": self.input_embedding_layer_name,
+                "norm_name": self.norm_layer_name
+            }, f, indent=4)
 
     def _load_shard_tensor(self, layer_name: str, device: torch.device) -> torch.Tensor:
         return load_shard_tensor(
