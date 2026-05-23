@@ -9,7 +9,7 @@ from ansinout import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.components.hosted_models_view import format_model_line
 from language_pipes.content_provider.model_provider import ModelProvider, ModelToLoad
-from language_pipes.tui.util.text import make_footer_text, make_selectable_text
+from language_pipes.tui.util.text import make_footer_text, make_selectable_text, make_window_text
 
 class LayerModelsState(Enum):
     List = 'list'
@@ -434,15 +434,20 @@ class ModelsLayerModels:
         self.models_to_load = self.provider.model_provider.get_layer_models()
         models_status = self.provider.model_provider.get_models_status()
 
+        entries: List[List[str]] = []
         for i, model in enumerate(self.models_to_load):
-            lines.extend(format_model_line(
+            entry = list(format_model_line(
                 model=model,
                 selected=self.model_idx == i and self.is_focused(),
                 running=models_status.get(model.model_id, [])
             ))
-            lines.append("")
+            entry.append("")
+            entries.append(entry)
+        entries.append([make_selectable_text(
+            "Add Layer Model", self.model_idx == len(self.models_to_load)
+        )])
 
-        lines.append(make_selectable_text("Add Layer Model", self.model_idx == len(self.models_to_load)))
+        lines.extend(make_window_text(entries, self.model_idx, 10))
 
         lines.extend([
             "", 
