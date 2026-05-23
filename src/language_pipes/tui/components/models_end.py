@@ -4,7 +4,7 @@ from typing import Callable
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.components.confirm import Confirm
 from ansinout import PressedKey
-from language_pipes.tui.util.text import make_footer_text, make_selectable_text
+from language_pipes.tui.util.text import make_footer_text, make_selectable_text, make_window_text
 
 
 class EndModelsState(Enum):
@@ -139,24 +139,38 @@ class ModelsEndModels:
         lines = [self._get_ram_usage(), "", "End Models:", ""]
 
         self.end_models = self.provider.model_provider.get_end_models()
+        entries = []
         for i, m in enumerate(self.end_models):
             loaded_text = ""
             if self._is_loaded(m):
                 loaded_text = " (Loaded)"
             line = make_selectable_text(f"{m}{loaded_text}", i == self.list_idx)
-            lines.extend([line, ""])
+            entries.append([line, ""])
 
         line = make_selectable_text("Add End Model", len(self.end_models) == self.list_idx)
-        lines.append(line)
+        entries.append([line, ""])
         
+        lines.extend(make_window_text(entries, self.list_idx, 14))
+
+        lines.extend([
+            "Tip: "
+        ])
+
         return lines
 
     def get_choose_view(self):
         lines = ["Choose an installed model:", ""]
 
         self.installed_models = self.provider.model_provider.get_installed_models()
-        for i, model in enumerate(self.available_models()):
-            lines.extend([make_selectable_text(model, i == self.choose_idx), ""])
+        entries = []
+        available_models = self.available_models()
+        for i, model in enumerate(available_models):
+            entries.append([make_selectable_text(model, i == self.choose_idx), ""])
+
+        if len(available_models) == 0:
+            lines.append("No models available")
+
+        make_window_text(entries, self.choose_idx, 17)
 
         if len(self.installed_models) == 0:
             lines.append("No models installed, please install from the models/installed page")
@@ -170,10 +184,10 @@ class ModelsEndModels:
         if self.state == EndModelsState.LIST and self.list_idx == len(self.end_models):
             return make_footer_text(["Arrows U/D: Move", "Enter: Add End Model", "Esc: Menu"])
         
-        if self.state == EndModelsState.CHOOSE and len(self.installed_models) == 0:
+        if self.state == EndModelsState.CHOOSE and len(self.available_models()) == 0:
             return make_footer_text(["Arrows U/D: Move", "Esc: Back"])
 
-        if self.state == EndModelsState.CHOOSE and len(self.installed_models) > 0:
+        if self.state == EndModelsState.CHOOSE and len(self.available_models()) > 0:
             return make_footer_text(["Arrows U/D: Move", "Enter: Choose Model", "Esc: Back"])
 
         return ""

@@ -5,6 +5,7 @@ from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.content_provider.model_provider import ModelProvider
 from ansinout import PressedKey
 from language_pipes.tui.components.confirm import Confirm
+from language_pipes.tui.util.text import make_selectable_text, make_window_text
 
 class ModelsInstalledState(Enum):
     LIST = "LIST"
@@ -273,15 +274,13 @@ class ModelsInstalled:
         self.installed_models = self.provider.model_provider.get_installed_models()
         
         lines = ["Installed Models:", ""]
+        entries = []
         for i, model in enumerate(self.installed_models):
-            l_cursor = " |>" if i == self.focus_idx and self.is_focused() else "   "
-            r_cursor = "<|" if i == self.focus_idx and self.is_focused() else "  "
-            lines.append(f"{l_cursor} {model} {r_cursor}")
+            entries.append([make_selectable_text(model, self.focus_idx == i), ""])
         
-        lines.append("")
-        l_cursor = " |>" if self.focus_idx == len(self.installed_models) and self.is_focused() else "   "
-        r_cursor = "<|" if self.focus_idx == len(self.installed_models) and self.is_focused() else "  "
-        lines.append(f"{l_cursor} Install New Model {r_cursor}")
+        entries.append([make_selectable_text("Install New Model", self.focus_idx == len(self.installed_models))])
+
+        lines.extend(make_window_text(entries, self.focus_idx, 17))
 
         return lines
     

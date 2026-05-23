@@ -355,9 +355,13 @@ class ModelsLayerModels:
         if network_status is None or not network_status.running:
             lines.extend(self._network_not_started_warning())
 
+
+        entries = []
         self.installed_models = self.provider.model_provider.get_installed_models()
         for i, model in enumerate(self.installed_models):
-            lines.extend([make_selectable_text(model, self.choose_model_idx == i), ""])
+            entries.append([make_selectable_text(model, self.choose_model_idx == i), ""])
+
+        lines.extend(make_window_text(entries, self.choose_model_idx, 17))
 
         return lines
 
