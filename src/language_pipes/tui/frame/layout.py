@@ -135,6 +135,9 @@ class FrameLayout:
                     content_parts.extend(lft)
                     right_panel_parts.extend(rt)
 
+        if len(content_parts) > 21:
+            content_parts = content_parts[:21]
+
         self.window.update_text(self.content_id, TermText("\n".join(content_parts)))
         self.window.update_text(self.right_panel_id, TermText("\n".join(right_panel_parts)))
         

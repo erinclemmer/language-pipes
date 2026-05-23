@@ -444,7 +444,12 @@ class ModelsLayerModels:
 
         lines.append(make_selectable_text("Add Layer Model", self.model_idx == len(self.models_to_load)))
 
-        lines.extend(["", "Tip: Layer models are segments of a model's transformer layers loaded\ninto memory on a device. Multiple nodes can each host different layer\nranges to distribute inference across machines."])
+        lines.extend([
+            "", 
+            "Tip: Layer models are segments of a model's transformer layers loaded",
+            "into memory on a device. Multiple nodes can each host different layer",
+            "ranges to distribute inference across machines."
+        ])
 
         return lines
 
