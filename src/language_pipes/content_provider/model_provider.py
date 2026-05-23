@@ -203,6 +203,8 @@ class ModelProvider:
             if error:
                 shutil.rmtree(get_model_dir() / model_id)
             else:
+                # Compile metadata
+                ModelProvider.get_model_metadata(model_id)
                 self.download_message = "[SUCCESS] Download complete"
 
         self.download_model_thread = Thread(target=download_model, args=())

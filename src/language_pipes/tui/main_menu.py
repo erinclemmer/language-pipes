@@ -62,7 +62,7 @@ def load_libraries(window: TuiWindow):
 
 
 def new_config(window: TuiWindow) -> Optional[str]:
-    return prompt(TermText("Configuration Name"), window, (2, 10))
+    return prompt(TermText("Configuration Name"), window, (2, 11))
 
 
 def handle_file_load(

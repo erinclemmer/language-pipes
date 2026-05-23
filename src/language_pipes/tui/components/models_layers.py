@@ -358,7 +358,7 @@ class ModelsLayerModels:
 
 
         entries = []
-        self.installed_models = self.provider.model_provider.get_installed_models()
+        self.installed_models = ModelProvider.get_installed_models()
         for i, model in enumerate(self.installed_models):
             entries.append([make_selectable_text(model, self.choose_model_idx == i), ""])
 
@@ -393,7 +393,7 @@ class ModelsLayerModels:
         layer_size = metadata.avg_layer_size / 10**9
         num_layers = min(int(float(self.edit_device_memory) / layer_size), metadata.num_hidden_layers)
 
-        s = f"   Info: Loads {num_layers} / {metadata.num_hidden_layers} layers"
+        s = f"(Loads {num_layers} of {metadata.num_hidden_layers} layers)"
         self.num_layers_cache[self.edit_device_name][str(self.edit_device_memory)] = s
         return s
 
@@ -419,13 +419,17 @@ class ModelsLayerModels:
             if not self.valid_device():
                 lines.append("   !Warning: Invalid device name")
 
+        max_memory_line = ""
         if self.valid_model_id() and self.valid_device():
             memory_cursor = "|" if self.edit_idx == 2 else ""
-            lines.append(f"   Max Memory: {self.edit_device_memory}{memory_cursor} GB")
+            max_memory_line += f"   Max Memory: {self.edit_device_memory}{memory_cursor} GB "
             if not self.validate_memory():
-                lines.append("   !Warning: Invalid memory amount")
+                max_memory_line += "(Warning: Invalid memory amount)"
             elif self.edit_model_id is not None:
-                lines.append(self.get_num_layers())
+                max_memory_line += self.get_num_layers()
+
+        if len(max_memory_line) > 0:
+            lines.append(max_memory_line)
 
         if self.is_adding_model() and self.has_model_already(self.edit_model_id, self.edit_device_name):
             lines.append("   !Warning: Model ID / Device Combination already in configuration")

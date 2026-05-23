@@ -68,7 +68,7 @@ class LlmModel:
                 clone_model(model_id, model_path, token=huggingface_token)
             self.collector = LlmLayerCollector(
                     model_dir=model_path / "data",
-                    cache_file=os.path.join(model_path, 'cache.json'),
+                    cache_file=model_path / 'cache.json',
                     device=device,
                     dtype=torch.bfloat16 
             )

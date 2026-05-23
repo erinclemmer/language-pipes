@@ -5,7 +5,7 @@ from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.content_provider.model_provider import ModelProvider
 from ansinout import PressedKey
 from language_pipes.tui.components.confirm import Confirm
-from language_pipes.tui.util.text import make_selectable_text, make_window_text
+from language_pipes.tui.util.text import make_footer_text, make_selectable_text, make_window_text
 
 class ModelsInstalledState(Enum):
     LIST = "LIST"
@@ -271,7 +271,7 @@ class ModelsInstalled:
         return lines
 
     def get_list_view(self):
-        self.installed_models = self.provider.model_provider.get_installed_models()
+        self.installed_models = ModelProvider.get_installed_models()
         
         lines = ["Installed Models:", ""]
         entries = []
@@ -285,4 +285,4 @@ class ModelsInstalled:
         return lines
     
     def get_footer(self) -> str:
-        return "Arrow U/D: Move   Enter: Select   Delete: Delete Model   Esc: Back"
+        return make_footer_text(["Arrow U/D: Move", "Delete: Delete Model", "Esc: Menu"])

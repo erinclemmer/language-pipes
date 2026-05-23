@@ -1,7 +1,9 @@
 from enum import Enum
-from typing import Callable
+from typing import Callable, Dict
 
 from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.content_provider.model_provider import ModelProvider
+from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.tui.components.confirm import Confirm
 from ansinout import PressedKey
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text, make_window_text
@@ -17,6 +19,7 @@ class ModelsEndModels:
     is_focused: Callable
 
     list_idx: int
+    model_sizes: Dict[str, float]
     
     def __init__(
         self, provider: ContentProvider, confirm: Confirm, exit_page: Callable, is_focused: Callable
@@ -30,6 +33,7 @@ class ModelsEndModels:
         self.installed_models = []
         self.list_idx = 0
         self.choose_idx = 0
+        self.model_sizes = { }
     
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.Escape:
@@ -143,9 +147,10 @@ class ModelsEndModels:
         for i, m in enumerate(self.end_models):
             loaded_text = ""
             if self._is_loaded(m):
-                loaded_text = " (Loaded)"
-            line = make_selectable_text(f"{m}{loaded_text}", i == self.list_idx)
-            entries.append([line, ""])
+                loaded_text = "(Loaded)"
+    
+            line = f"{m} ({self.get_model_size(m):.2f} GB) {loaded_text}"
+            entries.append([make_selectable_text(line, self.list_idx == i), ""])
 
         line = make_selectable_text("Add End Model", len(self.end_models) == self.list_idx)
         entries.append([line, ""])
@@ -160,15 +165,25 @@ class ModelsEndModels:
         ])
 
         return lines
+    
+    def get_model_size(self, model_id: str) -> float:
+        if model_id in self.model_sizes:
+            return self.model_sizes[model_id]
+        metadata = ModelProvider.get_model_metadata(model_id)
+        size = (metadata.head_size + metadata.embed_size) / 10 ** 9
+        self.model_sizes[model_id] = size
+        return size
 
     def get_choose_view(self):
         lines = ["Choose an installed model:", ""]
 
-        self.installed_models = self.provider.model_provider.get_installed_models()
+        self.installed_models = ModelProvider.get_installed_models()
         entries = []
         available_models = self.available_models()
         for i, model in enumerate(available_models):
-            entries.append([make_selectable_text(model, i == self.choose_idx), ""])
+            model_size = self.get_model_size(model)
+            line = f"{model} ({model_size:.2f} GB)"
+            entries.append([make_selectable_text(line, i == self.choose_idx), ""])
 
         if len(available_models) == 0:
             lines.append("No models available")

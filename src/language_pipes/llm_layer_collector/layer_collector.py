@@ -53,11 +53,6 @@ class LlmLayerCollector:
         config = get_config(model_dir)
         self.config = config
 
-        if self.config.model_type == "gemma3_text":
-            layer_prefix = "language_model.model.layers."
-            input_embedding_layer_name = "language_model.model.embed_tokens.weight"
-            norm_layer_name = "language_model.model.norm.weight"
-
         if "_attn_implementation" not in self.config:
             self.config._attn_implementation = "sdpa"  # pyright: ignore[reportPrivateUsage]
         self.num_layers = self.config.num_hidden_layers
@@ -76,15 +71,11 @@ class LlmLayerCollector:
         if cache_file is None:
             raise Exception("Must provide cache file path")
         self.cache_file = cache_file
-
-        if not os.path.exists(self.cache_file):
-            self._build_cache()
-        else:
-            self._read_cache()
+        self._read_cache()
 
     def _read_cache(self):
         if not os.path.exists(self.cache_file):
-            raise FileNotFoundError("Could not find cache file " + str(self.cache_file))
+            return self._build_cache()
         with open(self.cache_file, "r", encoding="utf-8") as f:
             self.layer_files = json.load(f)
 

@@ -37,7 +37,7 @@ class EndModel:
         self.device = torch.device(device)
         self.collector = LlmLayerCollector(
             model_dir=model_path / "data",
-            cache_file=os.path.join(model_path, 'cache.json'),
+            cache_file=model_path / 'cache.json',
             device=torch.device(device),
             dtype=torch.bfloat16
         )
