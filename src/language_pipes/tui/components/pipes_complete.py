@@ -2,7 +2,7 @@ from typing import List, Callable
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.pipes.meta_pipe import MetaPipe
-from language_pipes.tui.util.kb_utils import PressedKey
+from ansinout import PressedKey
 from language_pipes.tui.components.view_pipe import format_pipe_view
 
 class PipesComplete:

@@ -3,7 +3,7 @@ from typing import List, Callable, Optional
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.content_provider.model_provider import ModelProvider
-from language_pipes.tui.util.kb_utils import PressedKey
+from ansinout import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 
 class ModelsInstalledState(Enum):

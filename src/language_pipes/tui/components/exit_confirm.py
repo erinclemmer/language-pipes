@@ -1,6 +1,6 @@
 from typing import List
 
-from language_pipes.tui.util.kb_utils import PressedKey
+from ansinout import PressedKey
 
 
 class ExitConfirm:

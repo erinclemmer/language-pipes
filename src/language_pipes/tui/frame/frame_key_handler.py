@@ -1,5 +1,5 @@
 from language_pipes.tui.frame.layout import FrameLayout
-from language_pipes.tui.util.kb_utils import PressedKey
+from ansinout import PressedKey
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState

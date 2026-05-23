@@ -2,7 +2,7 @@ from typing import List
 
 from language_pipes.tui.components.top_nav import TopNav
 from language_pipes.tui.frame.nav_state import NavState
-from language_pipes.tui.tui import TuiWindow, TermText
+from ansinout import TuiWindow, TermText
 
 class SubNav:
     window: TuiWindow

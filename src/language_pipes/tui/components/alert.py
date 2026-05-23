@@ -1,6 +1,6 @@
 from typing import List
 
-from language_pipes.tui.util.kb_utils import PressedKey
+from ansinout import PressedKey
 
 # TODO: Maybe limit alert time to 5 seconds
 class Alert:

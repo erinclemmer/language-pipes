@@ -5,8 +5,7 @@ from typing import Optional, Tuple
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.components.alert import Alert
-from language_pipes.tui.tui import TuiWindow
-from language_pipes.tui.util.kb_utils import read_key
+from ansinout import TuiWindow, read_key
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.frame.layout import FrameLayout
 from language_pipes.tui.components.confirm import Confirm

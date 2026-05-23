@@ -3,7 +3,7 @@ from typing import Tuple
 
 from language_pipes.cli import VERSION
 from language_pipes.tui.components.alert import Alert
-from language_pipes.tui.tui import TermText, TuiWindow
+from ansinout import TermText, TuiWindow
 from language_pipes.tui.frame.nav_state import NavState
 from language_pipes.tui.frame.nav_window import NavWindow
 from language_pipes.tui.components.confirm import Confirm

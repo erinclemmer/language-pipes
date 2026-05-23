@@ -3,7 +3,7 @@ from typing import Callable
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.components.confirm import Confirm
-from language_pipes.tui.util.kb_utils import PressedKey
+from ansinout import PressedKey
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 
 

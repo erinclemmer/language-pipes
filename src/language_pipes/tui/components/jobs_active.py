@@ -1,6 +1,6 @@
 from typing import Callable, List
 
-from language_pipes.tui.util.kb_utils import PressedKey
+from ansinout import PressedKey
 from language_pipes.content_provider.content_provider import ContentProvider
 
 class JobsActive:

@@ -1,7 +1,7 @@
 
 from typing import Tuple, Optional
 from language_pipes.tui.util.prompt import prompt
-from language_pipes.tui.tui import TuiWindow, TermText
+from ansinout import TuiWindow, TermText
 
 class TextField:
     window_id: int

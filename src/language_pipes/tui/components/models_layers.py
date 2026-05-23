@@ -5,7 +5,7 @@ import torch
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.frame.tips import TIPS
-from language_pipes.tui.util.kb_utils import PressedKey
+from ansinout import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.components.hosted_models_view import format_model_line
 from language_pipes.content_provider.model_provider import ModelProvider, ModelToLoad

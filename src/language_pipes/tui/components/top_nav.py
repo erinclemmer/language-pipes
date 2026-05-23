@@ -1,7 +1,7 @@
 from typing import List
 
 from language_pipes.tui.frame.nav_state import NavState
-from language_pipes.tui.tui import TuiWindow, TermText
+from ansinout import TuiWindow, TermText
 
 class TopNav:
     ALL_HEADERS = ["Home", "Network", "Models", "Pipes", "Jobs"]
@@ -32,6 +32,7 @@ class TopNav:
     def sync_headers(self):
         for hid in self.header_ids:
             txt = self.window.get_text(hid)
+            assert txt is not None
             if txt.text.value in self.state.top_headers:
                 self.window.show_txt(hid)
             else:
@@ -45,6 +46,7 @@ class TopNav:
         self.window.hide_txt(self.r_cursor_id)
         for hid in self.header_ids:
             txt = self.window.get_text(hid)
+            assert txt is not None
             if self.header_visible(txt.text.value):
                 self.window.hide_txt(hid)
 
@@ -53,6 +55,7 @@ class TopNav:
         self.window.show_txt(self.r_cursor_id)
         for hid in self.header_ids:
             txt = self.window.get_text(hid)
+            assert txt is not None
             if self.header_visible(txt.text.value):
                 self.window.show_txt(hid)
 

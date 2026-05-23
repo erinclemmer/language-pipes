@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, Generic, List, TypeVar
 
 from language_pipes.content_provider.content_provider import ContentProvider
-from language_pipes.tui.util.kb_utils import PressedKey
+from ansinout import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 
 T = TypeVar("T")

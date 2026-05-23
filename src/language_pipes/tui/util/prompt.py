@@ -1,7 +1,6 @@
 from typing import Tuple, Optional, List
-from language_pipes.tui.tui import TuiWindow, TermText
-from language_pipes.tui.util.kb_utils import read_key, PressedKey
-from language_pipes.tui.util.screen_utils import move_cursor, change_cursor, CursorTypes
+from ansinout import read_key, PressedKey, move_cursor, change_cursor, TuiWindow, TermText
+from ansinout.screen import CursorTypes
 from language_pipes.tui.util.text import make_footer_text
 
 def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int], initial: str = "") -> Optional[str]:
@@ -12,6 +11,7 @@ def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int], initial: str 
     cursor_idx = len(initial)
     buffer_id = window.add_text(TermText(initial), (start_idx, pos[1]))
     buffer = window.get_text(buffer_id)
+    assert buffer is not None
     window.paint()
     move_cursor(pos[1], window.position[0] + start_idx + cursor_idx)
 
@@ -124,6 +124,7 @@ def select_option(
 
         visible_idx = selection_idx - scroll_offset
         opt_slot = window.get_text(option_slots[visible_idx])
+        assert opt_slot is not None
         window.update_text(l_cursor_id, None, (
             opt_slot.position[0] - 3,
             top_bound + visible_idx * 2

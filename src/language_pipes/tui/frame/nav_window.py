@@ -6,7 +6,7 @@ from language_pipes.tui.components.exit_confirm import ExitConfirm
 from language_pipes.tui.components.sub_nav import SubNav
 from language_pipes.tui.components.top_nav import TopNav
 from language_pipes.tui.frame.nav_state import NavState
-from language_pipes.tui.tui import TermText, TuiWindow
+from ansinout import TermText, TuiWindow
 
 class NavWindow:
     top_nav: TopNav

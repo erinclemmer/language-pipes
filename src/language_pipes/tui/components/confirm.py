@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, Callable, Optional
 
-from language_pipes.tui.util.kb_utils import PressedKey
+from ansinout import PressedKey
 
 class ConfirmState(Enum):
     PROMPT = 0

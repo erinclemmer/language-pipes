@@ -4,7 +4,7 @@ from pathlib import Path
 from threading import Thread
 from typing import Tuple, Optional
 
-from language_pipes.tui.tui import TuiWindow, TermText
+from ansinout import TuiWindow, TermText
 from language_pipes.tui.util.prompt import prompt, select_option, prompt_bool
 from language_pipes.util.config import (
     get_config_files,

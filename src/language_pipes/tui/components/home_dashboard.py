@@ -3,7 +3,7 @@ from typing import Callable, List, Optional, Dict, Tuple
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.content_provider.job_provider import MetaJob
-from language_pipes.tui.util.kb_utils import PressedKey
+from ansinout import PressedKey
 from language_pipes.content_provider.network_provider import RouterStatus
 from language_pipes.tui.components.hosted_models_view import format_pipe_strings
 from language_pipes.content_provider.model_provider import ModelStatus, ModelToLoad, ModelStatusInfo
