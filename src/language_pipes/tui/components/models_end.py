@@ -119,18 +119,6 @@ class ModelsEndModels:
         elif self.state == EndModelsState.CHOOSE:
             self.choose_idx = (self.choose_idx - 1) % len(self.available_models())
 
-    def _get_ram_usage(self) -> List[str]:
-        used_ram = self.provider.get_used_system_ram()
-        total_ram = self.provider.get_total_system_ram()
-        
-        used_swap = self.provider.get_used_swap()
-        total_swap = self.provider.get_total_swap()
-        
-        return [
-            f"System RAM:  {used_ram:.1f}/{total_ram:.1f}GB",
-            f"System Swap: {used_swap:.1f}/{total_swap:.1f}GB"
-        ]
-
     def get_view(self):
         if self.state == EndModelsState.LIST:
             return self.get_list_view()
@@ -154,7 +142,7 @@ class ModelsEndModels:
         return len(loading_models) > 0
 
     def get_list_view(self):
-        lines = self._get_ram_usage()
+        lines = [ContentProvider.get_ram_usage()]
         lines.extend(["", "End Models:"])
 
         self.end_models = self.provider.model_provider.get_end_models()

@@ -115,6 +115,16 @@ class ContentProvider:
         return psutil.swap_memory().used / (1024**3)
 
     @staticmethod
+    def get_ram_usage() -> str:
+        used_ram = ContentProvider.get_used_system_ram()
+        total_ram = ContentProvider.get_total_system_ram()
+
+        used_swap = ContentProvider.get_used_swap()
+        total_swap = ContentProvider.get_total_swap()
+        
+        return f"System RAM:  {used_ram:.1f}/{total_ram:.1f}GB".ljust(26) + f"System Swap: {used_swap:.1f}/{total_swap:.1f}GB"
+
+    @staticmethod
     def is_port_available(port: int) -> bool:
         return is_port_available(port)
     
