@@ -53,7 +53,7 @@ def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
     lines = []
     for key in pipe_strings.keys():
         pipe = pipes[key]
-        ram_used = sum([m.ram_used for m in pipe]) / 10**9
+        ram_used = sum([m.ram_used for m in pipe]) / 1024**3
         lines.append(f"Pipe {key[:4]} >{norm_pipe_strings[key]}< ({ram_used:.2f}GB)")
 
     return lines

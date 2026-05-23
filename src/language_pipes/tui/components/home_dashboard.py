@@ -133,11 +133,17 @@ class Dashboard:
         elif selected_option == "Show Logs":
             self.change_nav("Home", "Activity")
 
-    def _get_ram_usage(self) -> str:
+    def _get_ram_usage(self) -> List[str]:
         used_ram = self.provider.get_used_system_ram()
         total_ram = self.provider.get_total_system_ram()
+
+        used_swap = self.provider.get_used_swap()
+        total_swap = self.provider.get_total_swap()
         
-        return f"System RAM: {used_ram:.1f}/{total_ram:.1f}GB"
+        return [
+            f"System RAM:  {used_ram:.1f}/{total_ram:.1f}GB",
+            f"System Swap: {used_swap:.1f}/{total_swap:.1f}GB"
+        ]
 
     @staticmethod
     def _get_state(status: Optional[RouterStatus]) -> str:
@@ -201,7 +207,8 @@ class Dashboard:
         self.oai_port = self.provider.job_provider.get_oai_port()
 
         lines = ["   Options:", ""]
-        right_panel = [self._get_ram_usage(), ""]
+        right_panel = self._get_ram_usage()
+        right_panel.append("")
 
         if self.router_status is not None or self.network_port_available():
             if self.network_config.node_id != "":

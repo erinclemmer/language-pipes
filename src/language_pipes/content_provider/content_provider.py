@@ -107,6 +107,14 @@ class ContentProvider:
         return psutil.virtual_memory().used / (1024**3)
     
     @staticmethod
+    def get_total_swap() -> float:
+        return psutil.swap_memory().total / (1024**3)
+    
+    @staticmethod
+    def get_used_swap() -> float:
+        return psutil.swap_memory().used / (1024**3)
+
+    @staticmethod
     def is_port_available(port: int) -> bool:
         return is_port_available(port)
     

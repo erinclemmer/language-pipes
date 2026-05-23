@@ -183,11 +183,17 @@ class ModelsLayerModels:
         network_status = self.provider.network_provider.get_network_status()
         return network_status is not None and network_status.running
 
-    def _get_ram_usage(self) -> str:
+    def _get_ram_usage(self) -> List[str]:
         used_ram = self.provider.get_used_system_ram()
         total_ram = self.provider.get_total_system_ram()
         
-        return f"System RAM: {used_ram:.1f}/{total_ram:.1f}GB"
+        used_swap = self.provider.get_used_swap()
+        total_swap = self.provider.get_total_swap()
+        
+        return [
+            f"System RAM:  {used_ram:.1f}/{total_ram:.1f}GB",
+            f"System Swap: {used_swap:.1f}/{total_swap:.1f}GB"
+        ]
 
     def has_model_already(self, model_id: Optional[str], device: str) -> bool:
         if model_id is None:
@@ -400,7 +406,7 @@ class ModelsLayerModels:
         
         assert self.edit_model_id is not None
         metadata = ModelProvider.get_model_metadata(self.edit_model_id)
-        layer_size = metadata.avg_layer_size / 10**9
+        layer_size = metadata.avg_layer_size / 1024**3
         num_layers = min(int(float(self.edit_device_memory) / layer_size), metadata.num_hidden_layers)
 
         s = f"(Loads {num_layers} of {metadata.num_hidden_layers} layers)"
@@ -462,7 +468,9 @@ class ModelsLayerModels:
         return lines
 
     def get_list_view(self) -> List[str]:
-        lines = ["Layer Models", "", self._get_ram_usage(), ""]
+        lines = self._get_ram_usage()
+
+        lines.append("Layer Models:")
 
         if not self._network_running():
             lines.extend(self._network_not_started_warning())

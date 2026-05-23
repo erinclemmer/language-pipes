@@ -76,7 +76,7 @@ class ModelManager:
         self.logs.append((time.time(), f"Loading End Model for {model_id}"))
 
     def host_model(self, router_pipes: RouterPipes, node_id: str, model_id: str, max_memory: float, device: torch.device, first_layer: int, max_pipes: int = 1):
-        available_memory = max_memory * 10 ** 9
+        available_memory = max_memory * 1024**3
         models_to_load: List[LlmModel] = []
         
         if model_id not in self.pipes_hosted:
