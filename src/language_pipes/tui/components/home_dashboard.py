@@ -27,11 +27,6 @@ class Dashboard:
             elif self.job_port_available():
                 run_opts.append("Start Job Server")
             config_opts.append("Configure Job Server")
-            if len(self.layer_models) > 0:
-                if self._has_active_model():
-                    run_opts.append("Unload Models")
-                elif not self._models_are_starting():
-                    run_opts.append("Load Models")
 
             config_opts.append("Configure Layer Models")
             config_opts.append("Configure End Models")
@@ -125,16 +120,6 @@ class Dashboard:
             self.provider.stop_network()
         elif selected_option == "Configure Network Server":
             self.change_nav("Network", "Configure")
-        elif selected_option == "Load Models":
-            for model in self.layer_models:
-                self.provider.model_provider.load_layer_model(model)
-            for model in self.end_models:
-                self.provider.model_provider.load_end_model(model)
-        elif selected_option == "Unload Models":
-            for model in self.layer_models:
-                self.provider.model_provider.unload_layer_models(model.model_id, model.device)
-            for model in self.end_models:
-                self.provider.model_provider.unload_end_model(model)
         elif selected_option == "Configure Layer Models":
             self.change_nav("Models", "Layer Models")
         elif selected_option == "Configure End Models":
