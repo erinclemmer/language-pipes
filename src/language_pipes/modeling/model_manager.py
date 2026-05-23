@@ -70,8 +70,8 @@ class ModelManager:
 
     def load_end_model(self, model_id: str, device: str, num_local_layers: int):
         model = EndModel(num_local_layers, get_model_dir(), model_id, device)
-        model.load()
         self.end_models.append(model)
+        model.load()
         self.logs.append((time.time(), f"Loading End Model for {model_id}"))
 
     def host_model(self, router_pipes: RouterPipes, node_id: str, model_id: str, max_memory: float, device: torch.device, first_layer: int, max_pipes: int = 1):

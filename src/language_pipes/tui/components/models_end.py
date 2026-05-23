@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Callable, Dict
 
 from language_pipes.content_provider.content_provider import ContentProvider
-from language_pipes.content_provider.model_provider import ModelProvider
+from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus
 from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.tui.components.confirm import Confirm
 from ansinout import PressedKey
@@ -72,21 +72,22 @@ class ModelsEndModels:
 
     def on_enter(self):
         if self.state == EndModelsState.LIST:
+            selected_model = self.end_models[self.list_idx]
             if self.list_idx == len(self.end_models):
                 self.state = EndModelsState.CHOOSE
-            elif self._is_loaded(self.end_models[self.list_idx]):
+            elif self._is_loaded(selected_model) and not self._is_loading(selected_model):
                 def on_apply():
-                    self.provider.model_provider.unload_end_model(self.end_models[self.list_idx])
+                    self.provider.model_provider.unload_end_model(selected_model)
                 self.confirm.open(
-                    f"Unload {self.end_models[self.list_idx]}",
+                    f"Unload {selected_model}",
                     on_apply=on_apply,
                     on_discard=lambda: None
                 )
-            else:
+            elif not self._is_loaded(selected_model) and not self._is_loading(selected_model):
                 def on_apply():
-                    self.provider.model_provider.load_end_model(self.end_models[self.list_idx])
+                    self.provider.model_provider.load_end_model(selected_model)
                 self.confirm.open(
-                    f"Load {self.end_models[self.list_idx]}",
+                    f"Load {selected_model}",
                     on_apply=on_apply,
                     on_discard=lambda: None
                 )
@@ -133,11 +134,19 @@ class ModelsEndModels:
     
     def _is_loaded(self, model_id: str):
         model_statuses = self.provider.model_provider.get_models_status()
-        loaded_model = []
+        loaded_models = []
         if model_id in model_statuses:
-            loaded_model = [s for s in model_statuses[model_id] if s.end_model]
+            loaded_models = [s for s in model_statuses[model_id] if s.end_model and s.status == ModelStatus.Running]
         
-        return len(loaded_model) > 0
+        return len(loaded_models) > 0
+    
+    def _is_loading(self, model_id: str):
+        model_statuses = self.provider.model_provider.get_models_status()
+        loading_models = []
+        if model_id in model_statuses:
+            loading_models = [s for s in model_statuses[model_id] if s.end_model and (s.status == ModelStatus.Starting or s.status == ModelStatus.Stopping)]
+        
+        return len(loading_models) > 0
 
     def get_list_view(self):
         lines = [self._get_ram_usage(), "", "End Models:", ""]
@@ -148,6 +157,8 @@ class ModelsEndModels:
             loaded_text = ""
             if self._is_loaded(m):
                 loaded_text = "(Loaded)"
+            if self._is_loading(m):
+                loaded_text = "(Loading...)"
     
             line = f"{m} ({self.get_model_size(m):.2f} GB) {loaded_text}"
             entries.append([make_selectable_text(line, self.list_idx == i), ""])

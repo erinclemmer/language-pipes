@@ -8,7 +8,7 @@ from language_pipes.tui.frame.tips import TIPS
 from ansinout import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.components.hosted_models_view import format_model_line
-from language_pipes.content_provider.model_provider import ModelProvider, ModelToLoad
+from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus, ModelToLoad
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text, make_window_text
 
 class LayerModelsState(Enum):
@@ -168,7 +168,7 @@ class ModelsLayerModels:
         elif self.state == LayerModelsState.Options:
             if self.option_idx == 0:
                 self._start_edit()
-            elif self.option_idx == 1:
+            elif self.option_idx == 1 and not self._current_model_loading():
                 model = self.get_editing_model()
                 if model is not None:
                     if self._current_model_running():
@@ -176,13 +176,12 @@ class ModelsLayerModels:
                     else:
                         self.provider.model_provider.load_layer_model(model)
                 self.state = LayerModelsState.List
-            elif self.option_idx == 2:
+            elif self.option_idx == 2 or (self.option_idx == 1 and self._current_model_loading()):
                 self.state = LayerModelsState.List
 
     def _network_running(self) -> bool:
         network_status = self.provider.network_provider.get_network_status()
         return network_status is not None and network_status.running
-
 
     def _get_ram_usage(self) -> str:
         used_ram = self.provider.get_used_system_ram()
@@ -289,7 +288,18 @@ class ModelsLayerModels:
             return self.get_options_view()
         else:
             return self.get_list_view()
-        
+    
+    def _current_model_loading(self) -> bool:
+        model = self.get_editing_model()
+        assert model is not None
+        statuses = self.provider.model_provider.get_models_status()
+        if model.model_id not in statuses:
+            return False
+        for status in statuses[model.model_id]:
+            if status.status == ModelStatus.Starting or status.status == ModelStatus.Stopping:
+                return True
+        return False
+
     def _current_model_running(self) -> bool:
         model = self.get_editing_model()
         if model is None:
@@ -315,15 +325,15 @@ class ModelsLayerModels:
         if model is None:
             return ["ERROR"]
         lines = [f"Options for {model.model_id} on {model.device}"]
-        options = [
-            "Edit Model", 
-            "Unload Model" if self._current_model_running() else "Load Model", 
-            "Back"
-        ]
+        options = [ "Edit Model" ]
+
+        if not self._current_model_loading():
+            options.append("Unload Model" if self._current_model_running() else "Load Model")
+
+        options.append("Back")
+
         for i, opt in enumerate(options):
-            l_cursor = "|>" if i == self.option_idx else "  "
-            r_cursor = "<|" if i == self.option_idx else "  "
-            lines.append(f"{l_cursor} {opt} {r_cursor}")
+            lines.append(make_selectable_text(opt, self.option_idx == i))
 
         lines.append("")
         if self.option_idx == 0:

@@ -135,7 +135,7 @@ class ModelProvider:
 
         # Add status for end models
         for end_model in mm.end_models:
-            is_loaded = getattr(end_model, "loaded", True)
+            is_loaded = end_model.loaded
             status = ModelStatus.Running if is_loaded else ModelStatus.Starting
             status_by_model[end_model.model_id].append(
                 ModelStatusInfo(status=status, device=end_model.device, start_layer=-1, end_layer=-1, end_model=True, num_layers=0, pipe_id='')

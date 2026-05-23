@@ -23,6 +23,8 @@ class EndModel:
     model_id: str
     process_id: str
     device: torch.device
+    loaded: bool
+    num_local_layers: int
     input_embedding: torch.nn.Embedding
     norm: AutoRMSNorm
     head: torch.nn.Linear
@@ -31,6 +33,8 @@ class EndModel:
 
     def __init__(self, num_local_layers: int, model_dir: Path, model_id: str, device: str):
         self.model_id = model_id
+        self.loaded = False
+        self.num_local_layers = num_local_layers
         self.process_id = str(uuid4())
         model_path = model_dir / self.model_id
         self.meta_data = LlmMetadata(model_path)
@@ -42,8 +46,6 @@ class EndModel:
             dtype=torch.bfloat16
         )
         self.layers = []
-        if num_local_layers > 0:
-            self.load_layers(num_local_layers)
         self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, 'data'))
     
     def load_layers(self, num_local_layers: int):
@@ -65,6 +67,9 @@ class EndModel:
         self.input_embedding = self.collector.load_input_embedding(self.device)
         self.norm = self.collector.load_norm(self.device)
         self.head = self.collector.load_head(self.device)
+        if self.num_local_layers > 0:
+            self.load_layers(self.num_local_layers)
+        self.loaded = True
 
     def tokenize(self, job: Job):
         prompt = self.tokenizer.apply_chat_template([m.to_json() for m in job.messages], tokenize=False, chat_template=self.tokenizer.chat_template, add_generation_prompt=True)
