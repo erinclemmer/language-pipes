@@ -12,6 +12,7 @@ from huggingface_hub import snapshot_download, errors
 
 from language_pipes.config import LpConfig, ModelToLoad
 from language_pipes.global_config import GlobalConfig
+from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.pipes.router_pipes import RouterPipes
@@ -142,6 +143,10 @@ class ModelProvider:
 
         return status_by_model
 
+    @staticmethod
+    def get_model_metadata(model_id: str) -> LlmMetadata:
+        return LlmMetadata(get_model_dir() / model_id)
+        
     # Models / Installed
     @staticmethod
     def get_installed_models() -> List[str]:

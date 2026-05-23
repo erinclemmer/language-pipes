@@ -26,7 +26,7 @@ class LlmLayerCollector:
     config: PretrainedConfig
 
     model_dir: Path
-    cache_file: str
+    cache_file: Path
 
     num_layers: int
     num_shards: int
@@ -37,7 +37,7 @@ class LlmLayerCollector:
     def __init__(
         self,
         model_dir: Path,
-        cache_file: Optional[str] = None,
+        cache_file: Optional[Path] = None,
         shard_pattern: str = r"model-(\d+)-of-(\d+).safetensors",
         layer_prefix: str = "model.layers.",
         input_embedding_layer_name: str = "model.embed_tokens.weight",
@@ -84,7 +84,7 @@ class LlmLayerCollector:
 
     def _read_cache(self):
         if not os.path.exists(self.cache_file):
-            raise FileNotFoundError("Could not find cache file " + self.cache_file)
+            raise FileNotFoundError("Could not find cache file " + str(self.cache_file))
         with open(self.cache_file, "r", encoding="utf-8") as f:
             self.layer_files = json.load(f)
 

@@ -18,7 +18,7 @@ def get_avg_layer_size(model_path: Path) -> Tuple[int, str]:
         return -1, ""
     collector = LlmLayerCollector(
         model_dir=model_path,
-        cache_file=os.path.join(model_path, "..", "cache.json"),
+        cache_file=model_path / ".." / "cache.json",
         device=torch.device("cpu"),
         dtype=torch.bfloat16,
     )
@@ -97,6 +97,7 @@ class LlmMetadata:
     embed_size: int
     head_size: int
     avg_layer_size: int
+    num_hidden_layers: int
 
     embed_hash: str
     head_hash: str
@@ -112,6 +113,13 @@ class LlmMetadata:
         self.embed_hash = data["embed_hash"]
         self.head_hash = data["head_hash"]
         self.layer_hashes = data["layer_hashes"]
+        collector = LlmLayerCollector(
+            model_dir=model_dir / "data",
+            cache_file=model_dir / "cache.json",
+            device=torch.device("cpu"),
+            dtype=torch.bfloat16,
+        )
+        self.num_hidden_layers = collector.config.num_hidden_layers
 
     def to_json(self):
         return {

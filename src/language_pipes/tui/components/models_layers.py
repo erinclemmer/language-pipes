@@ -135,6 +135,7 @@ class ModelsLayerModels:
         self.edit_load_ends = False
         self.edit_model_id = ""
         self.editing_config_idx = None
+        self.num_layers_cache = { }
 
     def _start_edit(self):
         self._reset_editor()
@@ -381,6 +382,21 @@ class ModelsLayerModels:
     def is_adding_model(self) -> bool:
         return self.model_idx == len(self.models_to_load)
 
+    def get_num_layers(self) -> str:
+        if self.edit_device_name not in self.num_layers_cache:
+            self.num_layers_cache[self.edit_device_name] = { }
+        if str(self.edit_device_memory) in self.num_layers_cache[self.edit_device_name]:
+            return self.num_layers_cache[self.edit_device_name][str(self.edit_device_memory)]
+        
+        assert self.edit_model_id is not None
+        metadata = ModelProvider.get_model_metadata(self.edit_model_id)
+        layer_size = metadata.avg_layer_size / 10**9
+        num_layers = min(int(float(self.edit_device_memory) / layer_size), metadata.num_hidden_layers)
+
+        s = f"   Info: Loads {num_layers} / {metadata.num_hidden_layers} layers"
+        self.num_layers_cache[self.edit_device_name][str(self.edit_device_memory)] = s
+        return s
+
     def get_editor_view(self) -> List[str]:
         editing_model = self.get_editing_model()
         header = "Choosing Model" if editing_model is not None else "Creating Layer Model Configuration"
@@ -408,6 +424,8 @@ class ModelsLayerModels:
             lines.append(f"   Max Memory: {self.edit_device_memory}{memory_cursor} GB")
             if not self.validate_memory():
                 lines.append("   !Warning: Invalid memory amount")
+            elif self.edit_model_id is not None:
+                lines.append(self.get_num_layers())
 
         if self.is_adding_model() and self.has_model_already(self.edit_model_id, self.edit_device_name):
             lines.append("   !Warning: Model ID / Device Combination already in configuration")
