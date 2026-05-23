@@ -3,7 +3,6 @@ from typing import Callable, Dict
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus
-from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.tui.components.confirm import Confirm
 from ansinout import PressedKey
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text, make_window_text
@@ -208,7 +207,11 @@ class ModelsEndModels:
 
     def get_footer(self) -> str:
         if self.state == EndModelsState.LIST and self.list_idx != len(self.end_models):
-            return make_footer_text(["Arrows U/D: Move", "Enter: load/unload", "Delete: Remove Model", "Esc: Menu"])
+            selected_model = self.end_models[self.list_idx]
+            if self._is_loading(selected_model):
+                return make_footer_text(["Arrows U/D: Move", "Delete: Remove Model", "Esc: Menu"])
+            else:
+                return make_footer_text(["Arrows U/D: Move", "Enter: load/unload", "Delete: Remove Model", "Esc: Menu"])
 
         if self.state == EndModelsState.LIST and self.list_idx == len(self.end_models):
             return make_footer_text(["Arrows U/D: Move", "Enter: Add End Model", "Esc: Menu"])
