@@ -479,7 +479,8 @@ class ModelsLayerModels:
             "", 
             "Tip: Layer models are segments of a model's transformer layers loaded",
             "into memory on a device. Multiple nodes can each host different layer",
-            "ranges to distribute inference across machines."
+            "ranges to distribute inference across machines. Layer ranges are inferred",
+            "from the network state."
         ])
 
         return lines
