@@ -86,6 +86,13 @@ def get_computed_data(model_path: Path):
     size, hash = get_avg_layer_size(model_path)
     meta_data["avg_layer_size"] = size
     meta_data["layer_hashes"] = hash
+    collector = LlmLayerCollector(
+        model_dir=model_path,
+        cache_file=model_path / ".." / "cache.json",
+        device=torch.device("cpu"),
+        dtype=torch.bfloat16,
+    )
+    meta_data["num_hidden_layers"] = collector.config.num_hidden_layers
 
     with open(computed_path, "w") as f:
         json.dump(meta_data, f)
@@ -113,13 +120,7 @@ class LlmMetadata:
         self.embed_hash = data["embed_hash"]
         self.head_hash = data["head_hash"]
         self.layer_hashes = data["layer_hashes"]
-        collector = LlmLayerCollector(
-            model_dir=model_dir / "data",
-            cache_file=model_dir / "cache.json",
-            device=torch.device("cpu"),
-            dtype=torch.bfloat16,
-        )
-        self.num_hidden_layers = collector.config.num_hidden_layers
+        self.num_hidden_layers = data["num_hidden_layers"]
 
     def to_json(self):
         return {
