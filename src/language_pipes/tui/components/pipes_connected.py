@@ -3,6 +3,7 @@ from typing import List, Callable
 from ansinout import PressedKey
 from language_pipes.tui.components.view_pipe import format_pipe_view
 from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.tui.util.text import make_window_text
 
 class PipesConnected:
     provider: ContentProvider
@@ -26,9 +27,11 @@ class PipesConnected:
         if len(pipes_connected) == 0:
             return ["No Pipes Connected", "Host a model to connect to a pipe"]
         
-        lines = []
+        entries = []
         for pipe in pipes_connected:
-            lines.extend(format_pipe_view(pipe))
+            entries.append(format_pipe_view(pipe))
+
+        lines = make_window_text(entries, 0, 17)
 
         return lines
 

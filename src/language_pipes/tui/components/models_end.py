@@ -69,10 +69,10 @@ class ModelsEndModels:
 
     def on_enter(self):
         if self.state == EndModelsState.LIST:
-            selected_model = self.end_models[self.list_idx]
+            selected_model = self.end_models[self.list_idx] if len(self.end_models) > 0 else None
             if self.list_idx == len(self.end_models):
                 self.state = EndModelsState.CHOOSE
-            elif self._is_loaded(selected_model) and not self._is_loading(selected_model):
+            elif selected_model is not None and self._is_loaded(selected_model) and not self._is_loading(selected_model):
                 def on_apply():
                     self.provider.model_provider.unload_end_model(selected_model)
                 self.confirm.open(
@@ -80,7 +80,7 @@ class ModelsEndModels:
                     on_apply=on_apply,
                     on_discard=lambda: None
                 )
-            elif not self._is_loaded(selected_model) and not self._is_loading(selected_model):
+            elif selected_model is not None and not self._is_loaded(selected_model) and not self._is_loading(selected_model):
                 def on_apply():
                     self.provider.model_provider.load_end_model(selected_model)
                 self.confirm.open(
@@ -191,7 +191,7 @@ class ModelsEndModels:
         if len(available_models) == 0:
             lines.append("No models available")
 
-        make_window_text(entries, self.choose_idx, 17)
+        lines.extend(make_window_text(entries, self.choose_idx, 17))
 
         if len(self.installed_models) == 0:
             lines.append("No models installed, please install from the models/installed page")
