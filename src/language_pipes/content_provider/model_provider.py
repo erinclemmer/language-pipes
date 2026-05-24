@@ -167,7 +167,7 @@ class ModelProvider:
                     if os.path.isdir(model_path):
                         models.append(f"{org}/{model}")
 
-        return sorted(models)
+        return sorted(models, key=lambda m: m.lower())
 
     @staticmethod
     def delete_installed_model(model_name: str):
@@ -298,16 +298,16 @@ class ModelProvider:
 
     def get_layer_models(self) -> List[ModelToLoad]:
         cfg = LpConfig.from_file(self.config_file)
-        return cfg.layer_models
-
+        return sorted(cfg.layer_models, key=lambda m: m.model_id.lower())
+        
     def save_layer_models(self, models: List[ModelToLoad]):
         cfg = LpConfig.from_file(self.config_file)
         cfg.layer_models = models
         cfg.save()
 
     def get_end_models(self) -> List[str]:
-        return LpConfig.from_file(self.config_file).end_models
-
+        return sorted(LpConfig.from_file(self.config_file).end_models, key=lambda m:m.lower())
+        
     def save_end_models(self, end_models: List[str]):
         cfg = LpConfig.from_file(self.config_file)
         cfg.end_models = end_models

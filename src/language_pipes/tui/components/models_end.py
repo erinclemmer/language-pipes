@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Callable, Dict
+from typing import Callable, Dict, List
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus
@@ -34,17 +34,17 @@ class ModelsEndModels:
     
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.Escape:
-            self.on_escape()
+            self._on_escape()
         if key == PressedKey.Enter:
-            self.on_enter()
+            self._on_enter()
         if key == PressedKey.Delete:
-            self.on_delete()
+            self._on_delete()
         if key == PressedKey.ArrowUp:
-            self.on_prev()
+            self._on_prev()
         if key == PressedKey.ArrowDown:
-            self.on_next()
+            self._on_next()
 
-    def on_delete(self):
+    def _on_delete(self):
         if self.state != EndModelsState.LIST or self.list_idx == len(self.end_models):
             return
         selected_model = self.end_models[self.list_idx]
@@ -54,22 +54,16 @@ class ModelsEndModels:
             on_discard=lambda: None
         )
         
-    def remove_selected_model(self):
-        model_to_remove = self.end_models[self.list_idx]
-        self.end_models = [m for m in self.end_models if m != model_to_remove]
-        self.list_idx = 0
-        self.provider.model_provider.save_end_models(self.end_models)
-
-    def on_escape(self):
+    def _on_escape(self):
         if self.state == EndModelsState.LIST:
             self.exit_page()
         elif self.state == EndModelsState.CHOOSE:
             self.state = EndModelsState.LIST
             self.choose_idx = 0
 
-    def on_enter(self):
+    def _on_enter(self):
         if self.state == EndModelsState.LIST:
-            selected_model = self.end_models[self.list_idx] if len(self.end_models) > 0 else None
+            selected_model = self.end_models[self.list_idx] if len(self.end_models) > 0 and self.list_idx < len(self.end_models) else None
             if self.list_idx == len(self.end_models):
                 self.state = EndModelsState.CHOOSE
             elif selected_model is not None and self._is_loaded(selected_model) and not self._is_loading(selected_model):
@@ -88,58 +82,34 @@ class ModelsEndModels:
                     on_apply=on_apply,
                     on_discard=lambda: None
                 )
-        elif self.state == EndModelsState.CHOOSE and len(self.available_models()) > 0:
+        elif self.state == EndModelsState.CHOOSE and len(self._available_models()) > 0:
             self.state = EndModelsState.LIST
-            selected_model = self.available_models()[self.choose_idx]
+            selected_model = self._available_models()[self.choose_idx]
             self.confirm.open(
                 f"Add {selected_model}?",
                 on_apply=self.add_model,
                 on_discard=lambda: None
             )
 
-    def available_models(self):
-        return [m for m in self.installed_models if m not in self.end_models]
-
-    def add_model(self):
-        available_models = self.available_models()
-        self.end_models.append(available_models[self.choose_idx])
-        self.provider.model_provider.save_end_models(self.end_models)
-
-    def on_next(self):
+    def _on_next(self):
         if self.state == EndModelsState.LIST:
             self.list_idx = (self.list_idx + 1) % (len(self.end_models) + 1)
         elif self.state == EndModelsState.CHOOSE:
-            self.choose_idx = (self.choose_idx + 1) % len(self.available_models())
+            self.choose_idx = (self.choose_idx + 1) % len(self._available_models())
 
-    def on_prev(self):
+    def _on_prev(self):
         if self.state == EndModelsState.LIST:
             self.list_idx = (self.list_idx - 1) % (len(self.end_models) + 1)
         elif self.state == EndModelsState.CHOOSE:
-            self.choose_idx = (self.choose_idx - 1) % len(self.available_models())
+            self.choose_idx = (self.choose_idx - 1) % len(self._available_models())
 
     def get_view(self):
         if self.state == EndModelsState.LIST:
-            return self.get_list_view()
+            return self._get_list_view()
         if self.state == EndModelsState.CHOOSE:
-            return self.get_choose_view()
-    
-    def _is_loaded(self, model_id: str):
-        model_statuses = self.provider.model_provider.get_models_status()
-        loaded_models = []
-        if model_id in model_statuses:
-            loaded_models = [s for s in model_statuses[model_id] if s.end_model and s.status == ModelStatus.Running]
-        
-        return len(loaded_models) > 0
-    
-    def _is_loading(self, model_id: str):
-        model_statuses = self.provider.model_provider.get_models_status()
-        loading_models = []
-        if model_id in model_statuses:
-            loading_models = [s for s in model_statuses[model_id] if s.end_model and (s.status == ModelStatus.Starting or s.status == ModelStatus.Stopping)]
-        
-        return len(loading_models) > 0
+            return self._get_choose_view()
 
-    def get_list_view(self):
+    def _get_list_view(self):
         lines = [ContentProvider.get_ram_usage()]
         lines.extend(["", "End Models:"])
 
@@ -152,7 +122,7 @@ class ModelsEndModels:
             if self._is_loading(m):
                 loaded_text = "(Loading...)"
     
-            line = f"{m} ({self.get_model_size(m):.2f} GB) {loaded_text}"
+            line = f"{m} ({self._get_model_size(m):.2f} GB) {loaded_text}"
             entries.append([make_selectable_text(line, self.list_idx == i), ""])
 
         line = make_selectable_text("Add End Model", len(self.end_models) == self.list_idx)
@@ -168,23 +138,15 @@ class ModelsEndModels:
         ])
 
         return lines
-    
-    def get_model_size(self, model_id: str) -> float:
-        if model_id in self.model_sizes:
-            return self.model_sizes[model_id]
-        metadata = ModelProvider.get_model_metadata(model_id)
-        size = (metadata.head_size + metadata.embed_size + (metadata.avg_layer_size * ModelProvider.get_num_local_layers())) / 1024**3
-        self.model_sizes[model_id] = size
-        return size
 
-    def get_choose_view(self):
+    def _get_choose_view(self):
         lines = ["Choose an installed model:", ""]
 
         self.installed_models = ModelProvider.get_installed_models()
         entries = []
-        available_models = self.available_models()
+        available_models = self._available_models()
         for i, model in enumerate(available_models):
-            model_size = self.get_model_size(model)
+            model_size = self._get_model_size(model)
             line = f"{model} ({model_size:.2f} GB)"
             entries.append([make_selectable_text(line, i == self.choose_idx), ""])
 
@@ -209,10 +171,48 @@ class ModelsEndModels:
         if self.state == EndModelsState.LIST and self.list_idx == len(self.end_models):
             return make_footer_text(["Arrows U/D: Move", "Enter: Add End Model", "Esc: Menu"])
         
-        if self.state == EndModelsState.CHOOSE and len(self.available_models()) == 0:
+        if self.state == EndModelsState.CHOOSE and len(self._available_models()) == 0:
             return make_footer_text(["Arrows U/D: Move", "Esc: Back"])
 
-        if self.state == EndModelsState.CHOOSE and len(self.available_models()) > 0:
+        if self.state == EndModelsState.CHOOSE and len(self._available_models()) > 0:
             return make_footer_text(["Arrows U/D: Move", "Enter: Choose Model", "Esc: Back"])
 
         return ""
+
+    def remove_selected_model(self) -> None:
+        model_to_remove = self.end_models[self.list_idx]
+        self.end_models = [m for m in self.end_models if m != model_to_remove]
+        self.list_idx = 0
+        self.provider.model_provider.save_end_models(self.end_models)
+
+    def _available_models(self) -> List[str]:
+        return [m for m in self.installed_models if m not in self.end_models]
+
+    def add_model(self) -> None:
+        available_models = self._available_models()
+        self.end_models.append(available_models[self.choose_idx])
+        self.provider.model_provider.save_end_models(self.end_models)
+
+    def _get_model_size(self, model_id: str) -> float:
+        if model_id in self.model_sizes:
+            return self.model_sizes[model_id]
+        metadata = ModelProvider.get_model_metadata(model_id)
+        size = (metadata.head_size + metadata.embed_size + (metadata.avg_layer_size * ModelProvider.get_num_local_layers())) / 1024**3
+        self.model_sizes[model_id] = size
+        return size
+    
+    def _is_loaded(self, model_id: str) -> bool:
+        model_statuses = self.provider.model_provider.get_models_status()
+        loaded_models = []
+        if model_id in model_statuses:
+            loaded_models = [s for s in model_statuses[model_id] if s.end_model and s.status == ModelStatus.Running]
+        
+        return len(loaded_models) > 0
+    
+    def _is_loading(self, model_id: str) -> bool:
+        model_statuses = self.provider.model_provider.get_models_status()
+        loading_models = []
+        if model_id in model_statuses:
+            loading_models = [s for s in model_statuses[model_id] if s.end_model and (s.status == ModelStatus.Starting or s.status == ModelStatus.Stopping)]
+        
+        return len(loading_models) > 0
