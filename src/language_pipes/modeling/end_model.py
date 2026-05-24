@@ -61,7 +61,7 @@ class EndModel:
         )
 
     def size(self):
-        return self.meta_data.embed_size + self.meta_data.head_size
+        return self.meta_data.embed_size + self.meta_data.head_size + (self.meta_data.avg_layer_size * self.num_local_layers)
 
     def load(self):
         self.input_embedding = self.collector.load_input_embedding(self.device)

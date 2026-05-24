@@ -173,7 +173,7 @@ class ModelsEndModels:
         if model_id in self.model_sizes:
             return self.model_sizes[model_id]
         metadata = ModelProvider.get_model_metadata(model_id)
-        size = (metadata.head_size + metadata.embed_size) / 1024**3
+        size = (metadata.head_size + metadata.embed_size + (metadata.avg_layer_size * ModelProvider.get_num_local_layers())) / 1024**3
         self.model_sizes[model_id] = size
         return size
 

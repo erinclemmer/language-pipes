@@ -266,9 +266,18 @@ class ModelProvider:
 
     def load_end_model(self, model_id: str):
         def host_end_model():
-            self.get_model_manager().load_end_model(model_id, "cpu", 0)
+            self.get_model_manager().load_end_model(model_id, "cpu", self.get_num_local_layers())
 
         Thread(target=host_end_model, args=()).start()
+
+    @staticmethod
+    def get_num_local_layers():
+            num_local_layers = 0
+            try:
+                num_local_layers = int(os.environ.get("LP_NUM_LOCAL_LAYERS", 1))
+            except Exception:
+                pass
+            return num_local_layers
 
     def unload_layer_models(self, model_id: str, device: torch.device):
         rp = self.get_router_pipes()
