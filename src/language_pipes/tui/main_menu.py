@@ -6,6 +6,7 @@ from typing import Tuple, Optional
 
 from ansinout import TuiWindow, TermText
 from language_pipes.tui.util.prompt import prompt, select_option, prompt_bool
+from language_pipes.tui.util.text import make_footer_text
 from language_pipes.util.config import (
     get_config_files,
     get_app_dir,
@@ -62,8 +63,10 @@ def load_libraries(window: TuiWindow):
 
 
 def new_config(window: TuiWindow) -> Optional[str]:
-    return prompt(TermText("Configuration Name"), window, (2, 11))
-
+    footer_id = window.add_text(TermText(make_footer_text(["[A-Z]: Type", "Enter: Accept name", "Esc: Discard"])), (2, 23))
+    res = prompt(TermText("Configuration Name"), window, (2, 11))
+    window.remove_txt(footer_id)
+    return res
 
 def handle_file_load(
     window: TuiWindow, left_bound: int, termsize: Tuple[int, int], config_file: Path, auto_start: bool
