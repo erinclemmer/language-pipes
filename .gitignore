@@ -11,3 +11,4 @@ config.toml
 todo.txt
 .coverage
 poetry.lock
+.claude/
