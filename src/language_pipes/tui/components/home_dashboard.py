@@ -2,11 +2,10 @@ from typing import Callable, List, Optional, Dict, Tuple
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
-from language_pipes.content_provider.job_provider import MetaJob
 from ansinout import PressedKey
 from language_pipes.content_provider.network_provider import RouterStatus
-from language_pipes.tui.components.hosted_models_view import format_pipe_strings
-from language_pipes.content_provider.model_provider import ModelStatus, ModelToLoad, ModelStatusInfo
+from language_pipes.tui.components.view_pipe import format_pipe_view
+from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus, ModelToLoad, ModelStatusInfo
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 
 class Dashboard:
@@ -171,23 +170,6 @@ class Dashboard:
         
         return f"{state_label}{peer_text}{encryption_text}{warning_text}"
 
-    def _format_model_line(self, model: ModelToLoad, running: List[ModelStatusInfo], jobs: List[MetaJob]) -> List[str]:
-        lines = [
-            f"{model.model_id} ({model.memory}GB)"
-        ]
-        
-        lines.extend(format_pipe_strings(running))
-        for j in jobs:
-            token_text = f"Token: {j.current_token}" if j.current_token > 0 else ""
-            prompt_text = f"Prompt: {j.prompt_processed * 100.0:.0f}%" if j.current_token == 0 else ""
-            lines.extend([
-                f"Job {j.job_id[:4]} from {j.origin_node_id}, {token_text}{prompt_text}"
-            ])
-
-        lines.append("")
-
-        return lines
-
     def _models_are_starting(self) -> bool:
         for key in self.models_status.keys():
             pipe = self.models_status[key]
@@ -232,39 +214,26 @@ class Dashboard:
             lines.extend([make_selectable_text(label, label == selected_option), ""])
         lines.extend(["", ""])
 
-        if len(self.layer_models) > 0:
-            right_panel.append("Layer Models:")
-
         self.models_status = self.provider.model_provider.get_models_status()
-        jobs = self.provider.job_provider.get_active_jobs()
-        l_models_loaded = 0
-        for model in self.layer_models:
-            model_statuses = self.models_status.get(model.model_id, [])
-            if len(model_statuses) == 0:
-                continue
-            pipe_ids = [p.pipe_id for p in model_statuses]
-            model_jobs = [j for j in jobs if j.pipe_id in pipe_ids]
-            right_panel.extend(self._format_model_line(model, model_statuses, model_jobs))
-            l_models_loaded += 1
 
-        if l_models_loaded == 0:
-            right_panel.extend(["None Loaded", ""])
+        local_end_model_ids = {
+            model_id for model_id in self.end_models
+            if any(s.end_model for s in self.models_status.get(model_id, []))
+        }
 
-        if len(self.end_models):
-            right_panel.append("End Models:")
-        
-        e_models_loaded = 0
-        for model in self.end_models:
-            model_statuses = self.models_status.get(model, [])
-            end_model_statuses = [s for s in model_statuses if s.end_model]
-            if len(end_model_statuses) == 0:
-                continue
-            right_panel.extend([model, ""])
-            e_models_loaded += 1
+        right_panel.append("Pipes:")
+        connected_pipes = self.provider.pipe_provider.get_connected_pipes()
+        if connected_pipes is None or len(connected_pipes) == 0:
+            right_panel.extend(["None Connected", ""])
+        else:
+            num_local_layers = ModelProvider.get_num_local_layers()
+            for pipe in connected_pipes:
+                right_panel.extend(format_pipe_view(pipe))
+                if pipe.is_complete(num_local_layers) and pipe.model_id in local_end_model_ids:
+                    right_panel.append("Ready to serve")
+                right_panel.append("")
 
-        if e_models_loaded == 0:
-            right_panel.extend(["None Loaded", ""])
-        
+
         return lines, right_panel
 
     def get_footer(self) -> str:
