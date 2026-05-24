@@ -11,6 +11,7 @@ from language_pipes.config import LpConfig
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
+from language_pipes.modeling.end_model import EndModel
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.oai_server import OAIHttpServer
 from language_pipes.pipes.pipe_manager import PipeManager
@@ -89,7 +90,7 @@ class JobProvider:
         def get_models():
             if router_pipes is None:
                 return
-            available_models = router_pipes.get_models(0)
+            available_models = router_pipes.get_models(EndModel.get_num_local_layers())
             return [m.model_id for m in model_manager.end_models if m.model_id in available_models]
 
         if cfg is None:

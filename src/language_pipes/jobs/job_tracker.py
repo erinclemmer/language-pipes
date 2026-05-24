@@ -6,6 +6,8 @@ from typing import List, Optional
 from time import sleep
 from threading import Thread
 
+from transformers import PretrainedConfig
+
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.network_job import NetworkJob
 
@@ -83,7 +85,7 @@ class JobTracker:
             return
         job.last_update = time()
 
-    def add_job(self, network_job: NetworkJob) -> Job | None:
+    def add_job(self, network_job: NetworkJob, config: PretrainedConfig) -> Job | None:
         existing = self.get_job(network_job.job_id)
         if existing is not None:
             return None
@@ -94,7 +96,7 @@ class JobTracker:
             model_id="",
             pipe_id=network_job.pipe_id,
             data=network_job.data,
-            config=None
+            config=config
         )
         job.job_id = network_job.job_id
         

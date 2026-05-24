@@ -34,12 +34,14 @@ class JobFactory:
     ) -> Optional[Job]:
         end_model = self.pipe_manager.model_manager.get_end_model(model_id)
         if end_model is None:
-            raise Exception("Cannot start job with no end model")
+            if resolve is not None:
+                resolve('NO_ENDS') # pyright: ignore[reportCallIssue]
+            return
         
         pipe = self.pipe_manager.get_pipe_by_model_id(model_id, start_layer=len(end_model.layers))
         if pipe is None:
             if resolve is not None:
-                resolve('No pipe available') # pyright: ignore[reportCallIssue]
+                resolve('NO_PIPE') # pyright: ignore[reportCallIssue]
             return
 
         node_id = self.pipe_manager.router_pipes.router.node_id()

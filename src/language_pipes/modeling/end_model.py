@@ -48,6 +48,15 @@ class EndModel:
         self.layers = []
         self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, 'data'))
     
+    @staticmethod
+    def get_num_local_layers():
+            num_local_layers = 0
+            try:
+                num_local_layers = int(os.environ.get("LP_NUM_LOCAL_LAYERS", 1))
+            except Exception:
+                pass
+            return num_local_layers
+
     def load_layers(self, num_local_layers: int):
         self.layers = self.collector.load_layer_set(0, num_local_layers - 1, self.device)
 

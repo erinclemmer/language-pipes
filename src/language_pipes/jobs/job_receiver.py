@@ -57,9 +57,10 @@ class JobReceiver:
         
         job = self.job_tracker.get_job(network_job.job_id)
         if job is None:
-            job = self.job_tracker.add_job(network_job)
-            if job is None:
-                return
+            pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
+            assert pipe is not None
+            job = self.job_tracker.add_job(network_job, self.model_manager.get_config(pipe.model_id))
+            assert job is not None
 
         # Validate network job
         if not job.receive_network_job(network_job):

@@ -12,6 +12,7 @@ from huggingface_hub import snapshot_download, errors
 
 from language_pipes.config import LpConfig, ModelToLoad
 from language_pipes.global_config import GlobalConfig
+from language_pipes.modeling.end_model import EndModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.model_manager import ModelManager
@@ -272,12 +273,7 @@ class ModelProvider:
 
     @staticmethod
     def get_num_local_layers():
-            num_local_layers = 0
-            try:
-                num_local_layers = int(os.environ.get("LP_NUM_LOCAL_LAYERS", 1))
-            except Exception:
-                pass
-            return num_local_layers
+            return EndModel.get_num_local_layers()
 
     def unload_layer_models(self, model_id: str, device: torch.device):
         rp = self.get_router_pipes()

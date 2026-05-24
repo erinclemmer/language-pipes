@@ -4,6 +4,9 @@ import torch
 from uuid import uuid4
 from typing import List, Optional, Tuple, Dict
 
+from transformers import PretrainedConfig
+
+from language_pipes.llm_layer_collector.layer_collector import LlmLayerCollector
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.pipes.router_pipes import RouterPipes
 
@@ -38,6 +41,15 @@ class ModelManager:
             if m.model_id == model_id:
                 return m
         return None
+
+    def get_config(self, model_id: str) -> PretrainedConfig:
+        collector = LlmLayerCollector(
+            model_dir=get_model_dir() / model_id / "data",
+            cache_file=get_model_dir() / model_id / "cache.json",
+            device=torch.device('cpu'),
+            dtype=torch.bfloat16
+        )
+        return collector.config
 
     def _get_model_for_pipe(self, node_id: str, model_id: str, pipe: MetaPipe, device: torch.device, available_memory: int | float, first_layer: int) -> Tuple[int | float, Optional[LlmModel]]:
         new_model: Optional[LlmModel] = LlmModel.from_id(
