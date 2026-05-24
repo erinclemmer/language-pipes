@@ -29,7 +29,9 @@ class PipesConnected:
         
         entries = []
         for pipe in pipes_connected:
-            entries.append(format_pipe_view(pipe))
+            line = format_pipe_view(pipe)
+            line.append("")
+            entries.append(line)
 
         lines = make_window_text(entries, 0, 17)
 

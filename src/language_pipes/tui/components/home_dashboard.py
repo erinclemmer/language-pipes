@@ -4,9 +4,10 @@ from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from ansinout import PressedKey
 from language_pipes.content_provider.network_provider import RouterStatus
+from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.tui.components.view_pipe import format_pipe_view
 from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus, ModelToLoad, ModelStatusInfo
-from language_pipes.tui.util.text import make_footer_text, make_selectable_text
+from language_pipes.tui.util.text import make_footer_text, make_selectable_text, make_window_text
 
 class Dashboard:
     def _get_options(self) -> List[str]:
@@ -58,6 +59,7 @@ class Dashboard:
     selected_idx: int
     oai_port: int
     job_serv_running: bool
+    connected_pipes: List[MetaPipe]
     layer_models: List[ModelToLoad]
     models_status: Dict[str, List[ModelStatusInfo]]
 
@@ -73,9 +75,11 @@ class Dashboard:
         self.router_status = None
         self.network_config = self.provider.network_provider.get_network_config()
         self.selected_idx = 0
+        self.pipe_idx = 0
         self.oai_port = self.provider.job_provider.get_oai_port()
         self.job_serv_running = False
         self.layer_models = []
+        self.connected_pipes = []
         self.models_status = { }
 
     def network_port_available(self) -> bool:
@@ -105,6 +109,16 @@ class Dashboard:
                 self.on_enter()
         elif key == PressedKey.Escape:
             self.exit_page()
+        elif key == PressedKey.PageUp:
+            self.on_pg_up()
+        elif key == PressedKey.PageDown:
+            self.on_pg_down()
+
+    def on_pg_up(self):
+        self.pipe_idx = (self.pipe_idx - 1) % len(self.connected_pipes)
+
+    def on_pg_down(self):
+        self.pipe_idx = (self.pipe_idx + 1) % len(self.connected_pipes)
 
     def on_enter(self):
         selected_option = self._get_selected_option()
@@ -221,18 +235,27 @@ class Dashboard:
             if any(s.end_model for s in self.models_status.get(model_id, []))
         }
 
-        right_panel.append("Pipes:")
+        right_panel.append("Connected Pipes:")
+        
         connected_pipes = self.provider.pipe_provider.get_connected_pipes()
-        if connected_pipes is None or len(connected_pipes) == 0:
-            right_panel.extend(["None Connected", ""])
-        else:
-            num_local_layers = ModelProvider.get_num_local_layers()
-            for pipe in connected_pipes:
-                right_panel.extend(format_pipe_view(pipe))
-                if pipe.is_complete(num_local_layers) and pipe.model_id in local_end_model_ids:
-                    right_panel.append("Ready to serve")
-                right_panel.append("")
+        if connected_pipes is not None:
+            self.connected_pipes = connected_pipes
+            if self.connected_pipes is None or len(self.connected_pipes) == 0:
+                right_panel.extend(["None Connected", ""])
+            else:
+                entries = []
+                num_local_layers = ModelProvider.get_num_local_layers()
+                for pipe in self.connected_pipes:
+                    entry = []
+                    entry.extend(format_pipe_view(pipe))
+                    if pipe.is_complete(num_local_layers) and pipe.model_id in local_end_model_ids:
+                        entry.append("Ready to serve")
+                    entry.append("")
+                    entries.append(entry)
 
+                right_panel.extend(make_window_text(entries, self.pipe_idx, 7))
+        else:
+            right_panel.append("None Connected")
 
         return lines, right_panel
 

@@ -7,8 +7,7 @@ def format_pipe_view(
     pipe: MetaPipe
 ) -> List[str]:
     lines = [
-        f"Pipe ID: {pipe.pipe_id[:8]}",
-        f"Model ID: {pipe.model_id}"
+        pipe.model_id
     ]
     num_layers = pipe.num_layers()
     pipe_list = ["X" for _ in range(num_layers - 1)]
@@ -22,9 +21,11 @@ def format_pipe_view(
         for i in range(segment.start_layer, min(segment.end_layer + 1, num_layers - 1)):
             pipe_list[i] = ch
 
-    norm_pipe = ["X" for _ in range(0, 28)]
-    layers_per_char =  num_layers / 28.0
-    for i in range(0, 28):
+    PIPE_LEN = 24
+
+    norm_pipe = ["X" for _ in range(0, PIPE_LEN)]
+    layers_per_char =  num_layers / float(PIPE_LEN)
+    for i in range(0, PIPE_LEN):
         start = int(layers_per_char * i)
         end = int(layers_per_char * (i + 1))
         loading = False
@@ -42,13 +43,12 @@ def format_pipe_view(
         elif loaded:
             norm_pipe[i] = "="
     
-    norm_pipe = "".join(pipe_list)
+    norm_pipe = "".join(norm_pipe)
     node_id_string = ", ".join(node_ids)
+    completed_string = "(=)" if pipe.is_complete(ModelProvider.get_num_local_layers()) else "(X)"
     lines.extend([
-        f">{norm_pipe}<",
-        "Pipe Complete" if pipe.is_complete(ModelProvider.get_num_local_layers()) else "Pipe Incomplete",
-        f"{len(node_ids)} node(s) connected",
-        "Nodes: " + ((node_id_string[:40] + "...") if len(node_id_string) > 40 else node_id_string )
+        f"ID {pipe.pipe_id[:4]} >{norm_pipe}< {completed_string}",
+        f"{len(node_ids)} Node(s): " + ((node_id_string[:20] + "...") if len(node_id_string) > 20 else node_id_string)
     ])
 
     return lines
