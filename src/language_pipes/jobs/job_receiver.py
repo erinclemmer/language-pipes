@@ -99,7 +99,10 @@ class JobReceiver:
 
     def receive_data(self, data: bytes):
         """Receive and validate incoming job data."""
-        job, valid = NetworkJob.from_bytes(data)
+        try:
+            job, valid = NetworkJob.from_bytes(data)
+        except Exception:
+            return
         if not valid:
             self.restart_token(job)
             return

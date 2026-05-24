@@ -22,7 +22,8 @@ def write_tensor_dict(d: Dict[str, Optional[torch.Tensor]]) -> bytes:
     return bts.get_bytes()
 
 
-def read_tensor_dict(bts: ByteHelper) -> Dict[str, Optional[torch.Tensor]]:
+def read_tensor_dict(raw_data: bytes) -> Dict[str, Optional[torch.Tensor]]:
+    bts = ByteHelper(raw_data)
     data = { }
     num_keys = bts.read_int()
     current_key = 0
@@ -72,7 +73,7 @@ class JobData:
         state = bytes_to_tensor(bts.read_bytes())
         position_ids = bytes_to_tensor(bts.read_bytes())
         cache_position = bytes_to_tensor(bts.read_bytes())
-        causal_mask = read_tensor_dict(bts)
+        causal_mask = read_tensor_dict(bts.read_bytes())
         num_keys = bts.read_int()
         position_embeddings = { }
         current_key = 0
@@ -81,6 +82,7 @@ class JobData:
             t1 = bytes_to_tensor(bts.read_bytes())
             t2 = bytes_to_tensor(bts.read_bytes())
             position_embeddings[key] = (t1, t2)
+            current_key += 1
         
         job_data = JobData(
             state = state,

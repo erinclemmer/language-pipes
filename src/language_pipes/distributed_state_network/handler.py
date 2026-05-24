@@ -59,7 +59,10 @@ class _DSNodeHTTPRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         if response_data is not None:
-            self.wfile.write(response_data)
+            try:
+                self.wfile.write(response_data)
+            except BrokenPipeError:
+                pass
 
     def log_message(self, format: str, *args):
         return

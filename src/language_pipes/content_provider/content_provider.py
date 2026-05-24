@@ -4,6 +4,9 @@ from pathlib import Path
 import psutil
 from typing import Callable, List, Optional, Dict 
 
+from language_pipes.jobs.job_factory import JobFactory
+from language_pipes.jobs.job_receiver import JobReceiver
+from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.util.utils import is_port_available
 from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
@@ -23,6 +26,10 @@ class ContentProvider:
     router: Optional[DSNodeServer]
     router_pipes: Optional[RouterPipes]
     pipe_manager: Optional[PipeManager]
+    job_tracker: Optional[JobTracker]
+    job_factory: Optional[JobFactory]
+    job_receiver: Optional[JobReceiver]
+
     model_manager: ModelManager
     model_provider: ModelProvider
     network_provider: NetworkProvider
@@ -35,6 +42,9 @@ class ContentProvider:
         self.router = None
         self.router_pipes = None
         self.pipe_manager = None
+        self.job_tracker = None
+        self.job_factory = None
+        self.job_receiver = None
         self.model_manager = ModelManager()
         self.config_file = config_file
         self.create_alert = create_alert
@@ -43,7 +53,15 @@ class ContentProvider:
         self.model_provider = ModelProvider(config_file, lambda: self.model_manager, lambda: self.router_pipes)
         self.network_provider = NetworkProvider(config_file, lambda: self.router, self.set_router, self.create_alert)
         self.pipe_provider = PipeProvider(lambda: self.pipe_manager)
-        self.job_provider = JobProvider(config_file, lambda: self.router_pipes, lambda: self.model_manager, lambda: self.pipe_manager)
+        self.job_provider = JobProvider(
+            config_file, 
+            lambda: self.router_pipes, 
+            lambda: self.model_manager, 
+            lambda: self.pipe_manager,
+            lambda: self.job_tracker,
+            lambda: self.job_factory,
+            lambda: self.job_receiver
+        )
         self.sync_provider_state()
 
     def sync_provider_state(self):
@@ -87,6 +105,17 @@ class ContentProvider:
         if router is not None:
             self.router_pipes = RouterPipes(router)
             self.pipe_manager = PipeManager(self.model_manager, self.router_pipes)
+            self.job_tracker = JobTracker()
+            self.job_factory = JobFactory(self.job_tracker, self.pipe_manager)
+            self.job_receiver = JobReceiver(
+                job_factory=self.job_factory,
+                job_tracker=self.job_tracker,
+                model_manager=self.model_manager,
+                pipe_manager=self.pipe_manager,
+                is_shutdown=self.router_pipes.router.is_shut_down
+            )
+
+            self.router_pipes.router.set_receive_cb(self.job_receiver.receive_data)
         else:
             self.router_pipes = None
             self.pipe_manager = None
@@ -97,6 +126,11 @@ class ContentProvider:
         self.model_provider.unload_all_models()
         self.job_provider.stop_oai_server()
         self.network_provider._stop_network()
+        if self.job_tracker is not None:
+            self.job_tracker.shutdown = True
+        if self.job_receiver is not None:
+            self.job_receiver.shutdown = True
+        
 
     @staticmethod
     def get_total_system_ram() -> float:

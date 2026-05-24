@@ -1,7 +1,7 @@
 import gc
 from pathlib import Path
 from threading import Thread
-from time import sleep, time
+from time import time
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple
 
@@ -31,22 +31,31 @@ class MetaJob:
 class JobProvider:
     oai_server: Optional[OAIHttpServer]
     oai_thread: Optional[Thread]
-    job_tracker: Optional[JobTracker]
-    job_factory: Optional[JobFactory]
-    job_receiver: Optional[JobReceiver]
     config_file: Path
+    get_job_tracker: Callable[[], Optional[JobTracker]]
+    get_job_factory: Callable[[], Optional[JobFactory]]
+    get_job_receiver: Callable[[], Optional[JobReceiver]]
     get_router_pipes: Callable[[], Optional[RouterPipes]]
     get_model_manager: Callable[[], Optional[ModelManager]]
     get_pipe_manager: Callable[[], Optional[PipeManager]]
 
-    def __init__(self, config_file: Path, get_router_pipes: Callable, get_model_manager: Callable, get_pipe_manager: Callable):
+    def __init__(
+            self, 
+            config_file: Path, 
+            get_router_pipes: Callable, 
+            get_model_manager: Callable, 
+            get_pipe_manager: Callable,
+            get_job_tracker: Callable,
+            get_job_factory: Callable,
+            get_job_receiver: Callable
+        ):
         self.get_router_pipes = get_router_pipes
         self.get_model_manager = get_model_manager
         self.get_pipe_manager = get_pipe_manager
+        self.get_job_tracker = get_job_tracker
+        self.get_job_factory = get_job_factory
+        self.get_job_receiver = get_job_receiver
         self.config_file = config_file
-        self.job_tracker = None
-        self.job_factory = None
-        self.job_receiver = None
         self.oai_server = None
         self.oai_thread = None
 
@@ -71,22 +80,11 @@ class JobProvider:
     def start_oai_server(self, cfg: Optional[LpConfig] = None):
         router_pipes = self.get_router_pipes()
         model_manager = self.get_model_manager()
-        pipe_manager = self.get_pipe_manager()
-        if router_pipes is None or pipe_manager is None or model_manager is None:
+        job_factory = self.get_job_factory()
+        
+        if router_pipes is None or model_manager is None or job_factory is None:
             return
         
-        self.job_tracker = JobTracker()
-        self.job_factory = JobFactory(self.job_tracker, pipe_manager)
-        self.job_receiver = JobReceiver(
-            job_factory=self.job_factory,
-            job_tracker=self.job_tracker,
-            model_manager=model_manager,
-            pipe_manager=pipe_manager,
-            is_shutdown=router_pipes.router.is_shut_down
-        )
-
-        router_pipes.router.set_receive_cb(self.job_receiver.receive_data)
-
         def get_models():
             if router_pipes is None:
                 return
@@ -100,7 +98,7 @@ class JobProvider:
             api_keys=cfg.api_keys,
             port=cfg.oai_port,
             get_models=get_models,
-            complete=self.job_factory.start_job
+            complete=job_factory.start_job
         )
         self.oai_thread = Thread(target=self.oai_server.serve_forever, args=())
         self.oai_thread.start()
@@ -108,15 +106,6 @@ class JobProvider:
     def stop_oai_server(self):
         if self.oai_thread is None or self.oai_server is None:
             return
-        if self.job_tracker is not None:
-            self.job_tracker.shutdown = True
-            sleep(0.1)
-            self.job_tracker = None
-        self.job_factory = None
-        if self.job_receiver is not None:
-            self.job_receiver.shutdown = True
-            sleep(0.1)
-            self.job_receiver = None
         self.oai_server.shutdown()
         self.oai_server.server_close()
         stop_thread(self.oai_thread)
@@ -141,11 +130,12 @@ class JobProvider:
         self.oai_server.logs = []
 
     def get_active_jobs(self) -> List[MetaJob]:
-        if self.job_tracker is None:
+        job_tracker = self.get_job_tracker()
+        if job_tracker is None:
             return []
         
         meta_jobs = []
-        for job in self.job_tracker.jobs_pending:
+        for job in job_tracker.jobs_pending:
             meta_jobs.append(MetaJob(
                 job_id=job.job_id,
                 pipe_id=job.pipe_id,

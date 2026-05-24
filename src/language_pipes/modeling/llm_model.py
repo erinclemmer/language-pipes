@@ -131,7 +131,7 @@ class LlmModel:
 
     def cleanup_tensors(self):
         torch.cuda.empty_cache()
-        del self.layers
+        self.layers = []
         torch.cuda.empty_cache()
 
     @staticmethod
