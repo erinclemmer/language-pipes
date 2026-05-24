@@ -21,7 +21,6 @@ class ModelsLayerModels:
     provider: ContentProvider
     confirm: Confirm
     exit_page: Callable
-    is_focused: Callable
 
     state: LayerModelsState
     model_idx: int
@@ -42,12 +41,10 @@ class ModelsLayerModels:
         provider: ContentProvider,
         confirm: Confirm,
         exit_page: Callable,
-        is_focoused: Callable,
     ):
         self.provider = provider
         self.confirm = confirm
         self.exit_page = exit_page
-        self.is_focused = is_focoused
         self.state = LayerModelsState.List
         self.model_idx = 0
         self.edit_idx = 0
@@ -470,7 +467,7 @@ class ModelsLayerModels:
         for i, model in enumerate(self.models_to_load):
             entry = list(format_model_line(
                 model=model,
-                selected=self.model_idx == i and self.is_focused(),
+                selected=self.model_idx == i,
                 running=models_status.get(model.model_id, [])
             ))
             entry.append("")

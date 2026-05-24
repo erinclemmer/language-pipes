@@ -6,12 +6,10 @@ from language_pipes.content_provider.content_provider import ContentProvider
 class JobsActive:
     provider: ContentProvider
     exit_page: Callable
-    is_focused: Callable[[], bool]
 
-    def __init__(self, provider: ContentProvider, exit_page: Callable, is_focused: Callable):
+    def __init__(self, provider: ContentProvider, exit_page: Callable):
         self.provider = provider
         self.exit_page = exit_page
-        self.is_focused = is_focused
 
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.Escape:

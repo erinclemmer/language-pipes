@@ -16,7 +16,6 @@ class ModelsInstalled:
     provider: ContentProvider
     confirm: Confirm
     exit_page: Callable
-    is_focused: Callable
     state: ModelsInstalledState
     downloading: bool
     installed_models: List[str]
@@ -26,13 +25,12 @@ class ModelsInstalled:
     token_string: str
     download_status: Optional[str]
 
-    def __init__(self, provider: ContentProvider, confirm: Confirm, exit_page: Callable, is_focused: Callable):
+    def __init__(self, provider: ContentProvider, confirm: Confirm, exit_page: Callable):
         self.provider = provider
         self.confirm = confirm
         self.installed_models = []
         self.focus_idx = 0
         self.exit_page = exit_page
-        self.is_focused = is_focused
         self.state = ModelsInstalledState.LIST
         self.downloading = False
         self.new_model_id = ""

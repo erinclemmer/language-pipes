@@ -8,13 +8,11 @@ from ansinout import PressedKey
 class HomeActivity:
     provider: ContentProvider
     exit_page: Callable
-    is_focused: Callable[[], bool]
     change_nav: Callable[[str, str], None]
 
-    def __init__(self, provider: ContentProvider, exit_page: Callable, is_focused: Callable, change_nav: Callable):
+    def __init__(self, provider: ContentProvider, exit_page: Callable, change_nav: Callable):
         self.provider = provider
         self.exit_page = exit_page
-        self.is_focused = is_focused
         self.change_nav = change_nav
 
     def on_key(self, key: PressedKey, ch: str):

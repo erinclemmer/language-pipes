@@ -10,12 +10,10 @@ class NetworkStatus:
     provider: ContentProvider
     status: Optional[RouterStatus]
     exit_page: Callable
-    is_focused: Callable
 
-    def __init__(self, provider: ContentProvider, exit_page: Callable, is_focused: Callable):
+    def __init__(self, provider: ContentProvider, exit_page: Callable):
         self.provider = provider
         self.exit_page = exit_page
-        self.is_focused = is_focused
         self.status = None
 
     def start(self):
@@ -38,8 +36,8 @@ class NetworkStatus:
     def get_view(self) -> List[str]:
         self.config: DSNodeConfig = self.provider.network_provider.get_network_config()
         self.status: Optional[RouterStatus] = self.provider.network_provider.get_network_status()
-        l_cursor = "|>" if self.is_focused() else "  "
-        r_cursor = "<|" if self.is_focused() else "  "
+        l_cursor = "|>"
+        r_cursor = "<|"
         btn_text = f" {l_cursor} Start Network Server {r_cursor}"
         if not ContentProvider.is_port_available(self.config.port):
             btn_text = f"Warning: Can't start server, port {self.config.port} is not available"

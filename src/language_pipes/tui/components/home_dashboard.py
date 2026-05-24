@@ -66,12 +66,10 @@ class Dashboard:
         self,
         provider: ContentProvider,
         exit_page: Callable,
-        is_focused: Callable,
         change_nav: Callable,
     ):
         self.provider = provider
         self.exit_page = exit_page
-        self.is_focused = is_focused
         self.change_nav = change_nav
         self.router_status = None
         self.network_config = self.provider.network_provider.get_network_config()

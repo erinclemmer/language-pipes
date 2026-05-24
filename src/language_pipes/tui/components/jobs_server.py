@@ -19,7 +19,6 @@ class JobsServer:
     confirm: Confirm
     provider: ContentProvider
     exit_page: Callable
-    is_focused: Callable[[], bool]
 
     state: JobsServerState
     focus_idx: int
@@ -32,11 +31,10 @@ class JobsServer:
     edit_oai_port: str
     new_api_key: str
 
-    def __init__(self, provider: ContentProvider, confirm: Confirm, exit_page: Callable, is_focused: Callable):
+    def __init__(self, provider: ContentProvider, confirm: Confirm, exit_page: Callable):
         self.provider = provider
         self.confirm = confirm
         self.exit_page = exit_page
-        self.is_focused = is_focused
         self.server_running = False
         self.focus_idx = 0
         self.key_idx = 0
@@ -221,7 +219,7 @@ class JobsServer:
         return lines
 
     def get_top_view(self) -> List[str]:
-        port_cursor = "|" if self.focus_idx == 0 and self.is_focused() else ""
+        port_cursor = "|" if self.focus_idx == 0 else ""
         self.server_running = self.provider.job_provider.oai_server_running()
         port_string = f"   Port: {self.edit_oai_port}{port_cursor}" if not self.server_running else f"   Running Server on port {self.edit_oai_port}"
         lines = [

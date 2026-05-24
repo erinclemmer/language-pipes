@@ -42,31 +42,28 @@ class PageRouter:
         change_nav: Callable,
     ):
         self.nav = nav
-        self.dashboard = Dashboard(provider, self.exit_page, self.is_focused, change_nav)
-        self.home_activity = HomeActivity(provider, self.exit_page, self.is_focused, change_nav)
-        self.network_status = NetworkStatus(provider, self.exit_page, self.is_focused)
-        self.network_peers = NetworkPeers(provider, self.exit_page, self.is_focused)
+        self.dashboard = Dashboard(provider, self.exit_page, change_nav)
+        self.home_activity = HomeActivity(provider, self.exit_page, change_nav)
+        self.network_status = NetworkStatus(provider, self.exit_page)
+        self.network_peers = NetworkPeers(provider, self.exit_page)
         self.network_form = NetworkForm(
-            provider, state, confirm, change_nav, self.exit_page, self.is_focused
+            provider, state, confirm, change_nav, self.exit_page
         )
         self.models_installed = ModelsInstalled(
-            provider, confirm, self.exit_page, self.is_focused
+            provider, confirm, self.exit_page
         )
         self.models_layer_models = ModelsLayerModels(
-            provider, confirm, self.exit_page, self.is_focused
+            provider, confirm, self.exit_page
         )
         self.models_end_models = ModelsEndModels(
-            provider, confirm, self.exit_page, self.is_focused
+            provider, confirm, self.exit_page
         )
-        self.pipes_connected = PipesConnected(provider, self.exit_page, self.is_focused)
-        self.pipes_complete = PipesComplete(provider, self.exit_page, self.is_focused)
-        self.pipes_incomplete = PipesIncomplete(provider, self.exit_page, self.is_focused)
+        self.pipes_connected = PipesConnected(provider, self.exit_page)
+        self.pipes_complete = PipesComplete(provider, self.exit_page)
+        self.pipes_incomplete = PipesIncomplete(provider, self.exit_page)
 
-        self.jobs_server = JobsServer(provider, confirm, self.exit_page, self.is_focused)
-        self.jobs_active = JobsActive(provider, self.exit_page, self.is_focused)
-
-    def is_focused(self):
-        return self.nav.focus_depth == 2
+        self.jobs_server = JobsServer(provider, confirm, self.exit_page)
+        self.jobs_active = JobsActive(provider, self.exit_page)
 
     def exit_page(self):
         self.nav.focus_shallower()

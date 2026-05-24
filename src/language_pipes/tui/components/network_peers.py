@@ -8,15 +8,13 @@ from language_pipes.distributed_state_network.objects.state_packet import StateP
 class NetworkPeers:
     provider: ContentProvider
     exit_page: Callable
-    is_focused: Callable
     peers: Dict[str, StatePacket]
 
     def __init__(
-        self, provider: ContentProvider, exit_page: Callable, is_focused: Callable
+        self, provider: ContentProvider, exit_page: Callable
     ):
         self.provider = provider
         self.exit_page = exit_page
-        self.is_focused = is_focused
         self.peers = {}
 
     def on_key(self, key: PressedKey, ch: str):

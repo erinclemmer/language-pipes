@@ -1,7 +1,7 @@
 from typing import Callable, Optional, List, Dict, Any
 
 from language_pipes.tui.frame.tips import TIPS
-from language_pipes.tui.util.text import make_footer_text
+from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 
 from ansinout import PressedKey
 from language_pipes.tui.components.confirm import Confirm
@@ -25,15 +25,13 @@ class NetworkForm:
         state: FrameState,
         confirm: Confirm,
         change_nav: Callable,
-        exit_page: Callable,
-        is_focused: Callable,
+        exit_page: Callable
     ):
         self.state = state
         self.provider = provider
         self.confirm = confirm
         self.change_nav = change_nav
         self.exit_page = exit_page
-        self.is_focused = is_focused
         self.edit_field_idx = 0
         self.field_editor_visible = False
         self.network_key_editor = NetworkKeyEditor(provider, confirm, self.exit_field_editor)
@@ -151,16 +149,11 @@ class NetworkForm:
         lines = ["Edit Network Configuration:"]
         edit_fields = self.get_edit_fields()
         for idx, field in enumerate(edit_fields):
-            l_cursor = (
-                "|>" if idx == self.edit_field_idx and self.is_focused() else "  "
-            )
-            r_cursor = (
-                "<|" if idx == self.edit_field_idx and self.is_focused() else "  "
-            )
             name = str(field.get("label", "field"))
             value = str(field.get("value", ""))
             error = field.get("error")
-            lines.append(f" {l_cursor} {name}: {value} {r_cursor}")
+            line = make_selectable_text(f"{name}: {value}", self.edit_field_idx == idx)
+            lines.append(line)
             if error:
                 lines.append(f"    ! {error}")
 
@@ -178,8 +171,6 @@ class NetworkForm:
         return self._form_lines()
 
     def get_footer(self) -> str:
-        if not self.is_focused():
-            return ""
         if not self.field_editor_visible:
             return make_footer_text(["Arrows U/D: Change property", "Enter: Select", "Esc: Menu"])
         res = self.get_current_field_editor()

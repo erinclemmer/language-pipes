@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Callable, Dict, List
+from typing import Callable, Dict
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus
@@ -15,18 +15,16 @@ class EndModelsState(Enum):
 class ModelsEndModels:
     provider: ContentProvider
     exit_page: Callable
-    is_focused: Callable
 
     list_idx: int
     model_sizes: Dict[str, float]
     
     def __init__(
-        self, provider: ContentProvider, confirm: Confirm, exit_page: Callable, is_focused: Callable
+        self, provider: ContentProvider, confirm: Confirm, exit_page: Callable
     ):
         self.provider = provider
         self.confirm = confirm
         self.exit_page = exit_page
-        self.is_focused = is_focused
         self.state = EndModelsState.LIST
         self.end_models = []
         self.installed_models = []

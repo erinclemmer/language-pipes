@@ -11,11 +11,9 @@ class PipesConnected:
         self,
         provider: ContentProvider,
         exit_page: Callable,
-        is_focused: Callable,
     ):
         self.provider = provider
         self.exit_page = exit_page
-        self.is_focused = is_focused
 
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.Escape:
