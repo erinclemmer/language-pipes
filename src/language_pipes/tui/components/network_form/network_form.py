@@ -1,5 +1,6 @@
 from typing import Callable, Optional, List, Dict, Any
 
+from language_pipes.content_provider.network_provider import NetworkProvider
 from language_pipes.tui.frame.tips import TIPS
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 
@@ -80,6 +81,7 @@ class NetworkForm:
     def start(self) -> None:
         self.edit_field_idx = 0
         self.field_editor_visible = False
+        self.config_hash = NetworkProvider.get_config_hash(self.provider.network_provider.get_network_config())
 
     def get_edit_fields(self) -> List[Dict[str, Optional[Any]]]:
         cfg = self.provider.network_provider.get_network_config()
@@ -190,6 +192,16 @@ class NetworkForm:
                 should_exit = self.back()
                 if should_exit:
                     self.exit_field_editor()
+            elif self.provider.network_provider.get_network_status() is not None and self.config_hash != NetworkProvider.get_config_hash(self.provider.network_provider.get_network_config()):
+                def on_apply():
+                    self.provider.network_provider.restart_network()
+                    self.config_hash = NetworkProvider.get_config_hash(self.provider.network_provider.get_network_config())
+
+                self.confirm.open(
+                    "Configuration has changed, restart network server?",
+                    on_apply=on_apply,
+                    on_discard=lambda: self.exit_page()
+                )
             else:
                 self.exit_page()
             return

@@ -1,3 +1,5 @@
+from hashlib import sha256
+import json
 import os
 import shutil
 from pathlib import Path
@@ -71,6 +73,39 @@ class NetworkProvider:
             self.set_router(DSNodeServer.start(config, self.create_alert))
             self.router_starting = False
         self.router_thread = Thread(target=start_router, args=())
+        self.router_thread.start()
+
+    def restart_network(self, config: Optional[DSNodeConfig] = None):
+        if self.router_starting or self.router_stopping:
+            return
+
+        if config is None:
+            config = self.get_network_config()
+
+        if config.node_id is None:
+            return
+
+        if config.aes_key is not None and not config.aes_key_is_valid():
+            return
+
+        rtr = self.get_router()
+        router_thread = self.router_thread
+
+        self.router_stopping = True
+        self.router_starting = True
+        def restart():
+            try:
+                if rtr is not None:
+                    rtr.stop()
+                if router_thread is not None:
+                    stop_thread(router_thread)
+                self.set_router(None)
+                self.router_stopping = False
+                self.set_router(DSNodeServer.start(config, self.create_alert))
+            finally:
+                self.router_stopping = False
+                self.router_starting = False
+        self.router_thread = Thread(target=restart, args=())
         self.router_thread.start()
 
     def _stop_network(self):
@@ -158,6 +193,10 @@ class NetworkProvider:
         cfg = LpConfig.from_file(self.config_file)
         cfg.network_config = config
         cfg.save()
+
+    @staticmethod
+    def get_config_hash(config: DSNodeConfig) -> str:
+        return sha256(json.dumps(config.to_dict()).encode('utf-8')).hexdigest()
 
     @staticmethod
     def get_registered_node_ids() -> List[str]:
