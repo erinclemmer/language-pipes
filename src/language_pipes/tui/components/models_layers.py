@@ -16,6 +16,7 @@ class LayerModelsState(Enum):
     Options = 'options'
     Edit = 'edit'
     ChooseModel = 'choose_model'
+    ChooseDevice = 'choose_device'
 
 class ModelsLayerModels:
     provider: ContentProvider
@@ -27,9 +28,11 @@ class ModelsLayerModels:
     edit_idx: int
     option_idx: int
     choose_model_idx: int # Select the model to use in the editor
-    
+    choose_device_idx: int # Select the device to use in the editor
+
     models_to_load: List[ModelToLoad]
     installed_models: List[str]
+    available_devices: List[str]
     
     edit_model_id: Optional[str] # Editor: ID of model
     edit_device_name: str # Editor: name
@@ -50,8 +53,10 @@ class ModelsLayerModels:
         self.edit_idx = 0
         self.option_idx = 0
         self.choose_model_idx = 0
+        self.choose_device_idx = 0
         self.models_to_load = []
         self.installed_models = []
+        self.available_devices = []
         self._reset_editor()
         
     def on_key(self, key: PressedKey, ch: str):
@@ -101,21 +106,19 @@ class ModelsLayerModels:
     def on_backspace(self):
         if self.state != LayerModelsState.Edit:
             return
-        if self.edit_idx == 1:
-            self.edit_device_name = self.edit_device_name[:-1]
         if self.edit_idx == 2:
             self.edit_device_memory = self.edit_device_memory[:-1]
 
     def on_char(self, ch: str):
         if self.state != LayerModelsState.Edit:
             return
-        if self.edit_idx == 1:
-            self.edit_device_name += ch
         if self.edit_idx == 2:
             self.edit_device_memory += ch
 
     def on_escape(self):
         if self.state == LayerModelsState.ChooseModel:
+            self.state = LayerModelsState.Edit
+        elif self.state == LayerModelsState.ChooseDevice:
             self.state = LayerModelsState.Edit
         elif self.state == LayerModelsState.Edit:
             self.state = LayerModelsState.List
@@ -128,7 +131,7 @@ class ModelsLayerModels:
     def _reset_editor(self):
         self.edit_idx = 0
         self.edit_device_memory = ""
-        self.edit_device_name = ""
+        self.edit_device_name = "cpu"
         self.edit_load_ends = False
         self.edit_model_id = ""
         self.editing_config_idx = None
@@ -139,7 +142,7 @@ class ModelsLayerModels:
         self.state = LayerModelsState.Edit
         model = self.get_editing_model()
         self.edit_model_id = model.model_id if model is not None else ""
-        self.edit_device_name = str(model.device) if model is not None else ""
+        self.edit_device_name = str(model.device) if model is not None else "cpu"
         self.edit_device_memory = str(model.memory) if model is not None else ""
         # Store config index for when we save
         if model is not None and self.model_idx < len(self.models_to_load):
@@ -157,9 +160,16 @@ class ModelsLayerModels:
             self.edit_model_id = self.installed_models[self.choose_model_idx]
             self.state = LayerModelsState.Edit
             self.choose_model_idx = 0
+        elif self.state == LayerModelsState.ChooseDevice:
+            if len(self.available_devices) > 0:
+                self.edit_device_name = self.available_devices[self.choose_device_idx]
+            self.state = LayerModelsState.Edit
+            self.choose_device_idx = 0
         elif self.state == LayerModelsState.Edit:
             if self.edit_idx == 0:
                 self.state = LayerModelsState.ChooseModel
+            elif self.edit_idx == 1:
+                self._open_choose_device()
             elif self.edit_idx == 3:
                 self.add_model()
         elif self.state == LayerModelsState.Options:
@@ -259,6 +269,9 @@ class ModelsLayerModels:
             self.option_idx = (self.option_idx + 1) % 3
         elif self.state == LayerModelsState.ChooseModel:
             self.choose_model_idx = (self.choose_model_idx + 1) % len(self.installed_models)
+        elif self.state == LayerModelsState.ChooseDevice:
+            if len(self.available_devices) > 0:
+                self.choose_device_idx = (self.choose_device_idx + 1) % len(self.available_devices)
 
     def on_prev(self):
         if self.state == LayerModelsState.Edit:
@@ -269,16 +282,37 @@ class ModelsLayerModels:
             self.option_idx = (self.option_idx - 1) % 3
         elif self.state == LayerModelsState.ChooseModel:
             self.choose_model_idx = (self.choose_model_idx - 1) % len(self.installed_models)
+        elif self.state == LayerModelsState.ChooseDevice:
+            if len(self.available_devices) > 0:
+                self.choose_device_idx = (self.choose_device_idx - 1) % len(self.available_devices)
 
     def get_view(self) -> List[str]:
         if self.state == LayerModelsState.ChooseModel:
             return self.get_choosing_model_view()
+        elif self.state == LayerModelsState.ChooseDevice:
+            return self.get_choosing_device_view()
         elif self.state == LayerModelsState.Edit:
             return self.get_editor_view()
         elif self.state == LayerModelsState.Options:
             return self.get_options_view()
         else:
             return self.get_list_view()
+
+    @staticmethod
+    def _get_available_devices() -> List[str]:
+        devices = ["cpu"]
+        if torch.cuda.is_available():
+            for i in range(torch.cuda.device_count()):
+                devices.append(f"cuda:{i}")
+        return devices
+
+    def _open_choose_device(self):
+        self.available_devices = self._get_available_devices()
+        if self.edit_device_name in self.available_devices:
+            self.choose_device_idx = self.available_devices.index(self.edit_device_name)
+        else:
+            self.choose_device_idx = 0
+        self.state = LayerModelsState.ChooseDevice
     
     def _current_model_loading(self) -> bool:
         model = self.get_editing_model()
@@ -350,6 +384,20 @@ class ModelsLayerModels:
     def _network_not_started_warning(self):
         return ["[WARNING] Network is not started.\nModels cannot be loaded until the network is started.", ""]
 
+    def get_choosing_device_view(self) -> List[str]:
+        lines = ["Choose Device", ""]
+
+        if len(self.available_devices) <= 1 and not torch.cuda.is_available():
+            lines.extend(["[WARNING] Could not detect cuda device", ""])
+
+        entries = []
+        for i, device in enumerate(self.available_devices):
+            entries.append([make_selectable_text(device, self.choose_device_idx == i), ""])
+
+        lines.extend(make_window_text(entries, self.choose_device_idx, 14))
+
+        return lines
+
     def get_choosing_model_view(self) -> List[str]:
         lines = ["Choose Model to Host", ""]
 
@@ -415,10 +463,12 @@ class ModelsLayerModels:
             lines.extend(["   ! Warning: Must choose model to load", ""])
 
         if self.valid_model_id():
-            name_cursor = "|" if self.edit_idx == 1 else " "
-            lines.append(f"   Device: {self.edit_device_name}{name_cursor}")
+            device_label = (
+                self.edit_device_name if self.valid_device() else "Choose device..."
+            )
+            lines.append(make_selectable_text(f"Device: {device_label}", self.edit_idx == 1))
             if not self.valid_device():
-                lines.append("   !Warning: Invalid device name")
+                lines.append("   !Warning: Must choose device")
 
         max_memory_line = ""
         if self.valid_model_id() and self.valid_device():
@@ -494,12 +544,16 @@ class ModelsLayerModels:
         elif self.state == LayerModelsState.Edit:
             if self.edit_idx == 0:
                 return make_footer_text(["Arrows U/D: Move", "Enter: Change Model", "Esc: Back"])
-            elif self.edit_idx == 1 or self.edit_idx == 2:
+            elif self.edit_idx == 1:
+                return make_footer_text(["Arrows U/D: Move", "Enter: Change Device", "Esc: Back"])
+            elif self.edit_idx == 2:
                 return make_footer_text(["Arrows U/D: Move", "[A-Z]: Type", "Esc: Back"])
             elif self.edit_idx == 3:
                 return make_footer_text(["Arrows U/D: Move", "Enter: Save Layer Model", "Esc: Back"])
         elif self.state == LayerModelsState.ChooseModel:
             return make_footer_text(["Arrows U/D: Move", "Enter: Select Model", "Esc: Back"])
+        elif self.state == LayerModelsState.ChooseDevice:
+            return make_footer_text(["Arrows U/D: Move", "Enter: Select Device", "Esc: Back"])
         elif self.state == LayerModelsState.Options:
             return make_footer_text(["Arrows U/D: Move", "Enter: Select Option", "Esc: Back"])
 

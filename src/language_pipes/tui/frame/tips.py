@@ -11,7 +11,7 @@ TIPS = {
     },
     "layer_models": {
         "model_id": "Model ID: A HuggingFace model ID (e.g. Qwen/Qwen3-1.7B).\nThe model must be installed before it can be hosted.",
-        "device": "Device: The PyTorch device to load layers onto.\nExamples: cpu, cuda:0, cuda:1, etc.",
+        "device": "Device: The PyTorch device to load layers onto.\nPress Enter to choose between cpu and any available cuda devices.",
         "max_memory": "Max Memory: The maximum amount of memory (in GB) to allocate for\nthis model's layers on the chosen device. Higher values\nallow more layers to be loaded on this node."
     }
 }
