@@ -10,7 +10,8 @@ def format_pipe_view(
         f"Pipe ID: {pipe.pipe_id[:8]}",
         f"Model ID: {pipe.model_id}"
     ]
-    pipe_list = ["X" for _ in range(pipe.num_layers() - 1)]
+    num_layers = pipe.num_layers()
+    pipe_list = ["X" for _ in range(num_layers - 1)]
     node_ids = set()
     for segment in pipe.segments:
         if segment.node_id not in node_ids:
@@ -18,11 +19,11 @@ def format_pipe_view(
         ch = "|"
         if segment.loaded:
             ch =  "="
-        for i in range(segment.start_layer, segment.end_layer):
+        for i in range(segment.start_layer, min(segment.end_layer + 1, num_layers - 1)):
             pipe_list[i] = ch
 
     norm_pipe = ["X" for _ in range(0, 28)]
-    layers_per_char =  pipe.num_layers() / 28.0
+    layers_per_char =  num_layers / 28.0
     for i in range(0, 28):
         start = int(layers_per_char * i)
         end = int(layers_per_char * (i + 1))
