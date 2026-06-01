@@ -190,8 +190,14 @@ class ModelsEndModels:
 
     def add_model(self) -> None:
         available_models = self._available_models()
-        self.end_models.append(available_models[self.choose_idx])
+        selected_model = available_models[self.choose_idx]
+        self.end_models.append(selected_model)
         self.provider.model_provider.save_end_models(self.end_models)
+        self.confirm.open(
+            f"Load {selected_model} now?",
+            on_apply=lambda: self.provider.model_provider.load_end_model(selected_model),
+            on_discard=lambda: None
+        )
 
     def _get_model_size(self, model_id: str) -> float:
         if model_id in self.model_sizes:
