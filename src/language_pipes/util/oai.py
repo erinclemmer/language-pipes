@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler
 from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage
 from language_pipes.util.http import _respond_json, _send_sse_headers
+from language_pipes.util.oai_chunks import send_complete, send_initial_chunk, send_update_chunk
 
 class ChatCompletionRequest:
     model: str
@@ -70,77 +71,6 @@ class ChatCompletionRequest:
         min_p = data['min_p'] if 'min_p' in data else 0.0
         presence_penalty = data['presence_penalty'] if 'presence_penalty' in data else 0.0
         return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature, top_k, top_p, min_p, presence_penalty)
-
-def send_initial_chunk(
-    job: Job,
-    created: float,
-    handler: BaseHTTPRequestHandler
-):
-    msg = {
-        "id": f"chatcmpl-{job.job_id}",
-        "object": "chat.completion.chunk",
-        "created": int(created),
-        "model": job.model_id,
-        "choices": [
-            {
-                "index": 0,
-                "delta": {"role": "assistant", "content": ""},
-                "finish_reason": None
-            }
-        ]
-    }
-    data_bytes = json.dumps(msg).encode('utf-8')
-    handler.wfile.write(b'data: ' + data_bytes + b'\n\n')
-    handler.wfile.flush()
-
-def send_update_chunk(
-    job: Job,
-    delta: object,
-    created: float,
-    finish_reason: str | None,
-    handler: BaseHTTPRequestHandler
-):
-    msg = {
-        "id": f"chatcmpl-{job.job_id}",
-        "object": "chat.completion.chunk",
-        "created": int(created),
-        "model": job.model_id,
-        "choices": [
-            {
-                "index": 0,
-                "delta": delta,
-                "finish_reason": finish_reason
-            }
-        ]
-    }
-    data_bytes = json.dumps(msg).encode('utf-8')
-    try:
-        handler.wfile.write(b'data: ' + data_bytes + b'\n\n')
-        handler.wfile.flush()
-    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
-        return False # Stop job when pipe is broken
-    return True
-
-def send_complete(job: Job, created: float, handler: BaseHTTPRequestHandler):
-    final = {
-        "id": f"chatcmpl-{job.job_id}",
-        "object": "chat.completion.chunk",
-        "created": int(created),
-        "model": job.model_id,
-        "choices": [
-            {
-                "index": 0,
-                "delta": {},
-                "finish_reason": "stop"
-            }
-        ]
-    }
-    try:
-        handler.wfile.write(b'data: ' + json.dumps(final).encode('utf-8') + b'\n\n')
-        handler.wfile.write(b'data: [DONE]\n\n')
-        handler.wfile.flush()
-    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError) as e:
-        print(e)
 
 def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict):
     req = ChatCompletionRequest.from_dict(data)
