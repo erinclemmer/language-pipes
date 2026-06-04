@@ -17,7 +17,7 @@ class ListPageState(PageState):
         self.model_idx = 0
 
     def on_change(self, args: Dict):
-        self.model_idx = 0
+        pass
     
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.ArrowUp:

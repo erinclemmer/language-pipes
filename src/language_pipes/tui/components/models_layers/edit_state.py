@@ -7,7 +7,7 @@ from language_pipes.config import ModelToLoad
 from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus
 from language_pipes.tui.components.page import PageState
 from language_pipes.tui.frame.tips import TIPS
-from language_pipes.tui.util.text import make_selectable_text
+from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 
 
 class EditPageState(PageState):
@@ -23,18 +23,35 @@ class EditPageState(PageState):
 
     def __init__(self):
         super().__init__('edit')
+        self.editing_model = None
+        self.editing_model_idx = None
         self.model_id = ""
         self.device_name = "cpu"
         self.device_memory = ""
         self.select_idx = 0
         self.num_layers_cache = { }
-    
+
     def on_change(self, args: Dict):
+        # Returning from the model selector keeps the rest of the form intact.
+        if "model_id" in args:
+            self.model_id = args["model_id"]
+            return
+        # Returning from the device selector keeps the rest of the form intact.
+        if "device" in args:
+            self.device_name = args["device"]
+            return
+        # Cancelling out of a selector returns here with no args; keep the form.
+        if "model" not in args:
+            return
+
+        # Fresh entry from the list/options page resets the form.
         self.editing_model = args["model"]
-        self.editing_model_idx = args["model_idx"]
+        self.editing_model_idx = args["model_idx"] if self.editing_model is not None else None
         self.model_id = self.editing_model.model_id if self.editing_model is not None else ""
         self.device_name = str(self.editing_model.device) if self.editing_model is not None else "cpu"
         self.device_memory = str(self.editing_model.memory) if self.editing_model is not None else ""
+        self.select_idx = 0
+        self.num_layers_cache = { }
 
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.ArrowUp:
@@ -151,6 +168,17 @@ class EditPageState(PageState):
 
         return lines
 
+    def get_footer(self) -> str:
+        if self.select_idx == 0:
+            return make_footer_text(["Arrows U/D: Move", "Enter: Change Model", "Esc: Back"])
+        elif self.select_idx == 1:
+            return make_footer_text(["Arrows U/D: Move", "Enter: Change Device", "Esc: Back"])
+        elif self.select_idx == 2:
+            return make_footer_text(["Arrows U/D: Move", "[A-Z]: Type", "Esc: Back"])
+        elif self.select_idx == 3:
+            return make_footer_text(["Arrows U/D: Move", "Enter: Save Layer Model", "Esc: Back"])
+        return ""
+
     def _max_select_idx(self) -> int:
         max_idx = 0
         if self._valid_model_id():
@@ -248,7 +276,7 @@ class EditPageState(PageState):
             return False
         
     def _valid_model_id(self) -> bool:
-        return self.select_idx is not None and self.select_idx != ""
+        return self.model_id is not None and self.model_id != ""
 
     def _valid_device(self) -> bool:
         return ModelProvider.validate_device_name(self.device_name)

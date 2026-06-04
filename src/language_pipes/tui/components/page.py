@@ -52,6 +52,7 @@ class Page:
             if state.name == state_name:
                 self.current_state = state_name
                 state.on_change(args)
+                return
 
         raise Exception(f"State change to {state_name} failed")
 

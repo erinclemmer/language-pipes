@@ -9,7 +9,7 @@ from language_pipes.tui.components.confirm import Confirm
 from language_pipes.tui.frame.frame_state import FrameState
 from language_pipes.tui.components.home_dashboard import Dashboard
 from language_pipes.tui.components.jobs_server import JobsServer
-from language_pipes.tui.components.models_layers import ModelsLayerModels
+from language_pipes.tui.components.models_layers import ModelsLayers
 from language_pipes.tui.components.network_peers import NetworkPeers
 from language_pipes.tui.components.network_status import NetworkStatus
 from language_pipes.tui.components.pipes_complete import PipesComplete
@@ -28,7 +28,7 @@ class PageRouter:
     network_form: NetworkForm
 
     models_installed: ModelsInstalled
-    models_layer_models: ModelsLayerModels
+    models_layer_models: ModelsLayers
 
     dashboard: Dashboard
     pipes_connected: PipesConnected
@@ -52,7 +52,7 @@ class PageRouter:
         self.models_installed = ModelsInstalled(
             provider, confirm, self.exit_page
         )
-        self.models_layer_models = ModelsLayerModels(
+        self.models_layer_models = ModelsLayers(
             provider, confirm, self.exit_page
         )
         self.models_end_models = ModelsEndModels(
