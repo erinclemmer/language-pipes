@@ -216,17 +216,33 @@ class Dashboard:
         return lines
 
     def _get_job_status(self):
-        lines = []
-        if self.router_status is not None and self.router_status.state == "running":
-            if self.job_serv_running or self.job_port_available():
-                job_str = f"running on port {self.oai_port}" if self.job_serv_running else "stopped"
-                lines.append(f"Job Server: {job_str}")
-                api_keys = self.provider.job_provider.get_api_keys()
-                if len(api_keys) > 0:
-                    lines.append(f"{len(api_keys)} API Key(s)")
-                lines.append("")
-            else:
-                lines.extend([f"Warning:\nJob port {self.oai_port} is not available", ""])
+        lines = ["Job Server:"]
+        
+        job_str = f"running on port {self.oai_port}" if self.job_serv_running else "stopped"
+        lines.append(f"Status: {job_str}")
+        
+        api_keys = self.provider.job_provider.get_api_keys()
+        if len(api_keys) > 0:
+            lines.append(f"{len(api_keys)} API Key(s)")
+        
+        if not self.job_serv_running and not self.job_port_available():
+            lines.append(f"Warning:\nJob port {self.oai_port} is not available")
+
+        if self.job_serv_running:
+            jobs = self.provider.job_provider.get_active_jobs()
+            lines.append(f"{len(jobs)} job(s) running")
+            if len(jobs) > 2:
+                jobs = jobs[:2]
+            for job in jobs:
+                token_str = ""
+                if job.prompt_processed == 1:
+                    token_str = f"{job.current_token} tokens"
+                else:
+                    token_str = f"{job.prompt_processed * 100:.0f}% processed"
+                lines.append(f"ID {job.job_id[:4]} {token_str}")
+
+        lines.append("")
+
         return lines
     
     def _get_pipe_status(self, pipe: MetaPipe, num_local_layers: int, local_end_model_ids: Set[str]) -> List[str]:
