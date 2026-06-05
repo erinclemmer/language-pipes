@@ -26,6 +26,8 @@ the history of `models_layers.py`, which was refactored into the
 Use this skill when adding a new multi-screen page, or adding a screen to an
 existing one.
 
+each page state should have its own file in a folder for the page
+
 ---
 
 ## The base classes (`page.py`)
