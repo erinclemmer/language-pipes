@@ -218,3 +218,5 @@ class Job:
     def set_last_update(self):
         self.last_update = time()
 
+    def get_job_ram(self) -> float:
+        return 0.0
