@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Dict, Tuple
+from typing import Callable, List, Optional, Dict, Set, Tuple
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
@@ -192,6 +192,89 @@ class Dashboard:
                     return True
         return False
 
+    def _get_left_panel(self):
+        lines = ["   Options:", ""]
+        selected_option = self._get_selected_option()
+        for label in self._get_options():
+            lines.extend([make_selectable_text(label, label == selected_option), ""])
+        lines.extend(["", ""])
+
+        self.models_status = self.provider.model_provider.get_models_status()
+
+        return lines
+    
+    def _get_network_status(self) -> List[str]:
+        lines = []
+        if self.router_status is not None or self.network_port_available():
+            if self.network_config.node_id != "":
+                lines.extend([f"Network: {self._get_network_label()}", ""])
+            else:
+                lines.extend(["Warning:\nNode ID not set, cannot start network", ""])
+        else:
+            lines.extend([f"Warning:\nNetwork port {self.network_config.port} not available", ""])
+        
+        return lines
+
+    def _get_job_status(self):
+        lines = []
+        if self.router_status is not None and self.router_status.state == "running":
+            if self.job_serv_running or self.job_port_available():
+                job_str = f"running on port {self.oai_port}" if self.job_serv_running else "stopped"
+                lines.append(f"Job Server: {job_str}")
+                api_keys = self.provider.job_provider.get_api_keys()
+                if len(api_keys) > 0:
+                    lines.append(f"{len(api_keys)} API Key(s)")
+                lines.append("")
+            else:
+                lines.extend([f"Warning:\nJob port {self.oai_port} is not available", ""])
+        return lines
+    
+    def _get_pipe_status(self, pipe: MetaPipe, num_local_layers: int, local_end_model_ids: Set[str]) -> List[str]:
+        entry = []
+        entry.extend(format_pipe_view(pipe))
+        if pipe.is_complete(num_local_layers) and pipe.model_id in local_end_model_ids:
+            entry.append("Ready to serve")
+        entry.append("")
+        return entry
+
+    def _get_pipes_status(self) -> List[str]:
+        lines = []
+        self.models_status = self.provider.model_provider.get_models_status()
+
+        local_end_model_ids = {
+            model_id for model_id in self.end_models
+            if any(s.end_model for s in self.models_status.get(model_id, []))
+        }
+
+        lines.append("Connected Pipes:")
+        
+        connected_pipes = self.provider.pipe_provider.get_connected_pipes()
+        if connected_pipes is not None:
+            self.connected_pipes = connected_pipes
+            if self.connected_pipes is None or len(self.connected_pipes) == 0:
+                lines.extend(["None Connected", ""])
+            else:
+                entries = []
+                num_local_layers = ModelProvider.get_num_local_layers()
+                for pipe in self.connected_pipes:
+                    entries.append(self._get_pipe_status(pipe, num_local_layers, local_end_model_ids))
+
+                lines.extend(make_window_text(entries, self.pipe_idx, 7))
+        else:
+            lines.append("None Connected")
+        
+        return lines
+
+    def _get_right_panel(self):
+        lines = self._get_ram_usage()
+        lines.append("")
+
+        lines.extend(self._get_network_status())
+        lines.extend(self._get_job_status())
+        lines.extend(self._get_pipes_status())
+
+        return lines
+
     def get_view(self) -> Tuple[List[str], List[str]]:
         self.layer_models = self.provider.model_provider.get_layer_models()
         self.end_models = self.provider.model_provider.get_end_models()
@@ -200,64 +283,7 @@ class Dashboard:
         self.job_serv_running = self.provider.job_provider.oai_server_running()
         self.oai_port = self.provider.job_provider.get_oai_port()
 
-        lines = ["   Options:", ""]
-        right_panel = self._get_ram_usage()
-        right_panel.append("")
-
-        if self.router_status is not None or self.network_port_available():
-            if self.network_config.node_id != "":
-                right_panel.extend([f"Network: {self._get_network_label()}", ""])
-            else:
-                right_panel.extend(["Warning:\nNode ID not set, cannot start network", ""])
-        else:
-            right_panel.extend([f"Warning:\nNetwork port {self.network_config.port} not available", ""])
-
-        if self.router_status is not None and self.router_status.state == "running":
-            if self.job_serv_running or self.job_port_available():
-                job_str = f"running on port {self.oai_port}" if self.job_serv_running else "stopped"
-                right_panel.append(f"Job Server: {job_str}")
-                api_keys = self.provider.job_provider.get_api_keys()
-                if len(api_keys) > 0:
-                    right_panel.append(f"{len(api_keys)} API Key(s)")
-                right_panel.append("")
-            else:
-                right_panel.extend([f"Warning:\nJob port {self.oai_port} is not available", ""])
-
-        selected_option = self._get_selected_option()
-        for label in self._get_options():
-            lines.extend([make_selectable_text(label, label == selected_option), ""])
-        lines.extend(["", ""])
-
-        self.models_status = self.provider.model_provider.get_models_status()
-
-        local_end_model_ids = {
-            model_id for model_id in self.end_models
-            if any(s.end_model for s in self.models_status.get(model_id, []))
-        }
-
-        right_panel.append("Connected Pipes:")
-        
-        connected_pipes = self.provider.pipe_provider.get_connected_pipes()
-        if connected_pipes is not None:
-            self.connected_pipes = connected_pipes
-            if self.connected_pipes is None or len(self.connected_pipes) == 0:
-                right_panel.extend(["None Connected", ""])
-            else:
-                entries = []
-                num_local_layers = ModelProvider.get_num_local_layers()
-                for pipe in self.connected_pipes:
-                    entry = []
-                    entry.extend(format_pipe_view(pipe))
-                    if pipe.is_complete(num_local_layers) and pipe.model_id in local_end_model_ids:
-                        entry.append("Ready to serve")
-                    entry.append("")
-                    entries.append(entry)
-
-                right_panel.extend(make_window_text(entries, self.pipe_idx, 7))
-        else:
-            right_panel.append("None Connected")
-
-        return lines, right_panel
+        return self._get_left_panel(), self._get_right_panel()
 
     def get_footer(self) -> str:
         return make_footer_text(["Arrows U/D: Move", "Enter: Select Option", "Esc: Menu"])
