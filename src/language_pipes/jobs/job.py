@@ -219,4 +219,21 @@ class Job:
         self.last_update = time()
 
     def get_job_ram(self) -> float:
-        return 0.0
+        total_bytes = 0
+        tensors = []
+        # Newer transformers: cache.layers is a list of layer objects with keys/values
+        if hasattr(self.cache, "layers"):
+            for layer in self.cache.layers:
+                tensors.append(getattr(layer, "keys", None))
+                tensors.append(getattr(layer, "values", None))
+        # Older transformers: parallel key_cache / value_cache lists of tensors
+        else:
+            tensors.extend(getattr(self.cache, "key_cache", []))
+            tensors.extend(getattr(self.cache, "value_cache", []))
+
+        for tensor in tensors:
+            if tensor is not None:
+                total_bytes += tensor.numel() * tensor.element_size()
+
+        # Return in GB to match system RAM reporting elsewhere
+        return total_bytes / (1024**3)

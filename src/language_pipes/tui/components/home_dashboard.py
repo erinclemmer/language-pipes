@@ -239,7 +239,7 @@ class Dashboard:
                     token_str = f"{job.current_token} tokens"
                 else:
                     token_str = f"{job.prompt_processed * 100:.0f}% processed"
-                lines.append(f"ID {job.job_id[:4]} {token_str}")
+                lines.append(f"ID {job.job_id[:4]} {token_str} ({job.ram:.2f}GB cached)")
 
         lines.append("")
 
