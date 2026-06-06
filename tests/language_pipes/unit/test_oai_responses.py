@@ -11,8 +11,10 @@ from language_pipes.oai_server import OAIHttpServer
 from language_pipes.util.chat import ChatRole
 from language_pipes.util.oai import ResponsesRequest, _response_json
 from language_pipes.util.oai_tool_calls import (
+    ReasoningStreamSplitter,
     parse_tool_call,
     parse_tool_definitions,
+    split_reasoning,
 )
 
 
@@ -405,6 +407,168 @@ class StreamingTests(unittest.TestCase):
             completed = next(e for e in events if e["type"] == "response.completed")
             self.assertEqual(completed["response"]["output"][0]["type"], "function_call")
             self.assertEqual(completed["response"]["output_text"], "")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=1)
+
+
+class SplitReasoningTests(unittest.TestCase):
+    def test_no_think_block(self):
+        reasoning, content = split_reasoning("Just an answer.")
+        self.assertIsNone(reasoning)
+        self.assertEqual(content, "Just an answer.")
+
+    def test_extracts_reasoning_and_content(self):
+        reasoning, content = split_reasoning("<think>I should answer 42.</think>\nThe answer is 42.")
+        self.assertEqual(reasoning, "I should answer 42.")
+        self.assertEqual(content, "The answer is 42.")
+
+    def test_reasoning_only(self):
+        reasoning, content = split_reasoning("<think>hmm</think>")
+        self.assertEqual(reasoning, "hmm")
+        self.assertEqual(content, "")
+
+    def test_empty(self):
+        self.assertEqual(split_reasoning(""), (None, ""))
+
+
+class ReasoningStreamSplitterTests(unittest.TestCase):
+    def _feed_all(self, chunks):
+        splitter = ReasoningStreamSplitter()
+        reasoning, content = "", ""
+        for chunk in chunks:
+            r, c = splitter.feed(chunk)
+            reasoning += r
+            content += c
+        r, c = splitter.finalize()
+        return reasoning + r, content + c
+
+    def test_plain_text_is_all_content(self):
+        reasoning, content = self._feed_all(["Hello ", "world"])
+        self.assertEqual(reasoning, "")
+        self.assertEqual(content, "Hello world")
+
+    def test_reasoning_then_content_in_one_chunk(self):
+        reasoning, content = self._feed_all(["<think>thinking</think>answer"])
+        self.assertEqual(reasoning, "thinking")
+        self.assertEqual(content, "answer")
+
+    def test_tags_split_across_chunks(self):
+        reasoning, content = self._feed_all(
+            ["<th", "ink>think", "ing hard</th", "ink>The ans", "wer is 42."]
+        )
+        self.assertEqual(reasoning, "thinking hard")
+        self.assertEqual(content, "The answer is 42.")
+
+    def test_close_tag_split_at_every_boundary(self):
+        text = "<think>abc</think>xyz"
+        for i in range(1, len(text)):
+            reasoning, content = self._feed_all([text[:i], text[i:]])
+            self.assertEqual(reasoning, "abc", f"split at {i}")
+            self.assertEqual(content, "xyz", f"split at {i}")
+
+    def test_unterminated_think_flushes_as_reasoning(self):
+        reasoning, content = self._feed_all(["<think>never closes"])
+        self.assertEqual(reasoning, "never closes")
+        self.assertEqual(content, "")
+
+    def test_content_with_leading_angle_bracket_is_not_reasoning(self):
+        reasoning, content = self._feed_all(["<answer>hi"])
+        self.assertEqual(reasoning, "")
+        self.assertEqual(content, "<answer>hi")
+
+
+class ReasoningJob(DummyJob):
+    result = "<think>The user said hello.</think>Hello there!"
+    delta = ""
+
+
+class ReasoningResponseShapeTests(unittest.TestCase):
+    def test_reasoning_item_precedes_message(self):
+        req = ResponsesRequest.from_dict({"model": "model-1", "input": "Hi"})
+        response = _response_json(ReasoningJob(), req, 1234.5)
+
+        self.assertEqual(response["output"][0]["type"], "reasoning")
+        self.assertEqual(
+            response["output"][0]["summary"][0]["text"], "The user said hello."
+        )
+        self.assertEqual(response["output"][1]["type"], "message")
+        # reasoning is stripped from the visible answer
+        self.assertEqual(response["output_text"], "Hello there!")
+
+    def test_reasoning_with_tool_call(self):
+        req = ResponsesRequest.from_dict({
+            "model": "model-1",
+            "input": "What is the weather in Chicago?",
+            "tools": [WEATHER_TOOL],
+        })
+
+        class ReasoningToolJob(DummyJob):
+            result = (
+                "<think>I need the weather tool.</think>"
+                '{"tool_call": {"name": "get_weather", "arguments": {"city": "Chicago"}}}'
+            )
+
+        response = _response_json(ReasoningToolJob(), req, 1234.5)
+        self.assertEqual(response["output"][0]["type"], "reasoning")
+        self.assertEqual(response["output"][1]["type"], "function_call")
+        self.assertEqual(response["output_text"], "")
+
+
+class ReasoningStreamingTests(unittest.TestCase):
+    def _serve_streaming(self, job, chunks):
+        def complete(model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+            start(job)
+            for chunk in chunks:
+                job.delta = chunk
+                update(job)
+            resolve(job)
+
+        server = OAIHttpServer(0, [], complete, lambda: ["model-1"])
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        return server, thread
+
+    def test_reasoning_blocked_then_content_streamed(self):
+        job = ReasoningJob()
+        # chunks deliberately split the tags across deltas
+        chunks = ["<thi", "nk>The user ", "said hello.</thi", "nk>Hello ", "there!"]
+        server, thread = self._serve_streaming(job, chunks)
+        try:
+            port = server.server_address[1]
+            res = requests.post(f"http://127.0.0.1:{port}/v1/responses", json={
+                "model": "model-1",
+                "input": "Hi",
+                "stream": True,
+            })
+            self.assertEqual(res.status_code, 200)
+            events = _parse_sse_events(res.text)
+            types = [e["type"] for e in events]
+
+            # reasoning item is emitted as a block (no partial think tags leak)
+            self.assertIn("response.reasoning_summary_text.done", types)
+            reasoning_done = next(
+                e for e in events if e["type"] == "response.reasoning_summary_text.done"
+            )
+            self.assertEqual(reasoning_done["text"], "The user said hello.")
+
+            # the reasoning item.done comes before any content delta (blocked)
+            reasoning_idx = types.index("response.reasoning_summary_text.done")
+            content_idx = types.index("response.output_text.delta")
+            self.assertLess(reasoning_idx, content_idx)
+
+            # content streamed, with no <think> markup in it
+            content = "".join(
+                e["delta"] for e in events if e["type"] == "response.output_text.delta"
+            )
+            self.assertEqual(content, "Hello there!")
+            self.assertNotIn("<think>", content)
+
+            completed = next(e for e in events if e["type"] == "response.completed")
+            self.assertEqual(completed["response"]["output"][0]["type"], "reasoning")
+            self.assertEqual(completed["response"]["output"][1]["type"], "message")
+            self.assertEqual(completed["response"]["output_text"], "Hello there!")
         finally:
             server.shutdown()
             server.server_close()

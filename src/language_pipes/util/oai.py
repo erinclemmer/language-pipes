@@ -10,12 +10,14 @@ from language_pipes.util.chat import ChatMessage, ChatRole
 from language_pipes.util.http import _respond_json, _send_code, _send_sse_headers
 from language_pipes.util.oai_chunks import send_complete, send_initial_chunk, send_update_chunk
 from language_pipes.util.oai_tool_calls import (
+    ReasoningStreamSplitter,
     ResponsesTool,
     build_tool_instructions,
     format_assistant_tool_call,
     format_tool_result,
     parse_tool_call,
     parse_tool_definitions,
+    split_reasoning,
     validate_tool_choice,
 )
 
@@ -229,34 +231,45 @@ class ResponsesRequest:
 
         return ResponsesRequest(data['model'], stream, data['input'], instructions, max_output_tokens, messages, temperature, top_k, top_p, min_p, presence_penalty, tools, tool_choice, parallel_tool_calls)
 
+def _reasoning_item(job: Any, reasoning_text: str) -> dict:
+    return {
+        "id": f"rs-{job.job_id}",
+        "type": "reasoning",
+        "status": "completed",
+        "summary": [{"type": "summary_text", "text": reasoning_text}]
+    }
+
 def _response_json(job: Any, req: ResponsesRequest, created_at: float):
-    output_text = job.result
-    tool_call = parse_tool_call(output_text, req.tools)
+    reasoning_text, content = split_reasoning(job.result)
+    tool_call = parse_tool_call(job.result, req.tools)
+
+    response_output = []
+    if reasoning_text:
+        response_output.append(_reasoning_item(job, reasoning_text))
 
     if tool_call is not None:
-        output_item = {
+        response_output.append({
             "id": f"fc-{job.job_id}",
             "type": "function_call",
             "status": "completed",
             "call_id": tool_call.call_id,
             "name": tool_call.name,
             "arguments": tool_call.arguments
-        }
-        response_output = [output_item]
+        })
         response_output_text = ""
     else:
-        response_output = [{
+        response_output.append({
             "id": f"msg-{job.job_id}",
             "type": "message",
             "status": "completed",
             "role": "assistant",
             "content": [{
                 "type": "output_text",
-                "text": output_text,
+                "text": content,
                 "annotations": []
             }]
-        }]
-        response_output_text = output_text
+        })
+        response_output_text = content
 
     return {
         "id": f"resp-{job.job_id}",
@@ -346,16 +359,79 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
         return
 
     created_at = time.time()
-    output_item_id = None
     # When tools are present the output cannot be classified as text vs. a tool
-    # call until generation finishes, so we buffer (suppress live text deltas)
-    # and emit the appropriate events at completion. Plain text requests keep
-    # streaming token-by-token.
+    # call until generation finishes, so we buffer (suppress live deltas) and
+    # emit every item at completion. Plain text requests stream token-by-token,
+    # except that any leading <think> reasoning block is held back (blocked)
+    # while it generates and released as a reasoning item once it closes.
     buffering = len(req.tools) > 0
+    splitter = ReasoningStreamSplitter()
+    # Live (non-buffered) streaming state, mutated across start/update/complete.
+    sstate = {
+        "reasoning_id": None,
+        "message_id": None,
+        "reasoning_index": None,
+        "message_index": None,
+        "next_index": 0,
+        "reasoning_acc": "",
+        "reasoning_emitted": False,
+        "message_open": False,
+        "content_acc": "",
+    }
+
+    def _emit_reasoning_block(text: str):
+        # Reasoning was blocked during generation; emit the whole item at once.
+        sstate["reasoning_index"] = sstate["next_index"]
+        sstate["next_index"] += 1
+        index = sstate["reasoning_index"]
+        item_id = sstate["reasoning_id"]
+        _write_response_event(handler, "response.output_item.added", {
+            "output_index": index,
+            "item": {"id": item_id, "type": "reasoning", "status": "in_progress", "summary": []}
+        })
+        _write_response_event(handler, "response.reasoning_summary_text.delta", {
+            "item_id": item_id, "output_index": index, "summary_index": 0, "delta": text
+        })
+        _write_response_event(handler, "response.reasoning_summary_text.done", {
+            "item_id": item_id, "output_index": index, "summary_index": 0, "text": text
+        })
+        _write_response_event(handler, "response.output_item.done", {
+            "output_index": index,
+            "item": {
+                "id": item_id, "type": "reasoning", "status": "completed",
+                "summary": [{"type": "summary_text", "text": text}]
+            }
+        })
+        sstate["reasoning_emitted"] = True
+
+    def _open_message():
+        sstate["message_index"] = sstate["next_index"]
+        sstate["next_index"] += 1
+        sstate["message_open"] = True
+        _write_response_event(handler, "response.output_item.added", {
+            "output_index": sstate["message_index"],
+            "item": {
+                "id": sstate["message_id"], "type": "message", "status": "in_progress",
+                "role": "assistant", "content": []
+            }
+        })
+
+    def _content_delta(delta: str):
+        if sstate["reasoning_acc"] and not sstate["reasoning_emitted"]:
+            _emit_reasoning_block(sstate["reasoning_acc"])
+        if not sstate["message_open"]:
+            _open_message()
+        sstate["content_acc"] += delta
+        return _write_response_event(handler, "response.output_text.delta", {
+            "item_id": sstate["message_id"],
+            "output_index": sstate["message_index"],
+            "content_index": 0,
+            "delta": delta
+        })
 
     def start(job: Job):
-        nonlocal output_item_id
-        output_item_id = f"msg-{job.job_id}"
+        sstate["reasoning_id"] = f"rs-{job.job_id}"
+        sstate["message_id"] = f"msg-{job.job_id}"
         if not req.stream:
             return
         _send_sse_headers(handler)
@@ -372,88 +448,108 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
             "output": [],
             "output_text": ""
         }
-        if not _write_response_event(handler, "response.created", {"response": response}):
-            return False
-        if buffering:
-            # Defer output_item.added until the output type is known.
-            return True
-        return _write_response_event(handler, "response.output_item.added", {
-            "output_index": 0,
-            "item": {
-                "id": output_item_id,
-                "type": "message",
-                "status": "in_progress",
-                "role": "assistant",
-                "content": []
-            }
-        })
+        # output_item.added is deferred until the output type/ordering is known
+        # (a reasoning item may precede the message/function_call item).
+        return _write_response_event(handler, "response.created", {"response": response})
 
     def update(job: Job):
         if not req.stream or buffering:
             return True
-        return _write_response_event(handler, "response.output_text.delta", {
-            "item_id": output_item_id or f"msg-{job.job_id}",
-            "output_index": 0,
-            "content_index": 0,
-            "delta": job.delta
-        })
+        reasoning_delta, content_delta = splitter.feed(job.delta)
+        if reasoning_delta:
+            # Blocked: accumulate reasoning, emit nothing until it closes.
+            sstate["reasoning_acc"] += reasoning_delta
+        if content_delta:
+            return _content_delta(content_delta)
+        return True
 
-    def complete_stream(job: Job, response: dict):
-        output_item = response["output"][0]
-        if output_item["type"] == "function_call":
-            # Emit the deferred function_call item, then stream its arguments
-            # as a single delta followed by the done events.
-            _write_response_event(handler, "response.output_item.added", {
-                "output_index": 0,
-                "item": {
-                    "id": output_item["id"],
-                    "type": "function_call",
-                    "status": "in_progress",
-                    "call_id": output_item["call_id"],
-                    "name": output_item["name"],
-                    "arguments": ""
-                }
-            })
-            _write_response_event(handler, "response.function_call_arguments.delta", {
-                "item_id": output_item["id"],
-                "output_index": 0,
-                "delta": output_item["arguments"]
-            })
-            _write_response_event(handler, "response.function_call_arguments.done", {
-                "item_id": output_item["id"],
-                "output_index": 0,
-                "arguments": output_item["arguments"]
-            })
-        else:
-            if buffering:
-                # output_item.added and the text delta were deferred; emit them
-                # now that we know the output is plain text.
+    def _complete_buffered(response: dict):
+        # Nothing has streamed yet; emit each output item in full.
+        for index, item in enumerate(response["output"]):
+            item_type = item["type"]
+            if item_type == "reasoning":
+                text = item["summary"][0]["text"] if item["summary"] else ""
                 _write_response_event(handler, "response.output_item.added", {
-                    "output_index": 0,
+                    "output_index": index,
+                    "item": {"id": item["id"], "type": "reasoning", "status": "in_progress", "summary": []}
+                })
+                _write_response_event(handler, "response.reasoning_summary_text.delta", {
+                    "item_id": item["id"], "output_index": index, "summary_index": 0, "delta": text
+                })
+                _write_response_event(handler, "response.reasoning_summary_text.done", {
+                    "item_id": item["id"], "output_index": index, "summary_index": 0, "text": text
+                })
+            elif item_type == "function_call":
+                _write_response_event(handler, "response.output_item.added", {
+                    "output_index": index,
                     "item": {
-                        "id": output_item["id"],
-                        "type": "message",
-                        "status": "in_progress",
-                        "role": "assistant",
-                        "content": []
+                        "id": item["id"], "type": "function_call", "status": "in_progress",
+                        "call_id": item["call_id"], "name": item["name"], "arguments": ""
+                    }
+                })
+                _write_response_event(handler, "response.function_call_arguments.delta", {
+                    "item_id": item["id"], "output_index": index, "delta": item["arguments"]
+                })
+                _write_response_event(handler, "response.function_call_arguments.done", {
+                    "item_id": item["id"], "output_index": index, "arguments": item["arguments"]
+                })
+            else:  # message
+                text = item["content"][0]["text"]
+                _write_response_event(handler, "response.output_item.added", {
+                    "output_index": index,
+                    "item": {
+                        "id": item["id"], "type": "message", "status": "in_progress",
+                        "role": "assistant", "content": []
                     }
                 })
                 _write_response_event(handler, "response.output_text.delta", {
-                    "item_id": output_item["id"],
-                    "output_index": 0,
-                    "content_index": 0,
-                    "delta": job.result
+                    "item_id": item["id"], "output_index": index, "content_index": 0, "delta": text
                 })
-            _write_response_event(handler, "response.output_text.done", {
-                "item_id": output_item_id or f"msg-{job.job_id}",
-                "output_index": 0,
-                "content_index": 0,
-                "text": job.result
+                _write_response_event(handler, "response.output_text.done", {
+                    "item_id": item["id"], "output_index": index, "content_index": 0, "text": text
+                })
+            _write_response_event(handler, "response.output_item.done", {
+                "output_index": index, "item": item
             })
-        _write_response_event(handler, "response.output_item.done", {
-            "output_index": 0,
-            "item": output_item
+
+    def _complete_live(job: Job, response: dict):
+        # Flush any held-back lookahead, then reconcile against the authoritative
+        # split of the full result in case deltas did not sum to job.result.
+        flush_reasoning, flush_content = splitter.finalize()
+        if flush_reasoning:
+            sstate["reasoning_acc"] += flush_reasoning
+        if flush_content:
+            _content_delta(flush_content)
+
+        final_reasoning, final_content = split_reasoning(job.result)
+        if final_reasoning and not sstate["reasoning_acc"]:
+            sstate["reasoning_acc"] = final_reasoning
+        remainder = final_content[len(sstate["content_acc"]):] \
+            if final_content.startswith(sstate["content_acc"]) else final_content
+        if remainder:
+            _content_delta(remainder)
+
+        if sstate["reasoning_acc"] and not sstate["reasoning_emitted"]:
+            _emit_reasoning_block(sstate["reasoning_acc"])
+        if not sstate["message_open"]:
+            _open_message()
+
+        message_item = next(i for i in response["output"] if i["type"] == "message")
+        _write_response_event(handler, "response.output_text.done", {
+            "item_id": sstate["message_id"],
+            "output_index": sstate["message_index"],
+            "content_index": 0,
+            "text": final_content
         })
+        _write_response_event(handler, "response.output_item.done", {
+            "output_index": sstate["message_index"], "item": message_item
+        })
+
+    def complete_stream(job: Job, response: dict):
+        if buffering:
+            _complete_buffered(response)
+        else:
+            _complete_live(job, response)
         _write_response_event(handler, "response.completed", {"response": response})
         try:
             handler.wfile.write(b"data: [DONE]\n\n")

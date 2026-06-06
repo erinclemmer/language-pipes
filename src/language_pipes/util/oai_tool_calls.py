@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 from uuid import uuid4
 
 # Custom function tools for the Responses API. Hosted tools (web_search,
@@ -163,10 +163,97 @@ def format_tool_result(call_id: Optional[str], output: str) -> str:
 _FENCE_RE = re.compile(r"^```(?:json|JSON)?\s*\n?(.*?)\n?```$", re.DOTALL)
 # Reasoning models (Qwen, DeepSeek, ...) wrap chain-of-thought in <think> tags
 # before the actual answer; strip those blocks so they do not break parsing.
-_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL | re.IGNORECASE)
+_THINK_OPEN = "<think>"
+_THINK_CLOSE = "</think>"
 
 def _strip_reasoning(text: str) -> str:
     return _THINK_RE.sub("", text)
+
+def split_reasoning(text: Optional[str]) -> Tuple[Optional[str], str]:
+    """Split a completed model output into (reasoning, content).
+
+    Reasoning is the concatenated text of any `<think>...</think>` blocks; the
+    content is the remaining text with those blocks removed. Returns
+    (None, content) when there is no reasoning block.
+    """
+    if not text:
+        return None, text or ""
+    matches = _THINK_RE.findall(text)
+    reasoning = "\n".join(m.strip() for m in matches if m.strip()).strip()
+    content = _strip_reasoning(text).strip()
+    return (reasoning or None), content
+
+class ReasoningStreamSplitter:
+    """Incrementally split a streamed token sequence into reasoning and content.
+
+    A leading `<think>...</think>` block is routed to the reasoning channel and
+    everything after it to the content channel. Only a bounded lookahead (at
+    most ``len(<think>/</think>) - 1`` characters) is held back so tags that
+    span two token deltas are still detected; the answer text after `</think>`
+    is released as soon as it is unambiguous.
+    """
+
+    def __init__(self):
+        self._buf = ""
+        # phase: "start" (deciding if output opens with <think>), "reasoning"
+        # (inside the block), or "content" (after it / no block at all).
+        self._phase = "start"
+
+    @staticmethod
+    def _safe_emit_len(buf: str, tag: str) -> int:
+        """Length of `buf` safe to release without splitting a partial `tag`."""
+        hold = min(len(buf), len(tag) - 1)
+        while hold > 0:
+            if tag.startswith(buf[-hold:]):
+                return len(buf) - hold
+            hold -= 1
+        return len(buf)
+
+    def feed(self, delta: Optional[str]) -> Tuple[str, str]:
+        """Consume a token delta; return (reasoning_delta, content_delta)."""
+        if delta:
+            self._buf += delta
+        reasoning_parts: List[str] = []
+        content_parts: List[str] = []
+        while True:
+            if self._phase == "start":
+                if len(self._buf) < len(_THINK_OPEN) and _THINK_OPEN.startswith(self._buf):
+                    break  # could still become "<think>"; wait for more
+                if self._buf.startswith(_THINK_OPEN):
+                    self._buf = self._buf[len(_THINK_OPEN):]
+                    self._phase = "reasoning"
+                    continue
+                self._phase = "content"
+                continue
+            if self._phase == "reasoning":
+                idx = self._buf.find(_THINK_CLOSE)
+                if idx != -1:
+                    if idx > 0:
+                        reasoning_parts.append(self._buf[:idx])
+                    self._buf = self._buf[idx + len(_THINK_CLOSE):]
+                    self._phase = "content"
+                    continue
+                emit = self._safe_emit_len(self._buf, _THINK_CLOSE)
+                if emit > 0:
+                    reasoning_parts.append(self._buf[:emit])
+                    self._buf = self._buf[emit:]
+                break
+            # content phase: release everything immediately
+            if self._buf:
+                content_parts.append(self._buf)
+                self._buf = ""
+            break
+        return "".join(reasoning_parts), "".join(content_parts)
+
+    def finalize(self) -> Tuple[str, str]:
+        """Flush any held-back buffer at end of stream."""
+        buf = self._buf
+        self._buf = ""
+        if self._phase == "reasoning":
+            return buf, ""
+        self._phase = "content"
+        return "", buf
 
 def _strip_fences(text: str) -> str:
     stripped = text.strip()
