@@ -7,8 +7,15 @@ from http.server import BaseHTTPRequestHandler
 
 from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage, ChatRole
-from language_pipes.util.http import _respond_json, _send_sse_headers
+from language_pipes.util.http import _respond_json, _send_code, _send_sse_headers
 from language_pipes.util.oai_chunks import send_complete, send_initial_chunk, send_update_chunk
+from language_pipes.util.oai_tool_calls import (
+    ResponsesTool,
+    build_tool_instructions,
+    parse_tool_call,
+    parse_tool_definitions,
+    validate_tool_choice,
+)
 
 class ChatCompletionRequest:
     model: str
@@ -131,6 +138,9 @@ class ResponsesRequest:
     top_p: float
     min_p: float
     presence_penalty: float
+    tools: List[ResponsesTool]
+    tool_choice: Any
+    parallel_tool_calls: bool
 
     def __init__(
             self,
@@ -144,7 +154,10 @@ class ResponsesRequest:
             top_k: int = 0,
             top_p: float = 1.0,
             min_p: float = 0.0,
-            presence_penalty: float = 0.0
+            presence_penalty: float = 0.0,
+            tools: Optional[List[ResponsesTool]] = None,
+            tool_choice: Any = None,
+            parallel_tool_calls: bool = False
         ):
         self.model = model
         self.stream = stream
@@ -157,6 +170,9 @@ class ResponsesRequest:
         self.top_p = top_p
         self.min_p = min_p
         self.presence_penalty = presence_penalty
+        self.tools = tools if tools is not None else []
+        self.tool_choice = tool_choice
+        self.parallel_tool_calls = parallel_tool_calls
 
     @staticmethod
     def from_dict(data):
@@ -175,16 +191,57 @@ class ResponsesRequest:
         min_p = data['min_p'] if 'min_p' in data else 0.0
         presence_penalty = data['presence_penalty'] if 'presence_penalty' in data else 0.0
         instructions = data.get('instructions')
+
+        tools: List[ResponsesTool] = []
+        tool_choice = data.get('tool_choice')
+        parallel_tool_calls = bool(data.get('parallel_tool_calls', False))
+        if data.get('tools') is not None:
+            tools = parse_tool_definitions(data['tools'])
+            validate_tool_choice(tool_choice, tools)
+
         messages = _response_input_to_messages(data['input'])
         if instructions is not None:
             messages.insert(0, ChatMessage(ChatRole.SYSTEM, str(instructions)))
+        if len(tools) > 0:
+            # Inject tool schemas as a system-level instruction so the model
+            # sees the available tools and the expected JSON output format.
+            tool_message = ChatMessage(ChatRole.SYSTEM, build_tool_instructions(tools, tool_choice))
+            insert_at = 1 if instructions is not None else 0
+            messages.insert(insert_at, tool_message)
         if len(messages) == 0:
             raise ValueError("input must contain at least one text message")
 
-        return ResponsesRequest(data['model'], stream, data['input'], instructions, max_output_tokens, messages, temperature, top_k, top_p, min_p, presence_penalty)
+        return ResponsesRequest(data['model'], stream, data['input'], instructions, max_output_tokens, messages, temperature, top_k, top_p, min_p, presence_penalty, tools, tool_choice, parallel_tool_calls)
 
 def _response_json(job: Any, req: ResponsesRequest, created_at: float):
     output_text = job.result
+    tool_call = parse_tool_call(output_text, req.tools)
+
+    if tool_call is not None:
+        output_item = {
+            "id": f"fc-{job.job_id}",
+            "type": "function_call",
+            "status": "completed",
+            "call_id": tool_call.call_id,
+            "name": tool_call.name,
+            "arguments": tool_call.arguments
+        }
+        response_output = [output_item]
+        response_output_text = ""
+    else:
+        response_output = [{
+            "id": f"msg-{job.job_id}",
+            "type": "message",
+            "status": "completed",
+            "role": "assistant",
+            "content": [{
+                "type": "output_text",
+                "text": output_text,
+                "annotations": []
+            }]
+        }]
+        response_output_text = output_text
+
     return {
         "id": f"resp-{job.job_id}",
         "object": "response",
@@ -195,18 +252,8 @@ def _response_json(job: Any, req: ResponsesRequest, created_at: float):
         "instructions": req.instructions,
         "max_output_tokens": req.max_output_tokens,
         "model": job.model_id,
-        "output": [{
-            "id": f"msg-{job.job_id}",
-            "type": "message",
-            "status": "completed",
-            "role": "assistant",
-            "content": [{
-                "type": "output_text",
-                "text": output_text,
-                "annotations": []
-            }]
-        }],
-        "output_text": output_text,
+        "output": response_output,
+        "output_text": response_output_text,
         "usage": {
             "input_tokens": job.prompt_tokens,
             "output_tokens": job.current_token,
@@ -279,7 +326,7 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
     try:
         req = ResponsesRequest.from_dict(data)
     except ValueError as e:
-        _respond_json(handler, { "error": str(e) })
+        _send_code(400, handler, str(e))
         return
 
     created_at = time.time()
@@ -335,15 +382,20 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
         else:
             response = _response_json(job, req, created_at)
             if req.stream:
-                _write_response_event(handler, "response.output_text.done", {
-                    "item_id": output_item_id or f"msg-{job.job_id}",
-                    "output_index": 0,
-                    "content_index": 0,
-                    "text": job.result
-                })
+                output_item = response["output"][0]
+                # Text-call streaming emits the text-done event; tool-call
+                # streaming emits the function_call item at completion only
+                # (incremental argument deltas are not supported yet).
+                if output_item["type"] == "message":
+                    _write_response_event(handler, "response.output_text.done", {
+                        "item_id": output_item_id or f"msg-{job.job_id}",
+                        "output_index": 0,
+                        "content_index": 0,
+                        "text": job.result
+                    })
                 _write_response_event(handler, "response.output_item.done", {
                     "output_index": 0,
-                    "item": response["output"][0]
+                    "item": output_item
                 })
                 _write_response_event(handler, "response.completed", {"response": response})
                 try:

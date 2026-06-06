@@ -115,6 +115,72 @@ for chunk in stream:
 print()  # Newline at end
 ```
 
+### Function Tool Calling
+
+The `/v1/responses` endpoint supports OpenAI Responses **custom function tools**. Pass tool definitions in `tools`; when the model decides to call a tool, the response contains a `function_call` output item instead of a text message. Your application executes the function and sends the result back as a `function_call_output` input item.
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="foo"
+)
+
+tools = [{
+    "type": "function",
+    "name": "get_weather",
+    "description": "Get weather for a city",
+    "parameters": {
+        "type": "object",
+        "properties": {"city": {"type": "string"}},
+        "required": ["city"]
+    }
+}]
+
+response = client.responses.create(
+    model="Qwen/Qwen3-1.7B",
+    input="What is the weather in Chicago?",
+    tools=tools
+)
+
+# When a tool is called, response.output contains a function_call item:
+for item in response.output:
+    if item.type == "function_call":
+        print(item.name, item.arguments)  # get_weather {"city": "Chicago"}
+```
+
+Send the tool result back by including the prior `function_call` item and a matching `function_call_output` linked by `call_id`:
+
+```python
+response = client.responses.create(
+    model="Qwen/Qwen3-1.7B",
+    input=[
+        {"role": "user", "content": "What is the weather in Chicago?"},
+        {
+            "type": "function_call",
+            "call_id": "call_abc",
+            "name": "get_weather",
+            "arguments": "{\"city\": \"Chicago\"}"
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_abc",
+            "output": "{\"temperature\": 72}"
+        }
+    ],
+    tools=tools
+)
+```
+
+#### Tool Calling Limitations
+
+- **Custom function tools only.** Hosted tools (`web_search`, `file_search`, `computer_use`, `code_interpreter`, MCP) are rejected with a `400`.
+- **No server-side execution.** Tool calls are returned for your client to execute; Language Pipes never runs the function.
+- **Quality depends on the model.** Tools are injected as a model-agnostic instruction block asking the model to emit a JSON tool call. Reliability varies with the model's instruction-following ability, and smaller models may emit malformed JSON that is treated as plain text.
+- **Single tool call per response.** Parallel tool calls are not produced even when `parallel_tool_calls` is set.
+- **Limited streaming.** With `stream=true`, a tool call is emitted as a single `function_call` item at completion rather than incremental `response.function_call_arguments.delta` events.
+
 ## Using curl
 
 ```bash
@@ -196,8 +262,11 @@ POST /v1/responses
 | `top_k` | integer | | Top-k sampling limit (default: `0`, disabled) |
 | `min_p` | float | | Minimum probability threshold (default: `0`, disabled) |
 | `presence_penalty` | float | | Penalty for token repetition (default: `0`) |
+| `tools` | array | | Custom function tool definitions (see [Function Tool Calling](#function-tool-calling)) |
+| `tool_choice` | string or object | | `auto`, `none`, `required`, or `{"type": "function", "name": "..."}` |
+| `parallel_tool_calls` | boolean | | Accepted for compatibility; parallel calls are not produced |
 
-The endpoint returns a Responses API-style object with `output`, `output_text`, and `usage` fields. Tool calls, hosted tools, `previous_response_id` statefulness, and multimodal input are not currently implemented.
+The endpoint returns a Responses API-style object with `output`, `output_text`, and `usage` fields. Custom function tools are supported; hosted tools, `previous_response_id` statefulness, and multimodal input are not currently implemented.
 
 ### Sampling Parameters
 
