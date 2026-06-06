@@ -224,6 +224,38 @@ class ToolCallParserTests(unittest.TestCase):
     def test_no_tools_returns_none(self):
         self.assertIsNone(parse_tool_call('{"tool_call": {"name": "x"}}', []))
 
+    def test_parses_tool_call_after_think_block(self):
+        text = (
+            "<think>\nThe user wants the weather. I should call get_weather.\n</think>\n\n"
+            '{"tool_call": {"name": "get_weather", "arguments": {"city": "Chicago"}}}'
+        )
+        call = parse_tool_call(text, self.tools)
+        self.assertIsNotNone(call)
+        self.assertEqual(call.name, "get_weather")
+        self.assertEqual(json.loads(call.arguments), {"city": "Chicago"})
+
+    def test_parses_tool_call_with_surrounding_prose(self):
+        text = (
+            'Sure, let me check that for you.\n'
+            '{"tool_call": {"name": "get_weather", "arguments": {"city": "Chicago"}}}'
+        )
+        call = parse_tool_call(text, self.tools)
+        self.assertIsNotNone(call)
+        self.assertEqual(call.name, "get_weather")
+
+    def test_think_block_with_braces_does_not_break_extraction(self):
+        text = (
+            "<think>maybe {city: chicago}?</think>\n"
+            '{"tool_call": {"name": "get_weather", "arguments": {"city": "Chicago"}}}'
+        )
+        call = parse_tool_call(text, self.tools)
+        self.assertIsNotNone(call)
+        self.assertEqual(json.loads(call.arguments), {"city": "Chicago"})
+
+    def test_pure_reasoning_text_is_not_a_tool_call(self):
+        text = "<think>I don't need a tool here.</think>\nThe weather is usually nice."
+        self.assertIsNone(parse_tool_call(text, self.tools))
+
 
 class ToolCallResponseShapeTests(unittest.TestCase):
     def _tool_request(self):

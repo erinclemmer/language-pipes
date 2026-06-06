@@ -161,6 +161,12 @@ def format_tool_result(call_id: Optional[str], output: str) -> str:
     return f"Tool result:\n{output}"
 
 _FENCE_RE = re.compile(r"^```(?:json|JSON)?\s*\n?(.*?)\n?```$", re.DOTALL)
+# Reasoning models (Qwen, DeepSeek, ...) wrap chain-of-thought in <think> tags
+# before the actual answer; strip those blocks so they do not break parsing.
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+
+def _strip_reasoning(text: str) -> str:
+    return _THINK_RE.sub("", text)
 
 def _strip_fences(text: str) -> str:
     stripped = text.strip()
@@ -168,6 +174,41 @@ def _strip_fences(text: str) -> str:
     if match:
         return match.group(1).strip()
     return stripped
+
+def _try_load(text: str) -> Any:
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+def _extract_json_object(text: str) -> Optional[str]:
+    """Return the first balanced top-level ``{...}`` substring, ignoring braces
+    inside strings. Lets us recover a tool call when the model surrounds the
+    JSON with prose (e.g. "Sure! {...}")."""
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(text)):
+        c = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        elif c == '"':
+            in_str = True
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+    return None
 
 def parse_tool_call(text: Optional[str], tools: List[ResponsesTool]) -> Optional[ParsedToolCall]:
     """Classify model output as a tool call or plain text.
@@ -179,11 +220,14 @@ def parse_tool_call(text: Optional[str], tools: List[ResponsesTool]) -> Optional
     if not text or not tools:
         return None
 
-    candidate = _strip_fences(text)
-    try:
-        data = json.loads(candidate)
-    except (json.JSONDecodeError, ValueError):
-        return None
+    candidate = _strip_fences(_strip_reasoning(text))
+    data = _try_load(candidate)
+    if data is None:
+        # The model may surround the JSON with prose or leftover reasoning;
+        # recover the first balanced object and try again.
+        obj = _extract_json_object(candidate)
+        if obj is not None:
+            data = _try_load(obj)
 
     if not isinstance(data, dict):
         return None
