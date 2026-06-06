@@ -12,6 +12,8 @@ from language_pipes.util.oai_chunks import send_complete, send_initial_chunk, se
 from language_pipes.util.oai_tool_calls import (
     ResponsesTool,
     build_tool_instructions,
+    format_assistant_tool_call,
+    format_tool_result,
     parse_tool_call,
     parse_tool_definitions,
     validate_tool_choice,
@@ -113,16 +115,30 @@ def _response_input_to_messages(response_input: Any) -> List[ChatMessage]:
         item_type = item.get("type")
         role = item.get("role")
 
-        if item_type == "message" or role is not None:
+        if item_type == "function_call":
+            # A prior assistant tool call. Replay it as an assistant message so
+            # the model has the context of what it asked for before it sees the
+            # corresponding tool result.
+            messages.append(ChatMessage(
+                ChatRole.ASSISTANT,
+                format_assistant_tool_call(
+                    item.get("name"),
+                    item.get("arguments", ""),
+                    item.get("call_id")
+                )
+            ))
+        elif item_type == "function_call_output":
+            output = _content_to_text(item.get("output", ""))
+            messages.append(ChatMessage(
+                ChatRole.USER,
+                format_tool_result(item.get("call_id"), output)
+            ))
+        elif item_type == "message" or role is not None:
             content = _content_to_text(item.get("content", ""))
             messages.append(ChatMessage.from_dict({
                 "role": role or "user",
                 "content": content
             }))
-        elif item_type == "function_call_output":
-            output = _content_to_text(item.get("output", ""))
-            if output:
-                messages.append(ChatMessage(ChatRole.USER, output))
 
     return messages
 
@@ -331,6 +347,11 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
 
     created_at = time.time()
     output_item_id = None
+    # When tools are present the output cannot be classified as text vs. a tool
+    # call until generation finishes, so we buffer (suppress live text deltas)
+    # and emit the appropriate events at completion. Plain text requests keep
+    # streaming token-by-token.
+    buffering = len(req.tools) > 0
 
     def start(job: Job):
         nonlocal output_item_id
@@ -353,6 +374,9 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
         }
         if not _write_response_event(handler, "response.created", {"response": response}):
             return False
+        if buffering:
+            # Defer output_item.added until the output type is known.
+            return True
         return _write_response_event(handler, "response.output_item.added", {
             "output_index": 0,
             "item": {
@@ -365,7 +389,7 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
         })
 
     def update(job: Job):
-        if not req.stream:
+        if not req.stream or buffering:
             return True
         return _write_response_event(handler, "response.output_text.delta", {
             "item_id": output_item_id or f"msg-{job.job_id}",
@@ -373,6 +397,69 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
             "content_index": 0,
             "delta": job.delta
         })
+
+    def complete_stream(job: Job, response: dict):
+        output_item = response["output"][0]
+        if output_item["type"] == "function_call":
+            # Emit the deferred function_call item, then stream its arguments
+            # as a single delta followed by the done events.
+            _write_response_event(handler, "response.output_item.added", {
+                "output_index": 0,
+                "item": {
+                    "id": output_item["id"],
+                    "type": "function_call",
+                    "status": "in_progress",
+                    "call_id": output_item["call_id"],
+                    "name": output_item["name"],
+                    "arguments": ""
+                }
+            })
+            _write_response_event(handler, "response.function_call_arguments.delta", {
+                "item_id": output_item["id"],
+                "output_index": 0,
+                "delta": output_item["arguments"]
+            })
+            _write_response_event(handler, "response.function_call_arguments.done", {
+                "item_id": output_item["id"],
+                "output_index": 0,
+                "arguments": output_item["arguments"]
+            })
+        else:
+            if buffering:
+                # output_item.added and the text delta were deferred; emit them
+                # now that we know the output is plain text.
+                _write_response_event(handler, "response.output_item.added", {
+                    "output_index": 0,
+                    "item": {
+                        "id": output_item["id"],
+                        "type": "message",
+                        "status": "in_progress",
+                        "role": "assistant",
+                        "content": []
+                    }
+                })
+                _write_response_event(handler, "response.output_text.delta", {
+                    "item_id": output_item["id"],
+                    "output_index": 0,
+                    "content_index": 0,
+                    "delta": job.result
+                })
+            _write_response_event(handler, "response.output_text.done", {
+                "item_id": output_item_id or f"msg-{job.job_id}",
+                "output_index": 0,
+                "content_index": 0,
+                "text": job.result
+            })
+        _write_response_event(handler, "response.output_item.done", {
+            "output_index": 0,
+            "item": output_item
+        })
+        _write_response_event(handler, "response.completed", {"response": response})
+        try:
+            handler.wfile.write(b"data: [DONE]\n\n")
+            handler.wfile.flush()
+        except Exception:
+            pass
 
     def complete(job: Job):
         if type(job) is type('') and job == 'NO_PIPE':
@@ -382,27 +469,7 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
         else:
             response = _response_json(job, req, created_at)
             if req.stream:
-                output_item = response["output"][0]
-                # Text-call streaming emits the text-done event; tool-call
-                # streaming emits the function_call item at completion only
-                # (incremental argument deltas are not supported yet).
-                if output_item["type"] == "message":
-                    _write_response_event(handler, "response.output_text.done", {
-                        "item_id": output_item_id or f"msg-{job.job_id}",
-                        "output_index": 0,
-                        "content_index": 0,
-                        "text": job.result
-                    })
-                _write_response_event(handler, "response.output_item.done", {
-                    "output_index": 0,
-                    "item": output_item
-                })
-                _write_response_event(handler, "response.completed", {"response": response})
-                try:
-                    handler.wfile.write(b"data: [DONE]\n\n")
-                    handler.wfile.flush()
-                except Exception:
-                    pass
+                complete_stream(job, response)
             else:
                 _respond_json(handler, response)
 

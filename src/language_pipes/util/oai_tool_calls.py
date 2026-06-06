@@ -132,6 +132,34 @@ def build_tool_instructions(tools: List[ResponsesTool], tool_choice: Any = None)
     lines.append(json.dumps(schemas, indent=2))
     return "\n".join(lines)
 
+def format_assistant_tool_call(name: Any, arguments: Any, call_id: Optional[str] = None) -> str:
+    """Render a prior assistant `function_call` input item back into the same
+    JSON shape `build_tool_instructions` asks the model to emit, so replayed
+    continuations match the format the model was trained on in this request.
+
+    `arguments` follows the Responses shape (a JSON string); it is parsed back
+    into an object when possible so the replayed call reads naturally.
+    """
+    if isinstance(arguments, str):
+        try:
+            args_obj: Any = json.loads(arguments)
+        except (json.JSONDecodeError, ValueError):
+            args_obj = arguments
+    else:
+        args_obj = arguments if arguments is not None else {}
+
+    call: dict = {"name": name, "arguments": args_obj}
+    if call_id is not None:
+        call["call_id"] = call_id
+    return json.dumps({"tool_call": call})
+
+def format_tool_result(call_id: Optional[str], output: str) -> str:
+    """Render a `function_call_output` item into a plain-text tool result that
+    preserves the `call_id` so the model can match it to the prior call."""
+    if call_id:
+        return f"Tool result for call_id {call_id}:\n{output}"
+    return f"Tool result:\n{output}"
+
 _FENCE_RE = re.compile(r"^```(?:json|JSON)?\s*\n?(.*?)\n?```$", re.DOTALL)
 
 def _strip_fences(text: str) -> str:

@@ -254,6 +254,131 @@ class ToolCallResponseShapeTests(unittest.TestCase):
         self.assertEqual(response["usage"]["total_tokens"], 7)
 
 
+class ToolResultContinuationTests(unittest.TestCase):
+    def test_function_call_output_maps_to_tool_result_message(self):
+        req = ResponsesRequest.from_dict({
+            "model": "model-1",
+            "input": [
+                {"role": "user", "content": "What is the weather in Chicago?"},
+                {
+                    "type": "function_call",
+                    "call_id": "call_abc",
+                    "name": "get_weather",
+                    "arguments": '{"city": "Chicago"}',
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_abc",
+                    "output": '{"temperature": 72}',
+                },
+            ],
+            "tools": [WEATHER_TOOL],
+        })
+
+        # tool instruction block is injected first, then the transcript
+        roles = [m.role for m in req.messages]
+        self.assertEqual(roles[0], ChatRole.SYSTEM)
+        self.assertEqual(req.messages[1].role, ChatRole.USER)
+
+        assistant = next(m for m in req.messages if m.role == ChatRole.ASSISTANT)
+        replay = json.loads(assistant.content)
+        self.assertEqual(replay["tool_call"]["name"], "get_weather")
+        self.assertEqual(replay["tool_call"]["arguments"], {"city": "Chicago"})
+        self.assertEqual(replay["tool_call"]["call_id"], "call_abc")
+
+        result_msg = req.messages[-1]
+        self.assertEqual(result_msg.role, ChatRole.USER)
+        self.assertIn("call_abc", result_msg.content)
+        self.assertIn('{"temperature": 72}', result_msg.content)
+
+    def test_function_call_output_without_call_id(self):
+        req = ResponsesRequest.from_dict({
+            "model": "model-1",
+            "input": [
+                {"type": "function_call_output", "output": "done"},
+            ],
+        })
+        self.assertEqual(req.messages[-1].role, ChatRole.USER)
+        self.assertIn("done", req.messages[-1].content)
+
+
+def _parse_sse_events(text):
+    events = []
+    for block in text.split("\n\n"):
+        block = block.strip()
+        if not block or not block.startswith("data: "):
+            continue
+        payload = block[len("data: "):]
+        if payload == "[DONE]":
+            continue
+        events.append(json.loads(payload))
+    return events
+
+
+class StreamingTests(unittest.TestCase):
+    def _serve(self, job):
+        def complete(model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+            start(job)
+            resolve(job)
+
+        server = OAIHttpServer(0, [], complete, lambda: ["model-1"])
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        return server, thread
+
+    def test_streaming_text_emits_message_events(self):
+        server, thread = self._serve(DummyJob())
+        try:
+            port = server.server_address[1]
+            res = requests.post(f"http://127.0.0.1:{port}/v1/responses", json={
+                "model": "model-1",
+                "input": "Hello",
+                "stream": True,
+            })
+            self.assertEqual(res.status_code, 200)
+            events = _parse_sse_events(res.text)
+            types = [e["type"] for e in events]
+            self.assertEqual(types[0], "response.created")
+            self.assertIn("response.output_item.done", types)
+            completed = next(e for e in events if e["type"] == "response.completed")
+            self.assertEqual(completed["response"]["output"][0]["type"], "message")
+            self.assertEqual(completed["response"]["output_text"], "Hello from Language Pipes")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=1)
+
+    def test_streaming_tool_call_emits_function_call_events(self):
+        server, thread = self._serve(ToolJob())
+        try:
+            port = server.server_address[1]
+            res = requests.post(f"http://127.0.0.1:{port}/v1/responses", json={
+                "model": "model-1",
+                "input": "What is the weather in Chicago?",
+                "tools": [WEATHER_TOOL],
+                "stream": True,
+            })
+            self.assertEqual(res.status_code, 200)
+            events = _parse_sse_events(res.text)
+            types = [e["type"] for e in events]
+            self.assertIn("response.function_call_arguments.delta", types)
+            self.assertIn("response.function_call_arguments.done", types)
+
+            added = next(e for e in events if e["type"] == "response.output_item.added")
+            self.assertEqual(added["item"]["type"], "function_call")
+
+            done = next(e for e in events if e["type"] == "response.function_call_arguments.done")
+            self.assertEqual(json.loads(done["arguments"]), {"city": "Chicago"})
+
+            completed = next(e for e in events if e["type"] == "response.completed")
+            self.assertEqual(completed["response"]["output"][0]["type"], "function_call")
+            self.assertEqual(completed["response"]["output_text"], "")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=1)
+
+
 class ToolCallHttpTests(unittest.TestCase):
     def _serve(self, job):
         captured = {}

@@ -179,7 +179,7 @@ response = client.responses.create(
 - **No server-side execution.** Tool calls are returned for your client to execute; Language Pipes never runs the function.
 - **Quality depends on the model.** Tools are injected as a model-agnostic instruction block asking the model to emit a JSON tool call. Reliability varies with the model's instruction-following ability, and smaller models may emit malformed JSON that is treated as plain text.
 - **Single tool call per response.** Parallel tool calls are not produced even when `parallel_tool_calls` is set.
-- **Limited streaming.** With `stream=true`, a tool call is emitted as a single `function_call` item at completion rather than incremental `response.function_call_arguments.delta` events.
+- **Buffered streaming for tools.** When `tools` are supplied, `stream=true` cannot stream live token deltas because the output cannot be classified as text vs. a tool call until generation finishes. Text deltas are buffered and the typed events are emitted at completion: for a tool call, `response.output_item.added` (a `function_call` item) → `response.function_call_arguments.delta` (the full arguments in one delta) → `response.function_call_arguments.done` → `response.output_item.done` → `response.completed`. Requests without `tools` stream token-by-token as before.
 
 ## Using curl
 
