@@ -530,7 +530,7 @@ class ReasoningStreamingTests(unittest.TestCase):
         thread.start()
         return server, thread
 
-    def test_reasoning_blocked_then_content_streamed(self):
+    def test_reasoning_streamed_live_then_content(self):
         job = ReasoningJob()
         # chunks deliberately split the tags across deltas
         chunks = ["<thi", "nk>The user ", "said hello.</thi", "nk>Hello ", "there!"]
@@ -546,19 +546,33 @@ class ReasoningStreamingTests(unittest.TestCase):
             events = _parse_sse_events(res.text)
             types = [e["type"] for e in events]
 
-            # reasoning item is emitted as a block (no partial think tags leak)
-            self.assertIn("response.reasoning_summary_text.done", types)
+            # reasoning streamed live across multiple deltas, no <think> leak
+            reasoning_deltas = [
+                e["delta"] for e in events
+                if e["type"] == "response.reasoning_summary_text.delta"
+            ]
+            self.assertGreater(len(reasoning_deltas), 1)
+            reasoning = "".join(reasoning_deltas)
+            self.assertEqual(reasoning, "The user said hello.")
+            self.assertNotIn("<think>", reasoning)
+            self.assertNotIn("</think>", reasoning)
+
             reasoning_done = next(
                 e for e in events if e["type"] == "response.reasoning_summary_text.done"
             )
             self.assertEqual(reasoning_done["text"], "The user said hello.")
 
-            # the reasoning item.done comes before any content delta (blocked)
-            reasoning_idx = types.index("response.reasoning_summary_text.done")
+            # reasoning is closed before the first content delta
+            reasoning_done_idx = types.index("response.reasoning_summary_text.done")
             content_idx = types.index("response.output_text.delta")
-            self.assertLess(reasoning_idx, content_idx)
+            self.assertLess(reasoning_done_idx, content_idx)
+            # ...and the last reasoning delta precedes the close
+            last_reasoning_delta_idx = max(
+                i for i, t in enumerate(types)
+                if t == "response.reasoning_summary_text.delta"
+            )
+            self.assertLess(last_reasoning_delta_idx, reasoning_done_idx)
 
-            # content streamed, with no <think> markup in it
             content = "".join(
                 e["delta"] for e in events if e["type"] == "response.output_text.delta"
             )

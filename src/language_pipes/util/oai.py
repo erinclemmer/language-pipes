@@ -361,9 +361,9 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
     created_at = time.time()
     # When tools are present the output cannot be classified as text vs. a tool
     # call until generation finishes, so we buffer (suppress live deltas) and
-    # emit every item at completion. Plain text requests stream token-by-token,
-    # except that any leading <think> reasoning block is held back (blocked)
-    # while it generates and released as a reasoning item once it closes.
+    # emit every item at completion. Plain text requests stream token-by-token;
+    # a leading <think> reasoning block streams live to a reasoning item, which
+    # is closed when the answer begins.
     buffering = len(req.tools) > 0
     splitter = ReasoningStreamSplitter()
     # Live (non-buffered) streaming state, mutated across start/update/complete.
@@ -374,35 +374,49 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
         "message_index": None,
         "next_index": 0,
         "reasoning_acc": "",
-        "reasoning_emitted": False,
+        "reasoning_open": False,
+        "reasoning_closed": False,
         "message_open": False,
         "content_acc": "",
     }
 
-    def _emit_reasoning_block(text: str):
-        # Reasoning was blocked during generation; emit the whole item at once.
+    def _open_reasoning():
         sstate["reasoning_index"] = sstate["next_index"]
         sstate["next_index"] += 1
-        index = sstate["reasoning_index"]
-        item_id = sstate["reasoning_id"]
+        sstate["reasoning_open"] = True
         _write_response_event(handler, "response.output_item.added", {
-            "output_index": index,
-            "item": {"id": item_id, "type": "reasoning", "status": "in_progress", "summary": []}
+            "output_index": sstate["reasoning_index"],
+            "item": {"id": sstate["reasoning_id"], "type": "reasoning", "status": "in_progress", "summary": []}
         })
-        _write_response_event(handler, "response.reasoning_summary_text.delta", {
-            "item_id": item_id, "output_index": index, "summary_index": 0, "delta": text
+
+    def _reasoning_delta(delta: str):
+        # Stream reasoning tokens live to the reasoning item.
+        if not sstate["reasoning_open"]:
+            _open_reasoning()
+        sstate["reasoning_acc"] += delta
+        return _write_response_event(handler, "response.reasoning_summary_text.delta", {
+            "item_id": sstate["reasoning_id"],
+            "output_index": sstate["reasoning_index"],
+            "summary_index": 0,
+            "delta": delta
         })
+
+    def _close_reasoning():
+        if not sstate["reasoning_open"] or sstate["reasoning_closed"]:
+            return
+        sstate["reasoning_closed"] = True
+        text = sstate["reasoning_acc"]
         _write_response_event(handler, "response.reasoning_summary_text.done", {
-            "item_id": item_id, "output_index": index, "summary_index": 0, "text": text
+            "item_id": sstate["reasoning_id"], "output_index": sstate["reasoning_index"],
+            "summary_index": 0, "text": text
         })
         _write_response_event(handler, "response.output_item.done", {
-            "output_index": index,
+            "output_index": sstate["reasoning_index"],
             "item": {
-                "id": item_id, "type": "reasoning", "status": "completed",
-                "summary": [{"type": "summary_text", "text": text}]
+                "id": sstate["reasoning_id"], "type": "reasoning", "status": "completed",
+                "summary": [{"type": "summary_text", "text": text}] if text else []
             }
         })
-        sstate["reasoning_emitted"] = True
 
     def _open_message():
         sstate["message_index"] = sstate["next_index"]
@@ -417,8 +431,10 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
         })
 
     def _content_delta(delta: str):
-        if sstate["reasoning_acc"] and not sstate["reasoning_emitted"]:
-            _emit_reasoning_block(sstate["reasoning_acc"])
+        # The reasoning block (if any) is fully streamed before the answer; close
+        # it before the first content token.
+        if sstate["reasoning_open"] and not sstate["reasoning_closed"]:
+            _close_reasoning()
         if not sstate["message_open"]:
             _open_message()
         sstate["content_acc"] += delta
@@ -456,12 +472,12 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
         if not req.stream or buffering:
             return True
         reasoning_delta, content_delta = splitter.feed(job.delta)
+        ok = True
         if reasoning_delta:
-            # Blocked: accumulate reasoning, emit nothing until it closes.
-            sstate["reasoning_acc"] += reasoning_delta
+            ok = _reasoning_delta(reasoning_delta) and ok
         if content_delta:
-            return _content_delta(content_delta)
-        return True
+            ok = _content_delta(content_delta) and ok
+        return ok
 
     def _complete_buffered(response: dict):
         # Nothing has streamed yet; emit each output item in full.
@@ -517,20 +533,25 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
         # split of the full result in case deltas did not sum to job.result.
         flush_reasoning, flush_content = splitter.finalize()
         if flush_reasoning:
-            sstate["reasoning_acc"] += flush_reasoning
+            _reasoning_delta(flush_reasoning)
         if flush_content:
             _content_delta(flush_content)
 
         final_reasoning, final_content = split_reasoning(job.result)
-        if final_reasoning and not sstate["reasoning_acc"]:
-            sstate["reasoning_acc"] = final_reasoning
-        remainder = final_content[len(sstate["content_acc"]):] \
-            if final_content.startswith(sstate["content_acc"]) else final_content
-        if remainder:
-            _content_delta(remainder)
+        # Reconcile reasoning, then close it before any content (in case deltas
+        # did not stream it, e.g. when the pipeline delivered no live updates).
+        if final_reasoning:
+            r_remainder = final_reasoning[len(sstate["reasoning_acc"]):] \
+                if final_reasoning.startswith(sstate["reasoning_acc"]) else final_reasoning
+            if r_remainder:
+                _reasoning_delta(r_remainder)
+        if sstate["reasoning_open"] and not sstate["reasoning_closed"]:
+            _close_reasoning()
 
-        if sstate["reasoning_acc"] and not sstate["reasoning_emitted"]:
-            _emit_reasoning_block(sstate["reasoning_acc"])
+        c_remainder = final_content[len(sstate["content_acc"]):] \
+            if final_content.startswith(sstate["content_acc"]) else final_content
+        if c_remainder:
+            _content_delta(c_remainder)
         if not sstate["message_open"]:
             _open_message()
 
