@@ -3,7 +3,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import time
 from typing import Callable, List, Optional, Tuple
 
-from language_pipes.util.oai import oai_chat_complete, get_models
+from language_pipes.util.oai import oai_chat_complete, oai_responses_create, get_models
 from language_pipes.util.http import _send_code
 
 class T:
@@ -55,17 +55,33 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
             _send_code(400, self, "model parameter is required")
             return
 
-        if 'messages' not in data:
-            _send_code(400, self, "messages object parameter is required")
-            return
-
-        if len(data['messages']) == 0:
-            _send_code(400, self, "messages object must not be empty")
-            return
-        
         if self.path == '/v1/chat/completions':
+            if 'messages' not in data:
+                _send_code(400, self, "messages object parameter is required")
+                return
+
+            if len(data['messages']) == 0:
+                _send_code(400, self, "messages object must not be empty")
+                return
+
             self.log('/v1/chat/completions')
             oai_chat_complete(self, self.server.complete, data)
+            return
+
+        if self.path == '/v1/responses':
+            if 'input' not in data:
+                _send_code(400, self, "input parameter is required")
+                return
+
+            if data['input'] == "" or data['input'] == []:
+                _send_code(400, self, "input must not be empty")
+                return
+
+            self.log('/v1/responses')
+            oai_responses_create(self, self.server.complete, data)
+            return
+
+        _send_code(404, self, "Not found")
 
     def log(self, path: str):
         ip_address = self.client_address[0]

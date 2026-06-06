@@ -2,7 +2,7 @@
 
 Language Pipes provides an OpenAI-compatible API server, allowing you to use existing tools and libraries designed for OpenAI's API.
 
-> **Supported Endpoints:** Currently only `chat.completions` is supported. Other OpenAI endpoints are not yet implemented.
+> **Supported Endpoints:** `chat.completions`, `responses`, and `models` are supported. Other OpenAI endpoints are not yet implemented.
 
 ## Enabling the API Server
 
@@ -65,6 +65,28 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
+### Responses API Usage
+
+The `/v1/responses` endpoint supports the newer OpenAI Responses API shape for text generation. Use `instructions` for system-level guidance and `input` for a string prompt or compatible message items.
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="foo"
+)
+
+response = client.responses.create(
+    model="Qwen/Qwen3-1.7B",
+    instructions="You are a helpful assistant.",
+    input="What is distributed computing?",
+    max_output_tokens=200
+)
+
+print(response.output_text)
+```
+
 ### Streaming Responses
 
 For real-time token-by-token output, use `stream=True`:
@@ -107,6 +129,19 @@ curl http://localhost:8000/v1/chat/completions \
   }'
 ```
 
+### Responses API with curl
+
+```bash
+curl http://localhost:8000/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen/Qwen3-1.7B",
+    "instructions": "You are a helpful assistant.",
+    "input": "Hello!",
+    "max_output_tokens": 50
+  }'
+```
+
 ### Streaming with curl
 
 ```bash
@@ -130,6 +165,7 @@ curl http://localhost:8000/v1/chat/completions \
 
 ```
 POST /v1/chat/completions
+POST /v1/responses
 ```
 
 ### Request Body
@@ -145,6 +181,23 @@ POST /v1/chat/completions
 | `top_k` | integer | | Top-k sampling limit (default: `0`, disabled) |
 | `min_p` | float | | Minimum probability threshold (default: `0`, disabled) |
 | `presence_penalty` | float | | Penalty for token repetition (default: `0`) |
+
+### Responses Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|:--------:|-------------|
+| `model` | string | ✓ | Model ID (must match a hosted model) |
+| `input` | string or array | ✓ | Prompt text or compatible Responses message items |
+| `instructions` | string | | System-level guidance prepended to the prompt |
+| `max_output_tokens` | integer | | Maximum tokens to generate (default: 1000) |
+| `stream` | boolean | | Enable typed server-sent event responses (default: `false`) |
+| `temperature` | float | | Controls output randomness (default: `1.0`) |
+| `top_p` | float | | Nucleus sampling threshold (default: `1.0`) |
+| `top_k` | integer | | Top-k sampling limit (default: `0`, disabled) |
+| `min_p` | float | | Minimum probability threshold (default: `0`, disabled) |
+| `presence_penalty` | float | | Penalty for token repetition (default: `0`) |
+
+The endpoint returns a Responses API-style object with `output`, `output_text`, and `usage` fields. Tool calls, hosted tools, `previous_response_id` statefulness, and multimodal input are not currently implemented.
 
 ### Sampling Parameters
 
