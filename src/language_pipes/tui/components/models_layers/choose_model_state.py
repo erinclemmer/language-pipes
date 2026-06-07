@@ -57,6 +57,9 @@ class ChooseModelPageState(PageState):
         for i, model in enumerate(self.installed_models):
             entries.append([make_selectable_text(model, self.select_idx == i), ""])
 
+        if len(entries) == 0:
+            entries.append(["No models installed. Install at \"Models / Installed\" "])
+
         lines.extend(make_window_text(entries, self.select_idx, 14))
 
         return lines
