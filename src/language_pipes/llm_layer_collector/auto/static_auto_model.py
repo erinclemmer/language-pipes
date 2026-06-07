@@ -4,6 +4,7 @@ from transformers.cache_utils import DynamicCache
 from transformers.configuration_utils import PretrainedConfig
 
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from language_pipes.llm_layer_collector.modeling.Qwen3MoeModel import Qwen3MoeModel
 from language_pipes.llm_layer_collector.modeling.Qwen3Model import Qwen3Model
 from language_pipes.llm_layer_collector.modeling.LlamaModel import LlamaModel
 from language_pipes.llm_layer_collector.modeling.Gemma3Model import Gemma3Model
@@ -70,7 +71,7 @@ class StaticAutoModel:
                 Phi3Model.compute_embedding(state, config)
                 
             case "qwen3_moe":
-                Qwen3Model.compute_embedding(state, config, mask_kwargs)
+                Qwen3MoeModel.compute_embedding(state, config, mask_kwargs)
 
             case "llama":
                 LlamaModel.compute_embedding(state, config, mask_kwargs)
@@ -95,7 +96,7 @@ class StaticAutoModel:
                 return Phi3Model.compute_layer(layer, state, cache)
             
             case "qwen3_moe":
-                return Qwen3Model.compute_layer(layer, config, state, cache)
+                return Qwen3MoeModel.compute_layer(layer, config, state, cache)
             
             case "llama":
                 return LlamaModel.compute_layer(layer, state, cache)

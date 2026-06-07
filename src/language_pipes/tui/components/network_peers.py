@@ -27,7 +27,7 @@ class NetworkPeers:
         if not self.peers:
             return ["Network Peers:", "", "No peers connected"]
         lines = [
-            f"My ID: {self.node_id}"
+            f"My ID: {self.node_id}",
             "",
             "Network Peers:", 
         ]
