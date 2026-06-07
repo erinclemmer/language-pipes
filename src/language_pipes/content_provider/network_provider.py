@@ -206,6 +206,18 @@ class NetworkProvider:
         return os.listdir(cred_dir)
     
     @staticmethod
+    def get_my_node_ids() -> List[str]:
+        cred_dir = get_app_dir() / "credentials"
+        if not os.path.exists(cred_dir):
+            return []
+        node_ids = []
+        cred_manager = CredentialManager(cred_dir, '')
+        for node_id in os.listdir(cred_dir):
+            if cred_manager.has_private(node_id):
+                node_ids.append(node_id)
+        return node_ids
+
+    @staticmethod
     def delete_node_id(node_id: str):
         cred_dir = get_app_dir() / "credentials"
         path = cred_dir / node_id

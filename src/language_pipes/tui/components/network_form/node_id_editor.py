@@ -1,6 +1,7 @@
 from typing import Callable, List
 
 from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.content_provider.network_provider import NetworkProvider
 from language_pipes.tui.components.confirm import Confirm
 
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
@@ -42,7 +43,7 @@ class NodeIdEditor(ListEditor[str]):
     # ------------------------------------------------------------------
 
     def load_items(self) -> List[str]:
-        return self.provider.network_provider.get_registered_node_ids()
+        return NetworkProvider.get_my_node_ids()
 
     def reset_input_fields(self) -> None:
         self.new_node_id = ""

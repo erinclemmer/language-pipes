@@ -69,6 +69,9 @@ class KeyManager:
         with open(f'{self.folder}/{self.node_id}/{self.node_id}.{self.private_extension}', 'rb') as f:
             return f.read()
 
+    def has_private(self, node_id: str) -> bool:
+        return os.path.exists(f'{self.folder}/{node_id}/{node_id}.{self.private_extension}')
+
     def generate_keys(self):
         if os.path.exists(f'{self.folder}/{self.node_id}/{self.node_id}.{self.private_extension}'):
             return
