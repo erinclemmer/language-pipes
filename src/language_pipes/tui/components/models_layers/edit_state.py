@@ -245,8 +245,8 @@ class EditPageState(PageState):
         metadata = ModelProvider.get_model_metadata(self.model_id)
         layer_size = metadata.avg_layer_size / 1024**3
         num_layers = min(int(float(self.device_memory) / layer_size), metadata.num_hidden_layers)
-
-        s = f"(Loads {num_layers} of {metadata.num_hidden_layers} layers)"
+        total_size = layer_size * metadata.num_hidden_layers
+        s = f"/ {total_size:.1f}GB ({num_layers} of {metadata.num_hidden_layers} layers)"
         self.num_layers_cache[self.device_name][str(self.device_memory)] = s
         return s
     
