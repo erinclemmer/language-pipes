@@ -22,10 +22,16 @@ class NetworkPeers:
             self.exit_page()
 
     def get_view(self) -> List[str]:
+        self.node_id = self.provider.network_provider.get_network_config().node_id
         self.peers = self.provider.network_provider.get_peers()
         if not self.peers:
             return ["Network Peers:", "", "No peers connected"]
-        lines = ["Network Peers:", ""]
+        lines = [
+            "Network Peers:", 
+            "",
+            f"My ID: {self.node_id}"
+        ]
+        
         for key in self.peers.keys():
             lines.append(f"- {key}")
 
