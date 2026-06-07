@@ -1,6 +1,6 @@
 from pathlib import Path
 from time import sleep
-from threading import Thread
+from threading import Lock, Thread
 from typing import Optional, Tuple
 
 from language_pipes.content_provider.content_provider import ContentProvider
@@ -32,6 +32,7 @@ class MainFrame:
         self.provider = ContentProvider(config_file, self.alert.create_alert)
         self.confirm = Confirm()
         self.nav = NavState()
+        self.render_lock = Lock()
         self.page_router = PageRouter(
             self.provider, self.confirm, self.nav, self.state, self.change_nav
         )
@@ -51,7 +52,7 @@ class MainFrame:
 
         self.layout._init_layout(size, pos)
         self._init_view()
-        self.layout._render_all()
+        self._render_all()
         if auto_start:
             self.auto_start()
 
@@ -78,12 +79,16 @@ class MainFrame:
         self.change_nav("Home", "Dashboard")
         self.key_handler.activate_selection()
 
+    def _render_all(self):
+        with self.render_lock:
+            self.layout._render_all()
+
     def frame_render_thread(self):
         while True:
             if self.shutdown:
                 return
             self.provider.sync_provider_state()
-            self.layout._render_all()
+            self._render_all()
             sleep(1)
 
     def shutdown_frame(self):
@@ -93,12 +98,12 @@ class MainFrame:
 
     def run(self) -> str:
         self.state.startup()
-        self.layout._render_all()
+        self._render_all()
         Thread(target=self.frame_render_thread, args=()).start()
         while self.state.running:
             key, ch = read_key()
             self.key_handler.handle_key(key, ch)
-            self.layout._render_all()
+            self._render_all()
 
         self.shutdown_frame()
         return "exit" if self.state.exit_tui else "menu"
