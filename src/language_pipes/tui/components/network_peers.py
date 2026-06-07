@@ -27,11 +27,11 @@ class NetworkPeers:
         if not self.peers:
             return ["Network Peers:", "", "No peers connected"]
         lines = [
-            "Network Peers:", 
-            "",
             f"My ID: {self.node_id}"
+            "",
+            "Network Peers:", 
         ]
-        
+
         for key in self.peers.keys():
             lines.append(f"- {key}")
 
