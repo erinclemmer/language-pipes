@@ -177,22 +177,26 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
             return restart()
 
     if cmd == "Load Configuration":
-        configs = get_config_files(config_dir)
-        res = select_option(
-            (left_bound, 10), help_height, configs, TermText("Select Configuration"), True
-        )
-        if res is None:
-            return restart()
-        config_file, cmd = res
-        config_path = config_dir / (config_file + ".toml")
-        if cmd == 0:
-            res = handle_file_load(window, left_bound, termsize, config_path, auto_start)
-            if res == "exit":
-                exit()
+        while True:
+            configs = get_config_files(config_dir)
+            if len(configs) == 0:
+                return restart()
+            res = select_option(
+                (left_bound, 10), help_height, configs, TermText("Select Configuration"), True
+            )
             if res is None:
                 return restart()
-        if cmd == 1:
-            res = prompt_bool(TermText(f"Delete {config_file}?"), (left_bound, 10), help_height)
-            if res:
-                os.remove(str(config_path))
-            return restart()
+            config_file, action = res
+            config_path = config_dir / (config_file + ".toml")
+            if action == 0:
+                res = handle_file_load(window, left_bound, termsize, config_path, auto_start)
+                if res == "exit":
+                    exit()
+                if res is None:
+                    return restart()
+            if action == 1:
+                res = prompt_bool(TermText(f"Delete {config_file}?"), (left_bound, 10), help_height)
+                if res:
+                    os.remove(str(config_path))
+                # Re-display the configuration list instead of the main menu
+                continue
