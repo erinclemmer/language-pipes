@@ -18,8 +18,20 @@ class NavState:
         self.sub_idx = 0
 
     def sync_provider_state(self, state: ProviderState):
+        # Preserve the currently-selected side option by name across sub-menu
+        # changes. The sub-menu lists can grow/shrink as provider state changes
+        # (e.g. "Status" is prepended to Network once a node_id is set), which
+        # would otherwise leave sub_idx pointing at a different option.
+        prev_side_option = self.active_side_option()
+
         self.top_headers = state.visible_headers
         self.sub_options = state.visible_sub_menu
+
+        options = self.active_sub_options()
+        if prev_side_option in options:
+            self.sub_idx = options.index(prev_side_option)
+        else:
+            self.sub_idx = min(self.sub_idx, max(0, len(options) - 1))
 
     def active_tab(self) -> Optional[str]:
         if self.top_idx >= len(self.top_headers):

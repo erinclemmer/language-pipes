@@ -198,6 +198,8 @@ class ModelProvider:
             except errors.HFValidationError:
                 self.download_message = "[ERROR] Invalid repository ID"
                 error = True
+            except errors.LocalEntryNotFoundError:
+                self.download_message = "[Error] Connection to huggingface server failed"
             except RuntimeError:
                 self.download_message = "[ERROR] Download stopped"
                 error = True
@@ -207,6 +209,7 @@ class ModelProvider:
                 shutil.rmtree(get_model_dir() / model_id)
             else:
                 # Compile metadata
+                self.download_message = "Computing metadata..."
                 ModelProvider.get_model_metadata(model_id)
                 self.download_message = "[SUCCESS] Download complete"
 

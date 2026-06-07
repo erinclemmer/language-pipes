@@ -101,7 +101,7 @@ class JobTracker:
         job.job_id = network_job.job_id
         
         if network_job.data is None:
-            raise Exception("Job does not have data")
+            return
 
         if network_job.data.state is None:
             raise Exception("job should be embedded before adding a pending job")

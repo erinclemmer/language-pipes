@@ -25,9 +25,9 @@ class EndModel:
     device: torch.device
     loaded: bool
     num_local_layers: int
-    input_embedding: torch.nn.Embedding
-    norm: AutoRMSNorm
-    head: torch.nn.Linear
+    input_embedding: Optional[torch.nn.Embedding]
+    norm: Optional[AutoRMSNorm]
+    head: Optional[torch.nn.Linear]
     collector: LlmLayerCollector
     layers: List[AutoDecoderLayer]
 
@@ -108,6 +108,7 @@ class EndModel:
     def compute_norm(self, job: Job):
         if job.data is None or job.data.state is None:
             raise RuntimeError("Cannot compute norm without job data")
+        assert self.norm is not None
         norm = self.norm(job.data.state.to(self.device))
         job.set_norm(norm)
 
@@ -157,7 +158,7 @@ class EndModel:
         job.result = self.tokenizer.decode(res_tokens[job.prompt_tokens:], skip_special_tokens=True, clean_up_tokenization_spaces=False)
 
     def clean_up(self):
-        del self.input_embedding
-        del self.norm
-        del self.head
+        self.input_embedding = None
+        self.norm = None
+        self.head = None
         torch.cuda.empty_cache()
