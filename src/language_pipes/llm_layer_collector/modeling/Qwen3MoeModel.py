@@ -9,6 +9,12 @@ from language_pipes.llm_layer_collector.auto.auto_rotary import AutoRotaryEmbedd
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 
+def has_sliding_window(config: PretrainedConfig) -> bool:
+    try:
+        return config.sliding_window is not None
+    except:
+        return False
+
 class Qwen3MoeModel:
     @staticmethod
     def compute_embedding(
@@ -20,9 +26,9 @@ class Qwen3MoeModel:
             "full_attention": create_causal_mask(**mask_kwargs)
         }
         
-        if "sliding_attention" in config.sliding_window:
+        if has_sliding_window(config):
             state.causal_mask["sliding_attention"] = create_sliding_window_causal_mask(**mask_kwargs)
-        
+
         state.position_embeddings["full_attention"] = AutoRotaryEmbedding(config)(state.state.detach(), state.position_ids)
         return state
 
@@ -33,7 +39,7 @@ class Qwen3MoeModel:
         state: LLmComputationState,
         cache: DynamicCache
     ) -> torch.Tensor:
-        layer_type = "sliding_attention" if config.sliding_window else "full_attention"
+        layer_type = "sliding_attention" if has_sliding_window(config) else "full_attention"
         kwargs = { # pyright: ignore[reportUnknownVariableType]
             "hidden_states": state.state,
             "attention_mask": state.causal_mask[layer_type], # type: ignore

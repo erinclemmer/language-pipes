@@ -597,14 +597,17 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
 
 def get_models(handler: BaseHTTPRequestHandler, get_models: Callable):
     models = get_models()
-    _respond_json(handler, {
-        "object": "list",
-        "data": [
-            {
-                "id": m,
-                "object": "model",
-                "created": int(time.time()),
-                "owned_by": ""
-            } for m in models
-        ]
-    })
+    try:
+        _respond_json(handler, {
+            "object": "list",
+            "data": [
+                {
+                    "id": m,
+                    "object": "model",
+                    "created": int(time.time()),
+                    "owned_by": ""
+                } for m in models
+            ]
+        })
+    except:  # noqa: E722
+        pass 
