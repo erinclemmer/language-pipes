@@ -207,9 +207,6 @@ class DSNodeServer(StateNetworkNode):
         return generate_aes_key().hex()
 
 
-    # Connection Errors:
-    #   Node ID ECDSA mismatch
-    #   Not in whitelist
     @staticmethod 
     def start(
         config: DSNodeConfig, 
@@ -223,12 +220,17 @@ class DSNodeServer(StateNetworkNode):
         n.thread.start()
 
         if n.config.bootstrap_nodes is not None and len(n.config.bootstrap_nodes) > 0:
+            connected = False
             for bs in n.config.bootstrap_nodes:
                 try:
                     n.node.bootstrap(bs)
+                    connected = True
                     break # Throws exception if connection is not made
                 except Exception as e:
                     n.node.logger.error(e)
+
+            if not connected:
+                n.create_alert("Could not connect to any bootstrap node")
 
         return n
 

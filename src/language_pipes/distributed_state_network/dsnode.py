@@ -303,26 +303,23 @@ class DSNode:
         except Exception as e:
             if e.args[0] == 505 or e.args[0] == 401:
                 msg = f"Network Error: {e.args[1]}"
-                self.create_alert(msg)
                 self.add_log(msg)
             elif "HTTP request to" in e.args[0]:
                 msg = f"Connection to {con.address}:{con.port} failed"
-                self.create_alert(msg)
                 self.logs.append((time.time(), msg))
             if len(e.args) > 1:
                 code, msg = e.args
                 if msg == "Node ID not in whitelist":
                     self.add_log(f"Error from {con.address}:{con.port}: Not in their whitelist")
             raise e
-        
+
         # Get the response packet
         pkt = HelloPacket.from_bytes(content)
-        
+
         # Verify version compatibility
         if pkt.version != self.version:
             msg = f"Network version mismatch \"{pkt.version}\" ({pkt.node_id}) != \"{self.version}\" ({self.config.node_id})"
             self.add_log(msg, "ERROR")
-            self.create_alert(msg)
             raise Exception(505)  # Version not supported
 
         # Store the peer's public key
