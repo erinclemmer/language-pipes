@@ -68,7 +68,7 @@ class StaticAutoModel:
                 Qwen3Model.compute_embedding(state, config, mask_kwargs)
 
             case "phi3":
-                Phi3Model.compute_embedding(state, config)
+                Phi3Model.compute_embedding(state, config, mask_kwargs)
                 
             case "qwen3_moe":
                 Qwen3MoeModel.compute_embedding(state, config, mask_kwargs)
@@ -93,7 +93,7 @@ class StaticAutoModel:
                 return Qwen3Model.compute_layer(layer, config, state, cache)
 
             case "phi3":
-                return Phi3Model.compute_layer(layer, state, cache)
+                return Phi3Model.compute_layer(layer, config, state, cache)
             
             case "qwen3_moe":
                 return Qwen3MoeModel.compute_layer(layer, config, state, cache)

@@ -12,7 +12,7 @@ from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 def has_sliding_window(config: PretrainedConfig) -> bool:
     try:
         return config.sliding_window is not None
-    except:
+    except:  # noqa: E722
         return False
 
 class Qwen3MoeModel:
