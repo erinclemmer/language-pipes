@@ -80,7 +80,7 @@ class ListPageState(PageState):
             entry = list(format_model_line(
                 model=model,
                 selected=self.model_idx == i,
-                running=models_status.get(model.model_id, [])
+                running=[m for m in models_status.get(model.model_id, []) if m.device == model.device]
             ))
             entry.append("")
             entries.append(entry)
