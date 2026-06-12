@@ -78,9 +78,17 @@ def handle_file_load(
 
     from language_pipes.tui.frame.main_frame import MainFrame
     frame = MainFrame((80, termsize[1]), (left_bound, 0), config_file=config_file, auto_start=auto_start)
-    action = frame.run()
+    action = None
+    try:
+        action = frame.run()
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(e)
+        action = "exit"
+
     if action == "exit":
         return "exit"
+    
     return None
 
 
