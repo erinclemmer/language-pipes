@@ -71,10 +71,7 @@ class DSNode:
             self.config.node_id: Endpoint(self.config.network_ip, config.port)
         }
         
-        self.logger = logging.getLogger("DSN: " + config.node_id)
-        date_suffix = datetime.now().strftime("%d_%m_%Y")
-        log_filename = f"{self.config.logging_dir}/language_pipes_{date_suffix}.log"
-        logging.basicConfig(filename=log_filename, level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
         self.disconnect_cb = disconnect_callback
         self.update_cb = update_callback
         self.receive_cb = receive_callback
