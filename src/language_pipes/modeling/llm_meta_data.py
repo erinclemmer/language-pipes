@@ -113,7 +113,14 @@ class LlmMetadata:
     def __init__(self, model_dir: Optional[Path] = None):
         if model_dir is None:
             return
-        data = get_computed_data(model_dir)
+        
+        try:
+            data = get_computed_data(model_dir)
+        except:  # noqa: E722
+            os.remove(model_dir / "cache.json")
+            os.remove(model_dir / "meta_data.json")
+            data = get_computed_data(model_dir)
+        
         self.embed_size = data["embed_size"]
         self.head_size = data["head_size"]
         self.avg_layer_size = data["avg_layer_size"]
