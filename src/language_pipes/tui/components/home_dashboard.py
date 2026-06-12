@@ -150,11 +150,18 @@ class Dashboard:
 
         used_swap = self.provider.get_used_swap()
         total_swap = self.provider.get_total_swap()
-        
-        return [
+
+        lines = [
             f"System RAM:  {used_ram:.1f}/{total_ram:.1f}GB",
             f"System Swap: {used_swap:.1f}/{total_swap:.1f}GB"
         ]
+
+        for i in range(self.provider.get_cuda_device_count()):
+            used_vram = self.provider.get_used_cuda_memory(i)
+            total_vram = self.provider.get_total_cuda_memory(i)
+            lines.append(f"CUDA {i} VRAM: {used_vram:.1f}/{total_vram:.1f}GB")
+
+        return lines
 
     @staticmethod
     def _get_state(status: Optional[RouterStatus]) -> str:

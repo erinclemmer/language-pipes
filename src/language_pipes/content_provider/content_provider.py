@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import psutil
-from typing import Callable, List, Optional, Dict 
+import torch
+from typing import Callable, List, Optional, Dict
 
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import JobReceiver
@@ -147,6 +148,22 @@ class ContentProvider:
     @staticmethod
     def get_used_swap() -> float:
         return psutil.swap_memory().used / (1024**3)
+
+    @staticmethod
+    def get_cuda_device_count() -> int:
+        if not torch.cuda.is_available():
+            return 0
+        return torch.cuda.device_count()
+
+    @staticmethod
+    def get_total_cuda_memory(device: int) -> float:
+        _, total = torch.cuda.mem_get_info(device)
+        return total / (1024**3)
+
+    @staticmethod
+    def get_used_cuda_memory(device: int) -> float:
+        free, total = torch.cuda.mem_get_info(torch.device(f'cuda:{device}'))
+        return (total - free) / (1024**3)
 
     @staticmethod
     def get_ram_usage() -> str:
