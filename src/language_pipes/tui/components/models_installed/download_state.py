@@ -58,12 +58,24 @@ class DownloadPageState(PageState):
         else:
             if not self._can_download():
                 return
-            self.confirm.open(
-                f"Download {self.new_model_id}",
-                on_apply=self._request_token,
-                on_discard=lambda: None,
-            )
+            
+            if self.new_model_id in self.provider.model_provider.get_installed_models():
+                def on_apply():
+                    self.provider.model_provider.delete_installed_model(self.new_model_id)
+                    self._request_token()
 
+                self.confirm.open(
+                    f"{self.new_model_id} already exists\ndelete it and download again?",
+                    on_apply=on_apply,
+                    on_discard=lambda: None
+                )
+            else:
+                self.confirm.open(
+                    f"Download {self.new_model_id}",
+                    on_apply=self._request_token,
+                    on_discard=lambda: None,
+                )
+                
     def _on_escape(self):
         if self.downloading:
             self.confirm.open(
