@@ -3,6 +3,7 @@ from typing import List, Dict, Callable
 from language_pipes.content_provider.content_provider import ContentProvider
 from ansinout import PressedKey
 from language_pipes.distributed_state_network.objects.state_packet import StatePacket
+from language_pipes.tui.util.text import make_footer_text
 
 
 class NetworkPeers:
@@ -41,4 +42,4 @@ class NetworkPeers:
         return lines
 
     def get_footer(self) -> str:
-        return ""
+        return make_footer_text(["Esc: Menu"])
