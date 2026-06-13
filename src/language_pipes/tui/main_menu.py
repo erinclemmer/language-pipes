@@ -129,7 +129,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
     if not os.path.exists(log_dir):
         log_dir.mkdir(parents=True)
 
-    date_suffix = datetime.now().strftime("%d_%m_%Y")
+    date_suffix = datetime.now().strftime("%d_%m_%Y_%H_%M")
     log_filename = f"{log_dir}/language_pipes_{date_suffix}.log"
     logging.basicConfig(filename=log_filename, level=logging.INFO)
 
