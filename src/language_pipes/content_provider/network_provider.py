@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Callable, Tuple
 
 from language_pipes.config import LpConfig
+from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 from language_pipes.util.config import get_app_dir
 from language_pipes.util.aes import generate_aes_key
 from language_pipes.distributed_state_network.util import stop_thread
@@ -179,6 +180,14 @@ class NetworkProvider:
         data = rtr.node.node_states.copy()
         del data[rtr.node.config.node_id]
         return data
+
+    def get_peer_endpoint(self, node_id: str) -> Optional[Endpoint]:
+        rtr = self.get_router()
+        if rtr is None:
+            return None
+        if node_id not in rtr.node.address_book:
+            return None
+        return rtr.node.address_book[node_id]
 
     # Network / Configure
     def get_network_config(self) -> DSNodeConfig:

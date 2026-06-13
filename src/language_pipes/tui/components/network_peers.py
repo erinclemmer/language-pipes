@@ -34,6 +34,9 @@ class NetworkPeers:
 
         for key in self.peers.keys():
             lines.append(f"- {key}")
+            endpoint = self.provider.network_provider.get_peer_endpoint(key)
+            if endpoint is not None:
+                lines.append(f"  {endpoint.address}:{endpoint.port}")
 
         return lines
 
