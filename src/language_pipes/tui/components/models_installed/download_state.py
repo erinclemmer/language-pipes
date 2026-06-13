@@ -43,11 +43,9 @@ class DownloadPageState(PageState):
 
     def _on_enter(self):
         if self.downloading:
-            if self.download_status is not None and (
-                "SUCCESS" in self.download_status or "ERROR" in self.download_status
-            ):
+            if self._download_done():
                 self.downloading = False
-                if "SUCCESS" in self.download_status:
+                if  self.download_status is not None and "SUCCESS" in self.download_status:
                     self.change_state('list', {})
             else:
                 self.confirm.open(
@@ -75,9 +73,12 @@ class DownloadPageState(PageState):
                     on_apply=self._request_token,
                     on_discard=lambda: None,
                 )
-                
+
+    def _download_done(self):
+        return not self.downloading or self.download_status is not None and ("SUCCESS" in self.download_status or "ERROR" in self.download_status)
+
     def _on_escape(self):
-        if self.downloading:
+        if not self._download_done():
             self.confirm.open(
                 "Stop Current Download?",
                 on_apply=self._stop_download,
