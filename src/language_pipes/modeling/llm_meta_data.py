@@ -117,8 +117,14 @@ class LlmMetadata:
         try:
             data = get_computed_data(model_dir)
         except:  # noqa: E722
-            os.remove(model_dir / "cache.json")
-            os.remove(model_dir / "meta_data.json")
+            cache_file = model_dir / "cache.json"
+            if os.path.exists(cache_file):
+                os.remove(cache_file)
+            
+            metadata_file = model_dir / "meta_data.json"
+            if os.path.exists(metadata_file):
+                os.remove(metadata_file)
+
             data = get_computed_data(model_dir)
         
         self.embed_size = data["embed_size"]
