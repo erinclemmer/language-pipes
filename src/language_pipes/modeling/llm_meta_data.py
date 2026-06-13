@@ -2,7 +2,7 @@ import os
 import json
 from pathlib import Path
 import torch
-from typing import List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
 
 from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from language_pipes.llm_layer_collector import LlmLayerCollector
@@ -116,6 +116,7 @@ class LlmMetadata:
         
         try:
             data = get_computed_data(model_dir)
+            self.init_props(data)
         except:  # noqa: E722
             cache_file = model_dir / "cache.json"
             if os.path.exists(cache_file):
@@ -126,7 +127,9 @@ class LlmMetadata:
                 os.remove(metadata_file)
 
             data = get_computed_data(model_dir)
-        
+            self.init_props(data)
+
+    def init_props(self, data: Dict[str, Any]):
         self.embed_size = data["embed_size"]
         self.head_size = data["head_size"]
         self.avg_layer_size = data["avg_layer_size"]
