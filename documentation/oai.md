@@ -6,10 +6,10 @@ Language Pipes provides an OpenAI-compatible API server, allowing you to use exi
 
 ## Enabling the API Server
 
-Set `oai_port` in your configuration to enable the API server:
+Set `job_port` in your configuration to enable the API server:
 
 ```toml
-oai_port = 8000
+job_port = 8000
 ```
 
 Or via CLI:
