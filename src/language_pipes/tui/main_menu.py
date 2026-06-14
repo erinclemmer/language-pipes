@@ -10,6 +10,7 @@ from ansinout import TuiWindow, TermText
 from language_pipes.tui.util.prompt import prompt, select_option, prompt_bool
 from language_pipes.tui.util.text import make_footer_text
 from language_pipes.util.config import (
+    default_log_dir,
     get_config_files,
     get_app_dir,
     get_model_dir
@@ -125,7 +126,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
     if not os.path.exists(cred_dir):
         cred_dir.mkdir(parents=True)
 
-    log_dir = app_dir / "logs"
+    log_dir = default_log_dir()
     if not os.path.exists(log_dir):
         log_dir.mkdir(parents=True)
 

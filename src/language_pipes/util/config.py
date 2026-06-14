@@ -7,6 +7,9 @@ def default_app_dir() -> str:
 def default_model_dir() -> str:
     return str(Path.home() / ".cache" / "language_pipes" / "models")
 
+def default_log_dir() -> Path:
+    return Path.home() / ".cache" / "language_pipes" / "logs"
+
 def get_app_dir() -> Path:
     return Path(os.environ.get("LP_APP_DIR", default_app_dir()))
 
