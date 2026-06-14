@@ -42,4 +42,4 @@ class NetworkPeers:
         return lines
 
     def get_footer(self) -> str:
-        return make_footer_text(["Esc: Menu"])
+        return "Esc: Menu"
