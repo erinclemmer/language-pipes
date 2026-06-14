@@ -1,6 +1,13 @@
 # Configuration Reference
 
-This document describes all configuration properties available in Language Pipes. These properties can be set in a TOML configuration file, overridden with `--set KEY=VALUE` flags, or set via environment variables. See the [CLI Reference](./cli.md) for command usage and precedence rules.
+This document describes the TOML configuration file format used by Language
+Pipes (`LpConfig`). See the [CLI Reference](./cli.md) for how `-c`/`--config`
+resolves a configuration file and how it is used by `run`, `config`, and the
+TUI.
+
+A small set of machine-local settings are controlled by environment variables
+instead of the TOML file. See [Environment Variables](#environment-variables)
+below.
 
 ---
 
@@ -10,30 +17,25 @@ This document describes all configuration properties available in Language Pipes
 node_id = "my-node"
 network_ip = "[Your local IP address]"
 oai_port = 8000
+end_models = ["Qwen/Qwen3-1.7B"]
 
 [[layer_models]]
-id = "Qwen/Qwen3-1.7B"
+model_id = "Qwen/Qwen3-1.7B"
 device = "cpu"
-max_memory = 4
-
-end_models = ["Qwen/Qwen3-1.7B"]
+memory = 4
 ```
+
+> **Key ordering matters.** In TOML, key/value pairs that appear after an
+> array-of-tables header (`[[layer_models]]`, `[[bootstrap_nodes]]`) belong to
+> that table, not to the top-level document. Put all top-level scalar keys
+> (`node_id`, `oai_port`, `end_models`, etc.) **before** any `[[layer_models]]`
+> or `[[bootstrap_nodes]]` blocks.
 
 ## Complete Example
 
 ```toml
 # === Required ===
 node_id = "node-1"
-
-[[layer_models]]
-id = "meta-llama/Llama-3.2-1B-Instruct"
-device = "cpu"
-max_memory = 5
-
-[[layer_models]]
-id = "Qwen/Qwen3-1.7B"
-device = "cuda:0"
-max_memory = 8
 
 # === End Models ===
 end_models = ["meta-llama/Llama-3.2-1B-Instruct"]
@@ -45,15 +47,25 @@ api_keys = ["test_key"]
 # === Network ===
 peer_port = 5000
 network_ip = "192.168.0.1"
-bootstrap_address = "192.168.0.2"
-bootstrap_port = 5000
-network_key = "network.key"
+network_key = "9f86d081884c7d659a2feaa0c55ad015"
+whitelist_ips = []
+whitelist_node_ids = []
 
-# === Options ===
-logging_level = "INFO"
-max_pipes = 1
-model_validation = true
-print_times = false
+# === Layer Models ===
+[[layer_models]]
+model_id = "meta-llama/Llama-3.2-1B-Instruct"
+device = "cpu"
+memory = 5
+
+[[layer_models]]
+model_id = "Qwen/Qwen3-1.7B"
+device = "cuda:0"
+memory = 8
+
+# === Bootstrap Nodes ===
+[[bootstrap_nodes]]
+address = "192.168.0.2"
+port = 5000
 ```
 
 ---
@@ -66,9 +78,9 @@ print_times = false
 
 Unique identifier for this node on the network.
 
-| Type | Required | Env | Default |
-|------|:--------:|-----|---------|
-| string | ✓ | `LP_NODE_ID` | — |
+| Type | Required | Default |
+|------|:--------:|---------|
+| string | ✓ | — |
 
 ```toml
 node_id = "my-node-1"
@@ -78,45 +90,45 @@ node_id = "my-node-1"
 
 Array of models to host. Each model is defined as a TOML table.
 
-| Env | Default |
-|-----|---------|
-| `LP_LAYER_MODELS` | `[]` (empty) |
+| Type | Default |
+|------|---------|
+| array of tables | `[]` (empty) |
 
 ```toml
 [[layer_models]]
-id = "Qwen/Qwen3-1.7B"
+model_id = "Qwen/Qwen3-1.7B"
 device = "cpu"
-max_memory = 4
+memory = 4
 ```
 
 Each entry has the following fields:
 
 | Field | Type | Required | Description |
 |-------|------|:--------:|-------------|
-| `id` | string | ✓ | HuggingFace model ID or path in `/models` directory |
+| `model_id` | string | ✓ | HuggingFace model ID or path in `/models` directory |
 | `device` | string | ✓ | PyTorch device: `cpu`, `cuda:0`, `cuda:1`, etc. |
-| `max_memory` | number | ✓ | Maximum memory allocation in GB |
+| `memory` | number | ✓ | Maximum memory allocation in GB |
 
 Multiple models:
 ```toml
 [[layer_models]]
-id = "Qwen/Qwen3-1.7B"
+model_id = "Qwen/Qwen3-1.7B"
 device = "cpu"
-max_memory = 4
+memory = 4
 
 [[layer_models]]
-id = "meta-llama/Llama-3.2-1B-Instruct"
+model_id = "meta-llama/Llama-3.2-1B-Instruct"
 device = "cuda:0"
-max_memory = 8
+memory = 8
 ```
 
 #### `end_models`
 
 Array of model IDs for which to load the End Model (embedding layer + output head). The node with a model in its `end_models` list is the **only node that can see your actual prompts and responses** for that model. Other nodes only process hidden state tensors and cannot read the conversation content.
 
-| Type | Env | Default |
-|------|-----|---------|
-| array of strings | — | `[]` (empty) |
+| Type | Default |
+|------|---------|
+| array of strings | `[]` (empty) |
 
 ```toml
 end_models = ["Qwen/Qwen3-1.7B"]
@@ -124,12 +136,12 @@ end_models = ["Qwen/Qwen3-1.7B"]
 
 Privacy-preserving setup:
 ```toml
-[[layer_models]]
-id = "Qwen/Qwen3-1.7B"
-device = "cpu"
-max_memory = 2
-
 end_models = ["Qwen/Qwen3-1.7B"]  # Your prompts stay on this machine
+
+[[layer_models]]
+model_id = "Qwen/Qwen3-1.7B"
+device = "cpu"
+memory = 2
 ```
 
 ---
@@ -140,9 +152,9 @@ end_models = ["Qwen/Qwen3-1.7B"]  # Your prompts stay on this machine
 
 Port for the [OpenAI-compatible API](./oai.md). Omit to disable the API server.
 
-| Type | Env | Default |
-|------|-----|---------|
-| int | `LP_OAI_PORT` | None (disabled) |
+| Type | Default |
+|------|---------|
+| int | None (disabled) |
 
 ```toml
 oai_port = 8000
@@ -150,11 +162,11 @@ oai_port = 8000
 
 #### `api_keys`
 
-List of accepted API keys for the OpenAI-compatible server. [See official documentation](https://developers.openai.com/api/reference/overview/).
+List of accepted API keys for the OpenAI-compatible server.
 
-| Type | Env | Default |
-|------|-----|---------|
-| array of strings | `LP_API_KEYS` | None (disabled) |
+| Type | Default |
+|------|---------|
+| array of strings | None (disabled) |
 
 ```toml
 api_keys = ["test_key"]
@@ -170,9 +182,9 @@ These options configure the peer-to-peer network. See [Distributed State Network
 
 Port for peer-to-peer communication.
 
-| Type | Env | Default |
-|------|-----|---------|
-| int | `LP_PEER_PORT` | `5000` |
+| Type | Default |
+|------|---------|
+| int | `5000` |
 
 ```toml
 peer_port = 5000
@@ -182,57 +194,62 @@ peer_port = 5000
 
 IP address that this node advertises to other peers. Only necessary for bootstrap configurations where other nodes connect to this node. If not specified, the node attempts to auto-detect its network IP.
 
-| Type | Env | Default |
-|------|-----|---------|
-| string | `LP_NETWORK_IP` | None (auto-detect) |
+| Type | Default |
+|------|---------|
+| string | None (auto-detect) |
 
 ```toml
 network_ip = "192.168.1.100"
 ```
 
-#### `bootstrap_address`
+#### `bootstrap_nodes`
 
-IP address of an existing node to join the network.
+Array of peer nodes to contact when joining the network. Leave empty for a standalone or first node.
 
-| Type | Env | Default |
-|------|-----|---------|
-| string | `LP_BOOTSTRAP_ADDRESS` | None |
+| Type | Default |
+|------|---------|
+| array of tables | `[]` (empty) |
 
-```toml
-bootstrap_address = "192.168.1.100"
-```
+Each entry has the following fields:
 
-#### `bootstrap_port`
-
-Port of the bootstrap node.
-
-| Type | Env | Default |
-|------|-----|---------|
-| int | `LP_BOOTSTRAP_PORT` | `5000` |
+| Field | Type | Required | Description |
+|-------|------|:--------:|-------------|
+| `address` | string | ✓ | IP address of the bootstrap node |
+| `port` | int | ✓ | Port of the bootstrap node |
 
 ```toml
-bootstrap_port = 5000
+[[bootstrap_nodes]]
+address = "192.168.1.100"
+port = 5000
 ```
 
 #### `network_key`
 
-Path to AES encryption key file. Generate with `language-pipes keygen`. If null, peer communication is unencrypted.
+Hex-encoded AES-128 key used to encrypt peer-to-peer traffic. If null or omitted, peer communication is unencrypted.
 
-| Type | Env | Default |
-|------|-----|---------|
-| string | `LP_NETWORK_KEY` | null |
+| Type | Default |
+|------|---------|
+| string (32 hex characters) | null |
 
 ```toml
-network_key = "network.key"
+network_key = "9f86d081884c7d659a2feaa0c55ad015"
 ```
+
+Generate a key with:
+```bash
+language-pipes keygen
+```
+This prints a hex key (and writes the same value to `network.key`). Copy that
+hex string into `network_key`, or generate one directly from the network
+configuration screen in the TUI.
 
 #### `whitelist_ips`
 
 IP addresses this node will allow for peer communication. If configured, the node only accepts inbound DSN requests from these IPs and only sends outbound requests to these IPs.
 
-| Type | Env | Default |
-|------|-----|---------|
-| array of strings | `LP_WHITELIST_IPS` | `[]` (allow all) |
+| Type | Default |
+|------|---------|
+| array of strings | `[]` (allow all) |
 
 ```toml
 whitelist_ips = ["192.168.1.100", "192.168.1.101"]
@@ -242,9 +259,9 @@ whitelist_ips = ["192.168.1.100", "192.168.1.101"]
 
 Peer node IDs this node will allow for communication. If configured, the node only accepts inbound DSN messages from these node IDs and only sends outbound messages to these node IDs.
 
-| Type | Env | Default |
-|------|-----|---------|
-| array of strings | `LP_WHITELIST_NODE_IDS` | `[]` (allow all) |
+| Type | Default |
+|------|---------|
+| array of strings | `[]` (allow all) |
 
 ```toml
 whitelist_node_ids = ["bootstrap-node", "trusted-worker-1"]
@@ -252,34 +269,22 @@ whitelist_node_ids = ["bootstrap-node", "trusted-worker-1"]
 
 ---
 
-### Security
+## Environment Variables
 
-#### `model_validation`
+These configure machine-local paths and runtime behavior. They are read
+directly from the process environment and are independent of the TOML
+configuration file described above.
 
-Verify model weight hashes match other nodes on the network.
-
-| Type | Env | Default |
-|------|-----|---------|
-| bool | `LP_MODEL_VALIDATION` | `false` |
-
-```toml
-model_validation = true
-```
-
----
-
-### Directories
-
-#### `app_dir`
+#### `LP_APP_DIR`
 
 Application configuration directory. Stores configs and credentials.
 
-| Type | Env | Default |
-|------|-----|---------|
-| string | `LP_APP_DIR` | `~/.config/language_pipes` |
+| Default |
+|---------|
+| `~/.config/language_pipes` |
 
-```toml
-app_dir = "~/.config/language_pipes"
+```bash
+export LP_APP_DIR=~/.config/language_pipes
 ```
 
 Directory structure:
@@ -289,83 +294,45 @@ app_dir/
 └── credentials/ # Credential files
 ```
 
-#### `model_dir`
+#### `LP_MODEL_DIR`
 
 Model cache directory. Stores downloaded model weights.
 
-| Type | Env | Default |
-|------|-----|---------|
-| string | `LP_MODEL_DIR` | `~/.cache/language_pipes/models` |
-
-```toml
-model_dir = "~/.cache/language_pipes/models"
-```
-
----
-
-### Other
-
-#### `logging_level`
-
-Log verbosity. See [Python logging levels](https://docs.python.org/3/library/logging.html#logging-levels).
-
-| Type | Env | Default | Values |
-|------|-----|---------|--------|
-| string | `LP_LOGGING_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
-
-```toml
-logging_level = "INFO"
-```
-
-#### `num_local_layers`
-
-Number of initial model layers to execute locally before forwarding work to other nodes. Higher values improve prompt obfuscation by keeping more of the early pipeline on your machine. All nodes on the network should use the same value so that model layers are loaded correctly.
-
-| Type | Env | Default |
-|------|-----|---------|
-| int | `LP_NUM_LOCAL_LAYERS` | `1` |
-
-```toml
-num_local_layers = 1
-```
-
-#### `max_pipes`
-
-Maximum number of model pipes to participate in.
-
-| Type | Env | Default |
-|------|-----|---------|
-| int | `LP_MAX_PIPES` | `1` |
-
-```toml
-max_pipes = 2
-```
-
-#### `print_times`
-
-Print timing information for layer computations and network transfers when a job completes. Useful for debugging and performance analysis.
-
-| Type | Env | Default |
-|------|-----|---------|
-| bool | `LP_PRINT_TIMES` | `false` |
-
-```toml
-print_times = true
-```
-
----
-
-### Authentication (Environment Variable Only)
-
-#### `LP_HUGGINGFACE_TOKEN`
-
-HuggingFace API token for downloading gated or private models (like Llama). Only available as an environment variable for security. You can also supply it at download time via a prompt.
-
-Get your token from [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
+| Default |
+|---------|
+| `~/.cache/language_pipes/models` |
 
 ```bash
-export LP_HUGGINGFACE_TOKEN="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+export LP_MODEL_DIR=~/.cache/language_pipes/models
 ```
+
+#### `LP_NUM_LOCAL_LAYERS`
+
+Number of initial model layers an end model executes locally before
+forwarding work to other nodes. Higher values improve prompt obfuscation by
+keeping more of the early pipeline on your machine. All nodes hosting the same
+end model should use the same value so that model layers are loaded correctly.
+
+| Default |
+|---------|
+| `1` |
+
+```bash
+export LP_NUM_LOCAL_LAYERS=1
+```
+
+---
+
+## Hugging Face Authentication
+
+#### `hf_token`
+
+HuggingFace API token for downloading gated or private models (like Llama).
+This is stored separately from node configuration files, in
+`<app_dir>/globals.toml`. Language Pipes prompts for the token in the TUI when
+downloading a gated model and offers to save it for future downloads.
+
+Get your token from [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
 
 **Note:** For gated models (like Llama), you must also accept the model's license agreement on the HuggingFace website before downloading.
 
