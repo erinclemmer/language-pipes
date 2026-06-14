@@ -60,13 +60,13 @@ class JobProvider:
         self.oai_server = None
         self.oai_thread = None
 
-    def get_oai_port(self) -> int:
+    def get_job_port(self) -> int:
         cfg = LpConfig.from_file(self.config_file)
-        return cfg.oai_port
+        return cfg.job_port
     
-    def set_oai_port(self, port: int):
+    def set_job_port(self, port: int):
         cfg = LpConfig.from_file(self.config_file)
-        cfg.oai_port = port
+        cfg.job_port = port
         cfg.save()
         
     def get_api_keys(self) -> List[str]:
@@ -97,7 +97,7 @@ class JobProvider:
         
         self.oai_server = OAIHttpServer(
             api_keys=cfg.api_keys,
-            port=cfg.oai_port,
+            port=cfg.job_port,
             get_models=get_models,
             complete=job_factory.start_job
         )

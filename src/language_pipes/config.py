@@ -31,7 +31,7 @@ class ModelToLoad:
         )
 
 class LpConfig:
-    oai_port: int
+    job_port: int
     api_keys: List[str]
     layer_models: List[ModelToLoad]
     end_models: List[str]
@@ -42,7 +42,7 @@ class LpConfig:
     _file_path: Optional[Path]
 
     def __init__(self):
-        self.oai_port = 8000 
+        self.job_port = 8000 
         self.api_keys = []
         self.layer_models = []
         self._file_path = None
@@ -54,7 +54,7 @@ class LpConfig:
         
         with open(self._file_path, 'w', encoding='utf-8') as f:
             toml.dump({
-                "oai_port": self.oai_port,
+                "job_port": self.job_port,
                 "api_keys": self.api_keys,
                 "layer_models": [o.to_dict() for o in self.layer_models],
                 "end_models": self.end_models,
@@ -76,7 +76,7 @@ class LpConfig:
             "--- Configuration Settings ---",
             "=" * 60,
             "",
-            f"Job Port: {self.oai_port}"
+            f"Job Port: {self.job_port}"
         ]
 
         lines.append("API Keys:")
@@ -121,7 +121,7 @@ class LpConfig:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = toml.load(f)
 
-        cfg.oai_port = data.get("oai_port", 8000)
+        cfg.job_port = data.get("job_port", 8000)
         cfg.api_keys = data.get("api_keys", [])
         cfg.layer_models = [ModelToLoad.from_dict(o) for o in data.get("layer_models", [])]
         cfg.end_models = data.get("end_models", [])

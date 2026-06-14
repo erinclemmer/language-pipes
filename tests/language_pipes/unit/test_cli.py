@@ -69,7 +69,7 @@ class GlobalOptionTests(unittest.TestCase):
     def test_options_must_precede_subcommand(self):
         # Docs: `-c` after the subcommand fails (it is a top-level option).
         with tempfile.TemporaryDirectory() as d:
-            cfg = write_config(d, oai_port=8000)
+            cfg = write_config(d, job_port=8000)
             _, code = run_cli(["run", "-c", cfg])
         # argparse reports an error and exits non-zero.
         self.assertEqual(code, 2)
@@ -85,7 +85,7 @@ class TuiCommandTests(unittest.TestCase):
     def test_config_preloads_tui(self):
         # Docs: `-c FILE` preloads a configuration into the TUI.
         with tempfile.TemporaryDirectory() as d:
-            cfg = write_config(d, oai_port=8000)
+            cfg = write_config(d, job_port=8000)
             with mock.patch("language_pipes.tui.initialize_tui") as init:
                 run_cli(["-c", cfg])
             init.assert_called_once_with(cfg, False)
@@ -93,7 +93,7 @@ class TuiCommandTests(unittest.TestCase):
     def test_start_flag_autostarts_tui(self):
         # Docs: `--start` begins serving immediately (auto_start=True).
         with tempfile.TemporaryDirectory() as d:
-            cfg = write_config(d, oai_port=8000)
+            cfg = write_config(d, job_port=8000)
             with mock.patch("language_pipes.tui.initialize_tui") as init:
                 run_cli(["-c", cfg, "--start"])
             init.assert_called_once_with(cfg, True)
@@ -110,7 +110,7 @@ class RunCommandTests(unittest.TestCase):
     def test_run_constructs_runner_from_config(self):
         # Docs: `-c FILE run` starts a headless node from the config file.
         with tempfile.TemporaryDirectory() as d:
-            cfg = write_config(d, oai_port=8000)
+            cfg = write_config(d, job_port=8000)
             with mock.patch("language_pipes.runner.LpRunner") as runner:
                 run_cli(["-c", cfg, "run"])
             runner.assert_called_once_with(Path(cfg))
@@ -120,14 +120,14 @@ class ConfigCommandTests(unittest.TestCase):
     def test_config_takes_no_positional_arguments(self):
         # Docs: `config` accepts no override arguments; extras are rejected.
         with tempfile.TemporaryDirectory() as d:
-            cfg = write_config(d, oai_port=8000)
-            _, code = run_cli(["-c", cfg, "config", "oai_port=9999"])
+            cfg = write_config(d, job_port=8000)
+            _, code = run_cli(["-c", cfg, "config", "job_port=9999"])
         self.assertEqual(code, 2)
 
     def test_config_prints_human_readable_report(self):
         # Docs: `config` prints a human-readable report, not valid TOML.
         with tempfile.TemporaryDirectory() as d:
-            cfg = write_config(d, oai_port=8000, node_id="node-4")
+            cfg = write_config(d, job_port=8000, node_id="node-4")
             out, _ = run_cli(["-c", cfg, "config"])
         self.assertIn("Configuration Settings", out)
         self.assertIn("Job Port: 8000", out)

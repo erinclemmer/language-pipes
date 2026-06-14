@@ -11,15 +11,15 @@ from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 class TopPageState(PageState):
     focus_idx: int
     server_running: bool
-    oai_port: Optional[int]
-    edit_oai_port: Optional[str]
+    job_port: Optional[int]
+    edit_job_port: Optional[str]
 
     def __init__(self):
         super().__init__('top')
         self.focus_idx = 0
         self.server_running = False
-        self.oai_port = None
-        self.edit_oai_port = None
+        self.job_port = None
+        self.edit_job_port = None
 
     def on_change(self, args: Dict):
         self.focus_idx = 0
@@ -40,11 +40,11 @@ class TopPageState(PageState):
 
     def _on_char(self, ch: str):
         if self.focus_idx == 0:
-            self.edit_oai_port = self._port_str() + ch
+            self.edit_job_port = self._port_str() + ch
 
     def _on_backspace(self):
         if self.focus_idx == 0:
-            self.edit_oai_port = self._port_str()[:-1]
+            self.edit_job_port = self._port_str()[:-1]
 
     def _on_escape(self):
         self.exit_page()
@@ -74,10 +74,10 @@ class TopPageState(PageState):
                 self.focus_idx = 0
 
     def _save_and_run(self):
-        if not self.validate_oai_port():
+        if not self.validate_job_port():
             return
 
-        self.provider.job_provider.set_oai_port(int(self._port_str()))
+        self.provider.job_provider.set_job_port(int(self._port_str()))
         self.provider.job_provider.set_api_keys(self.provider.job_provider.get_api_keys())
         self.provider.job_provider.start_oai_server()
 
@@ -91,7 +91,7 @@ class TopPageState(PageState):
             port_string
         ]
 
-        if not self.validate_oai_port():
+        if not self.validate_job_port():
             lines.append("   Error: Invalid port value")
 
         api_keys = self.provider.job_provider.get_api_keys()
@@ -107,8 +107,8 @@ class TopPageState(PageState):
 
         if self.can_start_server():
             lines.append(make_selectable_text("Start Server", self.focus_idx == 2))
-        elif not self.server_running and not ContentProvider.is_port_available(self._get_oai_port()):
-            lines.append(f"   Warning: Can't start server, port {self._get_oai_port()} is not available")
+        elif not self.server_running and not ContentProvider.is_port_available(self._get_job_port()):
+            lines.append(f"   Warning: Can't start server, port {self._get_job_port()} is not available")
 
         if self.server_running:
             lines.append(make_selectable_text("Stop Server", True))
@@ -140,24 +140,24 @@ class TopPageState(PageState):
 
         return ""
 
-    def _get_oai_port(self) -> int:
-        if self.oai_port is None:
-            self.oai_port = self.provider.job_provider.get_oai_port()
-        return self.oai_port
+    def _get_job_port(self) -> int:
+        if self.job_port is None:
+            self.job_port = self.provider.job_provider.get_job_port()
+        return self.job_port
 
     def _port_str(self) -> str:
-        if self.edit_oai_port is None:
-            self.edit_oai_port = str(self._get_oai_port())
-        return self.edit_oai_port
+        if self.edit_job_port is None:
+            self.edit_job_port = str(self._get_job_port())
+        return self.edit_job_port
 
     def _network_running(self) -> bool:
         network_status = self.provider.network_provider.get_network_status()
         return network_status is not None and network_status.running
 
     def can_start_server(self) -> bool:
-        return self.validate_oai_port() and ContentProvider.is_port_available(self._get_oai_port()) and self._network_running() and not self.server_running
+        return self.validate_job_port() and ContentProvider.is_port_available(self._get_job_port()) and self._network_running() and not self.server_running
 
-    def validate_oai_port(self) -> bool:
+    def validate_job_port(self) -> bool:
         try:
             port = int(self._port_str())
             return port < 65000 and port > 0

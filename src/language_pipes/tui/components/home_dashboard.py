@@ -57,7 +57,7 @@ class Dashboard:
     router_status: Optional[RouterStatus]
 
     selected_idx: int
-    oai_port: int
+    job_port: int
     job_serv_running: bool
     connected_pipes: List[MetaPipe]
     layer_models: List[ModelToLoad]
@@ -76,7 +76,7 @@ class Dashboard:
         self.network_config = self.provider.network_provider.get_network_config()
         self.selected_idx = 0
         self.pipe_idx = 0
-        self.oai_port = self.provider.job_provider.get_oai_port()
+        self.job_port = self.provider.job_provider.get_job_port()
         self.job_serv_running = False
         self.layer_models = []
         self.connected_pipes = []
@@ -88,7 +88,7 @@ class Dashboard:
         return ContentProvider.is_port_available(self.network_config.port)
 
     def job_port_available(self) -> bool:
-        return ContentProvider.is_port_available(self.oai_port)
+        return ContentProvider.is_port_available(self.job_port)
 
     def on_prev(self):
         self.selected_idx -= 1
@@ -225,7 +225,7 @@ class Dashboard:
     def _get_job_status(self):
         lines = ["Job Server:"]
         
-        job_str = f"running on port {self.oai_port}" if self.job_serv_running else "stopped"
+        job_str = f"running on port {self.job_port}" if self.job_serv_running else "stopped"
         lines.append(f"Status: {job_str}")
         
         api_keys = self.provider.job_provider.get_api_keys()
@@ -233,7 +233,7 @@ class Dashboard:
             lines.append(f"{len(api_keys)} API Key(s)")
         
         if not self.job_serv_running and not self.job_port_available():
-            lines.append(f"Warning:\nJob port {self.oai_port} is not available")
+            lines.append(f"Warning:\nJob port {self.job_port} is not available")
 
         if self.job_serv_running:
             jobs = self.provider.job_provider.get_active_jobs()
@@ -304,7 +304,7 @@ class Dashboard:
         self.network_config = self.provider.network_provider.get_network_config()
         self.router_status = self.provider.network_provider.get_network_status()
         self.job_serv_running = self.provider.job_provider.oai_server_running()
-        self.oai_port = self.provider.job_provider.get_oai_port()
+        self.job_port = self.provider.job_provider.get_job_port()
 
         return self._get_left_panel(), self._get_right_panel()
 
