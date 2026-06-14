@@ -469,7 +469,6 @@ class DSNode:
     def receive_data(self, data: bytes):
         pkt = DataPacket.from_bytes(data)
         self.ensure_node_id_allowed(pkt.node_id)
-        self.add_log(f"Received DATA from {pkt.node_id} ({len(pkt.data)} bytes)", "INFO")
         
         # Ensure sender is known
         if pkt.node_id not in self.address_book:
