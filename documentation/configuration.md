@@ -16,7 +16,7 @@ below.
 ```toml
 node_id = "my-node"
 network_ip = "[Your local IP address]"
-oai_port = 8000
+job_port = 8000
 end_models = ["Qwen/Qwen3-1.7B"]
 
 [[layer_models]]
@@ -28,7 +28,7 @@ memory = 4
 > **Key ordering matters.** In TOML, key/value pairs that appear after an
 > array-of-tables header (`[[layer_models]]`, `[[bootstrap_nodes]]`) belong to
 > that table, not to the top-level document. Put all top-level scalar keys
-> (`node_id`, `oai_port`, `end_models`, etc.) **before** any `[[layer_models]]`
+> (`node_id`, `job_port`, `end_models`, etc.) **before** any `[[layer_models]]`
 > or `[[bootstrap_nodes]]` blocks.
 
 ## Complete Example
@@ -41,7 +41,7 @@ node_id = "node-1"
 end_models = ["meta-llama/Llama-3.2-1B-Instruct"]
 
 # === API Server ===
-oai_port = 8000
+job_port = 8000
 api_keys = ["test_key"]
 
 # === Network ===
@@ -148,7 +148,7 @@ memory = 2
 
 ### API Server
 
-#### `oai_port`
+#### `job_port`
 
 Port for the [OpenAI-compatible API](./oai.md). Omit to disable the API server.
 
@@ -157,7 +157,7 @@ Port for the [OpenAI-compatible API](./oai.md). Omit to disable the API server.
 | int | None (disabled) |
 
 ```toml
-oai_port = 8000
+job_port = 8000
 ```
 
 #### `api_keys`
