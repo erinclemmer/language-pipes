@@ -70,26 +70,6 @@ class LpConfig:
                 } for o in self.network_config.bootstrap_nodes]
             }, f)
 
-    def apply_overrides(self, data: Dict[str, Any]):
-        if "oai_port" in data:
-            self.oai_port = data["oai_port"]
-        if "api_keys" in data:
-            self.api_keys = data["api_keys"]
-        if "layer_models" in data:
-            self.layer_models = [ModelToLoad.from_dict(o) for o in data["layer_models"]]
-        if "end_models" in data:
-            self.end_models = data["end_models"]
-        if "node_id" in data:
-            self.network_config.node_id = data["node_id"]
-        if "peer_port" in data:
-            self.network_config.port = data["peer_port"]
-        if "network_ip" in data:
-            self.network_config.network_ip = data["network_ip"]
-        if "whitlelist_ips" in data:
-            self.network_config.whitelist_ips = data["whitelist_ips"]
-        if "whitelist_node_ids" in data:
-            self.network_config.whitelist_node_ids = data["whitelist_node_ids"]
-
     def to_string(self) -> str:
         lines = [
             "=" * 60,

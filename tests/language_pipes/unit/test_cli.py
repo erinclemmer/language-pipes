@@ -113,34 +113,26 @@ class RunCommandTests(unittest.TestCase):
             cfg = write_config(d, oai_port=8000)
             with mock.patch("language_pipes.runner.LpRunner") as runner:
                 run_cli(["-c", cfg, "run"])
-            runner.assert_called_once_with(Path(cfg), {})
+            runner.assert_called_once_with(Path(cfg))
 
 
 class ConfigCommandTests(unittest.TestCase):
-    def test_config_requires_a_positional_token(self):
-        # Docs: the parser requires at least one positional KEY=VALUE token.
+    def test_config_takes_no_positional_arguments(self):
+        # Docs: `config` accepts no override arguments; extras are rejected.
         with tempfile.TemporaryDirectory() as d:
             cfg = write_config(d, oai_port=8000)
-            _, code = run_cli(["-c", cfg, "config"])
+            _, code = run_cli(["-c", cfg, "config", "oai_port=9999"])
         self.assertEqual(code, 2)
 
     def test_config_prints_human_readable_report(self):
         # Docs: `config` prints a human-readable report, not valid TOML.
         with tempfile.TemporaryDirectory() as d:
             cfg = write_config(d, oai_port=8000, node_id="node-4")
-            out, _ = run_cli(["-c", cfg, "config", "node_id=node-4"])
+            out, _ = run_cli(["-c", cfg, "config"])
         self.assertIn("Configuration Settings", out)
         self.assertIn("Job Port: 8000", out)
         # The report is decorative, not TOML: it contains a banner rule.
         self.assertIn("====", out)
-
-    def test_config_positional_overrides_are_not_applied(self):
-        # Docs (Known limitations): override positionals are parsed but ignored.
-        with tempfile.TemporaryDirectory() as d:
-            cfg = write_config(d, oai_port=8000)
-            out, _ = run_cli(["-c", cfg, "config", "oai_port=9999"])
-        self.assertIn("Job Port: 8000", out)
-        self.assertNotIn("9999", out)
 
 
 class KeygenCommandTests(unittest.TestCase):

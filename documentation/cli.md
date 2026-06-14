@@ -7,7 +7,7 @@ language-pipes                              # Launch interactive TUI
 language-pipes -c config.toml               # Launch TUI with a config preloaded
 language-pipes -c config.toml --start       # Launch TUI and start serving immediately
 language-pipes -c config.toml run           # Run headless from a config file
-language-pipes -c config.toml config KEY=V  # Print the effective configuration
+language-pipes -c config.toml config        # Print the configuration
 language-pipes keygen [output]              # Generate an AES encryption key
 ```
 
@@ -99,23 +99,20 @@ language-pipes -c node4 run            # resolves <app_dir>/configs/node4.toml
 
 ### `config`
 
-Resolve a configuration file and print the effective settings as a
-human-readable report (ports, API keys, layer models, end models, and network
-settings).
+Resolve a configuration file and print its settings as a human-readable report
+(ports, API keys, layer models, end models, and network settings).
 
 **Format:**
 ```bash
-language-pipes -c FILE config KEY=VALUE
+language-pipes -c FILE config
 ```
 
-- A configuration is required (`-c`/`--config`), resolved the same way as `run`.
-- At least one positional argument is required by the parser; pass any
-  `KEY=VALUE` token (for example `node_id=node-4`).
+A configuration is required (`-c`/`--config`), resolved the same way as `run`.
 
 **Example:**
 
 ```bash
-$ language-pipes -c node4.toml config node_id=node-4
+$ language-pipes -c node4.toml config
 ============================================================
 --- Configuration Settings ---
 ============================================================
@@ -166,23 +163,6 @@ $ language-pipes keygen network.key
 
 ---
 
-## Known limitations
-
-The `run` and `config` subcommands accept positional arguments for property
-overrides and model specification, which appear in their `--help` output:
-
-```
-language-pipes run    [RUN_KEY=VALUE ...] [MODEL ...] [END ...]
-language-pipes config  CONFIG_KEY=VALUE   [MODEL ...] [END ...]
-```
-
-These positionals are currently **parsed but not applied** — supplying them does
-not change the resolved configuration. To override configuration values today,
-edit the TOML file or use the TUI. (The `config` subcommand still requires at
-least one positional token to be present, even though it has no effect.)
-
----
-
 ## Examples
 
 ### Launch the TUI with a saved configuration
@@ -203,10 +183,10 @@ language-pipes -c config.toml run
 language-pipes -c node4.toml run | tee node4.log
 ```
 
-### Inspect the effective configuration
+### Inspect the configuration
 
 ```bash
-language-pipes -c node4.toml config show=1
+language-pipes -c node4.toml config
 ```
 
 ### Generate a network key

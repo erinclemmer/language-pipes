@@ -27,20 +27,11 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
     
     # Run
-    run_parser = subparsers.add_parser("run", help="Start Language Pipes as a stdout stream without the TUI")
-    
-    run_parser.add_argument("set", help="Override config property by its TOML key name. Repeatable", nargs="*", metavar="RUN_KEY=VALUE")
-
-    run_parser.add_argument("layer-models", help="Models to host", nargs="*", metavar="MODEL")
-    run_parser.add_argument("end-models", help="Model IDs for which to load end models", nargs="*", metavar="END")
+    subparsers.add_parser("run", help="Start Language Pipes as a stdout stream without the TUI")
 
     # Config
-    config_parser = subparsers.add_parser("config", help="Verify configuration file and flags")
-    config_parser.add_argument("set", help="Override a property (same as run)", action="append", metavar="CONFIG_KEY=VALUE")
-    
-    config_parser.add_argument("layer-models", help="Models to host", nargs="*", metavar="MODEL")
-    config_parser.add_argument("end-models", help="Model IDs for which to load end models", nargs="*", metavar="END")
-    
+    subparsers.add_parser("config", help="Verify configuration file and flags")
+
     # Keygen
     keygen_parser = subparsers.add_parser("keygen", help="Generate AES encryption key")
     keygen_parser.add_argument(
@@ -93,7 +84,7 @@ def main(argv=None):
                 return
         
         from language_pipes.runner import LpRunner
-        LpRunner(Path(config_file), config_args.set_overrides)
+        LpRunner(Path(config_file))
         
     elif args.command == "config":
         config_args = ConfigurationArgs(args)
@@ -114,14 +105,6 @@ def main(argv=None):
 
         from language_pipes.config import LpConfig
         config = LpConfig.from_file(Path(config_file))
-        overrides = config_args.set_overrides
-
-        if config_args.layer_models is not None:
-            overrides["layer_models"] = config_args.layer_models
-        if config_args.end_models is not None:
-            overrides["end_models"] = config_args.end_models
-
-        config.apply_overrides(overrides)
         print(config.to_string())
         
     elif args.command == "keygen":

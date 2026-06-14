@@ -1,7 +1,7 @@
 from time import sleep, time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import List
 
 from language_pipes.config import LpConfig
 from language_pipes.content_provider.content_provider import ContentProvider
@@ -9,9 +9,8 @@ from language_pipes.content_provider.content_provider import ContentProvider
 class LpRunner:
     alerts: List[str]
 
-    def __init__(self, config_file: Path, overrides: Dict[str, Any]):
+    def __init__(self, config_file: Path):
         config = LpConfig.from_file(config_file)
-        config.apply_overrides(overrides)
         self.alerts = []
 
         def create_alert(alert: str):
