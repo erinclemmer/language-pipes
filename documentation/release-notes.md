@@ -75,3 +75,14 @@ Added the date and time to the logger for better logs on long running servers.
 
 ### Notes
 I'm finally happy with the way the project is laid out and what it is trying to accomplish. Privacy for layer nodes is a much more complicated problem that I first realized so I have updated the privacy wording in the documentation to match a probabilistic threat model instead of assuming hidden states can never be reversed. I will be doing case studies in hidden state reversal and finding mitigation techniques that give the user more trust that their prompts will not be compromised.
+
+### Documentation
+* [CLI Reference](./cli.md)
+* [Privacy Protection](./privacy.md)
+* [Configuration Manual](./configuration.md)
+* [Architecture Overview](./architecture.md)
+* [OpenAI-Compatible API](./oai.md)
+* [Job Processor State Machine](./job-processor.md)
+* [Distributed State Network](./distributed-state-network/README.md)
+* [LLM Layer Collector](./llm-layer-collector.md)
+* [Release Notes](./release-notes.md)

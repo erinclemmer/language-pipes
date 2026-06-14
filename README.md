@@ -165,7 +165,7 @@ Language pipes currently supports a few model families including llama3, Phi4, Q
 
 ### Documentation
 * [CLI Reference](./documentation/cli.md)
-* [Privacy Architecture](./documentation/privacy.md)
+* [Privacy Protection](./documentation/privacy.md)
 * [Configuration Manual](./documentation/configuration.md)
 * [Architecture Overview](./documentation/architecture.md)
 * [OpenAI-Compatible API](./documentation/oai.md)

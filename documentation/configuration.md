@@ -345,5 +345,6 @@ Get your token from [https://huggingface.co/settings/tokens](https://huggingface
 * [Architecture Overview](./architecture.md)
 * [OpenAI-Compatible API](./oai.md)
 * [Job Processor State Machine](./job-processor.md)
-* [The default peer to peer implementation](./distributed-state-network/README.md)
-* [The way Language Pipes abstracts from model architecture](./llm-layer-collector.md)
+* [Distributed State Network](./distributed-state-network/README.md)
+* [LLM Layer Collector](./llm-layer-collector.md)
+* [Release Notes](./release-notes.md)

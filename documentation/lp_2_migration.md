@@ -228,5 +228,11 @@ language-pipes -c config.toml run
 
 ### Documentation
 * [CLI Reference](./cli.md)
+* [Privacy Protection](./privacy.md)
 * [Configuration Manual](./configuration.md)
+* [Architecture Overview](./architecture.md)
 * [OpenAI-Compatible API](./oai.md)
+* [Job Processor State Machine](./job-processor.md)
+* [Distributed State Network](./distributed-state-network/README.md)
+* [LLM Layer Collector](./llm-layer-collector.md)
+* [Release Notes](./release-notes.md)

@@ -6,27 +6,34 @@ Language Pipes provides an OpenAI-compatible API server, allowing you to use exi
 
 ## Enabling the API Server
 
-Set `job_port` in your configuration to enable the API server:
+Set `job_port` in your configuration to enable the API server, then run the
+node:
 
 ```toml
 job_port = 8000
 ```
 
-Or via CLI:
 ```bash
-language-pipes serve --openai-port 8000 ...
+language-pipes -c config.toml run
 ```
 
-Optionally you can set an API key for use with the server. Any number of api keys will work with the flag:
+The port (and API keys, below) can also be set from the **Jobs Server** page
+of the TUI.
+
+Optionally, set one or more API keys to require clients to authenticate.
+Requests must then include an `Authorization: Bearer <key>` header matching
+one of the configured keys:
 
 ```toml
 api_keys = ["foo", "bar", "baz"]
 ```
 
-Or via CLI:
-```bash
-language-pipes serve --openai-port 8000 --api-keys foo bar baz
-```
+If `api_keys` is empty (the default), the server does not require an
+`Authorization` header and any `api_key` value passed by a client library is
+accepted.
+
+See the [Configuration Manual](./configuration.md) for details on `job_port`
+and `api_keys`.
 
 ---
 
@@ -40,9 +47,15 @@ pip install openai
 
 ### Basic Usage
 
-Run the serve like this:
+Enable the API server with an API key in your config:
+
+```toml
+job_port = 8000
+api_keys = ["foo"]
+```
+
 ```bash
-language-pipes serve --openai-port 8000 --api-keys foo
+language-pipes -c config.toml run
 ```
 
 ```python
@@ -242,7 +255,7 @@ POST /v1/responses
 |-----------|------|:--------:|-------------|
 | `model` | string | ✓ | Model ID (must match a hosted model) |
 | `messages` | array | ✓ | Array of message objects |
-| `max_completion_tokens` | integer | | Maximum tokens to generate (default: 1000) |
+| `max_completion_tokens` | integer | | Maximum tokens to generate (default: 1000). `max_tokens` is accepted as a legacy alias. |
 | `stream` | boolean | | Enable streaming responses (default: `false`) |
 | `temperature` | float | | Controls output randomness (default: `1.0`) |
 | `top_p` | float | | Nucleus sampling threshold (default: `1.0`) |
@@ -257,7 +270,7 @@ POST /v1/responses
 | `model` | string | ✓ | Model ID (must match a hosted model) |
 | `input` | string or array | ✓ | Prompt text or compatible Responses message items |
 | `instructions` | string | | System-level guidance prepended to the prompt |
-| `max_output_tokens` | integer | | Maximum tokens to generate (default: 1000) |
+| `max_output_tokens` | integer | | Maximum tokens to generate (default: 1000). `max_tokens` and `max_completion_tokens` are accepted as legacy aliases. |
 | `stream` | boolean | | Enable typed server-sent event responses (default: `false`) |
 | `temperature` | float | | Controls output randomness (default: `1.0`) |
 | `top_p` | float | | Nucleus sampling threshold (default: `1.0`) |
@@ -375,7 +388,7 @@ Unlike frequency penalty, presence penalty applies equally to all tokens that ha
 
 ## Notes
 
-- **No API key required** — Language Pipes does not implement authentication. Any value works for `api_key`.
+- **API key authentication is optional** — if `api_keys` is empty (the default), the server accepts requests without an `Authorization` header and any `api_key` value works. If `api_keys` is set, clients must send `Authorization: Bearer <key>` with one of the configured keys; missing or invalid keys are rejected with `400`/`401`.
 - **Model names** — Use the exact HuggingFace model ID you configured (e.g., `Qwen/Qwen3-1.7B`)
 - **Network access** — Ensure the client can reach the node hosting the OpenAI server
 
@@ -386,7 +399,8 @@ Unlike frequency penalty, presence penalty applies equally to all tokens that ha
 * [Privacy Protection](./privacy.md)
 * [Configuration Manual](./configuration.md)
 * [Architecture Overview](./architecture.md)
-* [Open AI Compatable API](./oai.md)
+* [OpenAI-Compatible API](./oai.md)
 * [Job Processor State Machine](./job-processor.md)
-* [The default peer to peer implementation](./distributed-state-network/README.md)
-* [The way Language Pipes abstracts from model architecture](./llm-layer-collector.md)
+* [Distributed State Network](./distributed-state-network/README.md)
+* [LLM Layer Collector](./llm-layer-collector.md)
+* [Release Notes](./release-notes.md)
