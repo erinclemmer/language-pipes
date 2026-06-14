@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'src'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tests', 'language_pipes', 'unit'))
@@ -13,6 +14,7 @@ from util import make_processor, make_job, FakeEndModel, FakeModel, PipeWrapper
 class TestEmbedState(unittest.TestCase):
     """Tests for the _state_embed method."""
 
+    @patch("language_pipes.util.chunk_state.CHUNK_SIZE", 1)
     def test_transitions_to_done_when_update_fails(self):
         updates = []
 
@@ -25,7 +27,6 @@ class TestEmbedState(unittest.TestCase):
         job.compute_step = ComputeStep.EMBED
         job.prompt_tokens = 2
         job.current_token = 0
-        job.prefill_chunk_size = 1
         job.init_chunking()
 
         processor = make_processor(
@@ -176,9 +177,10 @@ class TestEmbedState(unittest.TestCase):
 class TestEmbedPrefillIntegration(unittest.TestCase):
     """Integration tests for embed state during prefill operations."""
 
+    @patch("language_pipes.util.chunk_state.CHUNK_SIZE", 1)
     def test_update_failure_stops(self):
         updates = []
-        
+
         def complete(_):
             pass
 
@@ -189,7 +191,6 @@ class TestEmbedPrefillIntegration(unittest.TestCase):
         job = make_job(update=fail_update, complete=complete)
         job.origin_node_id = "node-1"
         job.compute_step = ComputeStep.TOKENIZE
-        job.prefill_chunk_size = 1
         end_model = FakeEndModel()
         model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
         pipe = PipeWrapper("node-a", "model-a", [model])

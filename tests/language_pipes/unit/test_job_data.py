@@ -15,11 +15,8 @@ class JobDataTests(unittest.TestCase):
             state=torch.zeros((1, 4)),
             position_ids=torch.tensor([0, 1, 2, 3]),
             cache_position=torch.tensor([]),
-            causal_mask=torch.tensor([]),
-            position_embeddings=None,
-            position_embeddings_global=None,
-            position_embeddings_local=None,
-            sliding_causal_mask=None
+            causal_mask={},
+            position_embeddings={}
         )
         state_hash = job_data.hash_state()
 
@@ -31,11 +28,8 @@ class JobDataTests(unittest.TestCase):
             state=torch.ones((2, 2)),
             position_ids=torch.tensor([0, 1]),
             cache_position=torch.tensor([1]),
-            causal_mask=torch.tensor([]),
-            position_embeddings=None,
-            position_embeddings_global=None,
-            position_embeddings_local=None,
-            sliding_causal_mask=None
+            causal_mask={},
+            position_embeddings={}
         )
 
         serialized = job_data.to_bytes()

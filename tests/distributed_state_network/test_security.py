@@ -18,7 +18,7 @@ class TestSecurity(DSNTestBase):
     def test_bad_aes_key(self):
         """Invalid AES key should raise an error"""
         try:
-            DSNodeServer.start(DSNodeConfig("bad key test", Path("logs"), Path("credentials"), 8080, None, "bad.key", [], [], []))
+            DSNodeServer.start(DSNodeConfig("bad key test", Path("logs"), Path("credentials"), 8080, None, "bad.key", [], [], []), lambda _: None)
             self.fail("Should throw error before this")
         except Exception as e:
             print(e)
@@ -27,7 +27,7 @@ class TestSecurity(DSNTestBase):
         """Legacy 32-byte [IV|KEY] material should be rejected."""
         legacy_hex = (os.urandom(32)).hex()
         with self.assertRaises(ValueError):
-            DSNodeServer.start(DSNodeConfig("legacy key test", Path("logs"), Path("credentials"), 8080, None, legacy_hex, [], [], []))
+            DSNodeServer.start(DSNodeConfig("legacy key test", Path("logs"), Path("credentials"), 8080, None, legacy_hex, [], [], []), lambda _: None)
 
     def test_whitelist_node_ids_allows_configured_node_id(self):
         """Nodes should communicate when peer node_id is whitelisted."""
@@ -55,12 +55,14 @@ class TestSecurity(DSNTestBase):
 
     def test_whitelist_allows_configured_ip(self):
         """Nodes should communicate when peer IP is whitelisted."""
-        bootstrap = spawn_node("bootstrap", "127.0.0.1", whitelist_ips=["127.0.0.1"])
+        detected_ip = DSNodeServer._detect_local_ip(object.__new__(DSNodeServer)) or "127.0.0.1"
+
+        bootstrap = spawn_node("bootstrap", "127.0.0.1", whitelist_ips=[detected_ip])
         connector = spawn_node(
             "connector",
             None,
             [bootstrap.node.my_con().to_json()],
-            whitelist_ips=["127.0.0.1"]
+            whitelist_ips=[detected_ip]
         )
 
         self.assertIn("connector", bootstrap.node.peers())

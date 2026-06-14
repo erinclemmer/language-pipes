@@ -2,6 +2,7 @@ from pathlib import Path
 
 import torch
 from typing import Callable, List
+from transformers import PretrainedConfig
 
 from language_pipes.pipes.pipe import Pipe
 from language_pipes.config import LpConfig
@@ -15,11 +16,8 @@ def make_job_data() -> JobData:
         state=torch.tensor([]),
         cache_position=torch.tensor([]),
         position_ids=torch.tensor([]),
-        causal_mask=torch.tensor([]),
-        position_embeddings=None,
-        position_embeddings_local=None,
-        position_embeddings_global=None,
-        sliding_causal_mask=None
+        causal_mask={},
+        position_embeddings={}
     )
 
 class FakeEndModel:
@@ -100,7 +98,7 @@ def make_job(**kwargs):
         "messages": [],
         "pipe_id": "pipe-1",
         "model_id": "model-1",
-        "prefill_chunk_size": 6
+        "config": PretrainedConfig(num_hidden_layers=1)
     }
     defaults.update(kwargs)
     return Job(**defaults)

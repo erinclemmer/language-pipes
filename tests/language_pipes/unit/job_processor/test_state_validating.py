@@ -2,6 +2,7 @@ import os
 import sys
 import torch
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'src'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tests', 'language_pipes', 'unit'))
@@ -16,12 +17,9 @@ from util import make_processor, make_job, FakeEndModel, FakeModel, PipeWrapper
 def make_job_data(state: torch.Tensor | None = None) -> JobData:
     return JobData(
         cache_position=torch.zeros((1,), dtype=torch.long),
-        causal_mask=torch.zeros((1, 1)),
-        sliding_causal_mask=None,
+        causal_mask={},
         position_ids=torch.zeros((1,), dtype=torch.long),
-        position_embeddings=None,
-        position_embeddings_local=None,
-        position_embeddings_global=None,
+        position_embeddings={},
         state=state if state is not None else torch.zeros((1, 1)),
     )
 
@@ -47,6 +45,7 @@ class TestValidatingState(unittest.TestCase):
 
         self.assertEqual(next_state, JobState.HEAD)
 
+    @patch("language_pipes.util.chunk_state.CHUNK_SIZE", 1)
     def test_transitions_to_embed_when_prefill_has_more_chunks(self):
         job = make_job()
         job.origin_node_id = "node-1"

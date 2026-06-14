@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'src'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tests', 'language_pipes', 'unit'))
@@ -86,6 +87,7 @@ class TestProcessLayersState(unittest.TestCase):
         self.assertTrue(local_model.processed)
         self.assertGreater(job.last_update, 0)
 
+    @patch("language_pipes.util.chunk_state.CHUNK_SIZE", 1)
     def test_transitions_to_embed_for_prefill(self):
         job = make_job()
         job.origin_node_id = "node-1"

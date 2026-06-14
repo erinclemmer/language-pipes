@@ -37,12 +37,16 @@ class TestHeadState(unittest.TestCase):
 
     def test_transitions_to_done_on_update_failure(self):
         updates = []
+        completed = []
 
         def fail_update(job):
             updates.append(job.compute_step)
             return False
 
-        job = make_job(update=fail_update)
+        def mark_complete(job):
+            completed.append(job.job_id)
+
+        job = make_job(update=fail_update, complete=mark_complete)
         job.compute_step = ComputeStep.HEAD
         job.current_layer = 0
         job.data = make_job_data()
@@ -53,9 +57,10 @@ class TestHeadState(unittest.TestCase):
         next_state = processor._state_head()
 
         self.assertEqual(next_state, JobState.DONE)
-        self.assertEqual(job.status, JobStatus.IN_PROGRESS)
+        self.assertEqual(job.status, JobStatus.COMPLETED)
         self.assertEqual(len(updates), 1)
-        self.assertNotIn("set_result", end_model.calls)
+        self.assertIn("set_result", end_model.calls)
+        self.assertEqual(completed, [job.job_id])
 
     def test_transitions_to_embed_on_successful_update(self):
         updates = []
