@@ -29,6 +29,7 @@ class JobReceiver:
             is_shutdown: Callable[[], bool]
     ):
         self.job_queue = []
+        self.logs = []
         self.job_tracker = job_tracker
         self.job_factory = job_factory
         self.model_manager = model_manager
@@ -81,6 +82,7 @@ class JobReceiver:
 
         try:
             fsm.run()
+            self.logs.extend(fsm.logs)
         except Exception as e:
             print(e)
         

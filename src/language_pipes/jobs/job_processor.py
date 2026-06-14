@@ -1,3 +1,4 @@
+from time import time
 from typing import Optional
 from enum import Enum, auto
 from dataclasses import dataclass
@@ -80,6 +81,7 @@ class JobProcessor:
     def __init__(self, ctx: JobContext):
         self.state = JobState.VALIDATING
         self.ctx = ctx
+        self.logs = []
     
     def run(self):
         while self.state != JobState.DONE:
@@ -148,6 +150,7 @@ class JobProcessor:
         if job.status == JobStatus.COMPLETED:
             end_model.set_result(job)
             job.complete()
+            self.logs.append((time(), f"Job {job.job_id[:4]} completed"))
             return JobState.DONE
         
         # More tokens to generate - update and continue
@@ -156,6 +159,7 @@ class JobProcessor:
             job.status = JobStatus.COMPLETED
             end_model.set_result(job)
             job.complete()
+            self.logs.append((time(), f"Job {job.job_id[:4]} completed"))
             return JobState.DONE
 
         return JobState.EMBED

@@ -29,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Run
     run_parser = subparsers.add_parser("run", help="Start Language Pipes as a stdout stream without the TUI")
     
-    run_parser.add_argument("set", help="Override config property by its TOML key name. Repeatable", action="append", metavar="RUN_KEY=VALUE")
+    run_parser.add_argument("set", help="Override config property by its TOML key name. Repeatable", nargs="*", metavar="RUN_KEY=VALUE")
 
     run_parser.add_argument("layer-models", help="Models to host", nargs="*", metavar="MODEL")
     run_parser.add_argument("end-models", help="Model IDs for which to load end models", nargs="*", metavar="END")

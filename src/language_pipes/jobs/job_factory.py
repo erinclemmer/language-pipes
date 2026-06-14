@@ -1,3 +1,5 @@
+from time import time
+
 from promise import Promise
 from typing import List, Optional, Callable
 
@@ -17,6 +19,7 @@ class JobFactory:
     ):
         self.job_tracker = job_tracker
         self.pipe_manager = pipe_manager
+        self.logs = []
 
     def start_job(
         self, 
@@ -62,6 +65,8 @@ class JobFactory:
             update=update,
             complete=self.job_tracker.complete_job
         )
+
+        self.logs.append((time(), f"Job {job.job_id[:4]} started"))
         
         network_job = job.to_network_job()
         pipe.send_job(network_job, node_id)

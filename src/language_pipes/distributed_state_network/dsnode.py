@@ -78,7 +78,7 @@ class DSNode:
 
         # Validate configured AES key eagerly so bad/legacy key formats fail fast.
         self.get_aes_key()
-        self.add_log(f"Network Server Started on port {config.port}")
+        self.add_log(f"Starting network server on port {config.port}")
         
         threading.Thread(target=self.network_tick, daemon=True).start()
 

@@ -100,4 +100,4 @@ class OAIHttpServer(ThreadingHTTPServer):
         self.api_keys = api_keys
         self.complete = complete
         self.get_models = get_models
-        self.logs = [(time.time(), f"Starting Job Server on port {port}")]
+        self.logs = [(time.time(), f"Starting job server on port {port}")]

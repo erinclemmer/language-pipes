@@ -84,8 +84,9 @@ class ModelManager:
     def load_end_model(self, model_id: str, device: str, num_local_layers: int):
         model = EndModel(num_local_layers, get_model_dir(), model_id, device)
         self.end_models.append(model)
-        model.load()
         self.logs.append((time.time(), f"Loading End Model for {model_id}"))
+        model.load()
+        self.logs.append((time.time(), f"End Model for {model_id} loaded successfully"))
 
     def host_model(self, router_pipes: RouterPipes, node_id: str, model_id: str, max_memory: float, device: torch.device, first_layer: int, max_pipes: int = 1):
         available_memory = max_memory * 1024**3
@@ -122,6 +123,7 @@ class ModelManager:
         for m in models_to_load:
             self.logs.append((time.time(), f"Loading model {m.model_id} on {m.device}, Layers {m.start_layer}-{m.end_layer}"))
             m.load()
+            self.logs.append((time.time(), f"Layers {m.start_layer}-{m.end_layer} for {m.model_id} successfully loaded on {m.device}"))
             router_pipes.update_model(m.to_meta())
 
     def refresh_pipes_hosted(self):
