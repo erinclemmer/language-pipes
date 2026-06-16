@@ -200,6 +200,23 @@ class NewModel:
 
 - Most models use `AutoRotaryEmbedding` which dispatches to the correct rotary implementation.
 - Some models may need additional position embedding setup (e.g., separate local and global embeddings). The `LLmComputationState` has `position_embeddings_local` and `position_embeddings_global` fields available for this.
+- Per-type RoPE (Gemma3/Gemma4): `AutoRotaryEmbedding(config)(x, position_ids, layer_type)` — the third arg is required for these models, and `compute_layer` must key both the mask and the RoPE by `config.layer_types[layer_idx]` (`"full_attention"` / `"sliding_attention"`). The mask dict is built once in `compute_embedding` via `create_causal_mask` + `create_sliding_window_causal_mask` (delete `cache_position` from `mask_kwargs` first — these models don't pass it).
+
+---
+
+## Architectures Needing Extra Per-Forward Tensors (Ride-Along State)
+
+Most models only need `state`, masks, RoPE, and the per-node KV cache. Some newer architectures need an **extra tensor computed once at embed time that every layer node must see** (example: Gemma4 Per-Layer Embeddings / PLE). The pipeline already ships such tensors via `JobData` — masks and RoPE ride along exactly this way. To add a new ride-along field:
+
+1. **`state_obj.py`** — add an `Optional[Tensor] = None` field to `LLmComputationState`.
+2. **`jobs/job_data.py`** — add the matching field to `JobData`, then serialize it in `to_bytes`/`from_bytes` (reuse the single-tensor presence-flag pattern: `write_int(0)` when `None`, else `write_int(1)` + `write_bytes(tensor_to_bytes(...))`), and move/detach it in `computationStateToJobData`, `jobDataToComputationState`, and `detachCompState`.
+3. **`static_auto_model.compute_embedding`** — take an optional loader/module param (default `None`, so every other model is unaffected) and populate the state field for the relevant `model_type`.
+4. **`modeling/end_model.py`** — load the weights and pass them into `compute_embed`; null them in `clean_up`.
+5. **`modeling/NewModel.compute_layer`** — read the field off `state` (slice per-layer if needed: `state.per_layer_inputs[:, :, layer_idx, :]`).
+
+**Memory locality is the critical constraint.** If the extra weights are huge (Gemma4's `embed_tokens_per_layer` is the single largest tensor in the checkpoint), load them **only on the head/embedding node** (`EndModel`), never on `LlmModel` layer nodes. The loader returns `None` for models that don't use the feature, so layer nodes never touch it. The ride-along output is small and read-only — that's what makes shipping it cheap.
+
+If the field is **mutated as it flows** (rare — e.g. cross-node KV sharing), you also need write-back: extend `compute_layers` to return the mutated value and `Job.set_layer` to write it into `job.data`, so it serializes to the next node. A read-only ride-along (like PLE) needs none of that.
 
 ---
 
@@ -235,6 +252,44 @@ def test_new_model(self):
 ```
 
 The `check_stack` test is the most important — it runs a full end-to-end inference (chunked prefill + decode) and verifies the model produces coherent output.
+
+### 3. Validate without a checkpoint (synthetic tiny-config vs HF reference)
+
+When the real checkpoint is gated or huge (Gemma4, large MoEs), you can still prove the wiring is correct **without downloading anything**. Build a tiny random model from the HF config class, copy its weights into your modeling path, and compare hidden states. A match here is stronger evidence than a single end-to-end run because it isolates *your* dispatch code from tokenizer/sampling noise.
+
+```bash
+PYTHONPATH=src python - <<'PY'
+import torch
+from transformers.cache_utils import DynamicCache
+from transformers.models.gemma4.configuration_gemma4 import Gemma4TextConfig
+from transformers.models.gemma4.modeling_gemma4 import Gemma4TextModel
+from language_pipes.llm_layer_collector.auto.static_auto_model import StaticAutoModel
+from language_pipes.llm_layer_collector.modeling.Gemma4Model import Gemma4Model
+
+cfg = Gemma4TextConfig(vocab_size=128, hidden_size=64, intermediate_size=128,
+    num_hidden_layers=4, num_attention_heads=4, num_key_value_heads=1,
+    head_dim=16, hidden_size_per_layer_input=8, vocab_size_per_layer_input=128)
+cfg._attn_implementation = "sdpa"
+hf = Gemma4TextModel(cfg).eval()
+input_ids = torch.randint(0, 128, (1, 6))
+with torch.no_grad():
+    ref = hf(input_ids=input_ids, use_cache=False).last_hidden_state
+
+class W:  # wrap an HF decoder layer to look like AutoDecoderLayer (needs .cls)
+    def __init__(self, l): self.cls = l
+cache = DynamicCache(config=cfg)
+state = StaticAutoModel.compute_embedding(input_ids.shape[1], 64, hf.embed_tokens,
+    input_ids, cfg, cache)            # add per_layer_embedder=... for PLE models
+with torch.inference_mode():
+    for l in hf.layers:
+        state.state = Gemma4Model.compute_layer(W(l), state, cache)
+ours = hf.norm(state.state)
+print("cosine_last:", torch.nn.functional.cosine_similarity(ref[:, -1, :], ours[:, -1, :]).item())
+print("max_abs_diff:", (ref - ours).abs().max().item())  # want ~1.0 and ~0.0
+PY
+```
+
+The same trick validates a sub-component in isolation (e.g. copy the 3 PLE weights into `Gemma4PerLayerEmbedder` and compare its output to HF's `get_per_layer_inputs` + `project_per_layer_inputs`).
 
 ---
 
@@ -391,6 +446,15 @@ Hardware notes for `bfloat16`:
 
   For GLM-4.1V-9B, this split is compatible with `head_dim=128` because
   `sum([16,24,24]) * 2 == 128`, matching how `apply_multimodal_rotary_pos_emb()` uses `mrope_section`.
+
+### 7) Gemma4-specific gotchas (learned)
+
+- **`model_type` is `"gemma4_text"`**, module `transformers.models.gemma4.modeling_gemma4`. Classes: `Gemma4TextDecoderLayer`, `Gemma4RMSNorm`, `Gemma4TextRotaryEmbedding`, `Gemma4TextScaledWordEmbedding`. Like Gemma3, it needs the scaled word embedding (`embed_scale=sqrt(hidden_size)`) and per-type masks/RoPE keyed by `config.layer_types[layer_idx]`.
+- **Per-Layer Embeddings (PLE)** — active when `config.hidden_size_per_layer_input` is truthy. `compute_layer` **must** pass `per_layer_input` (the layer's slice of a `[batch, seq, num_layers, ple_dim]` tensor) or the forward silently goes wrong / errors. This is a ride-along tensor (see "Architectures Needing Extra Per-Forward Tensors"): computed once on the head node from the three weights `model.embed_tokens_per_layer.weight`, `model.per_layer_model_projection.weight`, `model.per_layer_projection_norm.weight`, reproducing `Gemma4TextModel.get_per_layer_inputs` + `project_per_layer_inputs`. **Never load `embed_tokens_per_layer` on layer nodes** — it's the largest tensor in the checkpoint.
+- **`shared_kv_states` must be a `dict`, not `None`** — `Gemma4TextDecoderLayer.forward` accepts `shared_kv_states=None`, but even with `num_kv_shared_layers == 0` the *producer* layers (`store_full_length_kv`, i.e. the last layer of each `layer_type`) execute `shared_kv_states[self.layer_type] = ...`. Passing `None` raises `TypeError: 'NoneType' object is not subscriptable`. Pass `{}` if you aren't implementing cross-node KV sharing — the writes are harmless because no layer reads them within a single forward when nothing is a `is_kv_shared_layer`.
+- **Cross-node KV sharing** (when `num_kv_shared_layers > 0`) is the one case that needs *mutated* ride-along state with write-back through `compute_layers`/`Job.set_layer`. The dict is keyed by `layer_type` (~2 entries), and shared layers legitimately lack `k_proj/v_proj/k_norm/v_norm` — `load_layers` already uses `load_state_dict(strict=False)`, so no load-path change is needed.
+- **MoE / double-wide MLP** (`enable_moe_block`, `Gemma4TextRouter`/`Gemma4TextExperts`) is internal to `Gemma4TextDecoderLayer` — no special handling in the modeling file.
+- **bf16 only** (same as Gemma3 — fp16 overflows).
 
 ---
 
