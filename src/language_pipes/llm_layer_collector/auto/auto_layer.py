@@ -7,6 +7,7 @@ from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 from transformers.models.phi3.modeling_phi3 import Phi3DecoderLayer
 from transformers.models.qwen3.modeling_qwen3 import Qwen3DecoderLayer
 from transformers.models.gemma3.modeling_gemma3 import Gemma3DecoderLayer
+from transformers.models.gemma4.modeling_gemma4 import Gemma4TextDecoderLayer
 from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeDecoderLayer
 
 mapper = { # type: ignore
@@ -14,6 +15,7 @@ mapper = { # type: ignore
     "phi3": Phi3DecoderLayer,
     "qwen3": Qwen3DecoderLayer,
     "gemma3_text": Gemma3DecoderLayer,
+    "gemma4_text": Gemma4TextDecoderLayer,
     "qwen3_moe": Qwen3MoeDecoderLayer
 }
 

@@ -44,6 +44,8 @@ class JobData:
     causal_mask: Dict[str, Optional[torch.Tensor]]
     position_embeddings: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
     state: torch.Tensor
+    # Gemma4 Per-Layer Embeddings: read-only ride-along tensor, None for other models.
+    per_layer_inputs: Optional[torch.Tensor] = None
 
     def hash_state(self):
         return hashlib.sha256(self.to_bytes()).digest()
@@ -65,6 +67,12 @@ class JobData:
             bts.write_bytes(tensor_to_bytes(self.position_embeddings[key][0]))
             bts.write_bytes(tensor_to_bytes(self.position_embeddings[key][1]))
 
+        if self.per_layer_inputs is None:
+            bts.write_int(0)
+        else:
+            bts.write_int(1)
+            bts.write_bytes(tensor_to_bytes(self.per_layer_inputs))
+
         return bts.get_bytes()
 
     @staticmethod
@@ -83,13 +91,18 @@ class JobData:
             t2 = bytes_to_tensor(bts.read_bytes())
             position_embeddings[key] = (t1, t2)
             current_key += 1
-        
+
+        per_layer_inputs = None
+        if bts.read_int() == 1:
+            per_layer_inputs = bytes_to_tensor(bts.read_bytes())
+
         job_data = JobData(
             state = state,
             position_ids = position_ids,
             cache_position = cache_position,
             causal_mask = causal_mask,
-            position_embeddings = position_embeddings
+            position_embeddings = position_embeddings,
+            per_layer_inputs = per_layer_inputs
         )
 
         return job_data
@@ -119,6 +132,7 @@ def computationStateToJobData(data: LLmComputationState) -> JobData:
         cache_position=data.cache_position.to('cpu'),
         causal_mask=move_causal_mask(data.causal_mask, torch.device('cpu')),
         position_embeddings=move_position_embeddings(data.position_embeddings, torch.device('cpu')),
+        per_layer_inputs=None if data.per_layer_inputs is None else data.per_layer_inputs.to('cpu'),
     )
 
 def jobDataToComputationState(data: JobData, device: torch.device) -> LLmComputationState:
@@ -128,6 +142,7 @@ def jobDataToComputationState(data: JobData, device: torch.device) -> LLmComputa
         cache_position=data.cache_position.to(device),
         causal_mask=move_causal_mask(data.causal_mask, device),
         position_embeddings=move_position_embeddings(data.position_embeddings, device),
+        per_layer_inputs=None if data.per_layer_inputs is None else data.per_layer_inputs.to(device),
     )
 
 def detachCompState(state: LLmComputationState) -> LLmComputationState:
@@ -140,5 +155,8 @@ def detachCompState(state: LLmComputationState) -> LLmComputationState:
     
     for key in state.position_embeddings.keys():
         state.position_embeddings[key] = (state.position_embeddings[key][0].detach(), state.position_embeddings[key][1].detach())
+
+    if state.per_layer_inputs is not None:
+        state.per_layer_inputs = state.per_layer_inputs.detach()
 
     return state

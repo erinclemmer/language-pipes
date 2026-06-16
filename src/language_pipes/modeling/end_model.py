@@ -28,6 +28,7 @@ class EndModel:
     input_embedding: Optional[torch.nn.Embedding]
     norm: Optional[AutoRMSNorm]
     head: Optional[torch.nn.Linear]
+    per_layer_embedder: Optional[torch.nn.Module]
     collector: LlmLayerCollector
     layers: List[AutoDecoderLayer]
 
@@ -76,6 +77,7 @@ class EndModel:
         self.input_embedding = self.collector.load_input_embedding(self.device)
         self.norm = self.collector.load_norm(self.device)
         self.head = self.collector.load_head(self.device)
+        self.per_layer_embedder = self.collector.load_per_layer_embedder(self.device)
         if self.num_local_layers > 0:
             self.load_layers(self.num_local_layers)
         self.loaded = True
@@ -99,7 +101,8 @@ class EndModel:
             input_embedder=self.input_embedding,
             input_ids=torch.tensor([job.input_ids]),
             config=self.collector.config,
-            cache=job.cache
+            cache=job.cache,
+            per_layer_embedder=self.per_layer_embedder
         )
         
         job.data = computationStateToJobData(comp_state)
@@ -161,4 +164,5 @@ class EndModel:
         self.input_embedding = None
         self.norm = None
         self.head = None
+        self.per_layer_embedder = None
         torch.cuda.empty_cache()

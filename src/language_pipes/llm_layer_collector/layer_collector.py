@@ -7,8 +7,10 @@ from typing import List, Dict, Optional
 import torch
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.gemma3.modeling_gemma3 import Gemma3TextScaledWordEmbedding
+from transformers.models.gemma4.modeling_gemma4 import Gemma4TextScaledWordEmbedding
 
 from language_pipes.llm_layer_collector.helpers import get_config
+from language_pipes.llm_layer_collector.modeling.Gemma4Model import Gemma4PerLayerEmbedder
 from language_pipes.llm_layer_collector.load_layer import load_layers
 from language_pipes.llm_layer_collector.cache import build_cache_data
 from language_pipes.llm_layer_collector.helpers import load_shard_tensor
@@ -129,7 +131,49 @@ class LlmLayerCollector:
             embed.weight = torch.nn.Parameter(emb_weight)
             return embed.to(device=device, dtype=self.dtype)
 
+        if self.config.model_type == "gemma4_text":
+            padding_idx = (
+                0 if self.config.pad_token_id is None else self.config.pad_token_id
+            )
+            embed = Gemma4TextScaledWordEmbedding(
+                self.config.vocab_size,
+                self.config.hidden_size,
+                padding_idx,
+                embed_scale=self.config.hidden_size**0.5,
+            )
+            embed.weight = torch.nn.Parameter(emb_weight)
+            return embed.to(device=device, dtype=self.dtype)
+
         return torch.nn.Embedding.from_pretrained(emb_weight)  # pyright: ignore[reportUnknownMemberType]
+
+    def load_per_layer_embedder(
+        self, device: Optional[torch.device] = None
+    ) -> Optional[Gemma4PerLayerEmbedder]:
+        """Load the three Gemma4 Per-Layer Embedding (PLE) weights.
+
+        These live only on the head/embedding node — ``embed_tokens_per_layer`` is the
+        largest single tensor in the checkpoint, so it must never be loaded on layer
+        nodes. Returns ``None`` for models that don't use PLE.
+        """
+        if self.config.model_type != "gemma4_text" or not getattr(
+            self.config, "hidden_size_per_layer_input", 0
+        ):
+            return None
+
+        device = self.device if device is None else device
+        embedder = Gemma4PerLayerEmbedder(self.config)
+
+        embedder.embed_tokens_per_layer.weight = torch.nn.Parameter(
+            self._load_shard_tensor("model.embed_tokens_per_layer.weight", device)
+        )
+        embedder.per_layer_model_projection.weight = torch.nn.Parameter(
+            self._load_shard_tensor("model.per_layer_model_projection.weight", device)
+        )
+        embedder.per_layer_projection_norm.weight = torch.nn.Parameter(
+            self._load_shard_tensor("model.per_layer_projection_norm.weight", device)
+        )
+
+        return embedder.to(device=device, dtype=self.dtype)
 
     def load_norm(self, device: Optional[torch.device] = None) -> AutoRMSNorm:
         device = self.device if device is None else device
