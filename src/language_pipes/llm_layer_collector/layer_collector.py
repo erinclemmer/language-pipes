@@ -94,10 +94,14 @@ class LlmLayerCollector:
         for key in self.layer_files.keys():
             if "layers.0" in key and "vision_tower" not in key:
                 self.layer_prefix = key.split("layers.0")[0] + "layers."
-            if "embed_tokens." in key:
+            if key.endswith("embed_tokens.weight"):
                 self.input_embedding_layer_name = key
-            if "norm." in key:
-                self.norm_layer_name = key
+
+        derived_norm = self.input_embedding_layer_name.replace(
+            "embed_tokens.weight", "norm.weight"
+        )
+        if derived_norm in self.layer_files:
+            self.norm_layer_name = derived_norm
 
         with open(self.cache_file, "w", encoding="utf-8") as f:
             json.dump({
