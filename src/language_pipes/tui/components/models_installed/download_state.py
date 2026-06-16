@@ -4,15 +4,19 @@ from ansinout import PressedKey
 
 from language_pipes.content_provider.model_provider import ModelProvider
 from language_pipes.tui.components.page import PageState
-from language_pipes.tui.util.text import make_footer_text
+from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 
 
 class DownloadPageState(PageState):
+    METHODS: List[str] = ["Download from Huggingface", "Request model locally"]
+
     def __init__(self):
         super().__init__('download')
         self.new_model_id = ""
         self.downloading = False
         self.download_status: Optional[str] = None
+        self.choosing_method = False
+        self.method_idx = 0
 
     def on_change(self, args: Dict):
         if "token" in args:
@@ -22,8 +26,13 @@ class DownloadPageState(PageState):
             self.new_model_id = ""
             self.downloading = False
             self.download_status = None
+            self.choosing_method = False
+            self.method_idx = 0
 
     def on_key(self, key: PressedKey, ch: str):
+        if self.choosing_method:
+            self._on_method_key(key)
+            return
         if key == PressedKey.Alpha:
             self._on_char(ch)
         if key == PressedKey.Backspace:
@@ -32,6 +41,45 @@ class DownloadPageState(PageState):
             self._on_enter()
         if key == PressedKey.Escape:
             self._on_escape()
+
+    def _on_method_key(self, key: PressedKey):
+        if key == PressedKey.ArrowUp:
+            self.method_idx = (self.method_idx - 1) % len(self.METHODS)
+        if key == PressedKey.ArrowDown:
+            self.method_idx = (self.method_idx + 1) % len(self.METHODS)
+        if key == PressedKey.Enter:
+            self._on_method_select()
+        if key == PressedKey.Escape:
+            self.choosing_method = False
+
+    def _on_method_select(self):
+        self.choosing_method = False
+        if self.method_idx == 0:
+            self._download_from_huggingface()
+        else:
+            self._request_locally()
+
+    def _download_from_huggingface(self):
+        if self.new_model_id in self.provider.model_provider.get_installed_models():
+            def on_apply():
+                self.provider.model_provider.delete_installed_model(self.new_model_id)
+                self._request_token()
+
+            self.confirm.open(
+                f"{self.new_model_id} already exists\ndelete it and download again?",
+                on_apply=on_apply,
+                on_discard=lambda: None
+            )
+        else:
+            self.confirm.open(
+                f"Download {self.new_model_id}",
+                on_apply=self._request_token,
+                on_discard=lambda: None,
+            )
+
+    def _request_locally(self):
+        # TODO: not yet hooked up to a backend
+        pass
 
     def _on_char(self, ch: str):
         if not self.downloading:
@@ -56,23 +104,9 @@ class DownloadPageState(PageState):
         else:
             if not self._can_download():
                 return
-            
-            if self.new_model_id in self.provider.model_provider.get_installed_models():
-                def on_apply():
-                    self.provider.model_provider.delete_installed_model(self.new_model_id)
-                    self._request_token()
 
-                self.confirm.open(
-                    f"{self.new_model_id} already exists\ndelete it and download again?",
-                    on_apply=on_apply,
-                    on_discard=lambda: None
-                )
-            else:
-                self.confirm.open(
-                    f"Download {self.new_model_id}",
-                    on_apply=self._request_token,
-                    on_discard=lambda: None,
-                )
+            self.choosing_method = True
+            self.method_idx = 0
 
     def _download_done(self):
         return not self.downloading or self.download_status is not None and ("SUCCESS" in self.download_status or "ERROR" in self.download_status)
@@ -131,7 +165,12 @@ class DownloadPageState(PageState):
         if cfg_key is not None:
             lines.extend(["Global API Key loaded", ""])
 
-        if self.downloading:
+        if self.choosing_method:
+            lines.extend([f"How would you like to get {model_id}?", ""])
+            for i, method in enumerate(self.METHODS):
+                lines.append(make_selectable_text(method, self.method_idx == i))
+                lines.append("")
+        elif self.downloading:
             lines.extend([f"Downloading {model_id}...", ""])
             self.download_status = self.provider.model_provider.check_download_progress()
             if self.download_status is not None:
@@ -154,4 +193,6 @@ class DownloadPageState(PageState):
         return lines
 
     def get_footer(self) -> str:
+        if self.choosing_method:
+            return make_footer_text(["Arrow U/D: Move", "Enter: Select", "Esc: Back"])
         return make_footer_text(["Type: Model ID", "Enter: Download", "Esc: Back"])
