@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 from uuid import uuid4
-from logging import Logger
 from typing import List, Optional, Callable
 
 import torch

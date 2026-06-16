@@ -19,6 +19,4 @@ def compute_layers(start_layer: int, job_data: JobData, device: torch.device, co
         for lyr in layers[start_layer:]:
             comp_state.state = StaticAutoModel.compute_layer(lyr, config, comp_state, cache).detach()
 
-    # shared_kv_states is mutated in place by Gemma4 producer layers; return it so the
-    # caller can write it back into the job and propagate it to the next node.
     return comp_state.state.detach(), comp_state.shared_kv_states
