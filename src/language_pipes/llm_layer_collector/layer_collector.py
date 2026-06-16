@@ -164,13 +164,13 @@ class LlmLayerCollector:
         embedder = Gemma4PerLayerEmbedder(self.config)
 
         embedder.embed_tokens_per_layer.weight = torch.nn.Parameter(
-            self._load_shard_tensor("model.embed_tokens_per_layer.weight", device)
+            self._load_shard_tensor("model.language_model.embed_tokens_per_layer.weight", device)
         )
         embedder.per_layer_model_projection.weight = torch.nn.Parameter(
-            self._load_shard_tensor("model.per_layer_model_projection.weight", device)
+            self._load_shard_tensor("model.language_model.per_layer_model_projection.weight", device)
         )
         embedder.per_layer_projection_norm.weight = torch.nn.Parameter(
-            self._load_shard_tensor("model.per_layer_projection_norm.weight", device)
+            self._load_shard_tensor("model.language_model.per_layer_projection_norm.weight", device)
         )
 
         return embedder.to(device=device, dtype=self.dtype)
