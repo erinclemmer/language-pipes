@@ -120,13 +120,16 @@ class Job:
     def init_chunking(self):
         self.chunking.init(self.prompt_tokens)
 
-    def set_layer(self, state: torch.Tensor, layer: int, num_hidden_layers: int):
+    def set_layer(self, state: torch.Tensor, layer: int, num_hidden_layers: int, shared_kv_states: Optional[dict] = None):
         if self.compute_step != ComputeStep.LAYER:
             raise Exception('Invalid step for layer')
         self.current_layer = layer
-        if self.data is None: 
+        if self.data is None:
             return
         self.data.state = state
+        # Gemma4 cross-node KV sharing: persist the mutated dict so it serializes onward.
+        if shared_kv_states is not None:
+            self.data.shared_kv_states = shared_kv_states
         if self.current_layer == num_hidden_layers:
             self.compute_step = ComputeStep.EMBED if self.chunking.has_more() else ComputeStep.HEAD
             self.current_layer = 0

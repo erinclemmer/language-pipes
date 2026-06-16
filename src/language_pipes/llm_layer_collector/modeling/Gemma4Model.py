@@ -111,10 +111,12 @@ class Gemma4Model:
         kwargs = { # pyright: ignore[reportUnknownVariableType]
             "hidden_states": state.state,
             "per_layer_input": per_layer_input,
-            # Issue 2 (cross-node KV sharing) threads this through the state; for now a
-            # throwaway dict is enough — producer layers write into it but no consumer
-            # reads it within a single forward when num_kv_shared_layers == 0.
-            "shared_kv_states": {},
+            # Cross-node KV sharing: producer layers (last of each layer_type) write
+            # full-length (k, v) here; shared layers read it. Mutated in place, then
+            # written back via compute_layers / Job.set_layer so it rides JobData to the
+            # next node. Always a dict (never None) — producer layers index into it even
+            # when num_kv_shared_layers == 0.
+            "shared_kv_states": state.shared_kv_states,
             "attention_mask": state.causal_mask[layer_type],
             "position_embeddings": state.position_embeddings[layer_type], # pyright: ignore[reportArgumentType]
             "position_ids": state.position_ids,

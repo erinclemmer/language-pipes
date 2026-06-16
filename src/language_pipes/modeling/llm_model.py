@@ -102,18 +102,20 @@ class LlmModel:
     ):
         if job.data is None:
             raise Exception("cannot compute layers without job data")
-        
+
+        state, shared_kv_states = compute_layers(
+            job.current_layer,
+            job.data,
+            self.device,
+            self.collector.config,
+            self.layers,
+            job.cache,
+        )
         job.set_layer(
-            state=compute_layers(
-                job.current_layer,
-                job.data,
-                self.device, 
-                self.collector.config,
-                self.layers, 
-                job.cache,
-            ), 
-            layer=self.end_layer + 1, 
-            num_hidden_layers=self.num_hidden_layers
+            state=state,
+            layer=self.end_layer + 1,
+            num_hidden_layers=self.num_hidden_layers,
+            shared_kv_states=shared_kv_states
         )
     
     def to_meta(self) -> MetaModel:

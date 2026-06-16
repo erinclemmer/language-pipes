@@ -64,10 +64,12 @@ class EndModel:
     def compute_layers(self, job: Job):
         if job.data is None:
             raise Exception("Job did not have data")
+        state, shared_kv_states = compute_layers(0, job.data, self.device, self.collector.config, self.layers, job.cache)
         job.set_layer(
-            state=compute_layers(0, job.data, self.device, self.collector.config, self.layers, job.cache),
+            state=state,
             layer=len(self.layers),
-            num_hidden_layers=self.collector.config.num_hidden_layers
+            num_hidden_layers=self.collector.config.num_hidden_layers,
+            shared_kv_states=shared_kv_states
         )
 
     def size(self):

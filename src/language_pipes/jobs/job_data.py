@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 import hashlib
@@ -46,6 +46,9 @@ class JobData:
     state: torch.Tensor
     # Gemma4 Per-Layer Embeddings: read-only ride-along tensor, None for other models.
     per_layer_inputs: Optional[torch.Tensor] = None
+    # Gemma4 cross-node KV sharing: per-layer-type (k, v) dict mutated as it flows.
+    # Empty for other models.
+    shared_kv_states: Dict[str, Tuple[torch.Tensor, torch.Tensor]] = field(default_factory=dict)
 
     def hash_state(self):
         return hashlib.sha256(self.to_bytes()).digest()
@@ -73,6 +76,12 @@ class JobData:
             bts.write_int(1)
             bts.write_bytes(tensor_to_bytes(self.per_layer_inputs))
 
+        bts.write_int(len(self.shared_kv_states.keys()))
+        for key in self.shared_kv_states.keys():
+            bts.write_string(key)
+            bts.write_bytes(tensor_to_bytes(self.shared_kv_states[key][0]))
+            bts.write_bytes(tensor_to_bytes(self.shared_kv_states[key][1]))
+
         return bts.get_bytes()
 
     @staticmethod
@@ -96,13 +105,24 @@ class JobData:
         if bts.read_int() == 1:
             per_layer_inputs = bytes_to_tensor(bts.read_bytes())
 
+        shared_kv_states = { }
+        num_shared_keys = bts.read_int()
+        current_key = 0
+        while current_key < num_shared_keys:
+            key = bts.read_string()
+            k = bytes_to_tensor(bts.read_bytes())
+            v = bytes_to_tensor(bts.read_bytes())
+            shared_kv_states[key] = (k, v)
+            current_key += 1
+
         job_data = JobData(
             state = state,
             position_ids = position_ids,
             cache_position = cache_position,
             causal_mask = causal_mask,
             position_embeddings = position_embeddings,
-            per_layer_inputs = per_layer_inputs
+            per_layer_inputs = per_layer_inputs,
+            shared_kv_states = shared_kv_states
         )
 
         return job_data
@@ -133,6 +153,7 @@ def computationStateToJobData(data: LLmComputationState) -> JobData:
         causal_mask=move_causal_mask(data.causal_mask, torch.device('cpu')),
         position_embeddings=move_position_embeddings(data.position_embeddings, torch.device('cpu')),
         per_layer_inputs=None if data.per_layer_inputs is None else data.per_layer_inputs.to('cpu'),
+        shared_kv_states=move_position_embeddings(data.shared_kv_states, torch.device('cpu')),
     )
 
 def jobDataToComputationState(data: JobData, device: torch.device) -> LLmComputationState:
@@ -143,6 +164,7 @@ def jobDataToComputationState(data: JobData, device: torch.device) -> LLmComputa
         causal_mask=move_causal_mask(data.causal_mask, device),
         position_embeddings=move_position_embeddings(data.position_embeddings, device),
         per_layer_inputs=None if data.per_layer_inputs is None else data.per_layer_inputs.to(device),
+        shared_kv_states=move_position_embeddings(data.shared_kv_states, device),
     )
 
 def detachCompState(state: LLmComputationState) -> LLmComputationState:
@@ -155,6 +177,9 @@ def detachCompState(state: LLmComputationState) -> LLmComputationState:
     
     for key in state.position_embeddings.keys():
         state.position_embeddings[key] = (state.position_embeddings[key][0].detach(), state.position_embeddings[key][1].detach())
+
+    for key in state.shared_kv_states.keys():
+        state.shared_kv_states[key] = (state.shared_kv_states[key][0].detach(), state.shared_kv_states[key][1].detach())
 
     if state.per_layer_inputs is not None:
         state.per_layer_inputs = state.per_layer_inputs.detach()
