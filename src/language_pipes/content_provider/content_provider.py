@@ -240,6 +240,7 @@ class ContentProvider:
         # Race condition may make it neccessary to sleep here before testing if everything has made it
         if self._rfm_is_file_done(file_name):
             self._rfm_write_file(model_id, file_name)
+            del self.model_provider.rfm_file_data[file_name]
 
     def _rfm_write_file(self, model_id: str, file_name: str):
         assert ".." not in model_id # Prevent arbitrary writes
