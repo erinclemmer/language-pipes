@@ -78,8 +78,8 @@ class DownloadPageState(PageState):
             )
 
     def _request_locally(self):
-        # TODO: not yet hooked up to a backend
-        pass
+        self.provider.model_provider.request_for_model(self.new_model_id)
+        # TODO Refactor RFM to its own class and show download updates in TUI
 
     def _on_char(self, ch: str):
         if not self.downloading:
@@ -103,6 +103,11 @@ class DownloadPageState(PageState):
                 )
         else:
             if not self._can_download():
+                return
+
+            rtr = self.provider.network_provider.get_network_status()
+            if rtr is None:
+                self._download_from_huggingface()
                 return
 
             self.choosing_method = True
