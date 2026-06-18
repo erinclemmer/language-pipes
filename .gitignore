@@ -1,11 +1,14 @@
 __pycache__/
+.pytest_cache/
 env/
 models/
 .vscode/
 certs/
 credentials/
+logs/
 config.toml
 *.key
 todo.txt
 .coverage
 poetry.lock
+.claude/

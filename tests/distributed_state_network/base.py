@@ -33,7 +33,7 @@ def spawn_node(
         "whitelist_ips": whitelist_ips if whitelist_ips is not None else [],
         "whitelist_node_ids": whitelist_node_ids if whitelist_node_ids is not None else [],
         "bootstrap_nodes": bootstrap_nodes
-    }), disconnect_cb, update_cb)
+    }), lambda _: None, disconnect_cb, update_cb)
     global nodes
     nodes.append(n)
     return n

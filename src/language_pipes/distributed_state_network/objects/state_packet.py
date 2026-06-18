@@ -31,7 +31,7 @@ class StatePacket(SignedPacket):
         bts = ByteHelper()
         bts.write_string(self.node_id)
         bts.write_float(self.last_update)
-        if include_signature:
+        if include_signature and self.ecdsa_signature is not None:
             bts.write_bytes(self.ecdsa_signature)
         bts.write_string(json.dumps(self.state_data))
 

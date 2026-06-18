@@ -6,14 +6,15 @@ class ChatRole(Enum):
     ASSISTANT = 'assistant'
     USER = 'user'
 
-def str_to_chat_role(role: str) -> Optional[ChatRole]:
+def str_to_chat_role(role: str) -> ChatRole:
     if role == 'system':
         return ChatRole.SYSTEM
     if role == 'assistant':
         return ChatRole.ASSISTANT
     if role == 'user':
         return ChatRole.USER
-    return None
+    
+    return ChatRole.USER
 
 class ChatMessage:
     role: ChatRole
@@ -30,8 +31,6 @@ class ChatMessage:
         }
     
     @staticmethod
-    def from_dict(data) -> Optional["ChatMessage"]:
+    def from_dict(data) -> "ChatMessage":
         role = str_to_chat_role(data['role'])
-        if role is None:
-            return None
         return ChatMessage(role, data['content'])

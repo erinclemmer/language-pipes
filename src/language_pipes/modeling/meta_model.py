@@ -7,8 +7,8 @@ class MetaModel:
     start_layer: int
     end_layer: int
     loaded: bool
-    
-    node_id: str
+
+    node_id: str    
     pipe_id: str
     model_id: str
     num_layers: int

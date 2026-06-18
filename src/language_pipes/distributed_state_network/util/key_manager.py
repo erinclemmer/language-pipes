@@ -1,15 +1,22 @@
 import os
-import logging
+from pathlib import Path
 from typing import Callable, Tuple
 
 from language_pipes.distributed_state_network.util.ecdsa import generate_key_pair
 
 class KeyManager:
+    key_type: str
+    node_id: str
+    folder: Path
+    public_extension: str
+    private_extension: str
+    get_keys: Callable[[], Tuple[bytes, bytes]]
+
     def __init__(
         self,
         key_type: str,
         node_id: str, 
-        folder: str,
+        folder: Path,
         public_extension: str,
         private_extension: str,
         gen_keys: Callable[[], Tuple[bytes, bytes]]
@@ -62,10 +69,12 @@ class KeyManager:
         with open(f'{self.folder}/{self.node_id}/{self.node_id}.{self.private_extension}', 'rb') as f:
             return f.read()
 
+    def has_private(self, node_id: str) -> bool:
+        return os.path.exists(f'{self.folder}/{node_id}/{node_id}.{self.private_extension}')
+
     def generate_keys(self):
         if os.path.exists(f'{self.folder}/{self.node_id}/{self.node_id}.{self.private_extension}'):
             return
-        logging.getLogger("DSN: " + self.node_id).info(f"Generating {self.key_type} Keys ...")
         cert_bytes, key_bytes = self.gen_keys()
         if not os.path.exists(self.folder):
             os.mkdir(self.folder)
@@ -77,5 +86,5 @@ class KeyManager:
             f.write(key_bytes)
 
 class CredentialManager(KeyManager):
-    def __init__(self, folder: str, node_id: str):
+    def __init__(self, folder: Path, node_id: str):
         KeyManager.__init__(self, "ECDSA", node_id, folder, "pub", "key", generate_key_pair)

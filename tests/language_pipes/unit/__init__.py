@@ -10,18 +10,21 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
 
-def load_tests(loader, tests, pattern):
+def load_tests(provider, tests, pattern):
     """Load all tests from this package."""
     package_dir = os.path.dirname(__file__)
-    suite = loader.discover(start_dir=package_dir, pattern='test_*.py')
-    suite.addTests(loader.discover(start_dir=package_dir + "/job_processor", pattern='test_*.py')._tests)
+    suite = provider.discover(start_dir=package_dir, pattern='test_*.py')
+    suite.addTests(provider.discover(start_dir=package_dir + "/job_processor", pattern='test_*.py')._tests)
+    suite.addTests(provider.discover(start_dir=package_dir + "/main_frame", pattern='test_*.py')._tests)
+    suite.addTests(provider.discover(start_dir=package_dir + "/main_frame/components", pattern='test_*.py')._tests)
+    suite.addTests(provider.discover(start_dir=package_dir + "/main_frame/frame", pattern='test_*.py')._tests)
     return suite
 
 
 def run_tests():
     """Run all unit tests."""
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, None, None)
+    provider = unittest.TestLoader()
+    suite = load_tests(provider, None, None)
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     return result.wasSuccessful()

@@ -13,7 +13,7 @@ class DataPacket(SignedPacket):
     def to_bytes(self, include_signature: bool = True) -> bytes:
         bts = ByteHelper()
         bts.write_string(self.node_id)
-        if include_signature:
+        if include_signature and self.ecdsa_signature is not None:
             bts.write_bytes(self.ecdsa_signature)
         bts.write_bytes(self.data)
         return bts.get_bytes()

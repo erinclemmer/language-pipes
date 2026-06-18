@@ -2,31 +2,38 @@
 
 Language Pipes provides an OpenAI-compatible API server, allowing you to use existing tools and libraries designed for OpenAI's API.
 
-> **Supported Endpoints:** Currently only `chat.completions` is supported. Other OpenAI endpoints are not yet implemented.
+> **Supported Endpoints:** `chat.completions`, `responses`, and `models` are supported. Other OpenAI endpoints are not yet implemented.
 
 ## Enabling the API Server
 
-Set `oai_port` in your configuration to enable the API server:
+Set `job_port` in your configuration to enable the API server, then run the
+node:
 
 ```toml
-oai_port = 8000
+job_port = 8000
 ```
 
-Or via CLI:
 ```bash
-language-pipes serve --openai-port 8000 ...
+language-pipes -c config.toml run
 ```
 
-Optionally you can set an API key for use with the server. Any number of api keys will work with the flag:
+The port (and API keys, below) can also be set from the **Jobs Server** page
+of the TUI.
+
+Optionally, set one or more API keys to require clients to authenticate.
+Requests must then include an `Authorization: Bearer <key>` header matching
+one of the configured keys:
 
 ```toml
 api_keys = ["foo", "bar", "baz"]
 ```
 
-Or via CLI:
-```bash
-language-pipes serve --openai-port 8000 --api-keys foo bar baz
-```
+If `api_keys` is empty (the default), the server does not require an
+`Authorization` header and any `api_key` value passed by a client library is
+accepted.
+
+See the [Configuration Manual](./configuration.md) for details on `job_port`
+and `api_keys`.
 
 ---
 
@@ -40,9 +47,15 @@ pip install openai
 
 ### Basic Usage
 
-Run the serve like this:
+Enable the API server with an API key in your config:
+
+```toml
+job_port = 8000
+api_keys = ["foo"]
+```
+
 ```bash
-language-pipes serve --openai-port 8000 --api-keys foo
+language-pipes -c config.toml run
 ```
 
 ```python
@@ -63,6 +76,28 @@ response = client.chat.completions.create(
 )
 
 print(response.choices[0].message.content)
+```
+
+### Responses API Usage
+
+The `/v1/responses` endpoint supports the newer OpenAI Responses API shape for text generation. Use `instructions` for system-level guidance and `input` for a string prompt or compatible message items.
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="foo"
+)
+
+response = client.responses.create(
+    model="Qwen/Qwen3-1.7B",
+    instructions="You are a helpful assistant.",
+    input="What is distributed computing?",
+    max_output_tokens=200
+)
+
+print(response.output_text)
 ```
 
 ### Streaming Responses
@@ -93,6 +128,74 @@ for chunk in stream:
 print()  # Newline at end
 ```
 
+### Function Tool Calling
+
+The `/v1/responses` endpoint supports OpenAI Responses **custom function tools**. Pass tool definitions in `tools`; when the model decides to call a tool, the response contains a `function_call` output item instead of a text message. Your application executes the function and sends the result back as a `function_call_output` input item.
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="foo"
+)
+
+tools = [{
+    "type": "function",
+    "name": "get_weather",
+    "description": "Get weather for a city",
+    "parameters": {
+        "type": "object",
+        "properties": {"city": {"type": "string"}},
+        "required": ["city"]
+    }
+}]
+
+response = client.responses.create(
+    model="Qwen/Qwen3-1.7B",
+    input="What is the weather in Chicago?",
+    tools=tools
+)
+
+# When a tool is called, response.output contains a function_call item:
+for item in response.output:
+    if item.type == "function_call":
+        print(item.name, item.arguments)  # get_weather {"city": "Chicago"}
+```
+
+Send the tool result back by including the prior `function_call` item and a matching `function_call_output` linked by `call_id`:
+
+```python
+response = client.responses.create(
+    model="Qwen/Qwen3-1.7B",
+    input=[
+        {"role": "user", "content": "What is the weather in Chicago?"},
+        {
+            "type": "function_call",
+            "call_id": "call_abc",
+            "name": "get_weather",
+            "arguments": "{\"city\": \"Chicago\"}"
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_abc",
+            "output": "{\"temperature\": 72}"
+        }
+    ],
+    tools=tools
+)
+```
+
+#### Tool Calling Limitations
+
+- **Custom function tools only.** Hosted tools (`web_search`, `file_search`, `computer_use`, `code_interpreter`, MCP) are rejected with a `400`.
+- **No server-side execution.** Tool calls are returned for your client to execute; Language Pipes never runs the function.
+- **Quality depends on the model.** Tools are injected as a model-agnostic instruction block asking the model to emit a JSON tool call. Reliability varies with the model's instruction-following ability, and smaller models may emit malformed JSON that is treated as plain text.
+- **Reasoning models.** A leading `<think>…</think>` block is split off and returned as a separate `reasoning` output item (its text under `summary[0].text`); `output_text` and the `message` item contain only the answer. The tool-call parser is likewise tolerant of a reasoning block and of prose surrounding the JSON. When streaming, reasoning is streamed live token-by-token to the reasoning item (the `<think>`/`</think>` markers are stripped) and the item is closed before the answer begins — see the streaming note below.
+- **Single tool call per response.** Parallel tool calls are not produced even when `parallel_tool_calls` is set.
+- **Buffered streaming for tools.** When `tools` are supplied, `stream=true` cannot stream live token deltas because the output cannot be classified as text vs. a tool call until generation finishes. Every output item (including any `reasoning` item) is emitted at completion: for a tool call, `response.output_item.added` (a `function_call` item) → `response.function_call_arguments.delta` (the full arguments in one delta) → `response.function_call_arguments.done` → `response.output_item.done` → `response.completed`. Requests without `tools` stream token-by-token.
+- **Reasoning streaming.** With no tools and `stream=true`, a leading `<think>…</think>` block streams live: `response.output_item.added` (a `reasoning` item) → one or more `response.reasoning_summary_text.delta` events (the `<think>`/`</think>` markers stripped, with a bounded lookahead so a tag split across token deltas is never leaked) → `response.reasoning_summary_text.done` → `response.output_item.done`. The answer that follows then streams as normal `response.output_text.delta` events on a `message` item at the next `output_index`.
+
 ## Using curl
 
 ```bash
@@ -104,6 +207,19 @@ curl http://localhost:8000/v1/chat/completions \
       {"role": "user", "content": "Hello!"}
     ],
     "max_completion_tokens": 50
+  }'
+```
+
+### Responses API with curl
+
+```bash
+curl http://localhost:8000/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen/Qwen3-1.7B",
+    "instructions": "You are a helpful assistant.",
+    "input": "Hello!",
+    "max_output_tokens": 50
   }'
 ```
 
@@ -130,6 +246,7 @@ curl http://localhost:8000/v1/chat/completions \
 
 ```
 POST /v1/chat/completions
+POST /v1/responses
 ```
 
 ### Request Body
@@ -138,13 +255,33 @@ POST /v1/chat/completions
 |-----------|------|:--------:|-------------|
 | `model` | string | ✓ | Model ID (must match a hosted model) |
 | `messages` | array | ✓ | Array of message objects |
-| `max_completion_tokens` | integer | | Maximum tokens to generate (default: 1000) |
+| `max_completion_tokens` | integer | | Maximum tokens to generate (default: 1000). `max_tokens` is accepted as a legacy alias. |
 | `stream` | boolean | | Enable streaming responses (default: `false`) |
 | `temperature` | float | | Controls output randomness (default: `1.0`) |
 | `top_p` | float | | Nucleus sampling threshold (default: `1.0`) |
 | `top_k` | integer | | Top-k sampling limit (default: `0`, disabled) |
 | `min_p` | float | | Minimum probability threshold (default: `0`, disabled) |
 | `presence_penalty` | float | | Penalty for token repetition (default: `0`) |
+
+### Responses Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|:--------:|-------------|
+| `model` | string | ✓ | Model ID (must match a hosted model) |
+| `input` | string or array | ✓ | Prompt text or compatible Responses message items |
+| `instructions` | string | | System-level guidance prepended to the prompt |
+| `max_output_tokens` | integer | | Maximum tokens to generate (default: 1000). `max_tokens` and `max_completion_tokens` are accepted as legacy aliases. |
+| `stream` | boolean | | Enable typed server-sent event responses (default: `false`) |
+| `temperature` | float | | Controls output randomness (default: `1.0`) |
+| `top_p` | float | | Nucleus sampling threshold (default: `1.0`) |
+| `top_k` | integer | | Top-k sampling limit (default: `0`, disabled) |
+| `min_p` | float | | Minimum probability threshold (default: `0`, disabled) |
+| `presence_penalty` | float | | Penalty for token repetition (default: `0`) |
+| `tools` | array | | Custom function tool definitions (see [Function Tool Calling](#function-tool-calling)) |
+| `tool_choice` | string or object | | `auto`, `none`, `required`, or `{"type": "function", "name": "..."}` |
+| `parallel_tool_calls` | boolean | | Accepted for compatibility; parallel calls are not produced |
+
+The endpoint returns a Responses API-style object with `output`, `output_text`, and `usage` fields. Custom function tools are supported; hosted tools, `previous_response_id` statefulness, and multimodal input are not currently implemented.
 
 ### Sampling Parameters
 
@@ -251,7 +388,7 @@ Unlike frequency penalty, presence penalty applies equally to all tokens that ha
 
 ## Notes
 
-- **No API key required** — Language Pipes does not implement authentication. Any value works for `api_key`.
+- **API key authentication is optional** — if `api_keys` is empty (the default), the server accepts requests without an `Authorization` header and any `api_key` value works. If `api_keys` is set, clients must send `Authorization: Bearer <key>` with one of the configured keys; missing or invalid keys are rejected with `400`/`401`.
 - **Model names** — Use the exact HuggingFace model ID you configured (e.g., `Qwen/Qwen3-1.7B`)
 - **Network access** — Ensure the client can reach the node hosting the OpenAI server
 
@@ -262,7 +399,8 @@ Unlike frequency penalty, presence penalty applies equally to all tokens that ha
 * [Privacy Protection](./privacy.md)
 * [Configuration Manual](./configuration.md)
 * [Architecture Overview](./architecture.md)
-* [Open AI Compatable API](./oai.md)
+* [OpenAI-Compatible API](./oai.md)
 * [Job Processor State Machine](./job-processor.md)
-* [The default peer to peer implementation](./distributed-state-network/README.md)
-* [The way Language Pipes abstracts from model architecture](./llm-layer-collector.md)
+* [Distributed State Network](./distributed-state-network/README.md)
+* [LLM Layer Collector](./llm-layer-collector.md)
+* [Release Notes](./release-notes.md)

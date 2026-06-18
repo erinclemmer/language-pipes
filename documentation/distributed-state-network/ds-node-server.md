@@ -1,6 +1,6 @@
 ## DSNodeServer
 
-Flask server wrapper for DSNode that handles incoming network requests.
+HTTP server wrapper for DSNode that handles incoming network requests.
 
 ```python
 from language_pipes.distributed_state_network import DSNodeServer
@@ -11,7 +11,7 @@ from language_pipes.distributed_state_network import DSNodeServer
 class DSNodeServer:
     config: DSNodeConfig
     node: DSNode
-    app: Flask
+    http_server: ThreadingHTTPServer
     running: bool
     thread: threading.Thread
 ```
@@ -27,7 +27,7 @@ class DSNodeServer:
 ### Static Methods
 
 ### `Start() -> DSNodeServer`
-Creates and starts a new DSNodeServer instance with a flask server
+Creates and starts a new DSNodeServer instance with a threaded HTTP server based on `BaseHTTPRequestHandler`
 
 ```python
 server = DSNodeServer.start(config)

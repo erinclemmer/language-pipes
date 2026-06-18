@@ -18,7 +18,7 @@ from language_pipes.util.chat import ChatMessage, ChatRole
 
 MODEL = "Qwen/Qwen3-0.6B"
 
-def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: Optional[int] = None, bootstrap_port: Optional[int] = None):
+def start_node(node_id: str, max_memory: float, peer_port: int, job_port: Optional[int] = None, bootstrap_port: Optional[int] = None):
     args = ["serve", 
         "--node-id", node_id, 
         "--layer-models", f"id={MODEL},device=cpu,memory={max_memory}", 
@@ -28,8 +28,8 @@ def start_node(node_id: str, max_memory: float, peer_port: int, oai_port: Option
         "--api-keys", "test_key",
         "--model-validation"
     ]
-    if oai_port is not None:
-        args.extend(["--openai-port", str(oai_port)])
+    if job_port is not None:
+        args.extend(["--openai-port", str(job_port)])
     
     if bootstrap_port is not None:
         args.extend(["--bootstrap-address", "localhost", "--bootstrap-port", str(bootstrap_port)])
@@ -84,6 +84,9 @@ def oai_stream(port: int, messages: List[ChatMessage], retries: int = 0):
 class OpenAITests(unittest.TestCase):
     def test_cli(self):
         main([])
+
+    def test_tui(self):
+        main(["tui"])
 
     def test_single_node(self):
         start_node("node-1", 6, 5000, 8000)

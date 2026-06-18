@@ -3,7 +3,8 @@ import random
 import logging
 import threading
 import requests
-from typing import Dict, List, Optional, Callable
+from datetime import datetime
+from typing import Dict, List, Optional, Callable, Tuple
 
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
 from language_pipes.distributed_state_network.objects.hello_packet import HelloPacket
@@ -41,11 +42,14 @@ class DSNode:
     address_book: Dict[str, Endpoint]
     node_states: Dict[str, StatePacket]
     shutting_down: bool
+    logs: List[Tuple[float, str]]
+    create_alert: Callable[[str], None]
 
     def __init__(
             self, 
             config: DSNodeConfig,
             version: str,
+            create_alert: Callable[[str], None],
             disconnect_callback: Optional[Callable] = None,
             update_callback: Optional[Callable] = None,
             receive_callback: Optional[Callable] = None
@@ -53,6 +57,8 @@ class DSNode:
         self.config = config
         self.version = version
         self.shutting_down = False
+        self.create_alert = create_alert
+        self.logs = []
         
         self.cred_manager = CredentialManager(config.credential_dir, config.node_id)
         self.cred_manager.generate_keys()
@@ -65,15 +71,30 @@ class DSNode:
             self.config.node_id: Endpoint(self.config.network_ip, config.port)
         }
         
-        self.logger = logging.getLogger("DSN: " + config.node_id)
+        self.logger = logging.getLogger(__name__)
         self.disconnect_cb = disconnect_callback
         self.update_cb = update_callback
         self.receive_cb = receive_callback
 
         # Validate configured AES key eagerly so bad/legacy key formats fail fast.
         self.get_aes_key()
+        self.add_log(f"Starting network server on port {config.port}")
         
         threading.Thread(target=self.network_tick, daemon=True).start()
+
+    def add_log(self, msg: str, level: str = "INFO"):
+        if level.upper() == "INFO":
+            self.logger.info(msg)
+        elif level.upper() == "ERROR":
+            self.logger.error(msg)
+        elif level.upper() == "DEBUG":
+            self.logger.debug(msg)
+        elif level.upper() == "WARNING":
+            self.logger.warning(msg)
+        else:
+            self.logger.info(msg)
+        
+        self.logs.append((time.time(), msg))
 
     def get_aes_key(self) -> Optional[bytes]:
         if self.config.aes_key is None:
@@ -84,7 +105,7 @@ class DSNode:
                 f"Invalid AES key length ({len(key)} bytes). Expected {AES_KEY_LENGTH} bytes."
             )
         return key
-
+    
     def _is_ip_whitelisted(self, ip: Optional[str]) -> bool:
         if len(self.config.whitelist_ips) == 0:
             return True
@@ -107,7 +128,7 @@ class DSNode:
 
     def ensure_node_id_allowed(self, node_id: Optional[str]):
         if not self._is_node_id_whitelisted(node_id):
-            raise Exception(401, f"Node ID '{node_id}' is not in whitelist")
+            raise Exception(401, f"{node_id} not in {self.config.node_id}'s whitelist")
 
     def ensure_endpoint_allowed(self, endpoint: Endpoint):
         self.ensure_ip_allowed(endpoint.address)
@@ -116,13 +137,12 @@ class DSNode:
         if node_id != self.config.node_id:
             self.ensure_node_id_allowed(node_id)
             self.ensure_endpoint_allowed(conn)
-        self.logger.info(f"Address set: {node_id} -> {conn.address}:{conn.port}")
         self.address_book[node_id] = conn
 
     def network_tick(self):
         time.sleep(TICK_INTERVAL)
         if self.shutting_down:
-            self.logger.info("Shutting down node")
+            self.add_log("Shutting down node", "INFO")
             return
         self.test_connections()
         self.gossip()
@@ -143,7 +163,6 @@ class DSNode:
                 del self.node_states[node_id]
             if node_id in self.address_book:    
                 del self.address_book[node_id]
-            self.logger.info(f"PING failed for {node_id}, disconnecting...")
         
         for node_id in self.node_states.copy().keys():
             if node_id not in self.node_states or node_id == self.config.node_id:
@@ -153,9 +172,10 @@ class DSNode:
                     return
                 self.send_ping(node_id)
             except Exception:
-                self.logger.error(f"PING Failure for {node_id}")
                 if node_id in self.node_states:  # double check if something has changed since the ping request started
                     remove(node_id)
+                    msg = f"{node_id} has disconnected"
+                    self.add_log(msg)
                     if self.disconnect_cb is not None:
                         self.disconnect_cb()
 
@@ -185,7 +205,7 @@ class DSNode:
                 # No content - valid for some responses like successful HELLO with no data
                 return b''
             elif response.status_code != 200:
-                raise Exception(f"HTTP error: {response.status_code}")
+                raise Exception(response.status_code, response.content.decode())
             
             response_data = response.content
             # Decrypt the response
@@ -209,18 +229,12 @@ class DSNode:
                 return self.send_http_request(endpoint, msg_type, payload, retries + 1)
             else:
                 raise Exception(f"HTTP request to {endpoint.to_string()} timed out")
-        except requests.exceptions.RequestException as e:
+        except requests.exceptions.RequestException:
             if retries < 2:
                 time.sleep(0.5)
                 return self.send_http_request(endpoint, msg_type, payload, retries + 1)
             else:
-                raise Exception(f"HTTP request to {endpoint.to_string()} failed: {e}")
-        except Exception as e:
-            if retries < 2:
-                time.sleep(0.5)
-                return self.send_http_request(endpoint, msg_type, payload, retries + 1)
-            else:
-                raise Exception(f"HTTP request to {endpoint.to_string()} failed: {e}")
+                raise Exception(f"HTTP request to {endpoint.to_string()} failed")
 
     def send_request_to_node(self, node_id: str, msg_type: int, payload: bytes) -> bytes:
         self.ensure_node_id_allowed(node_id)
@@ -279,20 +293,30 @@ class DSNode:
         return pkt.to_bytes()
 
     def send_hello(self, con: Endpoint):
-        self.logger.info(f"HELLO => {con.to_string()}")
-
         pkt = self.my_hello_packet()
         payload = pkt.to_bytes()
-        content = self.send_http_request(con, MSG_HELLO, payload)
-        
+        try:
+            content = self.send_http_request(con, MSG_HELLO, payload)
+        except Exception as e:
+            if e.args[0] == 505 or e.args[0] == 401:
+                msg = f"Network Error: {e.args[1]}"
+                self.add_log(msg)
+            elif "HTTP request to" in e.args[0]:
+                msg = f"Connection to {con.address}:{con.port} failed"
+                self.logs.append((time.time(), msg))
+            if len(e.args) > 1:
+                code, msg = e.args
+                if msg == "Node ID not in whitelist":
+                    self.add_log(f"Error from {con.address}:{con.port}: Not in their whitelist")
+            raise e
+
         # Get the response packet
         pkt = HelloPacket.from_bytes(content)
-        self.logger.info(f"Received HELLO from {pkt.node_id}")
-        
+
         # Verify version compatibility
         if pkt.version != self.version:
-            msg = f"HELLO => {pkt.node_id} (Version mismatch \"{pkt.version}\" != \"{self.version}\")"
-            self.logger.error(msg)
+            msg = f"Network version mismatch \"{pkt.version}\" ({pkt.node_id}) != \"{self.version}\" ({self.config.node_id})"
+            self.add_log(msg, "ERROR")
             raise Exception(505)  # Version not supported
 
         # Store the peer's public key
@@ -300,7 +324,6 @@ class DSNode:
         
         # If the server sent us our detected IP, update our address book
         if pkt.detected_address:
-            self.logger.info(f"Server detected our IP as: {pkt.detected_address}")
             # Update our own connection in the address book with the detected IP
             self.write_address_book(self.config.node_id, Endpoint(pkt.detected_address, self.config.port))
         
@@ -318,14 +341,16 @@ class DSNode:
         self.ensure_ip_allowed(detected_address)
         pkt = HelloPacket.from_bytes(data)
         self.ensure_node_id_allowed(pkt.node_id)
-        self.logger.info(f"Received HELLO from {pkt.node_id}")
         if pkt.version != self.version:
-            msg = f"HELLO => {pkt.node_id} (Version mismatch \"{pkt.version}\" != \"{self.version}\")"
-            self.logger.error(msg)
-            raise Exception(505)  # Version not supported
+            msg = f"Network version mismatch \"{pkt.version}\" ({pkt.node_id}) != \"{self.version}\" ({self.config.node_id})"
+            self.add_log(msg, "ERROR")
+            self.create_alert(msg)
+            raise Exception(505, msg)  # Version not supported
 
         self.cred_manager.ensure_public(pkt.node_id, pkt.ecdsa_public_key)
         self.write_address_book(pkt.node_id, Endpoint(detected_address, pkt.connection.port))
+        if pkt.node_id != self.config.node_id:
+            self.add_log(f"{pkt.node_id} has connnected")
 
         if pkt.node_id not in self.node_states:
             self.init_state(pkt.node_id)
@@ -341,7 +366,7 @@ class DSNode:
             self.config.node_id, 
             self.my_con(), 
             self.cred_manager.my_public(), 
-            None,
+            b'',
             None  # No certificate for HTTP
         )
         pkt.sign(self.cred_manager.my_private())
@@ -349,15 +374,15 @@ class DSNode:
 
     def send_ping(self, node_id: str):     
         try:
-            conn = self.connection_from_node(node_id)
-            self.logger.debug(f"PING => {node_id} ({conn.address}:{conn.port})")
             self.send_request_to_node(node_id, MSG_PING, b' ')
         except Exception as e:
             raise Exception(f'PING => {node_id}: {e}')
 
     def send_update(self, node_id: str):
-        self.logger.debug(f"UPDATE => {node_id}")
-        content = self.send_request_to_node(node_id, MSG_UPDATE, self.my_state().to_bytes())
+        try:
+            content = self.send_request_to_node(node_id, MSG_UPDATE, self.my_state().to_bytes())
+        except Exception:
+            return b''
         return content
 
     def handle_update(self, data: bytes):
@@ -367,14 +392,12 @@ class DSNode:
         if not self.update_state(pkt):
             return b''
 
-        self.logger.info(f"Received UPDATE from {pkt.node_id}")
-
         if self.update_cb is not None:
             try:
                 self.update_cb()
             except Exception as e:
-                self.logger.error("Update Error Captured:")
-                self.logger.error(str(e))
+                self.add_log("Update Error Captured:", "ERROR")
+                self.add_log(str(e), "ERROR")
 
         return self.my_state().to_bytes()
 
@@ -446,7 +469,6 @@ class DSNode:
     def receive_data(self, data: bytes):
         pkt = DataPacket.from_bytes(data)
         self.ensure_node_id_allowed(pkt.node_id)
-        self.logger.info(f"Received DATA from {pkt.node_id} ({len(pkt.data)} bytes)")
         
         # Ensure sender is known
         if pkt.node_id not in self.address_book:

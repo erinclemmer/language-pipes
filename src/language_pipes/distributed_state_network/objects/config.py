@@ -1,12 +1,15 @@
-from typing import Dict, List, Optional
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Optional
 
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
+from language_pipes.distributed_state_network.util.aes import AES_KEY_LENGTH
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class DSNodeConfig:
     node_id: str
-    credential_dir: str
+    logging_dir: Path
+    credential_dir: Path
     port: int
     network_ip: Optional[str]
     aes_key: Optional[str]
@@ -17,15 +20,32 @@ class DSNodeConfig:
     @staticmethod
     def from_dict(data: Dict) -> 'DSNodeConfig':
         return DSNodeConfig(
-            data["node_id"], 
-            data["credential_dir"] if "credential_dir" in data else "credentials",
-            data["port"],
+            data["node_id"] if "node_id" in data else "", 
+            Path(data["logging_dir"]) if "logging_dir" in data else Path("logs"),
+            Path(data["credential_dir"]) if "credential_dir" in data else Path("credentials"),
+            data["port"] if "port" in data else 0,
             data["network_ip"] if "network_ip" in data else None, 
             data["aes_key"] if "aes_key" in data else None, 
             data["whitelist_ips"] if "whitelist_ips" in data and data["whitelist_ips"] is not None else [],
-            [Endpoint.from_json(e) for e in data["bootstrap_nodes"]],
+            [Endpoint.from_json(e) for e in data["bootstrap_nodes"]] if "bootstrap_nodes" in data else [],
             data["whitelist_node_ids"] if "whitelist_node_ids" in data and data["whitelist_node_ids"] is not None else [],
         )
+
+    def to_dict(self):
+        return {
+            "node_id": self.node_id,
+            "port": self.port,
+            "network_ip": self.network_ip,
+            "aes_key": self.aes_key,
+            "whitelist_ips": self.whitelist_ips,
+            "whitelist_node_ids": self.whitelist_node_ids
+        }
+
+    def aes_key_is_valid(self) -> bool:
+        if self.aes_key is None:
+            return False
+        key = bytes.fromhex(self.aes_key)
+        return len(key) == AES_KEY_LENGTH
 
     def to_string(self) -> str:
         lines = []

@@ -10,12 +10,20 @@ Below are the models that are tested and known to work. Any fine-tuned model bas
 - microsoft/Phi-4-mini-reasoning
 - microsoft/Phi-4-reasoning-plus
 
-**Z.ai:**
-- zai-org/GLM-4.1V-9B-Thinking
-
 **Meta:**
 - meta-llama/Llama-3.1-8B-Instruct
 - meta-llama/Llama-3.2-1B-Instruct
 
 **Google**
 - google/gemma-3-1b-it
+
+### Documentation
+* [CLI Reference](./cli.md)
+* [Privacy Protection](./privacy.md)
+* [Configuration Manual](./configuration.md)
+* [Architecture Overview](./architecture.md)
+* [OpenAI-Compatible API](./oai.md)
+* [Job Processor State Machine](./job-processor.md)
+* [Distributed State Network](./distributed-state-network/README.md)
+* [LLM Layer Collector](./llm-layer-collector.md)
+* [Release Notes](./release-notes.md)

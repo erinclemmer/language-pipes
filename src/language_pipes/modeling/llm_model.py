@@ -1,8 +1,6 @@
 import os
-import logging
 from pathlib import Path
 from uuid import uuid4
-from logging import Logger
 from typing import List, Optional, Callable
 
 import torch
@@ -10,7 +8,7 @@ import torch
 from language_pipes.llm_layer_collector import LlmLayerCollector
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
-from language_pipes.util import clone_model
+from language_pipes.util.utils import clone_model
 
 from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata
@@ -20,15 +18,15 @@ from language_pipes.jobs.job import Job
 
 class LlmModel:
     model_id: str
+    node_id: str
     meta_data: LlmMetadata
     process_id: str
     pipe_id: str
     collector: LlmLayerCollector
 
-    node_id: str
-    device: str
+    device: torch.device
     virtual: bool
-    model_dir: str
+    model_dir: Path
 
     layers: List[AutoDecoderLayer]
     tokenizer: Callable
@@ -37,21 +35,23 @@ class LlmModel:
     end_layer: int
     loaded: bool
     num_hidden_layers: int
+    ram_used: int
 
     def __init__(
             self,
-            model_id: str,
             node_id: str,
+            model_id: str,
             pipe_id: str,
-            device: str,
-            model_dir: str,
+            device: torch.device,
+            model_dir: Path,
             process_id: Optional[str] = None,
             virtual: bool = False,
             huggingface_token: Optional[str] = None,
             num_hidden_layers: Optional[int] = None
     ):
-        self.model_id = model_id
         self.node_id = node_id
+        self.ram_used = 0
+        self.model_id = model_id
         self.pipe_id = pipe_id
         self.loaded = False
         self.virtual = virtual
@@ -61,17 +61,17 @@ class LlmModel:
         self.device = device
         self.model_dir = model_dir
 
-        if virtual:
+        if virtual and num_hidden_layers is not None:
             self.num_hidden_layers = num_hidden_layers
         else:
-            model_path = str(Path(model_dir) / self.model_id)
+            model_path = model_dir / self.model_id
             if not os.path.exists(model_path):
                 clone_model(model_id, model_path, token=huggingface_token)
             self.collector = LlmLayerCollector(
-                    model_dir=os.path.join(model_path, 'data'),
-                    cache_file=os.path.join(model_path, 'cache.json'),
+                    model_dir=model_path / "data",
+                    cache_file=model_path / 'cache.json',
                     device=device,
-                    dtype=torch.float16 
+                    dtype=torch.bfloat16 
             )
             self.num_hidden_layers = self.collector.config.num_hidden_layers
             self.meta_data = LlmMetadata(model_path)
@@ -92,23 +92,8 @@ class LlmModel:
         self.loaded = True
         self.virtual = False
 
-    def print(self, logger: logging.Logger):
-        logger.info(f'''
-=================================
-Loaded Model: {self.model_id}
-Pipe ID: {self.pipe_id}
-Node: {self.node_id}
-Process: {self.process_id}
-Start Layer: {self.start_layer}
-End Layer: {self.end_layer}
-Device: {self.device}
-=================================
-''')
-
-    def process_job(self, job: Job, logger: Logger):
-        job.timing_stats.add_layer_time(self.node_id, job.current_layer, self.end_layer)
+    def process_job(self, job: Job):
         self.compute_layers(job)
-        job.timing_stats.set_send_time(logger)
 
     def compute_layers(
         self, 
@@ -116,25 +101,28 @@ Device: {self.device}
     ):
         if job.data is None:
             raise Exception("cannot compute layers without job data")
-        
+
+        state, shared_kv_states = compute_layers(
+            job.current_layer,
+            job.data,
+            self.device,
+            self.collector.config,
+            self.layers,
+            job.cache,
+        )
         job.set_layer(
-            state=compute_layers(
-                job.current_layer,
-                job.data,
-                self.device, 
-                self.layers, 
-                job.cache,
-            ), 
-            layer=self.end_layer + 1, 
-            num_hidden_layers=self.num_hidden_layers
+            state=state,
+            layer=self.end_layer + 1,
+            num_hidden_layers=self.num_hidden_layers,
+            shared_kv_states=shared_kv_states
         )
     
     def to_meta(self) -> MetaModel:
         return MetaModel(
             process_id=self.process_id,
+            node_id=self.node_id,
             start_layer=self.start_layer,
             end_layer=self.end_layer,
-            node_id=self.node_id,
             pipe_id=self.pipe_id,
             model_id=self.model_id,
             loaded=self.loaded,
@@ -144,16 +132,16 @@ Device: {self.device}
 
     def cleanup_tensors(self):
         torch.cuda.empty_cache()
-        del self.layers
+        self.layers = []
         torch.cuda.empty_cache()
 
     @staticmethod
-    def from_meta(meta: MetaModel, model_dir: str) -> 'LlmModel':
+    def from_meta(meta: MetaModel, model_dir: Path) -> 'LlmModel':
         model = LlmModel(
             model_id=meta.model_id,
-            node_id=meta.node_id,
             pipe_id=meta.pipe_id,
-            device='cpu',
+            node_id=meta.node_id,
+            device=torch.device('cpu'),
             model_dir=model_dir,
             process_id=meta.process_id,
             num_hidden_layers=meta.num_layers,
@@ -168,16 +156,16 @@ Device: {self.device}
         return model
     
     @staticmethod
-    def from_id(model_dir: str, model_id: str, node_id: str, pipe_id: str, device: str, huggingface_token: Optional[str] = None) -> 'LlmModel':
+    def from_id(model_dir: Path, node_id: str, model_id: str, pipe_id: str, device: torch.device, huggingface_token: Optional[str] = None) -> 'LlmModel':
         model = LlmModel(
-            model_id=model_id, 
-            node_id=node_id, 
+            model_id=model_id,
+            node_id=node_id,
             pipe_id=pipe_id, 
             device=device, 
             model_dir=model_dir,
             huggingface_token=huggingface_token
         )
 
-        model_path = str(Path(model_dir) / model_id)
+        model_path = model_dir / model_id
         model.meta_data = LlmMetadata(model_path)
         return model

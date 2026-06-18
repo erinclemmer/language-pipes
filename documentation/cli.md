@@ -1,184 +1,209 @@
 # Command Line Interface
 
-### CLI Wizard
-
-This provides an easy to use CLI interface for managing configurations.
+## Quick Reference
 
 ```bash
-language-pipes
+language-pipes                              # Launch interactive TUI
+language-pipes -c config.toml               # Launch TUI with a config preloaded
+language-pipes -c config.toml --start       # Launch TUI and start serving immediately
+language-pipes -c config.toml run           # Run headless from a config file
+language-pipes -c config.toml config        # Print the configuration
+language-pipes keygen [output]              # Generate an AES encryption key
 ```
+
+> **Argument order matters.** `-c`/`--config`, `--start`, `-v`, and `-h` are
+> options on the top-level command and must appear **before** the subcommand
+> (`run`, `config`, `keygen`). For example, `language-pipes run -c config.toml`
+> fails — use `language-pipes -c config.toml run`.
 
 ## Global Options
 
-| Option | Description |
-|--------|-------------|
-| `-V`, `--version` | Show version and exit |
-| `-h`, `--help` | Show help message and exit |
+These are parsed by the top-level `language-pipes` command and apply to every
+subcommand. They must be given before the subcommand name.
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-h`, `--help` | Show help message and exit | |
+| `-v`, `--version` | Print the version and exit | |
+| `-c FILE`, `--config FILE` | Configuration to load (see below) | Show Main Menu |
+| `--start` | Skip the startup confirmation and begin serving immediately | `false` |
+
+### How `--config` is resolved
+
+The value passed to `-c`/`--config` is interpreted as follows:
+
+- If it contains `.toml`, it is treated as a path to a TOML file.
+- Otherwise it is treated as the name of a saved configuration and resolved to
+  `<app_dir>/configs/<name>.toml`.
+
+If the resolved file does not exist, the command exits immediately with:
+
+```
+ERROR: <value> is not a valid path or saved configuration
+```
+
+See [Configuration](./configuration.md) for all available properties, types,
+and defaults.
 
 ---
 
 ## Commands
 
+### `language-pipes` (no subcommand)
+
+Launches the interactive TUI for creating, viewing, editing, and loading
+configurations.
+
+```bash
+language-pipes                          # Open the main menu
+language-pipes -c config.toml           # Open with a configuration preloaded
+language-pipes -c config.toml --start   # Open and begin serving immediately
+```
+
+- `-c`/`--config` preloads a configuration instead of showing the main menu.
+- `--start` begins serving all configured services without waiting for
+  confirmation.
+
+In TUI mode the configuration file is authoritative. Environment variables and
+flags do not override config values. The exceptions are machine-local settings
+(`LP_APP_DIR`, `LP_MODEL_DIR`, `LP_HUGGINGFACE_TOKEN`), which describe the host
+environment rather than the node's behavior.
+
+---
+
+### `run`
+
+Start a Language Pipes server node without the TUI, streaming output to stdout.
+
+**Format:**
+```bash
+language-pipes -c FILE run
+```
+
+A configuration is required. If `-c`/`--config` is not provided, the command
+exits with:
+
+```
+ERROR: --config param required
+```
+
+The configuration file is resolved the same way as the global `--config` option
+(a `.toml` path, or a saved configuration name under `<app_dir>/configs/`).
+
+```bash
+language-pipes -c config.toml run
+language-pipes -c node4 run            # resolves <app_dir>/configs/node4.toml
+```
+
+---
+
+### `config`
+
+Resolve a configuration file and print its settings as a human-readable report
+(ports, API keys, layer models, end models, and network settings).
+
+**Format:**
+```bash
+language-pipes -c FILE config
+```
+
+A configuration is required (`-c`/`--config`), resolved the same way as `run`.
+
+**Example:**
+
+```bash
+$ language-pipes -c node4.toml config
+============================================================
+--- Configuration Settings ---
+============================================================
+
+Job Port: 8000
+API Keys:
+- None
+
+Layer Models:
+- None
+
+End Models:
+- None
+
+============================================================
+  DSNode Configuration Details
+============================================================
+
+--- Node Settings ---
+  Node ID:           node-4
+  ...
+```
+
+> The output is a formatted report intended for inspection. It is **not** valid
+> TOML and is not designed to be piped back into a configuration file.
+
+---
+
 ### `keygen`
 
-Generate an AES encryption key for network communication.  
+Generate an AES encryption key for network communication and write it to disk.
+
 **Format:**
 ```bash
 language-pipes keygen [output]
 ```
-**Arguments:**
+
 | Argument | Description | Default |
 |----------|-------------|---------|
 | `output` | Output file path | `network.key` |
 
 **Example:**
 ```bash
-language-pipes keygen network.key
-```
-
----
-
-### `init`
-
-Interactively create a configuration file with guided prompts.
-
-**Format:**
-```bash
-language-pipes init [FILE]
-```
-
-**Arguments:**
-| Option | Description | Default |
-|--------|-------------|---------|
-| `output` | Output file path | `config.toml` |
-
-**Example:**
-```bash
-language-pipes init my-config.toml
-```
-
----
-
-### `serve`
-
-Start a Language Pipes server node.
-
-**Format:**
-```bash
-language-pipes serve [OPTIONS]
-```
-
-The `serve` command accepts configuration through three sources (in order of precedence):
-
-1. **Command-line flags** — Override all other sources
-2. **Environment variables** — `LP_*` prefixed variables
-3. **TOML config file** — Via `-c`/`--config`
-
-See [Configuration](./configuration.md) for all available options and their descriptions.
-
-#### Common Flags
-
-| Flag | Short | Description | Default |
-|------|-------|-------------|---------|
-| `--config FILE` | `-c` | Load configuration from TOML file | None |
-| `--node-id ID` | | Node identifier (required) | Required |
-| `--openai-port PORT` | | Enable OpenAI API on port | None |
-| `--layer-models MODEL...` | | Models to host (layers) | Empty|
-| `--end-models MODEL...` | | Model IDs for which to load end models | Empty | 
-| `--num-local-layers N` | | Number of local layers to run on your machine (higher values improve prompt obfuscation) | 1 |
-| `--logging-level LEVEL` | `-l` | Log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) | INFO |
-| `--bootstrap-address HOST` | | Connect to existing network | None |
-| `--whitelist-ips IP...` | | Only communicate with peers whose IP is in this whitelist | Empty (allow all) |
-| `--whitelist-node-ids NODE_ID...` | | Only communicate with peers whose node ID is in this whitelist | Empty (allow all) |
-| `--app-dir PATH` | | Application config directory | `~/.config/language_pipes` |
-| `--model-dir PATH` | | Model cache directory | `~/.cache/language_pipes/models` |
-| `--print-times` | | Print timing info for layer computations and network transfers | False|
-
-Run `language-pipes serve --help` for all options.
-
-#### Model Specification
-
-**Layer models** are specified as comma-separated `key=value` pairs:
-
-```bash
---layer-models "id=MODEL,device=DEVICE,memory=GB"
-```
-
-| Key | Example |
-|-----|---------|
-| `id` | `Qwen/Qwen3-1.7B`, `meta-llama/Llama-3.2-1B-Instruct` |
-| `device` | `cpu`, `cuda:0` |
-| `memory` | `4`, `8.5` |
-
-**End models** are specified as a list of model IDs:
-
-```bash
---end-models "Qwen/Qwen3-1.7B" "meta-llama/Llama-3.2-1B-Instruct"
+$ language-pipes keygen network.key
+✓ Network key generated: <key>
+✓ Network key saved to 'network.key'
 ```
 
 ---
 
 ## Examples
 
-### Start a standalone node (CLI only)
+### Launch the TUI with a saved configuration
 
 ```bash
-language-pipes serve \
-  --node-id "node-1" \
-  --openai-port 8000 \
-  --layer-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4" \
-  --end-models "Qwen/Qwen3-1.7B"
+language-pipes -c node4
 ```
 
-### Start with config file
+### Run a node headless from a config file
 
 ```bash
-language-pipes serve -c config.toml
+language-pipes -c config.toml run
 ```
 
-### Override config values
+### Run a node headless and log to a file as well as the terminal
 
 ```bash
-language-pipes serve -c config.toml --logging-level DEBUG --openai-port 8080
+language-pipes -c node4.toml run | tee node4.log
 ```
 
-### Join an existing network
+### Inspect the configuration
 
 ```bash
-language-pipes serve \
-  --node-id "node-2" \
-  --bootstrap-address "192.168.1.100" \
-  --layer-models "id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
+language-pipes -c node4.toml config
 ```
 
-### Using environment variables
+### Generate a network key
 
 ```bash
-export LP_NODE_ID="node-1"
-export LP_OAI_PORT="8000"
-export LP_LAYER_MODELS="id=Qwen/Qwen3-1.7B,device=cpu,memory=4"
-
-language-pipes serve
+language-pipes keygen network.key
 ```
 
-### Host multiple models
-
-```bash
-language-pipes serve \
-  --node-id "multi-model" \
-  --openai-port 8000 \
-  --layer-models \
-    "id=Qwen/Qwen3-1.7B,device=cpu,memory=4" \
-    "id=Qwen/Qwen3-0.6B,device=cuda:0,memory=2" \
-  --end-models Qwen/Qwen3-1.7B Qwen/Qwen3-0.6B
-```
+---
 
 ### Documentation
 * [CLI Reference](./cli.md)
 * [Privacy Protection](./privacy.md)
 * [Configuration Manual](./configuration.md)
 * [Architecture Overview](./architecture.md)
-* [Open AI Compatable API](./oai.md)
+* [OpenAI-Compatible API](./oai.md)
 * [Job Processor State Machine](./job-processor.md)
-* [The default peer to peer implementation](./distributed-state-network/README.md)
-* [The way Language Pipes abstracts from model architecture](./llm-layer-collector.md)
+* [Distributed State Network](./distributed-state-network/README.md)
+* [LLM Layer Collector](./llm-layer-collector.md)
+* [Release Notes](./release-notes.md)

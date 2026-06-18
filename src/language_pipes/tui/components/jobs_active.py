@@ -1,0 +1,39 @@
+from typing import Callable, List
+
+from ansinout import PressedKey
+from language_pipes.content_provider.content_provider import ContentProvider
+
+class JobsActive:
+    provider: ContentProvider
+    exit_page: Callable
+
+    def __init__(self, provider: ContentProvider, exit_page: Callable):
+        self.provider = provider
+        self.exit_page = exit_page
+
+    def on_key(self, key: PressedKey, ch: str):
+        if key == PressedKey.Escape:
+            self.exit_page()
+    
+    def get_view(self) -> List[str]:
+        lines = ["Active Jobs:", ""]
+
+        jobs = self.provider.job_provider.get_active_jobs()
+        for job in jobs:
+            lines.extend([
+                f"Model ID:      {job.model_id}",
+                f"Origin Node:   {job.origin_node_id}", 
+                f"Job ID:        {job.job_id[:8]}",
+                f"Pipe ID:       {job.pipe_id[:8]}",
+                f"Last active:   {job.last_update:.0f} seconds ago",
+                f"Current Token: {job.current_token}"
+                "", ""
+            ])
+        
+        if len(jobs) == 0:
+            lines.extend(["No Active Jobs..."])
+
+        return lines
+
+    def get_footer(self) -> str:
+        return ""

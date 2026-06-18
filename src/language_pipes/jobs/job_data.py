@@ -1,20 +1,54 @@
+from dataclasses import dataclass, field
+
 import torch
 import hashlib
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 from language_pipes.util.byte_helper import ByteHelper
 from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 
-from language_pipes.util import tensor_to_bytes, bytes_to_tensor, maybeTo
+from language_pipes.util.utils import tensor_to_bytes, bytes_to_tensor
 
+def write_tensor_dict(d: Dict[str, Optional[torch.Tensor]]) -> bytes:
+    bts = ByteHelper()
+    bts.write_int(len(list(d.keys())))
+    for key in d.keys():
+        bts.write_string(key)
+        if d[key] is None:
+            bts.write_int(0)
+        else:
+            bts.write_int(1)
+            bts.write_bytes(tensor_to_bytes(d[key]))
+
+    return bts.get_bytes()
+
+
+def read_tensor_dict(raw_data: bytes) -> Dict[str, Optional[torch.Tensor]]:
+    bts = ByteHelper(raw_data)
+    data = { }
+    num_keys = bts.read_int()
+    current_key = 0
+    while current_key < num_keys:
+        current_key += 1
+        key = bts.read_string()
+        if bts.read_int() == 1:
+            data[key] = bytes_to_tensor(bts.read_bytes())
+        else:
+            data[key] = None 
+
+    return data
+
+@dataclass
 class JobData:
-    cache_position: Optional[torch.Tensor] = None
-    causal_mask: Optional[torch.Tensor] = None
-    sliding_causal_mask: Optional[torch.Tensor] = None
-    position_ids: Optional[torch.Tensor] = None
-    position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
-    position_embeddings_local: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
-    position_embeddings_global: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
-    state: Optional[torch.Tensor] = None
+    cache_position: torch.Tensor
+    position_ids: torch.Tensor
+    causal_mask: Dict[str, Optional[torch.Tensor]]
+    position_embeddings: Dict[str, Tuple[torch.Tensor, torch.Tensor]]
+    state: torch.Tensor
+    # Gemma4 Per-Layer Embeddings: read-only ride-along tensor, None for other models.
+    per_layer_inputs: Optional[torch.Tensor] = None
+    # Gemma4 cross-node KV sharing: per-layer-type (k, v) dict mutated as it flows.
+    # Empty for other models.
+    shared_kv_states: Dict[str, Tuple[torch.Tensor, torch.Tensor]] = field(default_factory=dict)
 
     def hash_state(self):
         return hashlib.sha256(self.to_bytes()).digest()
@@ -22,59 +56,75 @@ class JobData:
     def to_bytes(self) -> bytes:
         state_bytes = tensor_to_bytes(self.state)
         cache_position_bytes = tensor_to_bytes(self.cache_position)
-        causal_mask_bytes = tensor_to_bytes(self.causal_mask)
-        sliding_causal_mask_bytes = tensor_to_bytes(self.sliding_causal_mask)
         position_ids_bytes = tensor_to_bytes(self.position_ids)
-        position_embeddings_bytes = (
-            (tensor_to_bytes(self.position_embeddings[0]), tensor_to_bytes(self.position_embeddings[1]))
-            if self.position_embeddings is not None else (b'', b'')
-        )
-        position_embeddings_local_bytes = (
-            (tensor_to_bytes(self.position_embeddings_local[0]), tensor_to_bytes(self.position_embeddings_local[1]))
-            if self.position_embeddings_local is not None else (b'', b'')
-        )
-        position_embeddings_global_bytes = (
-            (tensor_to_bytes(self.position_embeddings_global[0]), tensor_to_bytes(self.position_embeddings_global[1]))
-            if self.position_embeddings_global is not None else (b'', b'')
-        )
-
+        
         bts = ByteHelper()
 
         bts.write_bytes(state_bytes)
-        bts.write_bytes(cache_position_bytes)
-        bts.write_bytes(causal_mask_bytes)
-        bts.write_bytes(sliding_causal_mask_bytes)
         bts.write_bytes(position_ids_bytes)
-        bts.write_bytes(position_embeddings_bytes[0])
-        bts.write_bytes(position_embeddings_bytes[1])
-        bts.write_bytes(position_embeddings_local_bytes[0])
-        bts.write_bytes(position_embeddings_local_bytes[1])
-        bts.write_bytes(position_embeddings_global_bytes[0])
-        bts.write_bytes(position_embeddings_global_bytes[1])
+        bts.write_bytes(cache_position_bytes)
+        bts.write_bytes(write_tensor_dict(self.causal_mask))
+        bts.write_int(len(self.position_embeddings.keys()))
+        for key in self.position_embeddings.keys():
+            bts.write_string(key)
+            bts.write_bytes(tensor_to_bytes(self.position_embeddings[key][0]))
+            bts.write_bytes(tensor_to_bytes(self.position_embeddings[key][1]))
+
+        if self.per_layer_inputs is None:
+            bts.write_int(0)
+        else:
+            bts.write_int(1)
+            bts.write_bytes(tensor_to_bytes(self.per_layer_inputs))
+
+        bts.write_int(len(self.shared_kv_states.keys()))
+        for key in self.shared_kv_states.keys():
+            bts.write_string(key)
+            bts.write_bytes(tensor_to_bytes(self.shared_kv_states[key][0]))
+            bts.write_bytes(tensor_to_bytes(self.shared_kv_states[key][1]))
 
         return bts.get_bytes()
 
     @staticmethod
     def from_bytes(data: bytes) -> Optional['JobData']:
-        job_data = JobData()
         bts = ByteHelper(data)
-        job_data.state = bytes_to_tensor(bts.read_bytes())
-        job_data.cache_position = bytes_to_tensor(bts.read_bytes())
-        job_data.causal_mask = bytes_to_tensor(bts.read_bytes())
-        job_data.sliding_causal_mask = bytes_to_tensor(bts.read_bytes())
-        job_data.position_ids = bytes_to_tensor(bts.read_bytes())
-        pe0 = bytes_to_tensor(bts.read_bytes())
-        pe1 = bytes_to_tensor(bts.read_bytes())
-        job_data.position_embeddings = (pe0, pe1) if pe0 is not None else None
-        
-        pel0 = bytes_to_tensor(bts.read_bytes())
-        pel1 = bytes_to_tensor(bts.read_bytes())
-        job_data.position_embeddings_local = (pel0, pel1) if pel0 is not None else None
-        
-        peg0 = bytes_to_tensor(bts.read_bytes())
-        peg1 = bytes_to_tensor(bts.read_bytes())
-        job_data.position_embeddings_global = (peg0, peg1) if peg0 is not None else None
-    
+        state = bytes_to_tensor(bts.read_bytes())
+        position_ids = bytes_to_tensor(bts.read_bytes())
+        cache_position = bytes_to_tensor(bts.read_bytes())
+        causal_mask = read_tensor_dict(bts.read_bytes())
+        num_keys = bts.read_int()
+        position_embeddings = { }
+        current_key = 0
+        while current_key < num_keys:
+            key = bts.read_string()
+            t1 = bytes_to_tensor(bts.read_bytes())
+            t2 = bytes_to_tensor(bts.read_bytes())
+            position_embeddings[key] = (t1, t2)
+            current_key += 1
+
+        per_layer_inputs = None
+        if bts.read_int() == 1:
+            per_layer_inputs = bytes_to_tensor(bts.read_bytes())
+
+        shared_kv_states = { }
+        num_shared_keys = bts.read_int()
+        current_key = 0
+        while current_key < num_shared_keys:
+            key = bts.read_string()
+            k = bytes_to_tensor(bts.read_bytes())
+            v = bytes_to_tensor(bts.read_bytes())
+            shared_kv_states[key] = (k, v)
+            current_key += 1
+
+        job_data = JobData(
+            state = state,
+            position_ids = position_ids,
+            cache_position = cache_position,
+            causal_mask = causal_mask,
+            position_embeddings = position_embeddings,
+            per_layer_inputs = per_layer_inputs,
+            shared_kv_states = shared_kv_states
+        )
+
         return job_data
 
     @staticmethod
@@ -82,57 +132,56 @@ class JobData:
         current_hash = hashlib.sha256(data).digest()
         return current_hash == state_hash
 
-def move_position_embeddings(t: Optional[Tuple[torch.Tensor, torch.Tensor]], device: str) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
-    if t is None:
-        return None
-    if str(t[0].device) == device:
-        return (t[0].detach(), t[1].detach())
-    return (
-        t[0].detach().to(device),
-        t[1].detach().to(device)
-    )
+def move_position_embeddings(t: Dict[str, Tuple[torch.Tensor, torch.Tensor]], device: torch.device) -> Dict[str, Tuple[torch.Tensor, torch.Tensor]]:
+    for key in t.keys():
+        t[key] = (t[key][0].to(device), t[key][1].to(device))
+    
+    return t
+
+def move_causal_mask(t: Dict[str, Optional[torch.Tensor]], device: torch.device) -> Dict[str, Optional[torch.Tensor]]:
+    for key in t.keys():
+        if t[key] is not None:        
+            t[key] = t[key].to(device) # type: ignore
+    
+    return t
 
 def computationStateToJobData(data: LLmComputationState) -> JobData:
-    job_data = JobData()
-    job_data.state = maybeTo(data.state, 'cpu')
-    job_data.position_ids = maybeTo(data.position_ids, 'cpu')
-    job_data.position_embeddings = move_position_embeddings(data.position_embeddings, 'cpu')
-    job_data.position_embeddings_local = move_position_embeddings(data.position_embeddings_local, 'cpu')
-    job_data.position_embeddings_global = move_position_embeddings(data.position_embeddings_global, 'cpu')
-    job_data.cache_position = maybeTo(data.cache_position, 'cpu')
-    job_data.causal_mask = maybeTo(data.causal_mask["full_attention"], 'cpu')
-    job_data.sliding_causal_mask = maybeTo(data.causal_mask["sliding_attention"], 'cpu')
-    return job_data
+    return JobData(
+        state=data.state.to('cpu'),
+        position_ids=data.position_ids.to('cpu'),
+        cache_position=data.cache_position.to('cpu'),
+        causal_mask=move_causal_mask(data.causal_mask, torch.device('cpu')),
+        position_embeddings=move_position_embeddings(data.position_embeddings, torch.device('cpu')),
+        per_layer_inputs=None if data.per_layer_inputs is None else data.per_layer_inputs.to('cpu'),
+        shared_kv_states=move_position_embeddings(data.shared_kv_states, torch.device('cpu')),
+    )
 
-def jobDataToComputationState(data: JobData, device: str) -> LLmComputationState:
-    state = LLmComputationState()
-    state.state = maybeTo(data.state, device)
-    state.position_ids = maybeTo(data.position_ids, device)
-    
-    state.position_embeddings = move_position_embeddings(data.position_embeddings, device)
-    state.position_embeddings_local = move_position_embeddings(data.position_embeddings_local, device)
-    state.position_embeddings_global = move_position_embeddings(data.position_embeddings_global, device)
-    
-    state.cache_position = maybeTo(data.cache_position, device)
-    state.causal_mask = {
-        "full_attention": maybeTo(data.causal_mask, device),
-        "sliding_attention": maybeTo(data.sliding_causal_mask, device)
-    }
-    return state
+def jobDataToComputationState(data: JobData, device: torch.device) -> LLmComputationState:
+    return LLmComputationState(
+        state=data.state.to(device),
+        position_ids=data.position_ids.to(device),
+        cache_position=data.cache_position.to(device),
+        causal_mask=move_causal_mask(data.causal_mask, device),
+        position_embeddings=move_position_embeddings(data.position_embeddings, device),
+        per_layer_inputs=None if data.per_layer_inputs is None else data.per_layer_inputs.to(device),
+        shared_kv_states=move_position_embeddings(data.shared_kv_states, device),
+    )
 
 def detachCompState(state: LLmComputationState) -> LLmComputationState:
     state.state = state.state.detach()
     state.position_ids = state.position_ids.detach()
-    if state.position_embeddings is not None:
-        state.position_embeddings = (state.position_embeddings[0].detach(), state.position_embeddings[1].detach())
-    if state.position_embeddings_local is not None:
-        state.position_embeddings_local = (state.position_embeddings_local[0].detach(), state.position_embeddings_local[1].detach())
-    if state.position_embeddings_global is not None:
-        state.position_embeddings_global = (state.position_embeddings_global[0].detach(), state.position_embeddings_global[1].detach())
-    
     state.cache_position = state.cache_position.detach()
-    state.causal_mask = {
-        "full_attention": state.causal_mask["full_attention"].detach() if state.causal_mask["full_attention"] is not None else None,
-        "sliding_attention": state.causal_mask["sliding_attention"].detach() if state.causal_mask["sliding_attention"] is not None else None
-    }
+    for key in state.causal_mask.keys():
+        if state.causal_mask[key] is not None:
+            state.causal_mask[key] = state.causal_mask[key].detach() # type: ignore
+    
+    for key in state.position_embeddings.keys():
+        state.position_embeddings[key] = (state.position_embeddings[key][0].detach(), state.position_embeddings[key][1].detach())
+
+    for key in state.shared_kv_states.keys():
+        state.shared_kv_states[key] = (state.shared_kv_states[key][0].detach(), state.shared_kv_states[key][1].detach())
+
+    if state.per_layer_inputs is not None:
+        state.per_layer_inputs = state.per_layer_inputs.detach()
+
     return state

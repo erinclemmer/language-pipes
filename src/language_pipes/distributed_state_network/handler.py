@@ -1,18 +1,15 @@
-import sys
+import socket
 import threading
-import logging
-from typing import Callable, List, Optional
-from flask import Flask, request, Response
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from dataclasses import replace
+from typing import Callable, List, Optional, Tuple, cast
 from language_pipes.distributed_state_network.dsnode import DSNode
 from language_pipes.distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.distributed_state_network.util.aes import generate_aes_key
 from language_pipes.distributed_state_network.util import stop_thread
+from language_pipes.network_protocol import StateNetworkNode
 
-VERSION = "0.7.0"
-logging.basicConfig(level=logging.INFO)
-
-# Silence Flask and Werkzeug logging
-logging.getLogger('werkzeug').setLevel(logging.ERROR)
+VERSION = "0.9.0"
 
 # Message type constants
 MSG_HELLO = 1
@@ -21,70 +18,119 @@ MSG_UPDATE = 3
 MSG_PING = 4
 MSG_DATA = 5
 
-class DSNodeServer:
+PATH_TO_MSG_TYPE = {
+    '/hello': MSG_HELLO,
+    '/peers': MSG_PEERS,
+    '/update': MSG_UPDATE,
+    '/ping': MSG_PING,
+    '/data': MSG_DATA,
+}
+
+
+class _DSNodeHTTPServer(ThreadingHTTPServer):
+    dsnode_server: 'DSNodeServer'
+
+    def __init__(self, server_address: Tuple[str, int], dsnode_server: 'DSNodeServer'):
+        super().__init__(server_address, _DSNodeHTTPRequestHandler)
+        self.dsnode_server = dsnode_server
+
+
+class _DSNodeHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        msg_type = PATH_TO_MSG_TYPE.get(self.path)
+        if msg_type is None:
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        content_length = int(self.headers.get('Content-Length', 0))
+        data = self.rfile.read(content_length)
+        server = cast(_DSNodeHTTPServer, self.server)
+        status, response_data = server.dsnode_server._handle_request(
+            msg_type,
+            data,
+            self.client_address[0] if self.client_address else None,
+        )
+
+        self.send_response(status)
+        if response_data is not None:
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Length', str(len(response_data)))
+        self.end_headers()
+
+        if response_data is not None:
+            try:
+                self.wfile.write(response_data)
+            except BrokenPipeError:
+                pass
+
+    def log_message(self, format: str, *args):
+        return
+
+class DSNodeServer(StateNetworkNode):
     config: DSNodeConfig
+    network_ip: Optional[str]
     running: bool
-    app: Flask
     node: DSNode
     thread: Optional[threading.Thread]
+    http_server: Optional[_DSNodeHTTPServer]
+    create_alert: Callable[[str], None]
 
     def __init__(
         self, 
         config: DSNodeConfig,
+        create_alert: Callable[[str], None],
         disconnect_callback: Optional[Callable] = None,
         update_callback: Optional[Callable] = None,
-        receive_callback: Optional[Callable] = None
+        receive_callback: Optional[Callable] = None,
     ):
-        self.config = config
+        detected_ip = self._detect_local_ip() or config.network_ip
+        self.network_ip = detected_ip
+        self.config = replace(config, network_ip=detected_ip) if config.network_ip != detected_ip else config
         self.running = False
         self.thread = None
-        
-        # Create Flask app
-        self.app = Flask(__name__)
-        self.app.logger.setLevel(logging.ERROR)  # Reduce Flask's logging noise
+        self.http_server = None
+        self.create_alert = create_alert
         
         # Create DSNode
-        self.node = DSNode(config, VERSION, disconnect_callback, update_callback, receive_callback)
-        
-        # Set up Flask routes
-        self._setup_routes()
+        self.node = DSNode(self.config, VERSION, create_alert, disconnect_callback, update_callback, receive_callback)
 
-    def _setup_routes(self):
-        """Set up Flask routes for each message type"""
-        
-        @self.app.route('/hello', methods=['POST'])
-        def handle_hello_route():
-            return self._handle_request(MSG_HELLO, request.data, request.remote_addr)
-        
-        @self.app.route('/peers', methods=['POST'])
-        def handle_peers_route():
-            return self._handle_request(MSG_PEERS, request.data, request.remote_addr)
-        
-        @self.app.route('/update', methods=['POST'])
-        def handle_update_route():
-            return self._handle_request(MSG_UPDATE, request.data, request.remote_addr)
-        
-        @self.app.route('/ping', methods=['POST'])
-        def handle_ping_route():
-            return self._handle_request(MSG_PING, request.data, request.remote_addr)
+    def _detect_local_ip(self) -> Optional[str]:
+        """Best-effort local network IP detection."""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                # No traffic is sent, but this lets the OS select the outbound interface.
+                s.connect(("8.8.8.8", 80))
+                ip = s.getsockname()[0]
+                if ip and not ip.startswith("127."):
+                    return ip
+        except Exception:
+            pass
 
-        @self.app.route('/data', methods=['POST'])
-        def handle_data_route():
-            return self._handle_request(MSG_DATA, request.data, request.remote_addr)
+        try:
+            ip = socket.gethostbyname(socket.gethostname())
+            if ip and not ip.startswith("127."):
+                return ip
+        except Exception:
+            pass
 
+        return None
 
-    def _handle_request(self, msg_type: int, data: bytes, remote_addr: Optional[str]) -> Response:
+    def _handle_request(self, msg_type: int, data: bytes, remote_addr: Optional[str]) -> Tuple[int, Optional[bytes]]:
         if not self.running:
-            return Response(status=500)
+            return 500, None
         try:
             self.node.ensure_ip_allowed(remote_addr)
 
             # Decrypt the data
             if self.config.aes_key is not None:
-                data = self.node.decrypt_data(data)
+                try:
+                    data = self.node.decrypt_data(data)
+                except Exception:
+                    return 401, b"Missing or incorrect encryption key"
             
             if len(data) < 1:
-                return Response(status=400)
+                return 400, None
             
             # First byte should be message type (for verification)
             received_msg_type = data[0]
@@ -92,7 +138,7 @@ class DSNodeServer:
             
             if received_msg_type != msg_type:
                 self.node.logger.error(f"Message type mismatch: expected {msg_type}, got {received_msg_type}")
-                return Response(status=400)
+                return 400, None
             
             response_data = None
             
@@ -120,58 +166,71 @@ class DSNodeServer:
                 response_with_type = bytes([msg_type]) + response_data
                 if self.config.aes_key is not None:
                     response_with_type = self.node.encrypt_data(response_with_type)
-                return Response(response_with_type, status=200, mimetype='application/octet-stream')
+                return 200, response_with_type
             else:
-                return Response(status=204)  # No content
+                return 204, None  # No content
                 
         except Exception as e:
             if len(e.args) >= 2 and isinstance(e.args[0], int):
                 # Error with HTTP status code
                 self.node.logger.error(f"Error handling {msg_type} from {remote_addr}: {e.args[1]}")
-                return Response(status=e.args[0])
+                return e.args[0], e.args[1].encode()
             else:
                 self.node.logger.error(f"Error handling {msg_type} from {remote_addr}: {e}")
-                return Response(status=500)
+                return 500, None
 
     def stop(self):
         self.node.shutting_down = True
         self.running = False
+        if self.http_server is not None:
+            self.http_server.shutdown()
+            self.http_server.server_close()
+            self.http_server = None
         if self.thread is not None:
             stop_thread(self.thread)
 
     def _serve_forever(self, port: int):
         if self.running:
             return
-        # Suppress Flask startup messages
-        cli = sys.modules['flask.cli']
-        cli.show_server_banner = lambda *x: None
-        
+
         self.running = True
-        self.app.run(host='0.0.0.0', port=port, threaded=True, use_reloader=False)
-        self.node.logger.info(f'Started DSNode on HTTP port {port}')
+        try:
+            self.http_server = _DSNodeHTTPServer(('0.0.0.0', port), self)
+            self.node.logger.info(f'Started DSNode on HTTP port {port}')
+            self.http_server.serve_forever()
+        except Exception as e:
+            self.node.add_log(str(e), "ERROR")
+            return
 
     @staticmethod
     def generate_key() -> str:
         return generate_aes_key().hex()
 
+
     @staticmethod 
     def start(
         config: DSNodeConfig, 
+        create_alert: Callable[[str], None],
         disconnect_callback: Optional[Callable] = None, 
         update_callback: Optional[Callable] = None,
         receive_callback: Optional[Callable] = None
     ) -> 'DSNodeServer':
-        n = DSNodeServer(config, disconnect_callback, update_callback, receive_callback)
+        n = DSNodeServer(config, create_alert, disconnect_callback, update_callback, receive_callback)
         n.thread = threading.Thread(target=n._serve_forever, daemon=True, args=(config.port, ))
         n.thread.start()
 
         if n.config.bootstrap_nodes is not None and len(n.config.bootstrap_nodes) > 0:
+            connected = False
             for bs in n.config.bootstrap_nodes:
                 try:
                     n.node.bootstrap(bs)
+                    connected = True
                     break # Throws exception if connection is not made
                 except Exception as e:
-                    print(e)
+                    n.node.logger.error(e)
+
+            if not connected:
+                n.create_alert("Could not connect to any bootstrap node")
 
         return n
 
@@ -181,11 +240,11 @@ class DSNodeServer:
     def read_data(self, node_id: str, key: str) -> Optional[str]:
         return self.node.read_data(node_id, key)
     
-    def update_data(self, key: str, val: str):
-        return self.node.update_data(key, val)
+    def update_data(self, key: str, value: str):
+        self.node.update_data(key, value)
 
     def send_to_node(self, node_id: str, data: bytes):
-        return self.node.send_to_node(node_id, data)
+        self.node.send_to_node(node_id, data)
 
     def is_shut_down(self) -> bool:
         return self.node.shutting_down
@@ -202,6 +261,6 @@ class DSNodeServer:
     def set_disconnect_cb(self, cb: Callable):
         self.node.disconnect_cb = cb
 
-    def _receive_data(self, data: bytes):
+    def receive_data(self, data: bytes):
         if self.node.receive_cb is not None:
             self.node.receive_cb(data)

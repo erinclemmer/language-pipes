@@ -3,6 +3,7 @@ from logging import Logger
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from language_pipes.jobs.job_time import JobTime
+from language_pipes.util.utils import CHUNK_SIZE
 
 def _summary(values: Iterable[float]) -> Optional[dict]:
     values = list(values)
@@ -17,7 +18,6 @@ def _summary(values: Iterable[float]) -> Optional[dict]:
 
 class TimingData:
     job_id: str
-    chunk_size: int
     network_ms: List[float]
     network_pairs_ms: Dict[Tuple[str, str], List[float]]
     embed_ms: List[float]
@@ -26,9 +26,8 @@ class TimingData:
     token_ms: List[float]
     all_times: List[List[JobTime]]
 
-    def __init__(self, job_id: str, chunk_size: int = 1):
+    def __init__(self, job_id: str):
         self.job_id = job_id
-        self.chunk_size = chunk_size
         self.all_times = []
         self.network_ms = []
         self.network_pairs_ms = { }
@@ -43,7 +42,7 @@ class TimingData:
         self.all_times.append(new_times)
         ordered = sorted(new_times, key=lambda lt: lt.receive_time)
         for entry in ordered:
-            duration_ms = ((entry.send_time - entry.receive_time) * 1000.0) / self.chunk_size
+            duration_ms = ((entry.send_time - entry.receive_time) * 1000.0) / CHUNK_SIZE
             if entry.is_embed:
                 self.embed_ms.append(duration_ms)
             elif entry.is_head:
@@ -100,9 +99,9 @@ class TimingStats:
     
     current_times: List[JobTime]
 
-    def __init__(self, job_id: str, prefill_chunk_size: int):
+    def __init__(self, job_id: str):
         self.output_times = TimingData(job_id)
-        self.prefill_times = TimingData(job_id, prefill_chunk_size)
+        self.prefill_times = TimingData(job_id)
         self.current_times = []
 
     def add_timing(self, time: JobTime) -> None:
@@ -117,7 +116,7 @@ class TimingStats:
     def add_head_time(self, node_id: str) -> None:
         self.add_timing(JobTime(node_id=node_id, is_head=True))
     
-    def set_send_time(self, logger: Logger) -> None:
+    def set_send_time(self) -> None:
         if len(self.current_times) == 0:
             return
         last_time = self.current_times[-1]
@@ -134,17 +133,13 @@ class TimingStats:
         if type_str == "LAYER":
             elapsed /= last_time.end_layer - last_time.start_layer
         
-        logger.info(f"[TIMING] {type_str}: {elapsed*1000.0:.2f}ms")
-        
     def receive_network_job(self, times: List[JobTime]) -> None:
         self.current_times = times
 
-    def finalize_token(self, logger: Logger) -> None:
+    def finalize_token(self) -> None:
         self.output_times.add_times(self.current_times)
         self.current_times = []
-        self.output_times.log_summary(logger)
 
-    def finalize_prefill_chunk(self, logger: Logger) -> None:
+    def finalize_prefill_chunk(self) -> None:
         self.prefill_times.add_times(self.current_times)
         self.current_times = []
-        self.prefill_times.log_summary(logger)

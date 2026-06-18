@@ -34,7 +34,7 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "torch",
-    "transformers==4.57.6",
+    "transformers",
     "huggingface_hub",
     "uuid",
     "promise",
@@ -44,7 +44,8 @@ dependencies = [
     "flask",
     "ecdsa",
     "psutil",
-    "cryptography"
+    "cryptography",
+    "ansinout"
 ]
 
 [project.urls]
@@ -56,6 +57,9 @@ language-pipes="language_pipes.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/language_pipes"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.coverage.run]
 source = ["src/language_pipes"]

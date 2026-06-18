@@ -1,0 +1,5 @@
+can create new config
+can load config
+can create new node id
+can delete node id
+can select existing node id

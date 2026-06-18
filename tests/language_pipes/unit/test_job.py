@@ -4,6 +4,8 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
+from transformers import PretrainedConfig
+
 from language_pipes.jobs.job import Job
 from language_pipes.util.enums import ComputeStep, JobStatus
 
@@ -14,7 +16,7 @@ def make_job():
         messages=[],
         pipe_id="pipe-1",
         model_id="model-1",
-        prefill_chunk_size=6,
+        config=PretrainedConfig(num_hidden_layers=1),
     )
 
 

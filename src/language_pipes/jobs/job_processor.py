@@ -1,15 +1,12 @@
+from time import time
+from typing import Optional
 from enum import Enum, auto
 from dataclasses import dataclass
-from logging import Logger
-from typing import Optional
 
 from language_pipes.jobs.job import Job
-
 from language_pipes.pipes.pipe import Pipe
 from language_pipes.modeling.end_model import EndModel
-
 from language_pipes.util.enums import ComputeStep, JobStatus
-from language_pipes.config import LpConfig
 
 class JobState(Enum):
     VALIDATING = auto()    # Validating pipe and getting resources
@@ -21,23 +18,18 @@ class JobState(Enum):
 
 @dataclass
 class JobContext:
+    node_id: str
     job: Job
     pipe: Pipe
-    logger: Logger
-    config: LpConfig
     end_model: Optional[EndModel]
 
-def should_prefill_chunk(job) -> bool:
+def should_prefill_chunk(job: Job) -> bool:
     return job.current_token == 0 and job.chunking.has_more()
-
-def log_done_error(ctx: JobContext, message: str) -> None:
-    if ctx.logger is not None:
-        ctx.logger.error(message)
 
 def get_next_state(ctx: JobContext) -> JobState:
     cs = ctx.job.compute_step
     if cs == ComputeStep.HEAD or cs == ComputeStep.EMBED or cs == ComputeStep.TOKENIZE:
-        if ctx.job.origin_node_id != ctx.config.node_id:
+        if ctx.job.origin_node_id != ctx.node_id:
             return JobState.SEND
         
         if should_prefill_chunk(ctx.job) or cs == ComputeStep.EMBED or cs == ComputeStep.TOKENIZE:
@@ -50,10 +42,6 @@ def get_next_state(ctx: JobContext) -> JobState:
 
     model = ctx.pipe.get_layer(ctx.job.current_layer, False)
     if model is None:
-        log_done_error(
-            ctx,
-            f"[FSM] Missing model for layer={ctx.job.current_layer}; completing with error."
-        )
         return JobState.DONE
 
     if model.virtual:
@@ -93,6 +81,7 @@ class JobProcessor:
     def __init__(self, ctx: JobContext):
         self.state = JobState.VALIDATING
         self.ctx = ctx
+        self.logs = []
     
     def run(self):
         while self.state != JobState.DONE:
@@ -117,30 +106,19 @@ class JobProcessor:
     def _state_validating(self) -> JobState:
         """Validate context for processing"""
         if self.ctx.job is None:
-            log_done_error(self.ctx, "[FSM] Missing job; completing with error.")
-            return JobState.DONE
-        
-        pipe = self.ctx.pipe
-        
-        # Ensure we have an available pipe
-        if pipe is None or not pipe.is_complete(self.ctx.config.num_local_layers):
-            log_done_error(self.ctx, "[FSM] Pipe unavailable or incomplete; completing with error.")
             return JobState.DONE
         
         if self.ctx.job.compute_step == ComputeStep.HEAD:
             # Ensure we only process the ends of jobs we sent out
-            if self.ctx.job.origin_node_id != self.ctx.config.node_id:
-                log_done_error(self.ctx, "[FSM] Layer job origin mismatch; completing with error.")
+            if self.ctx.job.origin_node_id != self.ctx.node_id:
                 return JobState.DONE
             
             # Ensure we have the end model ready            
             if self.ctx.end_model is None:
-                log_done_error(self.ctx, "[FSM] End model unavailable; completing with error.")
                 return JobState.DONE
             
             # Job returned from network - check pending job
             if self.ctx.job is None:
-                log_done_error(self.ctx, "[FSM] Job missing; completing with error.")
                 return JobState.DONE
 
         return get_next_state(self.ctx)
@@ -155,7 +133,6 @@ class JobProcessor:
         # Log prefill completion when transitioning from prefill to decode
         if job.current_token == 0:
             if job.chunking.has_more():
-                log_done_error(self.ctx, "Received head state for job that was not done chunking")
                 return JobState.DONE
 
             job.chunking.disable()
@@ -163,22 +140,26 @@ class JobProcessor:
         job.compute_step = ComputeStep.NORM
         job.current_layer = 0
 
-        job.timing_stats.add_head_time(self.ctx.config.node_id)
+        job.timing_stats.add_head_time(self.ctx.node_id)
         end_model.compute_norm(job)
         end_model.compute_head(job)
-        job.timing_stats.set_send_time(self.ctx.logger)
-        job.timing_stats.finalize_token(self.ctx.logger)
-        job.print_job(self.ctx.logger)
+        job.timing_stats.set_send_time()
+        job.timing_stats.finalize_token()
 
         # Job completed
         if job.status == JobStatus.COMPLETED:
             end_model.set_result(job)
             job.complete()
+            self.logs.append((time(), f"Job {job.job_id[:4]} completed"))
             return JobState.DONE
         
         # More tokens to generate - update and continue
         if not job.send_update():
-            log_done_error(self.ctx, "[FSM] Failed to send job update; completing with error.")
+            job.stale = True
+            job.status = JobStatus.COMPLETED
+            end_model.set_result(job)
+            job.complete()
+            self.logs.append((time(), f"Job {job.job_id[:4]} completed"))
             return JobState.DONE
 
         return JobState.EMBED
@@ -187,29 +168,28 @@ class JobProcessor:
         """Embed the next token, handling prefill chunks when needed."""
         job = self.ctx.job
         end_model = self.ctx.end_model
-        logger = self.ctx.logger
 
         if end_model is None:
             return JobState.DONE
 
         if job.prompt_tokens == 0:
             end_model.tokenize(job)
-            logger.info(f"[Prefill] job={job.job_id[:8]} started")
-            job.init_chunking(self.ctx.config.prefill_chunk_size)
-            job.chunking.print_start(logger)
+            job.init_chunking()
         elif job.chunking.is_active():
             job.chunking.advance()
-            job.timing_stats.finalize_prefill_chunk(logger)
-            logger.info(f"[PREFILL] Chunk {job.chunking.current_chunk} / {job.chunking.total_chunks} ({(job.chunking.current_chunk / job.chunking.total_chunks) * 100.0:.2f}%)")
+            job.timing_stats.finalize_prefill_chunk()
             job.delta = ""
             if not job.send_update():
-                log_done_error(self.ctx, "[FSM] Failed to send prefill job update; completing with error.")
+                job.stale = True
+                job.status = JobStatus.COMPLETED
+                end_model.set_result(job)
+                job.complete()
                 return JobState.DONE
         
         job.set_last_update()
-        job.timing_stats.add_embed_time(self.ctx.config.node_id)
-        end_model.compute_embed(job, logger, self.ctx.config.prefill_chunk_size)
-        job.timing_stats.set_send_time(logger)
+        job.timing_stats.add_embed_time(self.ctx.node_id)
+        end_model.compute_embed(job)
+        job.timing_stats.set_send_time()
         
         return get_next_state(self.ctx)
 
@@ -228,7 +208,7 @@ class JobProcessor:
         if model.virtual:
             return JobState.SEND
         
-        model.process_job(job, self.ctx.logger)
+        model.process_job(job)
         job.set_last_update()
         
         return get_next_state(self.ctx)

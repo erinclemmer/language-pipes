@@ -166,7 +166,7 @@ If hidden states are transmitted immediately after embedding (capture at layer 0
 
 **Baseline recovery probability: ~100%** at layer 0.
 
-**Mitigation:** Retaining the first N transformer layers on the End Model node by setting the `num_local_layers` config option eliminates layer-0 exposure entirely. For this reason the `num_local_layers` config defaults to 1.
+**Mitigation:** Retaining the first N transformer layers on the End Model node by setting the `LP_NUM_LOCAL_LAYERS` environment variable eliminates layer-0 exposure entirely. For this reason `LP_NUM_LOCAL_LAYERS` defaults to 1.
 
 #### 2. SipIt Deep-Layer Recovery
 
@@ -198,7 +198,7 @@ The following table summarizes the available mitigations, their effectiveness ag
 |------------|-------|--------------------|---------------|
 | **Architectural separation** (always on) | Prevents casual observation; does not prevent deliberate inversion | Same | Default behavior |
 | **AES encryption** (`network_key`) | Does not apply (malicious node decrypts to compute) | Same | `network_key` in config |
-| **First-N local layers** | **Effective.** Recovery drops exponentially with N | No effect (attacker completes forward pass) | `num_local_layers` in config |
+| **First-N local layers** | **Effective.** Recovery drops exponentially with N | No effect (attacker completes forward pass) | `LP_NUM_LOCAL_LAYERS` environment variable |
 | **Trusted layer nodes** | **Effective.** Trusted operator should not attempt inversion | **Effective.** Same | Deploy layer nodes only on trusted machines |
 
 ### Probabilistic Security Summary
@@ -238,18 +238,18 @@ With recommended mitigations + **trusted layer node operators**:
 
 ```toml
 # Your machine
-[[layer_models]]
-id = "Qwen/Qwen3-1.7B"
-device = "cpu"
-max_memory = 4
-
 end_models = ["Qwen/Qwen3-1.7B"]  # You control the End Model
+
+[[layer_models]]
+model_id = "Qwen/Qwen3-1.7B"
+device = "cpu"
+memory = 4
 
 # Friend's machine
 [[layer_models]]
-id = "Qwen/Qwen3-1.7B"
+model_id = "Qwen/Qwen3-1.7B"
 device = "cuda:0"
-max_memory = 8
+memory = 8
 ```
 
 Your friend can choose to also host an end model, but only your machine will see your prompts if you send requests to your machine. Enable `network_key` for AES-encrypted transport between nodes.
@@ -289,7 +289,8 @@ For the strongest protection, deploy layer nodes exclusively on machines operate
 * [Privacy Protection](./privacy.md)
 * [Configuration Manual](./configuration.md)
 * [Architecture Overview](./architecture.md)
-* [Open AI Compatible API](./oai.md)
+* [OpenAI-Compatible API](./oai.md)
 * [Job Processor State Machine](./job-processor.md)
-* [The default peer to peer implementation](./distributed-state-network/README.md)
-* [The way Language Pipes abstracts from model architecture](./llm-layer-collector.md)
+* [Distributed State Network](./distributed-state-network/README.md)
+* [LLM Layer Collector](./llm-layer-collector.md)
+* [Release Notes](./release-notes.md)

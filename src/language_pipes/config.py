@@ -1,294 +1,142 @@
 import os
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass
 from pathlib import Path
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
+import toml
+import torch
 
-def get_env_config() -> Dict[str, Optional[str]]:
-    return {
-        "logging_level": os.getenv("LP_LOGGING_LEVEL"),
-        "oai_port": os.getenv("LP_OAI_PORT"),
-        "api_keys": os.getenv("LP_API_KEYS"),
-        "app_dir": os.getenv("LP_APP_DIR"),
-        "node_id": os.getenv("LP_NODE_ID"),
-        "peer_port": os.getenv("LP_PEER_PORT"),
-        "network_ip": os.getenv("LP_NETWORK_IP"),
-        "bootstrap_address": os.getenv("LP_BOOTSTRAP_ADDRESS"),
-        "bootstrap_port": os.getenv("LP_BOOTSTRAP_PORT"),
-        "network_key": os.getenv("LP_NETWORK_KEY"),
-        "whitelist_ips": os.getenv("LP_WHITELIST_IPS"),
-        "whitelist_node_ids": os.getenv("LP_WHITELIST_NODE_IDS"),
-        "model_validation": os.getenv("LP_MODEL_VALIDATION"),
-        "max_pipes": os.getenv("LP_MAX_PIPES"),
-        "layer_models": os.getenv("LP_LAYER_MODELS"),
-        "prefill_chunk_size": os.getenv("LP_PREFILL_CHUNK_SIZE"),
-        "num_local_layers": os.getenv("LP_NUM_LOCAL_LAYERS"),
-        "model_dir": os.getenv("LP_MODEL_DIR"),
-        "huggingface_token": os.getenv("LP_HUGGINGFACE_TOKEN"),
-    }
-
-
-def apply_env_overrides(data: Dict[str, Any], cli_args: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    env_map = get_env_config()
-    cli_args = cli_args or {}
-    
-    def precedence(key: str, cli_key: Optional[str] = None) -> Any:
-        """Get value with precedence: CLI > env > config file."""
-        # Check CLI args first
-        arg_key = cli_key if cli_key else key
-        if arg_key in cli_args and cli_args[arg_key] is not None:
-            return cli_args[arg_key]
-        # Then environment variables
-        if key in env_map and env_map[key] is not None:
-            return env_map[key]
-        # Finally config file
-        if key in data:
-            return data[key]
-        return None
-
-    config = {
-        "logging_level": precedence("logging_level"),
-        "oai_port": precedence("oai_port", "openai_port"),
-        "api_keys": precedence("api_keys", "api_keys"),
-        "app_dir": precedence("app_dir"),
-        "node_id": precedence("node_id"),
-        "peer_port": precedence("peer_port"),
-        "network_ip": precedence("network_ip"),
-        "end_models": precedence("end_models"),
-        "bootstrap_address": precedence("bootstrap_address"),
-        "bootstrap_port": precedence("bootstrap_port"),
-        "network_key": precedence("network_key"),
-        "whitelist_ips": precedence("whitelist_ips"),
-        "whitelist_node_ids": precedence("whitelist_node_ids"),
-        "model_validation": precedence("model_validation"),
-        "max_pipes": precedence("max_pipes"),
-        "num_local_layers": precedence("num_local_layers"),
-        "layer_models": precedence("layer_models"),
-        "prefill_chunk_size": precedence("prefill_chunk_size"),
-        "model_dir": precedence("model_dir"),
-        "huggingface_token": precedence("huggingface_token"),
-    }
-
-    if config["peer_port"] is not None:
-        config["peer_port"] = int(config["peer_port"])
-    if config["oai_port"] is not None:
-        config["oai_port"] = int(config["oai_port"])
-    if config["bootstrap_port"] is not None:
-        config["bootstrap_port"] = int(config["bootstrap_port"])
-
-    if isinstance(config["whitelist_ips"], str):
-        config["whitelist_ips"] = [
-            ip.strip() for ip in config["whitelist_ips"].split(",") if ip.strip() != ""
-        ]
-    elif config["whitelist_ips"] is None:
-        config["whitelist_ips"] = []
-
-    if isinstance(config["whitelist_node_ids"], str):
-        config["whitelist_node_ids"] = [
-            node_id.strip() for node_id in config["whitelist_node_ids"].split(",") if node_id.strip() != ""
-        ]
-    elif config["whitelist_node_ids"] is None:
-        config["whitelist_node_ids"] = []
-
-    if config["layer_models"] is not None:
-        config["layer_models"] = parse_layer_models(config["layer_models"])
-
-    return config
-
-
-def parse_layer_models(layer_models: str | List[str] | Dict[str, Any] | List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    if isinstance(layer_models, str):
-        layer_models = [layer_models]
-    
-    result = []
-    for m in layer_models:
-        if isinstance(m, str):
-            model_config = {}
-            for pair in m.split(","):
-                if "=" not in pair:
-                    raise ValueError(
-                        f"Invalid format '{pair}' in '{m}'. "
-                        "Expected key=value pairs (e.g., id=Qwen/Qwen3-1.7B,device=cpu,memory=4)"
-                    )
-                key, value = pair.split("=", 1)
-                model_config[key.strip()] = value.strip()
-            
-            required_keys = {"id", "device", "memory"}
-            missing = required_keys - set(model_config.keys())
-            if missing:
-                raise ValueError(f"Missing required keys {missing} in '{m}'")
-            
-            result.append({
-                "id": model_config["id"],
-                "device": model_config["device"],
-                "max_memory": float(model_config["memory"])
-            })
-        else:
-            result.append(m)
-    
-    return result
-
-def default_config_dir() -> str:
-    return str(Path.home() / ".config" / "language_pipes")
-
-
-def default_model_dir() -> str:
-    return str(Path.home() / ".cache" / "language_pipes" / "models")
-
+from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.util.config import get_app_dir
 
 @dataclass
-class LayerModel:
-    id: str
-    device: str
-    max_memory: float  # in gigabytes
+class ModelToLoad:
+    model_id: str
+    device: torch.device
+    memory: float
+
+    def to_dict(self):
+        return {
+            "model_id": self.model_id,
+            "device": str(self.device),
+            "memory": self.memory
+        }
 
     @staticmethod
-    def from_dict(data: Dict) -> 'LayerModel':
-        return LayerModel(
-            id=data['id'],
-            device=data['device'],
-            max_memory=float(data['max_memory'])
+    def from_dict(data: Dict[str, Any]):
+        return ModelToLoad(
+            model_id=data.get("model_id", ""),
+            device=torch.device(data.get("device", "cpu")),
+            memory=data.get("memory", 0)
         )
 
-@dataclass
 class LpConfig:
-    # Core settings
-    node_id: str
-    app_dir: str
-    model_dir: str
-    logging_level: str
-    
-    # API server
-    oai_port: Optional[int]
+    job_port: int
     api_keys: List[str]
-    
-    # Model hosting
-    layer_models: List[LayerModel]
+    layer_models: List[ModelToLoad]
     end_models: List[str]
-    huggingface_token: Optional[str]
-    
-    # Processing options
-    max_pipes: int
-    model_validation: bool
-    prefill_chunk_size: int
     num_local_layers: int
 
-    @staticmethod
-    def from_dict(data: Dict) -> 'LpConfig':
-        if data.get("node_id") is None:
-            raise Exception("Node ID must be supplied to config")
-        
-        layer_models = data.get("layer_models", None)
-        if data.get("layer_models") is None:
-            layer_models = []
-        
-        logging_level = data.get('logging_level', None)
-        if logging_level is None:
-            logging_level = "INFO"
-        
-        app_dir = data.get('app_dir', None)
-        if app_dir is None:
-            app_dir = default_config_dir()
-        
-        model_dir = data.get('model_dir', None)
-        if model_dir is None:
-            model_dir = default_model_dir()
-        
-        model_validation = data.get('model_validation', None)
-        if model_validation is None:
-            model_validation = False
-        
-        prefill_chunk_size = data.get('prefill_chunk_size', None)
-        if prefill_chunk_size is None:
-            prefill_chunk_size = 6
-        
-        max_pipes = data.get('max_pipes', None)
-        if max_pipes is None:
-            max_pipes = 1
-        
-        num_local_layers = data.get('num_local_layers', None)
-        if num_local_layers is None:
-            num_local_layers = 1
+    network_config: DSNodeConfig
 
-        end_models = data.get('end_models', None)
-        if end_models is None:
-            end_models = []
+    _file_path: Optional[Path]
 
-        api_keys: List[str] = data.get('api_keys', [])
-
-        return LpConfig(
-            # Core settings
-            node_id=data.get('node_id'),
-            logging_level=logging_level,
-            app_dir=app_dir,
-            model_dir=model_dir,
-            
-            # API server
-            oai_port=data.get('oai_port', None),
-            api_keys=api_keys,
-            
-            # Model hosting
-            layer_models=[LayerModel.from_dict(m) for m in layer_models],
-            end_models=end_models,
-            huggingface_token=data.get('huggingface_token', None),
-            
-            # Processing options
-            max_pipes=max_pipes,
-            model_validation=model_validation,
-            prefill_chunk_size=prefill_chunk_size,
-            num_local_layers=num_local_layers
-        )
+    def __init__(self):
+        self.job_port = 8000 
+        self.api_keys = []
+        self.layer_models = []
+        self._file_path = None
+        self.network_config = DSNodeConfig.from_dict({ })
+    
+    def save(self):
+        if self._file_path is None:
+            return
+        
+        with open(self._file_path, 'w', encoding='utf-8') as f:
+            toml.dump({
+                "job_port": self.job_port,
+                "api_keys": self.api_keys,
+                "layer_models": [o.to_dict() for o in self.layer_models],
+                "end_models": self.end_models,
+                "node_id": self.network_config.node_id,
+                "peer_port": self.network_config.port,
+                "network_ip": self.network_config.network_ip,
+                "network_key": self.network_config.aes_key,
+                "whitelist_ips": self.network_config.whitelist_ips,
+                "whitelist_node_ids": self.network_config.whitelist_node_ids,
+                "bootstrap_nodes": [{
+                    "address": o.address,
+                    "port": o.port
+                } for o in self.network_config.bootstrap_nodes]
+            }, f)
 
     def to_string(self) -> str:
-        lines = []
-        
-        lines.append("")
-        lines.append("=" * 60)
-        lines.append("  Configuration Details")
-        lines.append("=" * 60)
-        
-        # Core settings
-        lines.append("")
-        lines.append("--- Core Settings ---")
-        lines.append(f"  {'Node ID:':<18} {self.node_id}")
-        lines.append(f"  {'App Directory:':<18} {self.app_dir}")
-        lines.append(f"  {'Model Directory:':<18} {self.model_dir}")
-        lines.append(f"  {'Logging Level:':<18} {self.logging_level}")
-        
-        # API settings
-        lines.append("")
-        lines.append("--- API Settings ---")
-        if self.oai_port:
-            lines.append(f"  {'OpenAI API Port:':<18} {self.oai_port}")
-            if len(self.api_keys) > 0:
-                lines.append(f"  API Keys: {len(self.api_keys)} keys loaded")
+        lines = [
+            "=" * 60,
+            "--- Configuration Settings ---",
+            "=" * 60,
+            "",
+            f"Job Port: {self.job_port}"
+        ]
+
+        lines.append("API Keys:")
+        if len(self.api_keys) > 0:
+            for key in self.api_keys:
+                lines.append(f"- {key}")
         else:
-            lines.append("  OpenAI API:         Disabled")
-        
-        # Processing options
+            lines.append("- None")
+
         lines.append("")
-        lines.append("--- Processing Options ---")
-        lines.append(f"  {'Max Pipes:':<18} {self.max_pipes}")
-        lines.append(f"  {'Model Validation:':<18} {'Enabled' if self.model_validation else 'Disabled'}")
-        lines.append(f"  {'Prefill Chunk Size:':<18} {self.prefill_chunk_size}")
-        lines.append(f"  {'Num local layers:':<18} {self.num_local_layers}")
-        
-        # Model hosting
-        lines.append("")
-        lines.append("--- Model Hosting ---")
-        lines.append(f"  {'HuggingFace Token:':<18} {'Set' if self.huggingface_token else 'Not set'}")
-        
-        # Hosted models
-        lines.append("")
-        lines.append(f"--- Layer Models ({len(self.layer_models)}) ---")
-        for i, model in enumerate(self.layer_models):
-            lines.append("")
-            lines.append(f"  Model #{i+1}:")
-            lines.append(f"    ID:          {model.id}")
-            lines.append(f"    Device:      {model.device}")
-            lines.append(f"    Max Memory:  {model.max_memory} GB")
+        lines.append("Layer Models:")
+        if len(self.layer_models) > 0:
+            for model in self.layer_models:
+                lines.extend([
+                    f"Model ID: {model.model_id}",
+                    f"Max Memory: {model.memory}",
+                    f"Device: {model.device}",
+                    ""
+                ])
+        else:
+            lines.append("- None")
         
         lines.append("")
-        lines.append("=" * 60)
+        lines.append("End Models:")
+        if len(self.end_models) > 0:
+            for model in self.end_models:
+                lines.append(f"- {model}")
+        else:
+            lines.append("- None")
         
+        lines.append(self.network_config.to_string())
+
         return "\n".join(lines)
+
+    @staticmethod
+    def from_file(file_path: Path) -> 'LpConfig':
+        cfg = LpConfig()
+        
+        if not os.path.exists(file_path):
+            return cfg
+
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = toml.load(f)
+
+        cfg.job_port = data.get("job_port", 8000)
+        cfg.api_keys = data.get("api_keys", [])
+        cfg.layer_models = [ModelToLoad.from_dict(o) for o in data.get("layer_models", [])]
+        cfg.end_models = data.get("end_models", [])
+        cfg.network_config = DSNodeConfig.from_dict({
+            "credential_dir": str(get_app_dir() / "credentials"),
+            "logging_dir": str(get_app_dir() / "logs"),
+            "node_id": data.get("node_id", None),
+            "aes_key": data.get("network_key", None),
+            "network_ip": data.get("network_ip", None),
+            "port": data.get("peer_port", 5000),
+            "bootstrap_nodes": data.get("bootstrap_nodes", []),
+            "whitelist_ips": data.get("whitelist_ips", []),
+            "whitelist_node_ids": data.get("whitelist_node_ids", [])
+        })
+        
+        cfg._file_path = file_path
+
+        return cfg

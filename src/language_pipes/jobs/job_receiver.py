@@ -9,24 +9,19 @@ from language_pipes.jobs.job import ComputeStep
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob
+from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.jobs.job_processor import JobProcessor, JobContext
 
-from language_pipes.modeling.model_manager import ModelManager
-
-from language_pipes.config import LpConfig
-
 class JobReceiver:
-    config: LpConfig
     job_factory: JobFactory
     job_queue: List[NetworkJob]
     pipe_manager: PipeManager
     model_manager: ModelManager
+    shutdown: bool
     is_shutdown: Callable[[], bool]
 
     def __init__(
             self, 
-            config: LpConfig,
-            logger,
             job_factory: JobFactory,
             job_tracker: JobTracker,
             pipe_manager: PipeManager,
@@ -34,20 +29,20 @@ class JobReceiver:
             is_shutdown: Callable[[], bool]
     ):
         self.job_queue = []
+        self.logs = []
         self.job_tracker = job_tracker
         self.job_factory = job_factory
         self.model_manager = model_manager
         self.pipe_manager = pipe_manager
-        self.config = config
         self.is_shutdown = is_shutdown
-        self.logger = logger
-
+        self.shutdown = False
+        
         Thread(target=self._job_runner_loop, args=()).start()
 
     def _wait_for_job(self) -> Optional[NetworkJob]:
         """Wait for a job from the queue. Returns None if shutting down."""
         while True:
-            if self.is_shutdown():
+            if self.is_shutdown() or self.shutdown:
                 return None
             if len(self.job_queue) > 0:
                 idx = random.randrange(len(self.job_queue))
@@ -63,9 +58,10 @@ class JobReceiver:
         
         job = self.job_tracker.get_job(network_job.job_id)
         if job is None:
-            job = self.job_tracker.add_job(network_job)
-            if job is None:
-                return
+            pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
+            assert pipe is not None
+            job = self.job_tracker.add_job(network_job, self.model_manager.get_config(pipe.model_id))
+            assert job is not None
 
         # Validate network job
         if not job.receive_network_job(network_job):
@@ -78,15 +74,15 @@ class JobReceiver:
         end_model = self.model_manager.get_end_model(pipe.model_id)
         
         fsm = JobProcessor(JobContext(
-            logger=self.logger,
+            node_id=self.pipe_manager.router_pipes.router.node_id(),
             pipe=pipe,
             end_model=end_model,
-            job=job,
-            config=self.config
+            job=job
         ))
 
         try:
             fsm.run()
+            self.logs.extend(fsm.logs)
         except Exception as e:
             print(e)
         
@@ -105,7 +101,10 @@ class JobReceiver:
 
     def receive_data(self, data: bytes):
         """Receive and validate incoming job data."""
-        job, valid = NetworkJob.from_bytes(data)
+        try:
+            job, valid = NetworkJob.from_bytes(data)
+        except Exception:
+            return
         if not valid:
             self.restart_token(job)
             return

@@ -17,58 +17,72 @@ from language_pipes.jobs.job_data import computationStateToJobData
 
 from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.modeling.compute import compute_layers
-
-from language_pipes.util import clone_model
+from language_pipes.util.utils import CHUNK_SIZE
 
 class EndModel:
     model_id: str
     process_id: str
-    device: str
-    input_embedding: torch.nn.Embedding
-    norm: AutoRMSNorm
-    head: torch.nn.Linear
+    device: torch.device
+    loaded: bool
+    num_local_layers: int
+    input_embedding: Optional[torch.nn.Embedding]
+    norm: Optional[AutoRMSNorm]
+    head: Optional[torch.nn.Linear]
+    per_layer_embedder: Optional[torch.nn.Module]
     collector: LlmLayerCollector
     layers: List[AutoDecoderLayer]
 
-    def __init__(self, num_local_layers: int, model_dir: str, model_id: str, device: str, huggingface_token: str | None = None):
+    def __init__(self, num_local_layers: int, model_dir: Path, model_id: str, device: str):
         self.model_id = model_id
-        self.device = device
-
+        self.loaded = False
+        self.num_local_layers = num_local_layers
         self.process_id = str(uuid4())
-        model_path = str(Path(model_dir) / self.model_id)
-        if not os.path.exists(model_path):
-            clone_model(model_id, model_path, token=huggingface_token)
+        model_path = model_dir / self.model_id
         self.meta_data = LlmMetadata(model_path)
+        self.device = torch.device(device)
         self.collector = LlmLayerCollector(
-            model_dir=os.path.join(model_path, 'data'),
-            cache_file=os.path.join(model_path, 'cache.json'),
-            device=device,
-            dtype=torch.float16
+            model_dir=model_path / "data",
+            cache_file=model_path / 'cache.json',
+            device=torch.device(device),
+            dtype=torch.bfloat16
         )
         self.layers = []
-        if num_local_layers > 0:
-            self.load_layers(num_local_layers)
         self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, 'data'))
     
+    @staticmethod
+    def get_num_local_layers():
+            num_local_layers = 0
+            try:
+                num_local_layers = int(os.environ.get("LP_NUM_LOCAL_LAYERS", 1))
+            except Exception:
+                pass
+            return num_local_layers
+
     def load_layers(self, num_local_layers: int):
         self.layers = self.collector.load_layer_set(0, num_local_layers - 1, self.device)
 
     def compute_layers(self, job: Job):
         if job.data is None:
             raise Exception("Job did not have data")
+        state, shared_kv_states = compute_layers(0, job.data, self.device, self.collector.config, self.layers, job.cache)
         job.set_layer(
-            state=compute_layers(0, job.data, self.device, self.layers, job.cache),
+            state=state,
             layer=len(self.layers),
-            num_hidden_layers=self.collector.config.num_hidden_layers
+            num_hidden_layers=self.collector.config.num_hidden_layers,
+            shared_kv_states=shared_kv_states
         )
 
     def size(self):
-        return self.meta_data.embed_size + self.meta_data.head_size
+        return self.meta_data.embed_size + self.meta_data.head_size + (self.meta_data.avg_layer_size * self.num_local_layers)
 
     def load(self):
         self.input_embedding = self.collector.load_input_embedding(self.device)
         self.norm = self.collector.load_norm(self.device)
         self.head = self.collector.load_head(self.device)
+        self.per_layer_embedder = self.collector.load_per_layer_embedder(self.device)
+        if self.num_local_layers > 0:
+            self.load_layers(self.num_local_layers)
+        self.loaded = True
 
     def tokenize(self, job: Job):
         prompt = self.tokenizer.apply_chat_template([m.to_json() for m in job.messages], tokenize=False, chat_template=self.tokenizer.chat_template, add_generation_prompt=True)
@@ -77,7 +91,7 @@ class EndModel:
         job.prompt_tokens = len(input_tokens)
         job.next_step()
 
-    def compute_embed(self, job: Job, logger: Logger, prefill_chunk_size: int):
+    def compute_embed(self, job: Job):
         if job.compute_step != ComputeStep.EMBED and job.compute_step != ComputeStep.TOKENIZE:
             raise ValueError('Invalid step for embedding')
         if self.input_embedding is None:
@@ -85,11 +99,12 @@ class EndModel:
         
         comp_state = StaticAutoModel.compute_embedding(
             prompt_tokens=job.prompt_tokens,
-            chunk_size=prefill_chunk_size,
+            chunk_size=CHUNK_SIZE,
             input_embedder=self.input_embedding,
             input_ids=torch.tensor([job.input_ids]),
             config=self.collector.config,
-            cache=job.cache
+            cache=job.cache,
+            per_layer_embedder=self.per_layer_embedder
         )
         
         job.data = computationStateToJobData(comp_state)
@@ -98,6 +113,7 @@ class EndModel:
     def compute_norm(self, job: Job):
         if job.data is None or job.data.state is None:
             raise RuntimeError("Cannot compute norm without job data")
+        assert self.norm is not None
         norm = self.norm(job.data.state.to(self.device))
         job.set_norm(norm)
 
@@ -124,7 +140,7 @@ class EndModel:
         head = StaticAutoModel.compute_head(
             head=self.head, 
             state=job.data.state, 
-            device=self.device,
+            device=str(self.device),
             top_k=job.top_k,
             top_p=job.top_p,
             min_p=job.min_p,
@@ -138,15 +154,17 @@ class EndModel:
         EndModel._add_stop_tokens(stop_tokens, self.tokenizer.convert_tokens_to_ids("<|eot_id|>"))
 
         job.set_output(head, stop_tokens)
-        job.delta = self.tokenizer.decode([job.input_ids[-1]], skip_special_tokens=True)
+        job.delta = self.tokenizer.decode([job.input_ids[-1]], skip_special_tokens=True, clean_up_tokenization_spaces=False)
 
     def set_result(self, job: Job):
         res_tokens = job.input_id_tensor()
         if res_tokens is None:
             raise Exception("Cannot decode result tensor: no input ids")
-        job.result = self.tokenizer.decode(res_tokens[job.prompt_tokens:], skip_special_tokens=True)
+        job.result = self.tokenizer.decode(res_tokens[job.prompt_tokens:], skip_special_tokens=True, clean_up_tokenization_spaces=False)
 
     def clean_up(self):
-        del self.input_embedding
-        del self.norm
-        del self.head
+        self.input_embedding = None
+        self.norm = None
+        self.head = None
+        self.per_layer_embedder = None
+        torch.cuda.empty_cache()

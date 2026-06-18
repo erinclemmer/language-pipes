@@ -19,7 +19,7 @@ from language_pipes.llm_layer_collector.cache import get_shard_files
 from language_pipes.llm_layer_collector.helpers import load_shard_tensor
 from language_pipes.llm_layer_collector.load_layer import files_to_load_for_layer
 from language_pipes.llm_layer_collector import StaticAutoModel
-from language_pipes.util import clone_model
+from language_pipes.util.utils import clone_model
 
 PROMPT = "The quick brown fox jumps over the "
 
@@ -73,7 +73,7 @@ def check_embedding(tst: unittest.TestCase, model_dir: str, cache_file: str, sta
 def check_norm(tst: unittest.TestCase, model_dir: str, cache_file: str, norm_dim: int):
     collector = LlmLayerCollector(model_dir, cache_file)
     norm = collector.load_norm()
-    norm = norm.to(dtype=torch.float16)
+    norm = norm.to(dtype=torch.bfloat16)
     tst.assertEqual(norm.cls.weight.shape, (norm_dim,))
 
 def check_head(tst: unittest.TestCase, model_dir: str, cache_file: str, head_shape: Tuple[int, int]):
@@ -232,7 +232,7 @@ class TestLlmLayerCollector(unittest.TestCase):
         os.rmdir('shard_test')
         
         try:
-            load_shard_tensor(collector.layer_files, collector.model_dir, 'bad_layer', torch.device('cpu'), torch.float16)
+            load_shard_tensor(collector.layer_files, collector.model_dir, 'bad_layer', torch.device('cpu'), torch.bfloat16)
             self.fail("Should have thrown an exception")
         except ValueError:
             pass

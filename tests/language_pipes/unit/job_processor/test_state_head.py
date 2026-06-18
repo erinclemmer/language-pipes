@@ -1,17 +1,15 @@
 import os
 import sys
-import torch
 import unittest
 from time import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'src'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tests', 'language_pipes', 'unit'))
 
-from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_processor import JobState
 from language_pipes.util.enums import ComputeStep, JobStatus
 
-from util import mock_complete, make_processor, make_job, make_config, FakeEndModel, FakeModel, FakeEndModelContinue, FakeLogger, PipeWrapper
+from util import mock_complete, make_processor, make_job, make_job_data, FakeEndModel, FakeModel, FakeEndModelContinue, PipeWrapper
 
 class TestHeadState(unittest.TestCase):
     """Tests for the _state_head method."""
@@ -25,11 +23,10 @@ class TestHeadState(unittest.TestCase):
         job = make_job(complete=mark_complete)
         job.compute_step = ComputeStep.HEAD
         job.current_layer = 0
-        job.data = JobData()
-        job.data.state = torch.zeros((1, 1))
+        job.data = make_job_data()
 
         end_model = FakeEndModel()
-        processor = make_processor(job=job, end_model=end_model)
+        processor = make_processor(job=job, pipe=None, end_model=end_model)
 
         next_state = processor._state_head()
 
@@ -40,26 +37,30 @@ class TestHeadState(unittest.TestCase):
 
     def test_transitions_to_done_on_update_failure(self):
         updates = []
+        completed = []
 
         def fail_update(job):
             updates.append(job.compute_step)
             return False
 
-        job = make_job(update=fail_update)
+        def mark_complete(job):
+            completed.append(job.job_id)
+
+        job = make_job(update=fail_update, complete=mark_complete)
         job.compute_step = ComputeStep.HEAD
         job.current_layer = 0
-        job.data = JobData()
-        job.data.state = torch.zeros((1, 1))
+        job.data = make_job_data()
 
         end_model = FakeEndModelContinue()
-        processor = make_processor(job=job, end_model=end_model)
+        processor = make_processor(job=job, pipe=None, end_model=end_model)
 
         next_state = processor._state_head()
 
         self.assertEqual(next_state, JobState.DONE)
-        self.assertEqual(job.status, JobStatus.IN_PROGRESS)
+        self.assertEqual(job.status, JobStatus.COMPLETED)
         self.assertEqual(len(updates), 1)
-        self.assertNotIn("set_result", end_model.calls)
+        self.assertIn("set_result", end_model.calls)
+        self.assertEqual(completed, [job.job_id])
 
     def test_transitions_to_embed_on_successful_update(self):
         updates = []
@@ -71,11 +72,10 @@ class TestHeadState(unittest.TestCase):
         job = make_job(update=record_update)
         job.compute_step = ComputeStep.HEAD
         job.current_layer = 0
-        job.data = JobData()
-        job.data.state = torch.zeros((1, 1))
+        job.data = make_job_data()
 
         end_model = FakeEndModelContinue()
-        processor = make_processor(job=job, end_model=end_model)
+        processor = make_processor(job=job, pipe=None, end_model=end_model)
 
         next_state = processor._state_head()
 
@@ -88,15 +88,13 @@ class TestHeadState(unittest.TestCase):
         job = make_job(origin_node_id="node-b")
         job.compute_step = ComputeStep.HEAD
         job.current_layer = 1
-        job.data = JobData()
-        job.data.state = torch.zeros((1, 1))
+        job.data = make_job_data()
         model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
         pipe = PipeWrapper("node-a", "model-a", [model])
 
         processor = make_processor(
             job=job,
             pipe=pipe,
-            config=make_config(node_id="node-a"),
             end_model=FakeEndModel(),
         )
 
@@ -105,23 +103,19 @@ class TestHeadState(unittest.TestCase):
         self.assertEqual(processor.states, [JobState.VALIDATING])
         self.assertEqual(processor.state, JobState.DONE)
 
-    def test_logs_job_data_and_timing_when_enabled(self):
+    def test_completes_without_logging_dependencies(self):
         job = make_job(complete=mock_complete)
+        job.origin_node_id = "node-1"
         job.compute_step = ComputeStep.HEAD
         job.current_layer = 1
         job.prompt_tokens = 2
-        job.prefill_start_time = time()
-        job.data = JobData()
-        job.data.state = torch.zeros((1, 1))
-        logger = FakeLogger()
+        job.data = make_job_data()
         model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)
         pipe = PipeWrapper("node-a", "model-a", [model])
 
         processor = make_processor(
             job=job,
             pipe=pipe,
-            config=make_config(),
-            logger=logger,
             end_model=FakeEndModel(),
         )
 
@@ -130,8 +124,6 @@ class TestHeadState(unittest.TestCase):
         self.assertEqual(processor.states, [JobState.VALIDATING, JobState.HEAD])
         self.assertEqual(job.status, JobStatus.COMPLETED)
         self.assertEqual(job.result, "done")
-        self.assertTrue(any("Timing" in message for _, message in logger.messages))
-        self.assertTrue(any("Job ID" in message for _, message in logger.messages))
 
 class TestHeadFlowIntegration(unittest.TestCase):
     """Integration tests for head state transitions through subsequent states."""
@@ -140,8 +132,7 @@ class TestHeadFlowIntegration(unittest.TestCase):
         job = make_job()
         job.compute_step = ComputeStep.HEAD
         job.prompt_tokens = 1
-        job.data = JobData()
-        job.data.state = torch.zeros((1, 1))
+        job.data = make_job_data()
 
         end_model = FakeEndModelContinue()
         virtual_model = FakeModel("node-b", 0, 0, virtual=True, num_hidden_layers=2)
@@ -163,8 +154,7 @@ class TestHeadFlowIntegration(unittest.TestCase):
         job = make_job()
         job.compute_step = ComputeStep.HEAD
         job.prompt_tokens = 1
-        job.data = JobData()
-        job.data.state = torch.zeros((1, 1))
+        job.data = make_job_data()
 
         end_model = FakeEndModelContinue()
         model = FakeModel("node-a", 0, 0, virtual=False, num_hidden_layers=1)

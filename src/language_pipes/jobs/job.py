@@ -5,6 +5,7 @@ from typing import Iterable, List, Optional
 import torch
 from promise import Promise
 from typing import Callable
+from transformers import PretrainedConfig
 from transformers.cache_utils import DynamicCache
 
 from language_pipes.jobs.job_data import JobData
@@ -37,6 +38,7 @@ class Job:
     result: Optional[str]
     last_update: float
     timing_stats: TimingStats
+    stale: bool
     
     # API params
     top_k: int
@@ -61,7 +63,7 @@ class Job:
             messages: List[ChatMessage],
             pipe_id: str,
             model_id: str,
-            prefill_chunk_size: int,
+            config: PretrainedConfig,
             data: Optional[JobData] = None,
             temperature: float = 1.0,
             top_k: int = 0,
@@ -85,9 +87,10 @@ class Job:
         self.data = data
         self.result = None
         self.input_ids = []
-        self.timing_stats = TimingStats(self.job_id, prefill_chunk_size)
+        self.timing_stats = TimingStats(self.job_id)
         self.prompt_tokens = 0
         self.current_token = 0
+        self.stale = False
         self.messages = messages
 
         self.temperature = temperature
@@ -99,7 +102,7 @@ class Job:
         
         self.current_layer = 0
 
-        self.cache = DynamicCache()
+        self.cache = DynamicCache(config=config)
         self.chunking = ChunkState(self.job_id)
         self.resolve = resolve
         self.update = update
@@ -114,16 +117,19 @@ class Job:
     def pass_complete(self):
         pass
 
-    def init_chunking(self, chunk_size: int):
-        self.chunking.init(self.prompt_tokens, chunk_size)
+    def init_chunking(self):
+        self.chunking.init(self.prompt_tokens)
 
-    def set_layer(self, state: torch.Tensor, layer: int, num_hidden_layers: int):
+    def set_layer(self, state: torch.Tensor, layer: int, num_hidden_layers: int, shared_kv_states: Optional[dict] = None):
         if self.compute_step != ComputeStep.LAYER:
             raise Exception('Invalid step for layer')
         self.current_layer = layer
-        if self.data is None: 
+        if self.data is None:
             return
         self.data.state = state
+        # Gemma4 cross-node KV sharing: persist the mutated dict so it serializes onward.
+        if shared_kv_states is not None:
+            self.data.shared_kv_states = shared_kv_states
         if self.current_layer == num_hidden_layers:
             self.compute_step = ComputeStep.EMBED if self.chunking.has_more() else ComputeStep.HEAD
             self.current_layer = 0
@@ -215,18 +221,22 @@ class Job:
     def set_last_update(self):
         self.last_update = time()
 
-    def print_job(self, logger):
-        logger.info(f"""
-=================================
-Job ID: {self.job_id}
-Pipe ID: {self.pipe_id}
-Prompt Tokens: {self.prompt_tokens}
-Current Token: {self.current_token}
-Max Tokens: {self.max_completion_tokens}
-Temperature: {self.temperature}
-Top K: {self.top_k}
-Top P: {self.top_p}
-Min P: {self.min_p}
-Pres Penalty: {self.presence_penalty}
-=================================
-""")
+    def get_job_ram(self) -> float:
+        total_bytes = 0
+        tensors = []
+        # Newer transformers: cache.layers is a list of layer objects with keys/values
+        if hasattr(self.cache, "layers"):
+            for layer in self.cache.layers:
+                tensors.append(getattr(layer, "keys", None))
+                tensors.append(getattr(layer, "values", None))
+        # Older transformers: parallel key_cache / value_cache lists of tensors
+        else:
+            tensors.extend(getattr(self.cache, "key_cache", []))
+            tensors.extend(getattr(self.cache, "value_cache", []))
+
+        for tensor in tensors:
+            if tensor is not None:
+                total_bytes += tensor.numel() * tensor.element_size()
+
+        # Return in GB to match system RAM reporting elsewhere
+        return total_bytes / (1024**3)

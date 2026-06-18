@@ -1,20 +1,15 @@
-import torch
-from typing import Dict, Tuple
+from dataclasses import dataclass, field
 
+from torch import Tensor
+from typing import Dict, Tuple, Optional
+
+
+@dataclass
 class LLmComputationState:
-    state: torch.Tensor
-    position_embeddings: Tuple[torch.Tensor, torch.Tensor]
-    position_embeddings_local: torch.Tensor
-    position_embeddings_global: torch.Tensor
-    position_ids: torch.Tensor
-    cache_position: torch.Tensor
-    causal_mask: Dict[str, torch.Tensor]
-
-    def __init__(self):
-        self.state = None # type: ignore
-        self.position_embeddings = None # type: ignore
-        self.position_embeddings_local = None # type: ignore
-        self.position_embeddings_global = None # type: ignore
-        self.position_ids = None # type: ignore
-        self.cache_position = None # type: ignore
-        self.causal_mask = { }
+    state: Tensor
+    position_ids: Tensor
+    cache_position: Tensor
+    causal_mask: Dict[str, Optional[Tensor]] # Needs to be optional because sometimes the mask is None
+    position_embeddings: Dict[str, Tuple[Tensor, Tensor]]
+    per_layer_inputs: Optional[Tensor] = None
+    shared_kv_states: Dict[str, Tuple[Tensor, Tensor]] = field(default_factory=dict)

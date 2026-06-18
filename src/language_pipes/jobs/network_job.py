@@ -14,6 +14,7 @@ class NetworkJob:
     data: Optional[JobData]
     data_hash: bytes
     times: List[JobTime]
+    prefill_chunk_size: int
 
     def __init__(
         self, 

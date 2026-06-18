@@ -86,7 +86,7 @@ class MetaPipe:
         for s in self.segments:
             if s.start_layer == -1 or not s.loaded:
                 continue
-            if s.start_layer == current_layer:
+            if current_layer >= s.start_layer and current_layer <= s.end_layer:
                 current_layer = s.end_layer + 1
 
         return current_layer == self.segments[0].num_layers

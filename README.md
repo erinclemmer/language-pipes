@@ -1,4 +1,13 @@
-# Language Pipes
+```
+ _                                                   ____   _
+| |                                                 |  __`\(_)                
+| |     __ _  ___   ___  _   _  __ _  __ _  ___     | |__) | |_ __   ___  ___ 
+| |    / _` |/ _ \ / _ `| | | |/ _` |/ _` |/ _ \    |  ___/| | '_ \ / _ \/ __|
+| |___| (_| | | | | (_| | |_| | (_| | (_| |  __/    | |    | | |_) |  __/\__ \
+|______\__,_|_| |_|\__, |\__,_|\__,_|\__, |\___|    |_|    |_| .__/ \___||___/
+                    __/ |            __/ |                   | |              
+                   |___/            |___/                    |_|      
+```
 
 **Peer-to-peer distributed inference for open-source language models**
 
@@ -19,7 +28,7 @@ Language Pipes is an open-source distributed inference system built on the [tran
 
 #### Features
 - OpenAI-compatible API
-- Interactive setup wizard
+- Interactive TUI for configuration, monitoring, and control
 - Automatic model download by HuggingFace ID
 - Privacy-oriented architecture with layered privacy mitigations
 - Decentralized peer-to-peer network with optional AES encryption
@@ -47,69 +56,53 @@ pip install language-pipes
 
 ### Quick Start
 
-The easiest way to get started is with the interactive setup wizard:
+Launch the interactive TUI:
 
 ```bash
 language-pipes
 ```
 
-This launches a menu where you can create, view, and load configurations. Select **Create Config** to walk through the setup wizard, which guides you through your first configuration. After creating a config, select **Load Config** to start the server.
+From the main menu, select **New Configuration** and give it a name to create a TOML config and open the dashboard (or **Load Configuration** to reopen one you've created before).
 
-Configuration can also be specified via [TOML files](./documentation/configuration.md). See the [CLI reference](./documentation/cli.md) for details on loading configurations from the command line.
+The dashboard is organized into tabs along the top: **Home**, **Network**, **Models**, **Pipes**, and **Jobs**. A fresh configuration has no node ID yet, so the only option on **Home** is **Configure Network Server**. Set a Node ID under **Network > Configure**, then return to **Home** and select **Start Network Server**. Once the network is running, the dashboard exposes the rest of setup: load models under **Models > Layer Models** / **End Models**, and configure and start the OpenAI-compatible API under **Jobs > Server**.
+
+Configuration can also be edited directly as [TOML files](./documentation/configuration.md) and run headlessly. See the [CLI reference](./documentation/cli.md) for details on running a saved configuration from the command line.
 
 ---
 
 # Two Node Example
 
-This example shows how to distribute a model across two computers using the interactive wizard.
+This example distributes `Qwen/Qwen3-1.7B` across two computers. Node 1 hosts the End Model, so prompts and responses stay on Node 1, plus enough layers to fit in its memory. Node 2 hosts the remaining layers.
 
 ### Node 1 (First Computer)
-Start language pipes:
+
 ```bash
 language-pipes
 ```
 
-| Prompt | Value | Description |
-|--------|-------|-------------|
-| Node ID | `node-1` | Unique identifier for this node on the network |
-| Add layer models | `Y` | Starts layer model editor |
-| Model ID | `Qwen/Qwen3-1.7B` | HuggingFace model to load for layers |
-| Device | `cpu` | Hardware to run inference on |
-| Max memory | `1` | GB of RAM to use (loads part of the model) |
-| Add end model | `Y` | starts end node editor |
-| Model ID | `Qwen/Qwen3-1.7B` | Huggingface model to load for ends |
-| Number of local layers | 1 | Ensure first layer is loaded on your machine |
-| Enable OpenAI API | `Y` | Exposes the OpenAI-compatible endpoint |
-| API port | `8000` | Port for the API server |
-| First node in network | `Y` | This node starts the network |
-| Peer port | `5000` | Port for peer-to-peer communication |
-| Network IP | `[Your local IP]` | IP address other nodes can find you at |
-| Encrypt network traffic | `N` | Disable encryption for simplicity |
-| Advanced options | `N` | Logging, security, etc. |
+Select **New Configuration** and name it (e.g. `node-1`).
+
+1. **Network > Configure**: set Node ID to `node-1` and enuser Network IP is set to this machine's local IP address. Leave Network Key empty to disable encryption for this example. Peer Port defaults to `5000`.
+2. Back on **Home**, select **Start Network Server**.
+3. **Models > Installed**: select **Install New Model** and enter `Qwen/Qwen3-1.7B` to download it.
+4. **Models > Layer Models**: select **Add Layer Model**, choose `Qwen/Qwen3-1.7B`, a device (`cpu` or `cuda:0`), and a memory budget in GB (e.g. `4`), then **Save Model**. Confirm to load it now.
+5. **Models > End Models**: select **Add End Model**, choose `Qwen/Qwen3-1.7B`, and confirm to load it now.
+6. **Jobs > Server**: ensure the Port is set to `8000` and select **Start Server**.
 
 ### Node 2 (Second Computer)
 
-Start language pipes with this command:
 ```bash
 language-pipes
 ```
-| Prompt | Value | Description |
-|--------|-------|-------------|
-| Node ID | `node-2` | Unique identifier for this node on the network |
-| Add layer models | `Y` | Starts layer model editor |
-| Model ID | `Qwen/Qwen3-1.7B` | HuggingFace model to load for layers |
-| Device | `cpu` | Hardware to run inference on |
-| Max memory | `2` | GB of RAM to use (loads part of the model) |
-| Add end model | `N` | starts end node editor |
-| Enable OpenAI API | `Y` | Exposes the OpenAI-compatible endpoint |
-| API port | `8000` | Port for the API server |
-| First node in network | `N` | This node starts the network |
-| Bootstrap Address | `[node-1 IP]` | IP address of node-1 |
-| Peer port | `5000` | Port for peer-to-peer communication |
-| Encrypt network traffic | `N` | Disable encryption for simplicity |
-| Advanced options | `N` | Logging, security, etc. |
 
-Node-2 connects to node-1 and loads the remaining model layers. The model is now distributed across both machines and ready for inference.
+Select **New Configuration** and name it (e.g. `node-2`).
+
+1. **Network > Configure**: set Node ID to `node-2`. Under Bootstrap Nodes, add an entry with node-1's IP address and peer port (`5000`) so this node joins node-1's network.
+2. Back on **Home**, select **Start Network Server**.
+3. **Models > Installed**: install `Qwen/Qwen3-1.7B` as on Node 1.
+4. **Models > Layer Models**: add `Qwen/Qwen3-1.7B` with a device and memory budget covering the remaining layers (e.g. `8` on `cuda:0`).
+
+Once both nodes have loaded their layers, **Pipes > Complete** shows a completed pipe for `Qwen/Qwen3-1.7B`, and the model is ready for inference via node-1's Job Port.
 
 ### Test the API
 
@@ -121,8 +114,8 @@ Example using the [OpenAI Python library](https://github.com/openai/openai-pytho
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="http://127.0.0.1:8000/v1",  # node-1 IP address
-    api_key="not-needed"  # API key not required for Language Pipes
+    base_url="http://127.0.0.1:8000/v1",  # node-1 IP address and Job Port
+    api_key="not-needed"  # only required if api_keys is set in the config
 )
 
 response = client.chat.completions.create(
@@ -142,13 +135,12 @@ Install the OpenAI library with: `pip install openai`
 See the [OpenAI-compatible API documentation](./documentation/oai.md) for the full endpoint reference and sampling parameter descriptions.
 
 ### Supported Models
-Language pipes currently supports a few model families including llama3, Phi4, Qwen3, and GLM4.1v. [View all tested models here](./documentation/model_support.md)  
+Language Pipes currently supports a few model families including Qwen3, Phi, Meta Llama 3.1/3.2, and Gemma 3. [View all tested models here](./documentation/model_support.md)  
 
 ### Planned Improvements
 - Additional model architectures
 - INT8 and INT4 quantization (currently all inference uses fp16)
 - GGUF format support (currently requires safetensors)
-- `/v1/responses` endpoint (currently only `/v1/chat/completions`)
 
 ### Dependencies
 - [pytorch](pytorch.org)
@@ -156,7 +148,7 @@ Language pipes currently supports a few model families including llama3, Phi4, Q
 
 ### Documentation
 * [CLI Reference](./documentation/cli.md)
-* [Privacy Architecture](./documentation/privacy.md)
+* [Privacy Protection](./documentation/privacy.md)
 * [Configuration Manual](./documentation/configuration.md)
 * [Architecture Overview](./documentation/architecture.md)
 * [OpenAI-Compatible API](./documentation/oai.md)

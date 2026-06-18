@@ -1,4 +1,18 @@
-# Release 1.1.0
+# Change Log
+
+## Release 1.2.0
+
+### --api-keys flag
+Added flag to denote API keys to use for OpenAI compatible server. This flag can have many values just like `--layer-models` so use like `--api-keys foo bar baz` and then for the request add a 'Authorization' header with a value like `Bearer foo`.  
+[See official documentation for more information](https://developers.openai.com/api/reference/overview/)  
+
+#### Small changes
+- Added a version checker to determine the latest version. It sends a request to raw.github.com for the pyproject.toml file and reads to version property.
+- Added gemma to model support document
+- Self upgrading is not a good pattern so I removed the `language-pipes upgrade` command. Use `pip install language-pipes --upgrade` to upgrade the package
+- Don't default to yes for OpenAI server config
+
+## Release 1.1.0
 
 ### Model Support
 Added model support for GLM4.1v, Gemma3, and Phi4 model families. Below is a list of newly tested models, the same model but . You can view current model support at [the model support page](documentation/model_support.md). Models of the same family but in different sizes should also work.
@@ -29,9 +43,9 @@ Added model support for GLM4.1v, Gemma3, and Phi4 model families. Below is a lis
 - `v1/models` endpoint now only includes a model if all of the layers are available in a pipe AND the node hosting the open AI compatible server has an end model for that model ID
 - Added more stop tokens from the config. Llama3 does not use the same place so we pass a set of tokens as stop tokens instead of just `config.eos_token_id`.
 
-# Release 1.0.0
+## Release 1.0.0
 
-## Features:
+### Features:
 **Huggingface hub**  
 We are now using the `huggingface_hub` python library to download models. This allows you to download gated models by supplying it an api key either through the `LP_HUGGINGFACE_TOKEN` environment variable or through input whenever a model needs to be downloaded.
 
@@ -59,5 +73,16 @@ The project is using the keyboard interrupt (ctrl+c) as a "go back" button to go
 **Logging**  
 Added the date and time to the logger for better logs on long running servers.
 
-## Notes
+### Notes
 I'm finally happy with the way the project is laid out and what it is trying to accomplish. Privacy for layer nodes is a much more complicated problem that I first realized so I have updated the privacy wording in the documentation to match a probabilistic threat model instead of assuming hidden states can never be reversed. I will be doing case studies in hidden state reversal and finding mitigation techniques that give the user more trust that their prompts will not be compromised.
+
+### Documentation
+* [CLI Reference](./cli.md)
+* [Privacy Protection](./privacy.md)
+* [Configuration Manual](./configuration.md)
+* [Architecture Overview](./architecture.md)
+* [OpenAI-Compatible API](./oai.md)
+* [Job Processor State Machine](./job-processor.md)
+* [Distributed State Network](./distributed-state-network/README.md)
+* [LLM Layer Collector](./llm-layer-collector.md)
+* [Release Notes](./release-notes.md)
