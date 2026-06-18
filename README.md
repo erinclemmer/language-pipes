@@ -28,9 +28,8 @@ Language Pipes is an open-source distributed inference system built on the [tran
 
 #### Features
 - OpenAI-compatible API
+- Automatic model download by HuggingFace ID 
 - Interactive TUI for configuration, monitoring, and control
-- Automatic model download by HuggingFace ID
-- Privacy-oriented architecture with layered privacy mitigations
 - Decentralized peer-to-peer network with optional AES encryption
 
 ---
@@ -82,10 +81,10 @@ language-pipes
 
 Select **New Configuration** and name it (e.g. `node-1`).
 
-1. **Network > Configure**: set Node ID to `node-1` and enuser Network IP is set to this machine's local IP address. Leave Network Key empty to disable encryption for this example. Peer Port defaults to `5000`.
+1. **Network > Configure**: set Node ID to `node-1` and ensure Network IP is set to this machine's local IP address. Leave Network Key empty to disable encryption for this example. Peer Port defaults to `5000`.
 2. Back on **Home**, select **Start Network Server**.
 3. **Models > Installed**: select **Install New Model** and enter `Qwen/Qwen3-1.7B` to download it.
-4. **Models > Layer Models**: select **Add Layer Model**, choose `Qwen/Qwen3-1.7B`, a device (`cpu` or `cuda:0`), and a memory budget in GB (e.g. `4`), then **Save Model**. Confirm to load it now.
+4. **Models > Layer Models**: select **Add Layer Model**, choose `Qwen/Qwen3-1.7B`, a device (`cpu` or `cuda:0`), and a memory budget in GB (e.g. `2`), then **Save Model**. Confirm to load it now.
 5. **Models > End Models**: select **Add End Model**, choose `Qwen/Qwen3-1.7B`, and confirm to load it now.
 6. **Jobs > Server**: ensure the Port is set to `8000` and select **Start Server**.
 
@@ -100,7 +99,7 @@ Select **New Configuration** and name it (e.g. `node-2`).
 1. **Network > Configure**: set Node ID to `node-2`. Under Bootstrap Nodes, add an entry with node-1's IP address and peer port (`5000`) so this node joins node-1's network.
 2. Back on **Home**, select **Start Network Server**.
 3. **Models > Installed**: install `Qwen/Qwen3-1.7B` as on Node 1.
-4. **Models > Layer Models**: add `Qwen/Qwen3-1.7B` with a device and memory budget covering the remaining layers (e.g. `8` on `cuda:0`).
+4. **Models > Layer Models**: add `Qwen/Qwen3-1.7B` with a device and memory budget covering the remaining layers (e.g. `2` on `cpu`).
 
 Once both nodes have loaded their layers, **Pipes > Complete** shows a completed pipe for `Qwen/Qwen3-1.7B`, and the model is ready for inference via node-1's Job Port.
 
