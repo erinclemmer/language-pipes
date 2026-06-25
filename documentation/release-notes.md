@@ -1,5 +1,69 @@
 # Change Log
 
+## Release 2.0.0
+
+### TUI
+Major version change of Language Pipes, we got a TUI!
+
+```
+        _                                                   ____   _
+        | |                                                 |  __`\(_)                
+        | |     __ _  ___   ___  _   _  __ _  __ _  ___     | |__) | |_ __   ___  ___ 
+        | |    / _` |/ _ \ / _ `| | | |/ _` |/ _` |/ _ \    |  ___/| | '_ \ / _ \/ __|
+        | |___| (_| | | | | (_| | |_| | (_| | (_| |  __/    | |    | | |_) |  __/\__ \
+        |______\__,_|_| |_|\__, |\__,_|\__,_|\__, |\___|    |_|    |_| .__/ \___||___/
+                            __/ |             __/ |                  | |              
+        Version 2.0.0      |___/             |___/                   |_|      
+
+                                   |> New Configuration <|               
+
+                                      Load Configuration
+
+                                            Exit
+
+
+        Arrows U/D: Move                   Enter: Select                   Esc: Back
+```
+
+The tui adds the ability to start and stop models on demand, change the configuration on the fly, and more. It's broken down into a few sections:
+* **Home / Dashboard**: main status screen that allows you to start and stop the network servers as well as show the status of many different parts of the language pipes program.
+* **Home / Activity**: Displays any logs for the network server, job server, or status of the models
+* **Network Pages**: Change how the peer to peer network is configured for your device. Has interactive setup and you can start or stop the server at any time.
+* **Model Pages**: Allows you to configure layer or end models to load on demand.
+* **Pipe Pages**: Shows the status of the current pipes you are connected to or are on your network.
+* **Job Pages**: Allows configuration of the job server and show the status of active jobs.
+
+See the updated [CLI configuration guide](./cli.md) for more information on advanced usage including a `run` mode that just prints to std out.
+
+Want to use the same tech to make your own TUI? Check out [my ansinout library](https://pypi.org/project/ansinout/)!
+
+### Responses API
+Added support for /v1/responses of the OpenAI compatable server. Works with any harness or web UI that supports the responses endpoint.
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="foo"
+)
+
+response = client.responses.create(
+    model="Qwen/Qwen3-1.7B",
+    instructions="You are a helpful assistant.",
+    input="What is distributed computing?",
+    max_output_tokens=200
+)
+
+print(response.output_text)
+```
+
+### Gemma 4 Support
+Added support for Google's newest language model line. Tested Models:
+- google/gemma-4-E2B-it
+- google/geema-4-E4B-it
+- More tests in the future, but the program should support any Gemma 4 model!
+
 ## Release 1.2.0
 
 ### --api-keys flag

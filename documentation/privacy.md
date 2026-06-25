@@ -1,6 +1,6 @@
 # Privacy
 
-This document describes the privacy properties Language Pipes, the known attack surfaces, and the probabilistic guarantees each mitigation provides.
+This document describes the privacy properties Language Pipes and the known attack surfaces.
 
 ---
 
@@ -9,8 +9,6 @@ This document describes the privacy properties Language Pipes, the known attack 
 The distributed layer-splitting architecture used by Language Pipes is similar to [Petals](https://github.com/bigscience-workshop/petals) (Borzunov et al., 2023), which enables collaborative inference and fine-tuning of large models by distributing transformer layers across a peer-to-peer network. The two projects share the same core architectural idea: split the model at layer boundaries and transmit hidden state tensors between nodes.
 
 However, the Petals project does not provide a quantitative analysis of the privacy properties of this architecture. Its documentation acknowledges that data is "processed with the help of other people in the public swarm" and recommends private swarms for sensitive data, but does not characterize the difficulty of prompt reconstruction from intercepted hidden states, nor does it evaluate specific inversion attacks or mitigations.
-
-A primary objective of Language Pipes is to fill this gap: to rigorously measure and document the probabilistic privacy guarantees that a layer-splitting architecture can and cannot provide. The threat model, empirical recovery measurements, and mitigation analysis presented in this document and the accompanying case study [SipIt](./threat-model/sipit.md) represent this effort.
 
 Additionally, Petals targets a fixed set of older model architectures (Llama 3.1, Mixtral 8x22B, Falcon, BLOOM), several of which are no longer actively developed. Language Pipes targets current-generation open-source models, beginning with the Qwen3 and Qwen3-MoE architectures.
 
@@ -172,11 +170,7 @@ If hidden states are transmitted immediately after embedding (capture at layer 0
 
 The SipIt algorithm (Gupta, Basu, and Goel, 2025) recovers tokens sequentially by replaying candidate embeddings through layers 0 to L and comparing against the captured hidden state. Recovery difficulty increases exponentially with capture depth due to float16 precision accumulation, non-convex optimization landscapes, and computational cost scaling.
 
-Empirical measurements show recovery dropping from ~100% at L0 to ~4% at L5, with extrapolated recovery below 1% by approximately L8.
-
-**Mitigation:** First-N local layers (N >= 5) reduces SipIt recovery to near-zero.
-
-For the full analysis including per-prompt recovery data, timing measurements, and the interaction between capture depth and float16 precision, see the [SipIt case study](./threat-model/sipit.md).
+**Mitigation:** Network security is the best way to avoid attacks. Assume that a determined attacker can reverse the hidden states passed between nodes.
 
 #### 3. Network Eavesdropping
 
@@ -198,7 +192,6 @@ The following table summarizes the available mitigations, their effectiveness ag
 |------------|-------|--------------------|---------------|
 | **Architectural separation** (always on) | Prevents casual observation; does not prevent deliberate inversion | Same | Default behavior |
 | **AES encryption** (`network_key`) | Does not apply (malicious node decrypts to compute) | Same | `network_key` in config |
-| **First-N local layers** | **Effective.** Recovery drops exponentially with N | No effect (attacker completes forward pass) | `LP_NUM_LOCAL_LAYERS` environment variable |
 | **Trusted layer nodes** | **Effective.** Trusted operator should not attempt inversion | **Effective.** Same | Deploy layer nodes only on trusted machines |
 
 ### Probabilistic Security Summary
@@ -209,19 +202,13 @@ With recommended mitigations (AES encryption + first-5 local layers):
 |---------------|---------------------|-------|
 | Casual observation by layer operator | **Infeasible** | Layer nodes see only floating-point tensors |
 | Network eavesdropping | **Infeasible** | AES-encrypted transport |
-| SipIt prompt recovery | **Impractical** | ~4% token recovery at L5 baseline |
+| SipIt prompt recovery | **Possible** | The algorithm is non-polynomial but can successeed with enough time |
 
 With recommended mitigations + **trusted layer node operators**:
 
-| Attack Vector | Estimated Difficulty |
-|---------------|---------------------|
-| All inversion attacks | **Infeasible** trusted operator should not attempt reconstruction |
-
 ---
 
-## Deployment Patterns
-
-### Standard Privacy: Host the End Model Yourself
+### Privacy Enhancement: Host the End Model Yourself
 
 ```
 +-----------------+
@@ -254,35 +241,10 @@ memory = 8
 
 Your friend can choose to also host an end model, but only your machine will see your prompts if you send requests to your machine. Enable `network_key` for AES-encrypted transport between nodes.
 
-### Enhanced Privacy: First-N Local Layers + Encryption
-
-For sensitive workloads with public models, retain the first N transformer layers locally. This eliminates trivial embedding inversion and reduces SipIt recovery to low single-digit percentages:
-
-```
-+-----------------------+
-|     Your Machine      | <-- End Model + first 5 layers
-|   Embed, L0-L4, Norm  |
-|   Head                |
-+-----------+-----------+
-            | Hidden states at L5 (AES encrypted)
-            v
-+-----------------------+
-|     Remote GPU(s)     | <-- Layers 5-31 only
-+-----------------------+
-```
-
-### Maximum Privacy: Trusted Network Only
-
-For the strongest protection, deploy layer nodes exclusively on machines operated by trusted parties. Combined with AES encryption and first-N local layers, this configuration addresses all known attack vectors: the architectural and computational mitigations raise the bar against passive and semi-active adversaries, while the trust relationship eliminates the motivated adversary scenario entirely.
-
 ## References
 
 - Gupta, Basu, and Goel. "Transformers are Injective: SipIt Sequential Prompt Inversion from Intermediate Representations." 2025. [arXiv:2510.15511](https://arxiv.org/abs/2510.15511)
 - Borzunov et al. "Petals: Collaborative Inference and Fine-tuning of Large Models." ACL 2023. [arXiv:2209.01188](https://arxiv.org/abs/2209.01188)
-
-### Case Studies
-* [SipIt: Sequential Prompt Inversion from Hidden States](./threat-model/sipit.md)
-* More to come
 
 ### Documentation
 * [CLI Reference](./cli.md)
