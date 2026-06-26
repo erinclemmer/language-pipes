@@ -41,7 +41,7 @@ class TestStateData(DSNTestBase):
         """send_to_node should deliver payload to target node"""
         received_data = []
         
-        def recv_fn(data: bytes):
+        def recv_fn(_: str, data: bytes):
             received_data.append(data)
         
         bootstrap = spawn_node("bootstrap", "127.0.0.1")

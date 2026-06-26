@@ -83,9 +83,6 @@ class ModelProvider:
     download_model_thread: Optional[Thread]
     download_message: Optional[str]
     downloading_to_folder: Optional[Path]
-    rfm_model: Optional[str]
-    rfm_node: Optional[str]
-    rfm_file_data: Optional[Dict[str, Dict[str, bytes]]]
     config_file: Path
 
     get_router_pipes: Callable[[], Optional[RouterPipes]]
@@ -98,10 +95,7 @@ class ModelProvider:
         self.config_file = config_file
         self.get_model_manager = get_model_manager
         self.get_router_pipes = get_router_pipes
-        self.rfm_model = None
-        self.rfm_node = None
-        self.rfm_file_data = None
-
+        
     def get_model_manager_logs(self) -> List[Tuple[float, str]]:
         mm = self.get_model_manager()
         return mm.logs
@@ -193,6 +187,7 @@ class ModelProvider:
         def download_model():
             error = False
             try:
+                # TODO token is not being injected properly
                 snapshot_download(
                     repo_id=model_id,
                     local_dir=clone_dir,
@@ -238,24 +233,6 @@ class ModelProvider:
         if ModelDownloadProgress.latest_instance is None:
             return None
         return str(ModelDownloadProgress.latest_instance)
-
-    def request_for_model(self, model_id: str):
-        rtr_pipes = self.get_router_pipes()
-        assert self.requesting_model is None
-        assert rtr_pipes is not None
-
-        rtr = rtr_pipes.router
-        request_packet = ByteHelper()
-        request_packet.write_int(1) # RFM protocol
-        request_packet.write_int(0) # Who Has Model
-        request_packet.write_string(rtr.node_id())
-        request_packet.write_string(model_id)
-        data = request_packet.get_bytes()
-        for node_id in rtr.peers():
-            if node_id == rtr.node_id():
-                return
-            rtr.send_to_node(node_id, data)
-            self.requesting_model = model_id
 
     def load_layer_model(self, model: ModelToLoad):
         rp = self.get_router_pipes()

@@ -78,8 +78,9 @@ class DownloadPageState(PageState):
             )
 
     def _request_locally(self):
-        self.provider.model_provider.request_for_model(self.new_model_id)
-        # TODO Refactor RFM to its own class and show download updates in TUI
+        self.provider.request_model(self.new_model_id)
+        self.downloading = True
+        self.download_status = "Requesting model on network..."
 
     def _on_char(self, ch: str):
         if not self.downloading:
@@ -129,6 +130,7 @@ class DownloadPageState(PageState):
     def _stop_download(self):
         self.provider.model_provider.stop_model_download()
         self.downloading = False
+        self.provider.request_for_model.request_state.reset()
 
     def _request_token(self):
         cfg_token = ModelProvider.get_hf_config_token()
@@ -162,6 +164,12 @@ class DownloadPageState(PageState):
             return False
         return True
 
+    def _get_download_status(self) -> Optional[str]:
+        if self.provider.request_for_model.request_state.active_download():
+            return self.provider.request_for_model.download_status()
+        else:
+            return self.provider.model_provider.check_download_progress()
+
     def get_view(self) -> List[str]:
         model_id = self.new_model_id[-40:] if len(self.new_model_id) > 40 else self.new_model_id
         lines = ["Install New Model:", "", "Type the huggingface model ID from huggingface.co", ""]
@@ -177,7 +185,7 @@ class DownloadPageState(PageState):
                 lines.append("")
         elif self.downloading:
             lines.extend([f"Downloading {model_id}...", ""])
-            self.download_status = self.provider.model_provider.check_download_progress()
+            self.download_status = self._get_download_status()
             if self.download_status is not None:
                 lines.append(self.download_status)
                 if "SUCCESS" in self.download_status or "ERROR" in self.download_status:

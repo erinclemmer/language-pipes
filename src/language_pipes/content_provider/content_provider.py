@@ -1,17 +1,15 @@
 from dataclasses import dataclass
-import os
 from pathlib import Path
-from time import sleep
 
 import psutil
 import torch
 from typing import Callable, List, Optional, Dict
 
+from language_pipes.request_for_model.rfm import RequestForModelHandler
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.util.byte_helper import ByteHelper
-from language_pipes.util.config import get_model_dir
 from language_pipes.util.utils import is_port_available
 from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
@@ -40,6 +38,7 @@ class ContentProvider:
     network_provider: NetworkProvider
     pipe_provider: PipeProvider
     job_provider: JobProvider
+    request_for_model: RequestForModelHandler
     config_file: Path
     create_alert: Callable[[str], None]
 
@@ -121,166 +120,36 @@ class ContentProvider:
             )
 
             self.router_pipes.router.set_receive_cb(self._receive_data)
+            self.request_for_model = RequestForModelHandler(
+                router.node_id(),
+                router.peers,
+                router.send_to_node, 
+                self.model_provider.get_installed_models,
+                router.node.logger
+            )
         else:
             self.router_pipes = None
             self.pipe_manager = None
 
-    def _receive_data(self, data: bytes):
+    def request_model(self, model_id: str):
+        if self.request_for_model is None:
+            return
+        
+        self.request_for_model.request_state.reset()
+        self.request_for_model.request_model(model_id)
+
+    def _receive_data(self, node_id: str, data: bytes):
         bts = ByteHelper(data)
         protocol = bts.read_int() # Protocol number
         if protocol == 0 and self.job_receiver is not None:
             self.job_receiver.receive_data(bts.read_bytes())
         if protocol == 1:
-            self._handle_rfm(data)
-
-    def _handle_rfm(self, data: bytes):
-        bts = ByteHelper(data)
-        bts.read_int() # Skip protocol
-        req_type = bts.read_int()
-        if req_type == 0: # Who has model
-            installed_models = self.model_provider.get_installed_models()
-            requesting_node = bts.read_string()
-            requested_model = bts.read_string()
-            if requested_model in installed_models:
-                 self._send_rfm_have_model(requesting_node, requested_model)
-        if req_type == 1: # I have model
-            self._receive_rfm_have_model(data)
-        if req_type == 2: # Ready to receive
-            installed_models = self.model_provider.get_installed_models()
-            requesting_node = bts.read_string()
-            requested_model = bts.read_string()
-            if requested_model in installed_models:
-                self._send_rfm_files(requesting_node, requested_model)
-        if req_type == 3: # I'm sending data
-            self._receive_rfm_data(data)
-
-    def _receive_rfm_have_model(self, data: bytes):
-        if self.model_provider.rfm_model is None or self.model_provider.rfm_node is not None:
-            return
-        
-        bts = ByteHelper(data)
-        bts.read_int() # Skip protocol
-        bts.read_int() # Skip type
-        self.model_provider.rfm_node = bts.read_string()
-
-        bts = ByteHelper()
-        bts.write_int(1) # RFM Protocol
-        bts.write_int(2) # Ready to receive
-        assert self.router is not None
-        bts.write_string(self.router.node_id())
-        bts.write_string(self.model_provider.rfm_model)
-        self.router.send_to_node(self.model_provider.rfm_node, bts.get_bytes())
-
-    def _send_rfm_have_model(self, node_id: str, model_id: str):
-        assert self.router is not None
-
-        bts = ByteHelper()
-        bts.write_int(1) # RFM Protocol
-        bts.write_int(1) # I have model
-        bts.write_string(self.router.node_id())
-        self.router.send_to_node(node_id, bts.get_bytes())
-
-    def _send_rfm_files(self, node_id: str, model_id: str):
-        model_dir = get_model_dir() / model_id / "data"
-        assert os.path.exists(model_dir)
-        for file in os.listdir(model_dir):
-            self._send_rfm_file(node_id, model_id, file, model_dir / file)
-
-    def _send_rfm_file(self, node_id: str, model_id: str, file_name: str, file_path: Path):
-        with open(file_path, 'rb') as f:
-            idx = 0
-            while True:
-                pkt_data = f.read(64 * 1024 * 1024) # Read up to 64MB
-                if len(pkt_data) == 0:
-                    self._send_rfm_packet(node_id, model_id, file_name, idx, None)
-                    break
-                else:
-                    self._send_rfm_packet(node_id, model_id, file_name, idx, pkt_data)
-
-    def _send_rfm_packet(self, node_id: str, model_id: str, file_name: str, idx: int, data: Optional[bytes]):
-        bts = ByteHelper()
-        bts.write_int(1) # RFM protocol
-        bts.write_int(3) # I'm sending data
-        bts.write_string(model_id)
-        bts.write_string(file_name)
-        bts.write_int(idx) # Packet index for file
-        if data is None:
-            bts.write_int(1) # File done
-            bts.write_bytes(b'')
-        else:
-            bts.write_int(0) # More file data
-            bts.write_bytes(data) # File snippet
-
-        assert self.router is not None
-        self.router.send_to_node(node_id, bts.get_bytes())
-
-    def _receive_rfm_data(self, data: bytes):
-        bts = ByteHelper(data)
-        bts.read_int() # Skip Protocol
-        bts.read_int() # Skip type
-        model_id = bts.read_string()
-        if self.model_provider.rfm_model != model_id:
-            return
-        file_name = bts.read_string()
-        packet_idx = bts.read_int()
-        file_done = bts.read_int() == 1
-        packet_data = bts.read_bytes()
-
-        if self.model_provider.rfm_file_data is None:
-            self.model_provider.rfm_file_data = { }
-
-        if file_name not in self.model_provider.rfm_file_data:
-            self.model_provider.rfm_file_data[file_name] = { }
-        
-        if not file_done:
-            self.model_provider.rfm_file_data[file_name][str(packet_idx)] = packet_data
-        else:
-            self.model_provider.rfm_file_data[file_name][str(packet_idx)] = b'EOF'
-
-        # Race condition may make it neccessary to sleep here before testing if everything has made it
-        if self._rfm_is_file_done(file_name):
-            self._rfm_write_file(model_id, file_name)
-            del self.model_provider.rfm_file_data[file_name]
-
-    def _rfm_write_file(self, model_id: str, file_name: str):
-        assert ".." not in model_id # Prevent arbitrary writes
-        assert self.model_provider.rfm_file_data is not None 
-        assert file_name in self.model_provider.rfm_file_data
-        
-        model_dir = get_model_dir() / model_id / "data"
-        if not os.path.exists(model_dir):
-            model_dir.mkdir(parents=True)
-
-        with open(model_dir / file_name, "wb") as f:
-            idx = 0
-            file_data = self.model_provider.rfm_file_data[file_name]
-            while True:
-                assert str(idx) in file_data
-                
-                file_packet = file_data[str(idx)]
-                if file_packet == b'EOF':
-                    break
-                f.write(file_packet)
-                idx += 1
-
-    def _rfm_is_file_done(self, file_name: str) -> bool:
-        if self.model_provider.rfm_file_data is None or file_name not in self.model_provider.rfm_file_data:
-            return False
-        file_data = self.model_provider.rfm_file_data[file_name]
-        
-        idx = 0
-        while True:
-            if str(idx) in file_data:
-                pkt_data = file_data[str(idx)]
-                if pkt_data == b'EOF':
-                    return True
-            else:
-                return False
-            idx += 1
+            self.request_for_model.receive_data(node_id, data)
 
     def stop_network(self):
         if self.router is None:
             return
+        self.request_for_model.shutdown()
         self.model_provider.unload_all_models()
         self.job_provider.stop_oai_server()
         self.network_provider._stop_network()
@@ -288,7 +157,6 @@ class ContentProvider:
             self.job_tracker.shutdown = True
         if self.job_receiver is not None:
             self.job_receiver.shutdown = True
-        
 
     @staticmethod
     def get_total_system_ram() -> float:
