@@ -7,8 +7,7 @@ from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.pipes.pipe_manager import PipeManager
-
-MAX_SIM_JOBS = 5
+from language_pipes.util.config import get_max_api_jobs
 
 class JobFactory:
     job_tracker: JobTracker
@@ -50,7 +49,7 @@ class JobFactory:
                 resolve('NO_PIPE') # pyright: ignore[reportCallIssue]
             return
 
-        if api_key in self.job_tracker.jobs_pending and len(self.job_tracker.jobs_pending[api_key]) > MAX_SIM_JOBS:
+        if api_key in self.job_tracker.jobs_pending and len(self.job_tracker.jobs_pending[api_key]) > get_max_api_jobs():
             if resolve is not None:
                 resolve('MAX_JOBS') # pyright: ignore[reportCallIssue]
             return
@@ -87,3 +86,4 @@ class JobFactory:
             start(job)
 
         return job
+

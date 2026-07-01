@@ -12,8 +12,7 @@ from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.jobs.job_processor import JobProcessor, JobContext
-
-MAX_SIM_JOBS = 5
+from language_pipes.util.config import get_max_node_jobs
 
 class JobReceiver:
     job_factory: JobFactory
@@ -128,6 +127,6 @@ class JobReceiver:
         with self.queue_lock:
             if node_id not in self.job_queue:
                 self.job_queue[node_id] = [ ]
-            if len(self.job_queue[node_id]) > MAX_SIM_JOBS:
+            if len(self.job_queue[node_id]) > get_max_node_jobs():
                 raise Exception("Maximum number of jobs for node reached")
             self.job_queue[node_id].insert(0, job)
