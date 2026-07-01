@@ -321,6 +321,33 @@ end model should use the same value so that model layers are loaded correctly.
 export LP_NUM_LOCAL_LAYERS=1
 ```
 
+#### `LP_MAX_NODE_JOBS`
+
+Maximum number of jobs this node will queue for a single peer node. Incoming
+jobs from a node whose queue is already full are rejected.
+
+| Default |
+|---------|
+| `10` |
+
+```bash
+export LP_MAX_NODE_JOBS=10
+```
+
+#### `LP_MAX_API_JOBS`
+
+Maximum number of pending jobs allowed per API key on the
+[OpenAI-compatible API](./oai.md). Requests beyond this limit are rejected
+until earlier jobs for that key complete.
+
+| Default |
+|---------|
+| `5` |
+
+```bash
+export LP_MAX_API_JOBS=5
+```
+
 ---
 
 ## Hugging Face Authentication

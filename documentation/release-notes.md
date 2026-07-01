@@ -1,5 +1,14 @@
 # Change Log
 
+## Release  2.1.0
+
+### Job Limits
+Added two environment variables to protect nodes from being overloaded with jobs:
+- **`LP_MAX_NODE_JOBS`** (default `10`): maximum number of jobs this node will queue for a single peer node. Incoming jobs beyond this limit are rejected.
+- **`LP_MAX_API_JOBS`** (default `5`): maximum number of pending jobs per API key on the OpenAI-compatible server. Requests beyond this limit are rejected until earlier jobs for that key complete.
+
+See the [Configuration Manual](./configuration.md#environment-variables) for details.
+
 ## Release 2.0.0
 
 ### TUI
