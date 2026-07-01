@@ -300,7 +300,7 @@ def _write_response_event(handler: BaseHTTPRequestHandler, event_type: str, data
         return False
     return True
 
-def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict):
+def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict, api_key: str):
     req = ChatCompletionRequest.from_dict(data)
     created_at = time.time()
 
@@ -347,11 +347,11 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
                 })
 
     def promise_fn(resolve: Callable, _: Callable):
-        complete_cb(req.model, req.messages, req.max_completion_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
+        complete_cb(api_key, req.model, req.messages, req.max_completion_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
     job = Promise(promise_fn).get()
     complete(job)
 
-def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict):
+def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict, api_key: str):
     try:
         req = ResponsesRequest.from_dict(data)
     except ValueError as e:
@@ -591,7 +591,7 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
                 _respond_json(handler, response)
 
     def promise_fn(resolve: Callable, _: Callable):
-        complete_cb(req.model, req.messages, req.max_output_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
+        complete_cb(api_key, req.model, req.messages, req.max_output_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
     job = Promise(promise_fn).get()
     complete(job)
 
