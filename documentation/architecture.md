@@ -1,4 +1,7 @@
-# Architecture Overview
+---
+title: Architecture Overview
+description: How Language Pipes distributes transformer inference across machines, from node startup through job execution.
+---
 
 Language Pipes distributes transformer inference across multiple machines by splitting a model into **layer segments** that are coordinated over a peer-to-peer control plane. This document describes how the protocol works, from node startup through job execution.
 

@@ -1,4 +1,7 @@
-# Command Line Interface
+---
+title: Command Line Interface
+description: The Language Pipes CLI — launching the TUI, running saved TOML configurations headlessly, and every available flag.
+---
 
 ## Quick Reference
 

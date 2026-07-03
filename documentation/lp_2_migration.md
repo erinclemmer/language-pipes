@@ -1,4 +1,7 @@
-# Migrating to Language Pipes 2.0.0
+---
+title: Migrating to Language Pipes 2.0
+description: What changed in Language Pipes 2.0.0 — the move from a flag-driven CLI to TOML-based configuration and the interactive TUI.
+---
 
 Language Pipes 2.0.0 replaces the flag-driven `serve`/`init` CLI with a
 TOML configuration file plus an interactive TUI. **No CLI flags configure a

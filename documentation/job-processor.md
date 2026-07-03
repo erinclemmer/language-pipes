@@ -1,4 +1,7 @@
-# JobProcessor State Machine
+---
+title: Job Processor State Machine
+description: The finite state machine that orchestrates job execution across the distributed inference pipeline — states, transitions, and integration.
+---
 
 The `JobProcessor` class implements a finite state machine (FSM) that orchestrates job execution across the distributed inference pipeline. This document describes each state, the conditions for transitions, and how the FSM integrates with the broader Language Pipes architecture.
 

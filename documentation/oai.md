@@ -1,4 +1,7 @@
-# OpenAI-Compatible API
+---
+title: OpenAI-Compatible API
+description: Use existing OpenAI client tools with Language Pipes — endpoints, sampling parameters, and function tool calling.
+---
 
 Language Pipes provides an OpenAI-compatible API server, allowing you to use existing tools and libraries designed for OpenAI's API.
 

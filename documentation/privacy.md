@@ -1,4 +1,7 @@
-# Privacy
+---
+title: Privacy
+description: The privacy properties of Language Pipes, the End Model boundary, and a probabilistic threat model for hidden-state inversion attacks.
+---
 
 This document describes the privacy properties Language Pipes and the known attack surfaces.
 

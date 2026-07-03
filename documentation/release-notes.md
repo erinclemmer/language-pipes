@@ -1,4 +1,7 @@
-# Change Log
+---
+title: Release Notes
+description: Change log for Language Pipes releases.
+---
 
 ## Release 2.0.0
 
@@ -79,7 +82,7 @@ Added flag to denote API keys to use for OpenAI compatible server. This flag can
 ## Release 1.1.0
 
 ### Model Support
-Added model support for GLM4.1v, Gemma3, and Phi4 model families. Below is a list of newly tested models, the same model but . You can view current model support at [the model support page](documentation/model_support.md). Models of the same family but in different sizes should also work.
+Added model support for GLM4.1v, Gemma3, and Phi4 model families. Below is a list of newly tested models, the same model but . You can view current model support at [the model support page](./model_support.md). Models of the same family but in different sizes should also work.
 
 **Phi:**
 - microsoft/Phi-4-mini-reasoning

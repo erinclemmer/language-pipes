@@ -1,3 +1,8 @@
+---
+title: DSN Network Protocol
+description: The Distributed State Network wire protocol — transport, packet formats, encryption, and signatures.
+---
+
 ## Network Protocol
 
 ### Transport Layer

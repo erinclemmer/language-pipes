@@ -1,4 +1,7 @@
-# LLM Layer Collector
+---
+title: LLM Layer Collector
+description: A Python package for loading specific components of large, sharded HuggingFace model checkpoints at the layer level.
+---
 
 A practical Python package for working with [Huggingface](huggingface.co) models at the layer level. Designed to help developers and researchers load specific model components when working with large, sharded checkpoints.
 

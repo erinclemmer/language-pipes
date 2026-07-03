@@ -1,4 +1,8 @@
-### Supported Models
+---
+title: Supported Models
+description: Model families and specific checkpoints tested and known to work with Language Pipes.
+---
+
 Below are the models that are tested and known to work. Any fine-tuned model based on a supported model should also work.
 
 **Qwen3:**

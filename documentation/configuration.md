@@ -1,4 +1,7 @@
-# Configuration Reference
+---
+title: Configuration Reference
+description: The TOML configuration file format used by Language Pipes (LpConfig) — every field, type, and default.
+---
 
 This document describes the TOML configuration file format used by Language
 Pipes (`LpConfig`). See the [CLI Reference](./cli.md) for how `-c`/`--config`

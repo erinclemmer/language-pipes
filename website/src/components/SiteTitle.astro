@@ -1,0 +1,28 @@
+---
+// Overrides Starlight's site title so the docs header links back to the
+// custom landing page and keeps the terminal wordmark styling.
+import { SITE } from '../consts.ts';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<a href={`${base}/`} class="lp-site-title">
+  <span class="lp-prompt">$</span>&nbsp;{SITE.title}
+</a>
+
+<style>
+  .lp-site-title {
+    font-family: var(--sl-font-mono, ui-monospace, monospace);
+    font-weight: 600;
+    font-size: 1.05rem;
+    color: var(--sl-color-white);
+    text-decoration: none;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .lp-prompt {
+    color: var(--sl-color-accent, #4ee27b);
+  }
+  .lp-site-title:hover {
+    color: var(--sl-color-accent, #4ee27b);
+  }
+</style>
