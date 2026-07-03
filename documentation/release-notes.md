@@ -9,6 +9,9 @@ Added two environment variables to protect nodes from being overloaded with jobs
 
 See the [Configuration Manual](./configuration.md#environment-variables) for details.
 
+### 8-Bit Quantization
+- **`LP_8_BIT_MODE`** (default `false`): load model layers in 8-bit precision via [bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes) (LLM.int8), roughly halving layer memory usage. Requires the `bitsandbytes` package (`pip install language-pipes[quantization]`).
+
 ## Release 2.0.0
 
 ### TUI

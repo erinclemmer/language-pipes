@@ -48,6 +48,9 @@ dependencies = [
     "ansinout"
 ]
 
+[project.optional-dependencies]
+quantization = ["bitsandbytes"]
+
 [project.urls]
 Homepage = "https://github.com/erinclemmer/language-pipes"
 Issues = "https://github.com/erinclemmer/language-pipes/issues"

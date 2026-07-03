@@ -142,16 +142,17 @@ class JobProvider:
             return []
         
         meta_jobs = []
-        for job in job_tracker.jobs_pending:
-            meta_jobs.append(MetaJob(
-                job_id=job.job_id,
-                pipe_id=job.pipe_id,
-                model_id=job.model_id,
-                current_token=job.current_token,
-                origin_node_id=job.origin_node_id,
-                prompt_processed=(job.chunking.current_chunk / job.chunking.total_chunks) if job.chunking.total_chunks > 0 else 1,
-                last_update=time() - job.last_update,
-                ram=job.get_job_ram()
-            ))
+        for key in job_tracker.jobs_pending.keys():
+            for job in job_tracker.jobs_pending[key]:
+                meta_jobs.append(MetaJob(
+                    job_id=job.job_id,
+                    pipe_id=job.pipe_id,
+                    model_id=job.model_id,
+                    current_token=job.current_token,
+                    origin_node_id=job.origin_node_id,
+                    prompt_processed=(job.chunking.current_chunk / job.chunking.total_chunks) if job.chunking.total_chunks > 0 else 1,
+                    last_update=time() - job.last_update,
+                    ram=job.get_job_ram()
+               ))
         
         return meta_jobs

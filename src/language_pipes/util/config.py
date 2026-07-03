@@ -26,3 +26,6 @@ def get_max_node_jobs() -> int:
 
 def get_max_api_jobs() -> int:
     return int(os.environ.get("LP_MAX_API_JOBS", 5))
+
+def is_8_bit_mode() -> bool:
+    return os.environ.get("LP_8_BIT_MODE", "false").lower() in ("1", "true", "yes")

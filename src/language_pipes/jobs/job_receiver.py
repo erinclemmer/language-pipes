@@ -120,9 +120,10 @@ class JobReceiver:
             return
         
         # Ignore duplicate jobs
-        for j in self.job_queue[node_id]:
-            if j.job_id == job.job_id:
-                return
+        if node_id in self.job_queue:
+            for j in self.job_queue[node_id]:
+                if j.job_id == job.job_id:
+                    return
 
         with self.queue_lock:
             if node_id not in self.job_queue:

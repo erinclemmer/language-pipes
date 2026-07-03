@@ -348,6 +348,27 @@ until earlier jobs for that key complete.
 export LP_MAX_API_JOBS=5
 ```
 
+#### `LP_8_BIT_MODE`
+
+Load model layers in 8-bit precision using the
+[bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes) library
+(LLM.int8 quantization) instead of the default 16-bit floating point. This
+roughly halves the memory needed for hosted layers at a small cost in output
+quality and speed.
+
+The linear projection weights of each decoder layer are quantized to int8;
+the embedding, norms, and language-model head stay in `float16`.
+
+**Note**: Requires the `bitsandbytes` package: `pip install language-pipes[quantization]` or `pip install bitsandbytes`.
+
+| Default |
+|---------|
+| `false` |
+
+```bash
+export LP_8_BIT_MODE=true
+```
+
 ---
 
 ## Hugging Face Authentication

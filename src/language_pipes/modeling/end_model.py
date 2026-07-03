@@ -18,6 +18,7 @@ from language_pipes.jobs.job_data import computationStateToJobData
 from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.modeling.compute import compute_layers
 from language_pipes.util.utils import CHUNK_SIZE
+from language_pipes.util.config import is_8_bit_mode
 
 class EndModel:
     model_id: str
@@ -44,7 +45,8 @@ class EndModel:
             model_dir=model_path / "data",
             cache_file=model_path / 'cache.json',
             device=torch.device(device),
-            dtype=torch.bfloat16
+            dtype=torch.bfloat16,
+            load_in_8bit=is_8_bit_mode()
         )
         self.layers = []
         self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, 'data'))

@@ -34,6 +34,7 @@ class LlmLayerCollector:
     num_shards: int
     dtype: torch.dtype
     device: torch.device
+    load_in_8bit: bool
     layer_files: Dict[str, str]
 
     def __init__(
@@ -47,6 +48,7 @@ class LlmLayerCollector:
         lm_head_name: str = "lm_head.weight",
         dtype: torch.dtype = torch.bfloat16,
         device: torch.device = torch.device("cpu"),
+        load_in_8bit: bool = False,
     ):
         config_file_path = os.path.join(model_dir, "config.json")
         if not os.path.exists(config_file_path):
@@ -67,7 +69,10 @@ class LlmLayerCollector:
         self.input_embedding_layer_name = input_embedding_layer_name
         self.shard_pattern = shard_pattern
 
-        self.dtype = dtype
+        self.load_in_8bit = load_in_8bit
+        # bitsandbytes LLM.int8 kernels compute in fp16, so the unquantized
+        # pieces (embedding, norms, head) must match.
+        self.dtype = torch.float16 if load_in_8bit else dtype
         self.device = device
         self.layer_files = {}
         if cache_file is None:
@@ -223,6 +228,7 @@ class LlmLayerCollector:
                     self.model_dir,
                     device,
                     self.dtype,
+                    self.load_in_8bit,
                 )
             )
         gc.collect()
