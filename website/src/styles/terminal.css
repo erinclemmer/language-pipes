@@ -97,7 +97,7 @@
 .lp-lede {
   color: var(--lp-muted);
   font-size: 1.05rem;
-  max-width: 62ch;
+  max-width: 67ch;
 }
 
 .lp-page a {
@@ -124,21 +124,21 @@
 
 .lp-logo {
   color: var(--lp-green);
-  font-size: clamp(6px, 1.55vw, 13px);
+  font-size: clamp(6px, 1.55vw, 22px);
+  overflow: hidden;
   line-height: 1.05;
   margin: 0 0 1.75rem;
+  height: 200px;
   white-space: pre;
-  overflow-x: auto;
   text-shadow: 0 0 18px rgba(78, 226, 123, 0.25);
   -webkit-overflow-scrolling: touch;
 }
 
 .lp-tagline {
-  font-size: clamp(1.15rem, 2.6vw, 1.6rem);
+  font-size: clamp(1.15rem, 2.6vw, 1rem);
   color: var(--lp-fg-bright);
   font-weight: 600;
   margin: 0 0 0.75rem;
-  max-width: 30ch;
 }
 
 .lp-subtag {

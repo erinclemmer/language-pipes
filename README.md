@@ -24,7 +24,7 @@
 [PyPiVersion-Url]: https://img.shields.io/pypi/v/language-pipes
 [PythonVersion-Url]: https://img.shields.io/pypi/pyversions/language-pipes
 
-📖 **Documentation & site:** https://erinclemmer.github.io/language-pipes
+**Documentation & site:** https://languagepipes.com
 
 Language Pipes is an open-source distributed inference system built on the [transformers library](https://github.com/huggingface/transformers) that splits large language model computation across multiple machines. By separating the model's text-handling components (embedding and output head) from its intermediate transformer layers, Language Pipes enables peer-to-peer inference.
 

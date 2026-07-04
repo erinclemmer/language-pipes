@@ -338,16 +338,3 @@ downloading a gated model and offers to save it for future downloads.
 Get your token from [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
 
 **Note:** For gated models (like Llama), you must also accept the model's license agreement on the HuggingFace website before downloading.
-
----
-
-### Documentation
-* [CLI Reference](./cli.md)
-* [Privacy Protection](./privacy.md)
-* [Configuration Manual](./configuration.md)
-* [Architecture Overview](./architecture.md)
-* [OpenAI-Compatible API](./oai.md)
-* [Job Processor State Machine](./job-processor.md)
-* [Distributed State Network](./distributed-state-network/README.md)
-* [LLM Layer Collector](./llm-layer-collector.md)
-* [Release Notes](./release-notes.md)

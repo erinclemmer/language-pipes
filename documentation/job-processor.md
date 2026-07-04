@@ -191,21 +191,6 @@ SEND
     └──(handoff complete)────────────────────────────────────► DONE
 ```
 
-
-## Job Context
-
-The `JobProcessor` operates on a `JobContext` dataclass that bundles all resources needed for processing:
-
-```python
-@dataclass
-class JobContext:
-    config: LpConfig              # Node configuration
-    logger: Optional[any]         # Logger instance
-    job: Optional[Job]            # The job being processed
-    pipe: Optional[Pipe]          # Pipe with local/remote segments
-    end_model: Optional[EndModel] # End model (embed/norm/head)
-```
-
 ## Compute Steps
 
 The job's `compute_step` field determines what operation is needed next:
@@ -235,15 +220,3 @@ Jobs exit in three ways:
 1. **Completion:** Job reaches `HEAD`, generates EOS, result returned to client
 2. **Handoff:** Job sent to another node via `Pipe.send_job()`
 3. **Error:** Processing stops, job marked as failed
-
-
-### Documentation
-* [CLI Reference](./cli.md)
-* [Privacy Protection](./privacy.md)
-* [Configuration Manual](./configuration.md)
-* [Architecture Overview](./architecture.md)
-* [OpenAI-Compatible API](./oai.md)
-* [Job Processor State Machine](./job-processor.md)
-* [Distributed State Network](./distributed-state-network/README.md)
-* [LLM Layer Collector](./llm-layer-collector.md)
-* [Release Notes](./release-notes.md)

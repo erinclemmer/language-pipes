@@ -17,5 +17,5 @@ export const SITE = {
 // Replace with the real property ID once created (format: G-XXXXXXXXXX),
 // or leave as-is / empty to disable analytics.
 
-// export const GA_MEASUREMENT_ID = 'G-E2L6V0FKCC';
-export const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX';
+export const GA_MEASUREMENT_ID = 'G-E2L6V0FKCC';
+// export const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX';
