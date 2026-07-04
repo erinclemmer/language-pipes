@@ -5,9 +5,10 @@ export const SITE = {
   tagline: 'Peer-to-peer distributed inference for open-source language models',
   description:
     'Language Pipes is a peer-to-peer distributed inference engine for open-source LLMs. It splits a model’s transformer layers across your own machines, keeps raw text on a single trusted node, and exposes an OpenAI-compatible API.',
-  // Production URL (GitHub Pages). languagepipes.com redirects here.
-  url: 'https://erinclemmer.github.io',
-  base: '/language-pipes',
+  // Production URL. Served from the root of the custom domain; the
+  // github.io project URL 301-redirects here.
+  url: 'https://languagepipes.com',
+  base: '/',
   github: 'https://github.com/erinclemmer/language-pipes',
   pypi: 'https://pypi.org/project/language-pipes/',
   author: 'Erin Clemmer',
