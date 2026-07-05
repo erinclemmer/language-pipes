@@ -61,41 +61,43 @@ class JobReceiver:
 
     def _job_runner_loop(self):
         """Main job processing loop using FSM."""
-        network_job = self._wait_for_job()
-        if network_job is None:
-            return
-        
-        job = self.job_tracker.get_job(network_job.job_id)
-        if job is None:
-            pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
-            assert pipe is not None
-            job = self.job_tracker.add_job(network_job, self.model_manager.get_config(pipe.model_id))
-            assert job is not None
-
-        # Validate network job
-        if not job.receive_network_job(network_job):
-            return
-
-        pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
-        if pipe is None:
-            return
-
-        end_model = self.model_manager.get_end_model(pipe.model_id)
-        
-        fsm = JobProcessor(JobContext(
-            node_id=self.pipe_manager.router_pipes.router.node_id(),
-            pipe=pipe,
-            end_model=end_model,
-            job=job
-        ))
-
         try:
-            fsm.run()
-            self.logs.extend(fsm.logs)
+            while True:
+                network_job = self._wait_for_job()
+                if network_job is None:
+                    return
+                
+                job = self.job_tracker.get_job(network_job.job_id)
+                if job is None:
+                    pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
+                    assert pipe is not None
+                    job = self.job_tracker.add_job(network_job, self.model_manager.get_config(pipe.model_id))
+                    assert job is not None
+
+                # Validate network job
+                if not job.receive_network_job(network_job):
+                    return
+
+                pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
+                if pipe is None:
+                    return
+
+                end_model = self.model_manager.get_end_model(pipe.model_id)
+                
+                fsm = JobProcessor(JobContext(
+                    node_id=self.pipe_manager.router_pipes.router.node_id(),
+                    pipe=pipe,
+                    end_model=end_model,
+                    job=job
+                ))
+
+                try:
+                    fsm.run()
+                    self.logs.extend(fsm.logs)
+                except Exception as e:
+                    print(e)
         except Exception as e:
-            print(e)
-        
-        Thread(target=self._job_runner_loop, args=()).start()
+            self.logs.append(e)
 
     def restart_token(self, network_job: NetworkJob):
         """Mark job for restart and send back to origin."""
@@ -112,7 +114,6 @@ class JobReceiver:
         """Receive and validate incoming job data."""
         try:
             job, valid = NetworkJob.from_bytes(data)
-            job.origin_node_id = node_id
         except Exception:
             return
         if not valid:

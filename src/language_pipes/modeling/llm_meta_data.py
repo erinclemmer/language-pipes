@@ -1,3 +1,4 @@
+import logging
 import os
 import json
 from pathlib import Path
@@ -116,14 +117,17 @@ class LlmMetadata:
     def __init__(self, model_dir: Optional[Path] = None):
         if model_dir is None:
             return
+        try:
+            data = self._get_data(model_dir)
 
-        data = self._get_data(model_dir)
+            if "version" not in data or data["version"] != META_VER:
+                self._delete_files(model_dir)
+                data = get_computed_data(model_dir)
+            self._init_props(data)
 
-        if "version" not in data or data["version"] != META_VER:
-            self._delete_files(model_dir)
-            data = get_computed_data(model_dir)
-
-        self._init_props(data)
+        except Exception as e:
+            logging.getLogger(__name__).error(e)
+            raise e
 
     def _delete_files(self, model_dir: Path):
         cache_file = model_dir / "cache.json"
