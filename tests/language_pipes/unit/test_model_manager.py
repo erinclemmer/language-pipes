@@ -28,7 +28,7 @@ def make_metadata():
     metadata.avg_layer_size = 64 * 10**6
     metadata.embed_hash = "embed_hash"
     metadata.head_hash = "head_hash"
-    metadata.layer_hashes = ["l0", "l1", "l2", "l3"]
+    metadata.layer_hash = "l0"
     return metadata
 
 

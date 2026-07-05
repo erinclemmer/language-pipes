@@ -13,7 +13,7 @@ from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.end_model import EndModel
 
-from language_pipes.util.config import get_model_dir
+from language_pipes.util.config import get_model_dir, is_8_bit_mode
 
 class ModelManager:
     layer_models: List[LlmModel]
@@ -63,7 +63,11 @@ class ModelManager:
             return None
         meta_data = new_model.meta_data
         
-        num_layers_to_load = int(available_memory // meta_data.avg_layer_size) - 1
+        data_type_divisor = 1
+        if is_8_bit_mode():
+            data_type_divisor = 2
+
+        num_layers_to_load = int(available_memory / (meta_data.avg_layer_size / data_type_divisor)) - 1
         total_layers = new_model.collector.config.num_hidden_layers
         start_layer = pipe.next_start_layer(first_layer)
         if num_layers_to_load == -1:

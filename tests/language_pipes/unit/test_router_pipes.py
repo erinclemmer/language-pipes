@@ -51,13 +51,13 @@ def make_computed():
     metadata.avg_layer_size = 64
     metadata.embed_hash = "embed"
     metadata.head_hash = "head"
-    metadata.layer_hashes=["l0", "l1", "l2", "l3"]
+    metadata.layer_hash= "l0"
     return metadata
 
 class RouterPipesTests(unittest.TestCase):
     def test_add_and_get_pipe_by_pipe_id(self):
         node = FakeStateNetworkNode("node-a")
-        router = RouterPipes(node)
+        router = RouterPipes(node) # pyright: ignore[reportArgumentType]
         meta_data = make_computed()
         model = MetaModel("p1", 0, 1, True, "node-a", "pipe-1", "model-1", 4, meta_data)
 
@@ -67,12 +67,13 @@ class RouterPipesTests(unittest.TestCase):
         pipe = router.get_pipe_by_pipe_id("pipe-1")
 
         self.assertIsNotNone(pipe)
+        assert pipe is not None
         self.assertEqual(pipe.pipe_id, "pipe-1")
         self.assertEqual(pipe.model_id, "model-1")
 
     def test_pipes_for_model_filters_complete(self):
         node = FakeStateNetworkNode("node-a")
-        router = RouterPipes(node)
+        router = RouterPipes(node) # pyright: ignore[reportArgumentType]
         meta_data = make_computed()
         node.add_peer(
             "node-a",
@@ -91,7 +92,7 @@ class RouterPipesTests(unittest.TestCase):
 
     def test_update_model_replaces_existing(self):
         node = FakeStateNetworkNode("node-a")
-        router = RouterPipes(node)
+        router = RouterPipes(node) # pyright: ignore[reportArgumentType]
         meta_data = make_computed()
         model = MetaModel("p1", 0, 1, True, "node-a", "pipe-1", "model-1", 4, meta_data)
         router.add_model_to_network(model)
@@ -99,12 +100,12 @@ class RouterPipesTests(unittest.TestCase):
         updated = MetaModel("p1", 0, 1, False, "node-a", "pipe-1", "model-1", 4, meta_data)
         router.update_model(updated)
 
-        stored = json.loads(node.read_data("node-a", "models"))
+        stored = json.loads(node.read_data("node-a", "models")) # pyright: ignore[reportArgumentType]
         self.assertEqual(stored[0]["loaded"], False)
 
     def test_get_pipe_by_model_id_returns_complete_pipe(self):
         node = FakeStateNetworkNode("node-a")
-        router = RouterPipes(node)
+        router = RouterPipes(node) # pyright: ignore[reportArgumentType]
         meta_data = make_computed()
         node.add_peer(
             "node-a",
@@ -117,6 +118,7 @@ class RouterPipesTests(unittest.TestCase):
         pipe = router.get_pipe_by_model_id("model-1")
 
         self.assertIsNotNone(pipe)
+        assert pipe is not None
         self.assertEqual(pipe.pipe_id, "pipe-1")
 
 
