@@ -1,6 +1,7 @@
 import gc
 import re
 from pathlib import Path
+import warnings
 import torch
 from typing import List, Dict, Set
 
@@ -15,7 +16,11 @@ EXPERT_WEIGHT_RE = re.compile(r"^(.*experts)\.(\d+)\.(gate_proj|up_proj|down_pro
 def check_8bit_support() -> None:
     """Fail fast with an actionable message before any shards are read."""
     try:
-        import bitsandbytes  # noqa: F401  # pyright: ignore[reportMissingImports, reportUnusedImport]
+        with warnings.catch_warnings():
+            # bitsandbytes imports trigger a torch.jit.script_method
+            # DeprecationWarning on Python 3.14+; it's not actionable here.
+            warnings.simplefilter("ignore", DeprecationWarning)
+            import bitsandbytes  # noqa: F401  # pyright: ignore[reportMissingImports, reportUnusedImport]
     except ImportError as e:
         raise ImportError(
             "LP_8_BIT_MODE requires the bitsandbytes package. "
