@@ -9,6 +9,7 @@ from language_pipes.llm_layer_collector import LlmLayerCollector
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 from language_pipes.util.utils import clone_model
+from language_pipes.util.config import is_8_bit_mode
 
 from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata
@@ -71,7 +72,8 @@ class LlmModel:
                     model_dir=model_path / "data",
                     cache_file=model_path / 'cache.json',
                     device=device,
-                    dtype=torch.bfloat16 
+                    dtype=torch.bfloat16,
+                    load_in_8bit=is_8_bit_mode()
             )
             self.num_hidden_layers = self.collector.config.num_hidden_layers
             self.meta_data = LlmMetadata(model_path)

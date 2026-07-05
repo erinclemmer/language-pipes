@@ -15,7 +15,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "language-pipes"
-version = "2.0.0"
+version = "2.1.0"
 authors = [{name="Erin Clemmer", email="erin.c.clemmer@gmail.com"}]
 description = "Peer-to-peer distributed inference for open-source language models"
 keywords = ["distributed", "networking", "AI", "Language Model", "pipe", "pipeline", "server"]
@@ -47,6 +47,9 @@ dependencies = [
     "cryptography",
     "ansinout"
 ]
+
+[project.optional-dependencies]
+quantization = ["bitsandbytes"]
 
 [project.urls]
 Homepage = "https://github.com/erinclemmer/language-pipes"

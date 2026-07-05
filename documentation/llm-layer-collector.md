@@ -28,6 +28,7 @@ The LlmLayerCollector class serves as your central interface to the package's fu
 - `lm_head_name`: Name for the head weight (default: 'lm_head.weight')
 - `device`: Target device for tensor operations ("cpu" or "cuda") (default: "cpu")
 - `dtype`: Desired numerical precision (default: torch.float16)
+- `load_in_8bit`: Quantize decoder layer linear weights to 8-bit with [bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes) (LLM.int8). Requires the `bitsandbytes` package; forces `dtype` to `torch.float16` (default: False)
 
 ## Example
 This example uses all of the parts of the package to generate a token prediction

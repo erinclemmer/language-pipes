@@ -140,14 +140,14 @@ class DSNode:
         self.address_book[node_id] = conn
 
     def network_tick(self):
-        time.sleep(TICK_INTERVAL)
-        if self.shutting_down:
-            self.add_log("Shutting down node", "INFO")
-            return
-        self.test_connections()
-        self.gossip()
-        threading.Thread(target=self.network_tick, daemon=True).start()
-
+        while True:
+            time.sleep(TICK_INTERVAL)
+            if self.shutting_down:
+                self.add_log("Shutting down node", "INFO")
+                return
+            self.test_connections()
+            self.gossip()
+        
     def gossip(self):
         if len(self.address_book.keys()) == 0:
             return
@@ -480,7 +480,7 @@ class DSNode:
         
         if self.receive_cb is not None:
             try:
-                self.receive_cb(pkt.data)
+                self.receive_cb(pkt.node_id, pkt.data)
             except Exception as e:
                 print(e)
 

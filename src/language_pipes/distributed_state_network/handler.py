@@ -263,4 +263,4 @@ class DSNodeServer(StateNetworkNode):
 
     def receive_data(self, data: bytes):
         if self.node.receive_cb is not None:
-            self.node.receive_cb(data)
+            self.node.receive_cb(self.config.node_id, data)

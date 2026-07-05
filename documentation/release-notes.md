@@ -3,6 +3,22 @@ title: Release Notes
 description: Change log for Language Pipes releases.
 ---
 
+## Release  2.1.0
+
+### Job Limits
+Added two environment variables to protect nodes from being overloaded with jobs:
+- **`LP_MAX_NODE_JOBS`** (default `10`): maximum number of jobs this node will queue for a single peer node. Incoming jobs beyond this limit are rejected.
+- **`LP_MAX_API_JOBS`** (default `5`): maximum number of pending jobs per API key on the OpenAI-compatible server. Requests beyond this limit are rejected until earlier jobs for that key complete.
+
+See the [Configuration Manual](./configuration.md#environment-variables) for details.
+
+### 8-Bit Quantization
+- **`LP_8_BIT_MODE`** (default `false`): load model layers in 8-bit precision via [bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes) (LLM.int8), roughly halving layer memory usage. Requires the `bitsandbytes` package (`pip install language-pipes[quantization]`).
+
+### Bugs
+- Fixed glitching in menu going from models / installed to models / layers
+- Fixed saving and loading huggingface api key
+
 ## Release 2.0.0
 
 ### TUI
