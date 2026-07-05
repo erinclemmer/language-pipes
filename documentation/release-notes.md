@@ -12,6 +12,10 @@ See the [Configuration Manual](./configuration.md#environment-variables) for det
 ### 8-Bit Quantization
 - **`LP_8_BIT_MODE`** (default `false`): load model layers in 8-bit precision via [bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes) (LLM.int8), roughly halving layer memory usage. Requires the `bitsandbytes` package (`pip install language-pipes[quantization]`).
 
+### Bugs
+- Fixed glitching in menu going from models / installed to models / layers
+- Fixed saving and loading huggingface api key
+
 ## Release 2.0.0
 
 ### TUI
