@@ -29,6 +29,7 @@ def make_metadata():
     metadata.embed_hash = "embed_hash"
     metadata.head_hash = "head_hash"
     metadata.layer_hash = "l0"
+    metadata.version = "1.0.0"
     return metadata
 
 

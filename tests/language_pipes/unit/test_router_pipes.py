@@ -52,6 +52,7 @@ def make_computed():
     metadata.embed_hash = "embed"
     metadata.head_hash = "head"
     metadata.layer_hash= "l0"
+    metadata.version = "1.0.0"
     return metadata
 
 class RouterPipesTests(unittest.TestCase):

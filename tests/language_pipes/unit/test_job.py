@@ -12,7 +12,6 @@ from language_pipes.util.enums import ComputeStep, JobStatus
 
 def make_job():
     return Job(
-        api_key=None,
         origin_node_id="node-a",
         messages=[],
         pipe_id="pipe-1",
