@@ -218,15 +218,6 @@ Most models only need `state`, masks, RoPE, and the per-node KV cache. Some newe
 
 If the field is **mutated as it flows** (rare — e.g. cross-node KV sharing), you also need write-back: extend `compute_layers` to return the mutated value and `Job.set_layer` to write it into `job.data`, so it serializes to the next node. A read-only ride-along (like PLE) needs none of that.
 
-**Concrete write-back recipe (as implemented for Gemma4 `shared_kv_states`, a `Dict[str, Tuple[Tensor, Tensor]]`):**
-
-1. **`state_obj.py` / `job_data.py`** — add the field. For a dict, use `field(default_factory=dict)` (import `field` from `dataclasses`) so every other model gets a harmless empty `{}` with no constructor change. Serialize a `Dict[str, (k, v)]` with the **exact same loop already used for `position_embeddings`** (`write_int(len)`, then per key: `write_string(key)` + two `tensor_to_bytes`); read it back symmetrically. The existing `move_position_embeddings` helper already does the per-device `(k, v)` move — reuse it verbatim in both `computationStateToJobData` and `jobDataToComputationState`, and add a detach loop in `detachCompState`.
-2. **`modeling/compute.py`** — `compute_layers` now returns a **tuple** `(state.detach(), comp_state.shared_kv_states)`. This changes the return type for *all* models, so update **both** callers (`modeling/end_model.py` and `modeling/llm_model.py`) to unpack: `state, shared_kv_states = compute_layers(...)`.
-3. **`jobs/job.py`** — give `Job.set_layer` an optional `shared_kv_states=None` param and write `self.data.shared_kv_states = shared_kv_states` (guarded by `is not None`) so it survives onto the next hop. Pass it from both callers.
-4. **`modeling/NewModel.compute_layer`** — thread `state.shared_kv_states` (the live dict) into the layer kwargs instead of a throwaway `{}`; the layer mutates it in place.
-
-Note `JobData.hash_state` hashes `to_bytes`, so a mutated ride-along changes the per-hop hash — that's fine, the payload (`state`) already changes every hop; nothing treats the hash as a stable cross-node job identity.
-
 ---
 
 ## Verifying Your Changes
@@ -299,22 +290,6 @@ PY
 ```
 
 The same trick validates a sub-component in isolation (e.g. copy the 3 PLE weights into `Gemma4PerLayerEmbedder` and compare its output to HF's `get_per_layer_inputs` + `project_per_layer_inputs`).
-
-**Validating a *mutated* ride-along (cross-node KV sharing) — force a real wire hop.** A plain in-process loop won't prove the write-back path, because the mutated dict stays on the same object. To actually exercise serialization, round-trip `JobData` between every layer so `shared_kv_states` must survive `to_bytes`/`from_bytes`:
-
-```python
-from language_pipes.jobs.job_data import JobData, computationStateToJobData, jobDataToComputationState
-with torch.inference_mode():
-    for l in hf.layers:
-        jd = JobData.from_bytes(computationStateToJobData(state).to_bytes())  # simulated cross-node hop
-        new_state = jobDataToComputationState(jd, torch.device('cpu'))
-        new_state.per_layer_inputs = jd.per_layer_inputs   # re-attach PLE ride-along
-        new_state.state = Gemma4Model.compute_layer(W(l), new_state, cache)
-        state = new_state
-# cosine_last 1.0 / max_abs_diff 0.0 proves the producer's K/V crossed the wire to the consumer layers
-```
-
-**Gotcha — a tiny random config makes the HF reference itself crash with `KeyError: '<layer_type>'`.** With `num_kv_shared_layers > 0`, each shared (consumer) layer reads `shared_kv_states[self.layer_type]`, which is only populated by a *producer* of the same `layer_type` in the **non-shared prefix** (`layer_types[:num_hidden_layers - num_kv_shared_layers]`). Gemma4's default `layer_types` are almost all `sliding_attention` with a single trailing `full_attention` — so a `full_attention` consumer in the shared region has **no producer**, and the failure happens inside `Gemma4TextModel.forward` (the *reference*), not your code. Fix the config, not your wiring: pass an explicit alternating `layer_types=['full_attention','sliding_attention']*N` so both types appear in the prefix. Verify with `num_kv_shared_layers=2` (not the default `0`) to actually exercise consumers.
 
 ---
 
@@ -477,9 +452,17 @@ Hardware notes for `bfloat16`:
 - **`model_type` is `"gemma4_text"`**, module `transformers.models.gemma4.modeling_gemma4`. Classes: `Gemma4TextDecoderLayer`, `Gemma4RMSNorm`, `Gemma4TextRotaryEmbedding`, `Gemma4TextScaledWordEmbedding`. Like Gemma3, it needs the scaled word embedding (`embed_scale=sqrt(hidden_size)`) and per-type masks/RoPE keyed by `config.layer_types[layer_idx]`.
 - **Per-Layer Embeddings (PLE)** — active when `config.hidden_size_per_layer_input` is truthy. `compute_layer` **must** pass `per_layer_input` (the layer's slice of a `[batch, seq, num_layers, ple_dim]` tensor) or the forward silently goes wrong / errors. This is a ride-along tensor (see "Architectures Needing Extra Per-Forward Tensors"): computed once on the head node from the three weights `model.embed_tokens_per_layer.weight`, `model.per_layer_model_projection.weight`, `model.per_layer_projection_norm.weight`, reproducing `Gemma4TextModel.get_per_layer_inputs` + `project_per_layer_inputs`. **Never load `embed_tokens_per_layer` on layer nodes** — it's the largest tensor in the checkpoint.
 - **`shared_kv_states` must be a `dict`, not `None`** — `Gemma4TextDecoderLayer.forward` accepts `shared_kv_states=None`, but even with `num_kv_shared_layers == 0` the *producer* layers (`store_full_length_kv`, i.e. the last layer of each `layer_type`) execute `shared_kv_states[self.layer_type] = ...`. Passing `None` raises `TypeError: 'NoneType' object is not subscriptable`. Pass `{}` if you aren't implementing cross-node KV sharing — the writes are harmless because no layer reads them within a single forward when nothing is a `is_kv_shared_layer`.
-- **Cross-node KV sharing** (when `num_kv_shared_layers > 0`) is **implemented**: `shared_kv_states` is a mutated ride-along on `LLmComputationState`/`JobData` with write-back through `compute_layers` (returns `(state, shared_kv_states)`) and `Job.set_layer` (see the "Concrete write-back recipe" above). The dict is keyed by `layer_type` (~2 entries), produced by the last non-shared layer of each type and read by the trailing shared layers; because layers run in strict ascending order across the pipeline, the producer always precedes its consumers, so the dict only needs to flow *forward within one pass*. Shared layers legitimately lack `k_proj/v_proj/k_norm/v_norm` — `load_layers` already uses `load_state_dict(strict=False)`, so no load-path change is needed. Transport size is bounded by number of layer types (not layers), but each entry is full-length K/V — non-trivial on long contexts; an obvious later optimization is to stop shipping it once no downstream node owns a shared layer. To validate, see the "force a real wire hop" trick above (and its tiny-config `layer_types` gotcha).
+- **Cross-node KV sharing** (when `num_kv_shared_layers > 0`) is the one case that needs *mutated* ride-along state with write-back through `compute_layers`/`Job.set_layer`. The dict is keyed by `layer_type` (~2 entries), and shared layers legitimately lack `k_proj/v_proj/k_norm/v_norm` — `load_layers` already uses `load_state_dict(strict=False)`, so no load-path change is needed.
 - **MoE / double-wide MLP** (`enable_moe_block`, `Gemma4TextRouter`/`Gemma4TextExperts`) is internal to `Gemma4TextDecoderLayer` — no special handling in the modeling file.
 - **bf16 only** (same as Gemma3 — fp16 overflows).
+
+### 8) Ministral3 / FP8-quantized checkpoint gotchas (learned)
+
+- **`model_type` is `"ministral3"`** (text_config inside a top-level `"mistral3"` multimodal config), module `transformers.models.ministral3.modeling_ministral3`. The decoder layer takes the standard Llama-style kwargs; `AutoModelForCausalLM.from_config` handles the config directly — no special class needed in `helpers.get_config` (and `MinistralForCausalLM` is a *different*, older architecture — don't confuse them).
+- **Official checkpoints are FP8-quantized** (`config.quantization_config.quant_method == "fp8"`). Projection weights are `float8_e4m3fn` plus a `<name>.weight_scale_inv` dequant multiplier (scalar for per-tensor, 2D grid for block-wise) and an `activation_scale` (runtime-kernel-only). Casting fp8 → bf16 without multiplying by `weight_scale_inv` produces weights ~1000× too large → multilingual token-soup output with no error (`load_state_dict(strict=False)` silently ignores the scale keys). `get_shard_data` now calls `dequantize_fp8_weights` to apply the scales and drop the scale keys; norms/embeddings/head stay bf16 in the checkpoint (`modules_to_not_convert`).
+- **Multimodal weight naming nests the head**: keys are `language_model.model.layers.*`, `language_model.model.embed_tokens.weight`, and `language_model.lm_head.weight`. The cache builder derives layer/embed/norm names, but `lm_head.weight` used to keep its default → `load_head` silently fell back to the embedding weights (model is untied → garbage logits). `LlmLayerCollector.__init__` now scans `layer_files` for any key ending in `lm_head.weight` when the default is missing.
+- **Tokenizer needs `fix_mistral_regex=True`** (`AutoTokenizer.from_pretrained(..., fix_mistral_regex="mistralai" in model_id)` — see `end_model.py`), and in transformers 5 `apply_chat_template(..., return_tensors='pt')` returns a `BatchEncoding` unless you pass `return_dict=False`.
+- Two garbled-output causes can stack: wrong lm_head *and* unscaled fp8 weights. Verify the head key resolution (`collector.lm_head_name in collector.layer_files`) and compare one dequantized weight against a manual `weight.to(bf16) * weight_scale_inv` before running end-to-end.
 
 ---
 

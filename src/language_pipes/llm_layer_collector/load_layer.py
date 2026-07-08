@@ -102,6 +102,28 @@ def fuse_moe_expert_weights(
         )
         layer_state_dict[f'{prefix}.down_proj'] = stacked('down_proj')
 
+def dequantize_fp8_weights(shard_data: Dict[str, torch.Tensor]) -> None:
+    """Apply fp8 checkpoint scales to their weights, in place.
+
+    FP8-quantized checkpoints (config.quantization_config.quant_method == "fp8")
+    store each projection as a float8_e4m3fn ``<name>.weight`` plus a
+    ``<name>.weight_scale_inv`` dequant multiplier — a scalar for per-tensor
+    quantization or a 2D grid for block-wise. The weights were already cast to
+    the target dtype at read time (exact for e4m3), so multiplying by the scale
+    recovers the real values. ``activation_scale`` tensors are only meaningful
+    to fp8 runtime kernels and are dropped so they don't reach load_state_dict.
+    """
+    for key in [k for k in shard_data if k.endswith('.weight_scale_inv')]:
+        scale = shard_data.pop(key)
+        weight_key = key[:-len('_scale_inv')]
+        weight = shard_data[weight_key]
+        if scale.dim() >= 2:
+            scale = scale.repeat_interleave(weight.shape[0] // scale.shape[0], 0)
+            scale = scale.repeat_interleave(weight.shape[1] // scale.shape[1], 1)
+        shard_data[weight_key] = weight * scale
+    for key in [k for k in shard_data if k.endswith('.activation_scale')]:
+        del shard_data[key]
+
 def files_to_load_for_layer(
         layer_prefix: str,
         layer_file_cache: Dict[str, str],
@@ -147,7 +169,9 @@ def get_shard_data(
                     shard_data[key] = get_shard_tensor(shard, key).detach().to(dtype)
         del shard
         gc.collect()
-    
+
+    dequantize_fp8_weights(shard_data)
+
     return shard_data
 
 def load_layer(

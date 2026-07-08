@@ -48,10 +48,10 @@ def check_cache(tst: unittest.TestCase, model_dir: str, cache_file: str, num_key
     tst.assertTrue(os.path.exists(collector.cache_file))
     with open(cache_file, 'r') as f:
         cache = json.load(f)
-        tst.assertEqual(len(cache.keys()), num_keys)
+        tst.assertEqual(len(cache['layer_files'].keys()), num_keys)
 
 def get_tokenizer(model_dir: str) -> AutoTokenizer:
-    return AutoTokenizer.from_pretrained(model_dir) # type: ignore
+    return AutoTokenizer.from_pretrained(model_dir, fix_mistral_regex="mistralai" in model_dir) # type: ignore
 
 def encode_tokenizer(tokenizer: AutoTokenizer, prompt: str) -> torch.Tensor:
     return tokenizer(prompt, return_tensors='pt')['input_ids'] # type: ignore
@@ -61,14 +61,14 @@ def check_embedding(tst: unittest.TestCase, model_dir: str, cache_file: str, sta
     input_embedder = collector.load_input_embedding()
     tokenizer = get_tokenizer(model_dir)
     input_ids = encode_tokenizer(tokenizer, PROMPT)
-    state = StaticAutoModel.compute_embedding(len(input_ids), 128, input_embedder, input_ids, collector.config, DynamicCache())
+    state = StaticAutoModel.compute_embedding(input_ids.shape[1], 128, input_embedder, input_ids, collector.config, DynamicCache())
     tst.assertEqual(state.state.shape, state_shape)
     tst.assertEqual(state.position_ids.shape, position_ids_shape)
     # tst.assertEqual(state.position_embeddings[0].shape, position_embeddings_shape)
     # tst.assertEqual(state.position_embeddings[1].shape, position_embeddings_shape)
     tst.assertIsNotNone(state.cache_position)
     tst.assertIsNotNone(state.causal_mask)
-    tst.assertGreater(len(state.causal_mask.keys()), 1)
+    tst.assertGreater(len(state.causal_mask.keys()), 0)
     
 def check_norm(tst: unittest.TestCase, model_dir: str, cache_file: str, norm_dim: int):
     collector = LlmLayerCollector(model_dir, cache_file)
@@ -89,7 +89,7 @@ def check_layers(tst: unittest.TestCase, model_dir: str, cache_file: str, end_la
     tst.assertEqual(len(layers), end_layer+1)
 
 def apply_chat_template(tokenizer: AutoTokenizer, messages: List[Dict[str, str]]) -> torch.Tensor:
-    return tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_tensors='pt') # type: ignore
+    return tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_tensors='pt', return_dict=False) # type: ignore
 
 def decode_tokenizer(tokenizer: AutoTokenizer, ids: torch.Tensor) -> str:
     return tokenizer.decode(ids) # type: ignore
@@ -122,7 +122,7 @@ def check_stack(tst: unittest.TestCase, model_dir: str, cache_file: str, chunk_s
         tst.assertEqual(state.cache_position[-1].item(), min(((chunk_idx + 1) * chunk_size) - 1, prompt_tokens - 1))
         
         for lyr in layers:
-            state.state = StaticAutoModel.compute_layer(lyr, state, cache)
+            state.state = StaticAutoModel.compute_layer(lyr, collector.config, state, cache)
         
         tst.assertEqual(cache.get_seq_length(), min((chunk_idx + 1) * chunk_size, prompt_tokens))
         print(f"chunk {chunk_idx + 1} / {num_chunks}")
@@ -133,19 +133,21 @@ def check_stack(tst: unittest.TestCase, model_dir: str, cache_file: str, chunk_s
     current_ids = all_input_ids
     
     for i in range(num_decode_tokens):
-        state = StaticAutoModel.compute_embedding(prompt_tokens, chunk_size, input_embed, current_ids, collector.config, cache)
-        
-        tst.assertEqual(state.state.shape[1], 1)
-        
-        for lyr in layers:
-            state.state = StaticAutoModel.compute_layer(lyr, state, cache)
-        
+        # Sample from the latest hidden state first, then embed the new token —
+        # same order as the real pipeline, otherwise the first decode slice is empty.
         result = StaticAutoModel.compute_head(head, norm(state.state), 'cpu', 10)
-        
+
         token_list: List[int] = current_ids.cpu().numpy().tolist()[0]
         token_list.append(result)
         current_ids = tensor([token_list])
-        
+
+        state = StaticAutoModel.compute_embedding(prompt_tokens, chunk_size, input_embed, current_ids, collector.config, cache)
+
+        tst.assertEqual(state.state.shape[1], 1)
+
+        for lyr in layers:
+            state.state = StaticAutoModel.compute_layer(lyr, collector.config, state, cache)
+
         print(f"Decode token {i + 1}: cache size = {cache.get_seq_length()}")
     
     print(f"Generated {num_decode_tokens} tokens after chunked prefill")
@@ -202,6 +204,18 @@ class TestLlmLayerCollector(unittest.TestCase):
         check_embedding(self, model_dir, cache_file, (1, 9, 1152), (1, 9), (1, 9, 256))
         check_norm(self, model_dir, cache_file, 1152)
         check_head(self, model_dir, cache_file, (262144, 1152))
+        check_layers(self, model_dir, cache_file, 2)
+        check_stack(self, model_dir, cache_file, chunk_size=32)
+
+    def test_ministral3_8B(self):
+        model_id = "mistralai/Ministral-3-8B-Instruct-2512"
+        model_dir = get_model_dir(model_id)
+        cache_file = get_cache_file(model_id)
+        ensure_model(model_id)
+        check_cache(self, model_dir, cache_file, 1007)
+        check_embedding(self, model_dir, cache_file, (1, 8, 4096), (1, 8), (1, 8, 128))
+        check_norm(self, model_dir, cache_file, 4096)
+        check_head(self, model_dir, cache_file, (131072, 4096))
         check_layers(self, model_dir, cache_file, 2)
         check_stack(self, model_dir, cache_file, chunk_size=32)
 

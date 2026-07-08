@@ -80,6 +80,15 @@ class LlmLayerCollector:
         self.cache_file = cache_file
         self._read_cache()
 
+        # Multimodal checkpoints nest the head (e.g. "language_model.lm_head.weight");
+        # without this, load_head would silently fall back to the embedding weights
+        # even for untied models.
+        if self.lm_head_name not in self.layer_files:
+            for key in self.layer_files:
+                if key.endswith("lm_head.weight"):
+                    self.lm_head_name = key
+                    break
+
     def _read_cache(self):
         if not os.path.exists(self.cache_file):
             return self._build_cache()

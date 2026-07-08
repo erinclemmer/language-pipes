@@ -4,7 +4,7 @@ from typing import Dict, List
 
 import torch
 from safetensors import safe_open
-from transformers import AutoConfig, AutoModelForCausalLM, MinistralForCausalLM
+from transformers import AutoConfig, AutoModelForCausalLM
 from transformers.configuration_utils import PretrainedConfig
 
 def get_shard_keys(st: safe_open) -> List[str]:
@@ -38,10 +38,6 @@ def get_config(model_dir: Path) -> PretrainedConfig:
         config = config.text_config
 
     with torch.device('meta'):
-        meta_model = None
-        if config.model_type == "ministral3":
-            meta_model = MinistralForCausalLM._from_config(config)
-        else:
-            meta_model = AutoModelForCausalLM.from_config(config)
- 
+        meta_model = AutoModelForCausalLM.from_config(config)
+
     return meta_model.config
