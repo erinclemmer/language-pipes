@@ -5,6 +5,7 @@ from transformers.cache_utils import DynamicCache
 from transformers.configuration_utils import PretrainedConfig
 
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from language_pipes.llm_layer_collector.modeling.Ministral3Model import Ministral3Model
 from language_pipes.llm_layer_collector.modeling.Qwen3MoeModel import Qwen3MoeModel
 from language_pipes.llm_layer_collector.modeling.Qwen3Model import Qwen3Model
 from language_pipes.llm_layer_collector.modeling.LlamaModel import LlamaModel
@@ -89,6 +90,9 @@ class StaticAutoModel:
 
             case "gemma4_text":
                 Gemma4Model.compute_embedding(state, config, mask_kwargs)
+            
+            case "ministral3":
+                Ministral3Model.compute_embedding(state, config, mask_kwargs)
 
         return state
 

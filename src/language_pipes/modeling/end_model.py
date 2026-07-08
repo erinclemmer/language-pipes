@@ -2,7 +2,6 @@ import os
 import torch
 from uuid import uuid4
 from pathlib import Path
-from logging import Logger
 from typing import List, Set, Optional
 
 from transformers.models.auto.tokenization_auto import AutoTokenizer
@@ -49,7 +48,7 @@ class EndModel:
             load_in_8bit=is_8_bit_mode()
         )
         self.layers = []
-        self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, 'data'))
+        self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, 'data'), fix_mistral_regex="mistralai" in model_id)
     
     @staticmethod
     def get_num_local_layers():
