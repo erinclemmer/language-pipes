@@ -121,6 +121,9 @@ class StaticAutoModel:
 
             case "gemma4_text":
                 return Gemma4Model.compute_layer(layer, state, cache)
+            
+            case "ministral3":
+                return Ministral3Model.compute_layer(layer, state, cache)
 
         return torch.tensor([])
 

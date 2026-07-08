@@ -24,6 +24,8 @@ class Ministral3Model:
             "full_attention": AutoRotaryEmbedding(config)(state.state.detach(), state.position_ids)
         }
 
+        return state
+
     @staticmethod
     def compute_layer(
         layer: AutoDecoderLayer,
