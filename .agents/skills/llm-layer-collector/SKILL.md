@@ -232,30 +232,56 @@ print(config.model_type)  # Should match your key in all mapper dicts
 
 ### 2. Run the layer collector test suite
 
-Add a test method to `tests/llm_layer_collector/test.py` following the existing pattern:
+The suite lives in `tests/llm_layer_collector/` and has three tiers. **The only
+file you edit to add a model is `specs.py`** — everything else (tiny-checkpoint
+building, HF parity, memory-capping) is driven off the spec tables.
 
-```python
-def test_new_model(self):
-    model_id = "org/model-name"
-    model_dir = get_model_dir(model_id)
-    cache_file = get_cache_file(model_id)
-    ensure_model(model_id)
-    check_cache(self, model_dir, cache_file, <expected_num_keys>)
-    check_embedding(self, model_dir, cache_file, 
-        (<batch>, <seq_len>, <hidden_size>),  # state shape
-        (<batch>, <seq_len>),                  # position_ids shape
-        (<batch>, <seq_len>, <head_dim>))      # position_embeddings shape
-    check_norm(self, model_dir, cache_file, <hidden_size>)
-    check_head(self, model_dir, cache_file, (<vocab_size>, <hidden_size>))
-    check_layers(self, model_dir, cache_file, 2)
-    check_stack(self, model_dir, cache_file, chunk_size=32)
+**Add one `TinyModelSpec` to `specs.py`.** Copy the closest existing architecture
+and set the tiny dims + flags (`per_type_rope`, `ple`, `fp8`, `key_style`,
+`mrope`). Then run the tiny-parity suite — no download, KBs of memory, tight
+float32 tolerances:
+
+```bash
+python -m unittest tests.llm_layer_collector.test_units tests.llm_layer_collector.test_tiny_models
+python -m unittest tests.llm_layer_collector.test_tiny_models -k <model_type>
 ```
 
-The `check_stack` test is the most important — it runs a full end-to-end inference (chunked prefill + decode) and verifies the model produces coherent output.
+`test_tiny_models` builds a random tiny model from your config class, saves it as
+real safetensors shards, loads it back through `LlmLayerCollector`, and compares
+the full forward path (single-shot, chunked-prefill, and decode) against the HF
+reference model's own `last_hidden_state` (`cosine ≥ 0.9999`, `max_abs_diff < 1e-4`).
+This is the primary CI gate — it fails loudly on the exact wiring bugs (unscaled
+fp8, wrong lm_head, missing embed scaling, uninitialized MoE experts) that the
+Debugging Playbook below exists for. Architecture quirks become spec-driven
+assertions (per-type masks/RoPE, PLE ride-along shape, fp8 dequant equality).
 
-### 3. Validate without a checkpoint (synthetic tiny-config vs HF reference)
+If a tiny spec surfaces a gap, **fix the spec table, not the test factory** — the
+factory is architecture-agnostic. Common tiny-config gotchas: Phi3's default
+`pad_token_id` exceeds a tiny vocab (set `pad_token_id=None`); Gemma3 per-type
+RoPE needs `sliding_window_pattern` + `rope_local_base_freq`; Gemma4/Ministral3
+real checkpoints nest weights under a multimodal wrapper, so the spec's
+`key_style` renames tiny keys to match (`gemma4_multimodal` = `model.language_model.*`,
+`mistral3_multimodal` = `language_model.model.*`).
 
-When the real checkpoint is gated or huge (Gemma4, large MoEs), you can still prove the wiring is correct **without downloading anything**. Build a tiny random model from the HF config class, copy its weights into your modeling path, and compare hidden states. A match here is stronger evidence than a single end-to-end run because it isolates *your* dispatch code from tokenizer/sampling noise.
+**Only then, optionally, add a `RealModelSpec`** for an opt-in real-checkpoint
+smoke test (prefer the smallest real checkpoint). Expected values are derived
+from `config.json` / the safetensors index — never hardcoded. Tier 2 is gated so
+default CI never downloads, runs each model in a memory-capped subprocess (10 GB
+RSS budget in `memguard.py`), and streams the layer stack one window at a time via
+`run_stack_windowed` so even a 16 GB-resident model fits under the cap:
+
+```bash
+LP_RUN_MODEL_TESTS=1       python -m unittest tests.llm_layer_collector.test_real_models -k <model_type>
+LP_RUN_MODEL_TESTS=nightly python -m unittest tests.llm_layer_collector.test_real_models   # + short decode
+```
+
+### 3. Validate a sub-component by hand (ad-hoc, no checkpoint)
+
+Tier 1 above *is* the automated synthetic-parity gate. For one-off debugging of a
+single component you can still build a tiny random model from the HF config class,
+copy its weights into your modeling path, and compare hidden states directly —
+stronger evidence than an end-to-end run because it isolates *your* dispatch code
+from tokenizer/sampling noise.
 
 ```bash
 PYTHONPATH=src python - <<'PY'
@@ -480,13 +506,15 @@ grep -R "def compute_head" -n src tests
 # Find where a specific model class is referenced
 grep -R "Gemma3" -n src/language_pipes/llm_layer_collector
 
-# Run only the target llm_layer_collector test
-python -m unittest tests.llm_layer_collector.test.TestLlmLayerCollector.test_gemma3_1B 2>&1
+# Run only the target llm_layer_collector tiny-parity test
+python -m unittest tests.llm_layer_collector.test_tiny_models -k gemma3 2>&1
 ```
 
 ### 3. Determine expected test values
 
-Read these from the model's `config.json`:
+Tier 1 derives everything from your `TinyModelSpec` — you don't hand-type shapes.
+For a Tier 2 `RealModelSpec` (and for sanity-checking a spec), read these from the
+model's `config.json`:
 
 | Test Value | Config Field |
 |---|---|
@@ -525,7 +553,7 @@ If the new model uses non-standard names, you would need to either:
 - [ ] Add `RotaryEmbedding` (or equivalent) to `auto/auto_rotary.py` mapper
 - [ ] Create `modeling/NewModel.py` with `compute_embedding` and `compute_layer`
 - [ ] Add dispatch cases in `static_auto_model.py` for both `compute_embedding` and `compute_layer`
-- [ ] Add a test case in `tests/llm_layer_collector/test.py`
+- [ ] Add a `TinyModelSpec` to `tests/llm_layer_collector/specs.py` and run `test_tiny_models` (optionally add a `RealModelSpec` for Tier 2)
 - [ ] Run the test and verify end-to-end inference produces coherent output
 
 ## Example: How Qwen3 Was Added (Reference)

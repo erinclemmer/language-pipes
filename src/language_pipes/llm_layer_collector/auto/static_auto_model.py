@@ -51,10 +51,9 @@ class StaticAutoModel:
 
         mask_kwargs = { # pyright: ignore[reportUnknownVariableType]
             "config": config,
-            "input_embeds": hidden_state.detach(),
+            "inputs_embeds": hidden_state.detach(),
             # Let transformers build the default causal/sliding masks.
             "attention_mask": None,
-            "cache_position": cache_position,
             "past_key_values": cache,
             "position_ids": position_ids
         }

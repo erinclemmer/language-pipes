@@ -28,7 +28,6 @@ class Gemma3Model:
         config: PretrainedConfig,
         mask_kwargs: Dict[str, any] # pyright: ignore[reportGeneralTypeIssues]
     ) -> LLmComputationState:
-        del mask_kwargs["cache_position"]
         sliding_mask_kwargs = mask_kwargs.copy()
         if config.use_bidirectional_attention:
             mask_kwargs["or_mask_function"] = lambda *args: torch.tensor(True, dtype=torch.bool)

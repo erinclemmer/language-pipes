@@ -19,7 +19,7 @@ class TestCloneModel(unittest.TestCase):
     def test_downloads_model_to_data_subdirectory(self):
         """clone_model should download model files to model_dir/data/."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            model_dir = os.path.join(tmpdir, "test_model")
+            model_dir = Path(os.path.join(tmpdir, "test_model"))
             
             clone_model("facebook/opt-125m", model_dir)
             
@@ -34,7 +34,7 @@ class TestCloneModel(unittest.TestCase):
     def test_repository_not_found(self):
         """When model doesn't exist, model_dir should be removed and exit(1) called."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            model_dir = os.path.join(tmpdir, "test_model")
+            model_dir = Path(os.path.join(tmpdir, "test_model"))
             # Pre-create the directory to simulate partial state
             os.makedirs(model_dir)
             marker_file = os.path.join(model_dir, "marker.txt")
@@ -59,7 +59,7 @@ class TestCloneModel(unittest.TestCase):
     def test_gated_repo(self):
         """When model is gated and no token provided, model_dir should be removed."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            model_dir = os.path.join(tmpdir, "test_model")
+            model_dir = Path(os.path.join(tmpdir, "test_model"))
             os.makedirs(model_dir)
             marker_file = os.path.join(model_dir, "marker.txt")
             with open(marker_file, "w") as f:
@@ -85,7 +85,7 @@ class TestCloneModel(unittest.TestCase):
         """When download fails due to permissions, error message should include exception details."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a read-only directory as model_dir
-            model_dir = os.path.join(tmpdir, "readonly_model")
+            model_dir = Path(os.path.join(tmpdir, "readonly_model"))
             os.makedirs(model_dir)
             os.chmod(model_dir, stat.S_IRUSR | stat.S_IXUSR)  # read + execute only
             
