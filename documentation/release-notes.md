@@ -80,7 +80,7 @@ print(response.output_text)
 ### Gemma 4 Support
 Added support for Google's newest language model line. Tested Models:
 - google/gemma-4-E2B-it
-- google/geema-4-E4B-it
+- google/gemma-4-E4B-it
 - More tests in the future, but the program should support any Gemma 4 model!
 
 ## Release 1.2.0

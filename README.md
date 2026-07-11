@@ -11,12 +11,17 @@
 
 **Peer-to-peer distributed inference for open-source language models**
 
+[![Tests][Tests-Image]][Tests-Url]
 [![Release][Release-Image]][Release-Url] 
-[![GitHub license][License-Image]](License-Url)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/language-pipes)
+[![GitHub license][License-Image]][License-Url]
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/language-pipes)][PyPI-Url]
+
+[Tests-Image]: https://img.shields.io/github/actions/workflow/status/erinclemmer/language-pipes/tests.yml?branch=main&label=tests
+[Tests-Url]: https://github.com/erinclemmer/language-pipes/actions/workflows/tests.yml
 
 [License-Image]: https://img.shields.io/badge/license-MIT-blue.svg
 [License-Url]: https://github.com/erinclemmer/language-pipes/blob/main/LICENSE
+[PyPI-Url]: https://pypi.org/project/language-pipes/
 
 [Release-Url]: https://github.com/erinclemmer/language-pipes/releases/latest
 [Release-Image]: https://img.shields.io/github/v/release/erinclemmer/language-pipes
@@ -47,8 +52,10 @@ Further reading:
 
 
 ### Installation
-Requires Python 3.10+. For GPU support, install the appropriate PyTorch version for your CUDA configuration:  
+Requires Python 3.10+. A GPU is optional — each node can run on CPU or CUDA, and a node only needs enough memory to hold the layers it hosts (memory scales with how many layers you assign it). For GPU support, install the appropriate PyTorch version for your CUDA configuration:  
 https://pytorch.org/get-started/locally/  
+
+See [System requirements and network requirements](./documentation/architecture.md#failure-modes-and-limitations) for details, including what happens when a node drops mid-generation.  
   
 **Install from pip:**
 ```bash
@@ -136,15 +143,22 @@ Install the OpenAI library with: `pip install openai`
 See the [OpenAI-compatible API documentation](./documentation/oai.md) for the full endpoint reference and sampling parameter descriptions.
 
 ### Supported Models
-Language Pipes currently supports a few model families including Qwen3, Phi, Meta Llama 3.1/3.2, and Gemma 3. [View all tested models here](./documentation/model_support.md)  
+Language Pipes supports Qwen3 (dense and MoE), Phi, Meta Llama 2/3, Gemma 3, Gemma 4, and Ministral 3. See the [supported-models list](./documentation/model_support.md) for a more complete list.
 
-### Planned Improvements
+### Roadmap
 - Additional model architectures
-- INT8 and INT4 quantization (currently all inference uses fp16)
+- 4 bit quantization
+- KV Cache quantization
 - GGUF format support (currently requires safetensors)
+- Failover/rerouting when a layer node drops, and integrity guarantees for layer computation
+
+See the [full roadmap](./documentation/roadmap.md) for details and open research directions.
+
+### Contributing
+Contributions are welcome! Bug reports, documentation fixes, and especially new model architectures. See [CONTRIBUTING.md](./CONTRIBUTING.md) for dev setup, how to run the tests, and PR expectations, and the [Code of Conduct](./CODE_OF_CONDUCT.md). Questions and ideas are welcome in [GitHub Discussions](https://github.com/erinclemmer/language-pipes/discussions).
 
 ### Dependencies
-- [pytorch](pytorch.org)
+- [pytorch](https://pytorch.org)
 - [transformers](https://huggingface.co/docs/transformers) 
 
 ### Documentation

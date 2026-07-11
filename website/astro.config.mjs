@@ -48,6 +48,11 @@ export default defineConfig({
       head: [
         { tag: 'meta', attrs: { property: 'og:type', content: 'website' } },
         { tag: 'meta', attrs: { name: 'theme-color', content: '#0a0e0a' } },
+        { tag: 'meta', attrs: { property: 'og:image', content: `${SITE.url}/og.png` } },
+        { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+        { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
+        { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
+        { tag: 'meta', attrs: { name: 'twitter:image', content: `${SITE.url}/og.png` } },
         ...gaHead,
       ],
       components: {
@@ -59,6 +64,7 @@ export default defineConfig({
           label: 'Getting Started',
           items: [
             { label: 'Install & Quick Start', link: '/#quick-start' },
+            { label: 'Why Language Pipes?', slug: 'comparison' },
             { label: 'Migrating to LP 2.0', slug: 'lp_2_migration' },
           ],
         },
@@ -90,7 +96,16 @@ export default defineConfig({
           label: 'Reference',
           items: [
             { label: 'Supported Models', slug: 'model_support' },
+            { label: 'Roadmap', slug: 'roadmap' },
             { label: 'Release Notes', slug: 'release-notes' },
+          ],
+        },
+        {
+          label: 'Community',
+          items: [
+            { label: 'Discussions', link: `${SITE.github}/discussions`, attrs: { target: '_blank' } },
+            { label: 'Contributing', link: `${SITE.github}/blob/main/CONTRIBUTING.md`, attrs: { target: '_blank' } },
+            { label: 'GitHub', link: SITE.github, attrs: { target: '_blank' } },
           ],
         },
       ],
