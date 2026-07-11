@@ -134,18 +134,18 @@ class ContentProvider:
             self.router_pipes = None
             self.pipe_manager = None
 
-    def request_model(self, model_id: str):
+    def request_model(self, model_id: str, token: Optional[str] = None):
         if self.request_for_model is None:
             return
-        
+
         self.request_for_model.request_state.reset()
-        self.request_for_model.request_model(model_id)
+        self.request_for_model.request_model(model_id, token)
 
     def _receive_data(self, node_id: str, data: bytes):
         bts = ByteHelper(data)
         protocol = bts.read_int() # Protocol number
         if protocol == 0 and self.job_receiver is not None:
-            self.job_receiver.receive_data(bts.read_bytes())
+            self.job_receiver.receive_data(node_id, bts.read_bytes())
         if protocol == 1:
             self.request_for_model.receive_data(node_id, data)
 

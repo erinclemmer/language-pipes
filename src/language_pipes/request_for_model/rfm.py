@@ -1,4 +1,5 @@
 import hashlib
+import logging
 from logging import Logger
 import os
 from pathlib import Path
@@ -8,11 +9,13 @@ from typing import Callable, Dict, List, Optional
 
 from huggingface_hub import HfApi, hf_hub_download
 from language_pipes.content_provider.model_provider import ModelDownloadProgress, ModelProvider
-from language_pipes.global_config import GlobalConfig
 from language_pipes.request_for_model.rfm_packets import DoneSendingRFMPacket, IHaveModelRFMPacket, ReadyToReceiveRFMPacket, SendingDataRFMPacket, WhoHasRFMPacket
 from language_pipes.request_for_model.state import ModelFileData, RFMRequestState, RFMSendState
 from language_pipes.request_for_model.util import assert_fn, read_packet
 from language_pipes.util.config import get_model_dir
+
+# Skip unauthenticated warning message
+logging.getLogger("huggingface_hub.utils._http").setLevel(logging.ERROR)
 
 POLL_INTERVAL_SECONDS = 10
 INACTIVITY_TIMEOUT_SECONDS = 30
@@ -27,6 +30,9 @@ class RequestForModelHandler:
     _get_installed_models: Callable[[], List[str]]
     _stop_event: threading.Event
     _monitor_thread: threading.Thread
+    _send_thread: Optional[threading.Thread]
+    _write_threads: List[threading.Thread]
+    _finish_thread: Optional[threading.Thread]
 
     def __init__(
             self,
@@ -43,10 +49,10 @@ class RequestForModelHandler:
         self.request_state = RFMRequestState()
         self.send_state = RFMSendState()
         self.logger = logger
+        self._send_thread = None
+        self._write_threads = []
+        self._finish_thread = None
 
-        # Watchdog: records when download activity was last seen and aborts a
-        # download that stalls for too long. Guarded by ``_lock`` because the
-        # monitor thread and the receive thread both touch this state.
         self._stop_event = threading.Event()
         self._monitor_thread = threading.Thread(
             target=self._activity_monitor,
@@ -64,6 +70,9 @@ class RequestForModelHandler:
 
     def _check_inactivity(self):
         with self.request_state.lock:
+            # Don't stop downloading while writing to file
+            if self.request_state.pending_writes > 0:
+                return
             if not self.request_state.active_download() or self.request_state.inactive_for() < INACTIVITY_TIMEOUT_SECONDS:
                 return
             
@@ -75,10 +84,9 @@ class RequestForModelHandler:
     def shutdown(self):
         self._stop_event.set()
 
-    def _download_single_file(self, model_id: str, file_name: str):
+    def _download_single_file(self, model_id: str, file_name: str, token: Optional[str]):
         try:
-            token = GlobalConfig.from_file().hf_token
-            model_dir = get_model_dir() / model_id
+            model_dir = get_model_dir() / model_id / "data"
             hf_hub_download(
                 repo_id=model_id,
                 filename=file_name,
@@ -90,14 +98,13 @@ class RequestForModelHandler:
             self.logger.error(f"Failed to fetch {file_name} from {model_id}: {e}")
             raise
 
-    def _fetch_manifest(self, model_id: str) -> Optional[Dict[str, ModelFileData]]:
+    def _fetch_manifest(self, model_id: str, token: Optional[str]) -> Optional[Dict[str, ModelFileData]]:
         try:
-            token = GlobalConfig.from_file().hf_token
             info = HfApi().model_info(model_id, files_metadata=True, token=token)
             manifest = { }
             for file in info.siblings or []:
                 if file.lfs is None:
-                    self._download_single_file(model_id, file.rfilename)
+                    self._download_single_file(model_id, file.rfilename, token)
                     continue
                 manifest[file.rfilename] = ModelFileData(file.rfilename, file.lfs.sha256, file.lfs.size)
             return manifest
@@ -105,13 +112,13 @@ class RequestForModelHandler:
             self.logger.error(f"Failed to fetch manifest for {model_id} from HuggingFace: {e}")
             return None
 
-    def request_model(self, model_id: str):
+    def request_model(self, model_id: str, token: Optional[str] = None):
         if self.request_state.active_download():
             return
-        
+
         self.request_state.start_download(model_id)
 
-        manifest = self._fetch_manifest(model_id)
+        manifest = self._fetch_manifest(model_id, token)
         if manifest is None:
             self.request_state.status = "ERROR: Could not fetch model manifest from HuggingFace"
             return
@@ -119,6 +126,8 @@ class RequestForModelHandler:
         
         pkt = WhoHasRFMPacket.create(model_id)
         for peer in self._get_peers():
+            if peer == self._node_id:
+                continue
             self._send_packet(peer, pkt)
 
     def download_status(self) -> Optional[str]:
@@ -138,7 +147,8 @@ class RequestForModelHandler:
         downloaded_files = len(self.request_state.completed_files)
         total_files = len(self.request_state.expected_manifest.keys())
 
-        return f"Downloading: {downloaded_files} of {total_files} files completed ({downloaded_size / total_size * 100:.0f}%)"
+        percent = downloaded_size / total_size * 100 if total_size > 0 else 0
+        return f"Downloading: {downloaded_files} of {total_files} files completed ({percent:.0f}%)"
 
     def receive_data(self, node_id: str, data: bytes):
         try:
@@ -188,19 +198,22 @@ class RequestForModelHandler:
         assert_fn(not self.send_state.sending, "Received READY_TO_RECEIVE while already sending data")
         
         self.send_state.sending = True
-        
-        try:
-            self._send_model(node_id)
-        except Exception as e:
-            # The requester disconnected (or a send otherwise failed) partway
-            # through the transfer. Abort so this provider isn't stuck holding
-            # a half-finished send and can serve the next request.
-            self.logger.error(
-                f"Aborting send of {pkt.model_id} to "
-                f"{node_id}: {e}"
-            )
-        finally:
-            self.send_state.reset()
+
+        model_id = pkt.model_id
+        def send_worker():
+            try:
+                self._send_model(node_id)
+            except Exception as e:
+                self.logger.error(f"Aborting send of {model_id} to {node_id}: {e}")
+            finally:
+                self.send_state.reset()
+
+        self._send_thread = threading.Thread(
+            target=send_worker,
+            name=f"rfm-send-{self._node_id}",
+            daemon=True,
+        )
+        self._send_thread.start()
             
     def _send_model(self, node_id: str):
         assert self.send_state.model_id is not None
@@ -208,7 +221,11 @@ class RequestForModelHandler:
         model_dir = get_model_dir() / self.send_state.model_id / "data"
         assert_fn(os.path.exists(model_dir), f"Model directory does not exist: {model_dir}")
         for file in list(os.listdir(model_dir)):
-            with open(model_dir / file, 'rb') as f:
+            file_path = model_dir / file
+            # Skip folders
+            if not os.path.isfile(file_path):
+                continue
+            with open(file_path, 'rb') as f:
                 idx = 0
                 while True:
                     pkt_data = f.read(1024 * 1024 * 32) # Read 32MB
@@ -260,9 +277,9 @@ class RequestForModelHandler:
             self.request_state.file_data[pkt.file_name] = { }
         
         assert_fn(str(pkt.packet_idx) not in self.request_state.file_data[pkt.file_name], "Received SENDING_DATA duplicate packet index")
-        assert_fn(self.request_state.downloaded_file_size(pkt.file_name) < self.request_state.total_file_size(pkt.file_name), "Received file data overflow from SENDING_DATA packet")
 
         if not pkt.file_done:
+            assert_fn(self.request_state.downloaded_file_size(pkt.file_name) < self.request_state.total_file_size(pkt.file_name), "Received file data overflow from SENDING_DATA packet")
             self.request_state.file_data[pkt.file_name][str(pkt.packet_idx)] = pkt.packet_data
         else:
             self.request_state.file_data[pkt.file_name][str(pkt.packet_idx)] = b'EOF'
@@ -270,9 +287,32 @@ class RequestForModelHandler:
         sleep(0.5)
 
         if self._is_file_done(pkt.file_name):
-            self._write_file(pkt.file_name)
-            self.request_state.complete_file(pkt.file_name)
-            
+            with self.request_state.lock:
+                self.request_state.pending_writes += 1
+            write_thread = threading.Thread(
+                target=self._finalize_file,
+                args=(pkt.file_name,),
+                name=f"rfm-write-{Path(pkt.file_name).name}",
+                daemon=True,
+            )
+            self._write_threads.append(write_thread)
+            write_thread.start()
+
+    def _finalize_file(self, file_name: str):
+        try:
+            self._write_file(file_name)
+            self.request_state.complete_file(file_name)
+            self.request_state.mark_activity()
+        except Exception as e:
+            self.logger.error(f"Failed to write {file_name}: {e}")
+            self.request_state.reset()
+            self.request_state.status = f"ERROR: Failed to write {file_name}"
+        finally:
+            with self.request_state.lock:
+                # reset() zeroes the counter, so clamp instead of going negative.
+                self.request_state.pending_writes = max(0, self.request_state.pending_writes - 1)
+        self._maybe_finish_download()
+
     def _is_file_done(self, file_name: str) -> bool:
         if self.request_state.file_data is None or file_name not in self.request_state.file_data:
             return False
@@ -323,12 +363,12 @@ class RequestForModelHandler:
                     idx += 1
 
             if self.request_state.expected_manifest is not None:
-                expected_sha256 = self.request_state.expected_manifest.get(file_name)
-                if expected_sha256 is not None:
+                expected = self.request_state.expected_manifest.get(file_name)
+                if expected is not None:
                     actual = sha256_digest.hexdigest()
                     assert_fn(
-                        actual == expected_sha256,
-                        f"SHA-256 mismatch for {file_name}: expected {expected_sha256}, got {actual}"
+                        actual == expected.file_hash,
+                        f"SHA-256 mismatch for {file_name}: expected {expected.file_hash}, got {actual}"
                     )
 
             tmp_path.rename(final_path)
@@ -343,11 +383,49 @@ class RequestForModelHandler:
         assert_fn(self.request_state.model_id is not None, "Received DONE_SENDING without an active model request")
         assert_fn(self.request_state.file_data is not None, "Received DONE_SENDING but file_data is not initialized")
         assert_fn(pkt.model_id == self.request_state.model_id, "Packet model_id and request state model_id mismatch")
-        
-        assert self.request_state.model_id is not None
 
-        model_id = self.request_state.model_id
-        self.request_state.reset()
-        self.request_state.status = "Computing metadata..."
-        ModelProvider.get_model_metadata(model_id)
-        self.request_state.status = "SUCCESSFULLY Downloaded model"
+        self.request_state.mark_activity()
+        with self.request_state.lock:
+            self.request_state.done_received = True
+
+        self._finish_thread = threading.Thread(
+            target=self._maybe_finish_download,
+            name=f"rfm-finish-{self._node_id}",
+            daemon=True,
+        )
+        self._finish_thread.start()
+
+    def _maybe_finish_download(self):
+        """Complete the download once DONE_SENDING has arrived and every file
+        write has finished; the last of those two events triggers the work."""
+        try:
+            with self.request_state.lock:
+                if not self.request_state.done_received or self.request_state.pending_writes > 0:
+                    return
+                if not self.request_state.active_download():
+                    return
+
+                model_id = self.request_state.model_id
+                assert model_id is not None
+                assert self.request_state.expected_manifest is not None
+                assert self.request_state.completed_files is not None
+
+                received = {name for name, _ in self.request_state.completed_files}
+                missing = [f for f in self.request_state.expected_manifest if f not in received]
+
+                # reset() clears done_received, so only one caller gets past here.
+                self.request_state.reset()
+
+                if len(missing) > 0:
+                    self.logger.error(f"Transfer of {model_id} ended with missing files: {missing}")
+                    self.request_state.status = f"ERROR: Transfer ended with {len(missing)} expected file(s) missing"
+                    return
+
+                self.request_state.status = "Computing metadata..."
+
+            ModelProvider.get_model_metadata(model_id)
+            self.request_state.status = "SUCCESSFULLY Downloaded model"
+        except Exception as e:
+            self.logger.error(f"Failed to finalize download: {e}")
+            self.request_state.reset()
+            self.request_state.status = "ERROR: Failed to finalize download"

@@ -20,7 +20,7 @@ class DownloadPageState(PageState):
 
     def on_change(self, args: Dict):
         if "token" in args:
-            self._start_download(args["token"])
+            self._start_with_token(args["token"])
             return
         if "fresh" in args:
             self.new_model_id = ""
@@ -78,9 +78,11 @@ class DownloadPageState(PageState):
             )
 
     def _request_locally(self):
-        self.provider.request_model(self.new_model_id)
-        self.downloading = True
-        self.download_status = "Requesting model on network..."
+        self.confirm.open(
+            f"Request {self.new_model_id} from the network",
+            on_apply=self._request_token,
+            on_discard=lambda: None,
+        )
 
     def _on_char(self, ch: str):
         if not self.downloading:
@@ -137,7 +139,7 @@ class DownloadPageState(PageState):
         if cfg_token is not None:
             self.confirm.open(
                 "Use saved token?",
-                on_apply=lambda: self._start_download(cfg_token),
+                on_apply=lambda: self._start_with_token(cfg_token),
                 on_discard=lambda: None,
             )
             return
@@ -148,12 +150,25 @@ class DownloadPageState(PageState):
         self.confirm.open(
             "Enter Huggingface API Key?\nAPI Keys allow you to download gated models and better rate limits.",
             on_apply=enter_key,
-            on_discard=lambda: self._start_download(None),
+            on_discard=lambda: self._start_with_token(None),
         )
+
+    def _start_with_token(self, token: Optional[str] = None):
+        # The token-request flow (shared by both install methods) funnels back
+        # here once a token is chosen; dispatch to the method the user picked.
+        if self.method_idx == 0:
+            self._start_download(token)
+        else:
+            self._start_local_request(token)
 
     def _start_download(self, token: Optional[str] = None):
         self.provider.model_provider.start_download(self.new_model_id, token)
         self.downloading = True
+
+    def _start_local_request(self, token: Optional[str] = None):
+        self.provider.request_model(self.new_model_id, token)
+        self.downloading = True
+        self.download_status = "Requesting model on network..."
 
     def _can_download(self) -> bool:
         if self.new_model_id == "":
@@ -165,10 +180,13 @@ class DownloadPageState(PageState):
         return True
 
     def _get_download_status(self) -> Optional[str]:
-        if self.provider.request_for_model.request_state.active_download():
+        # Dispatch on the chosen install method, not on active_download(): the
+        # RFM inactivity watchdog resets the request state before posting its
+        # error status, so gating on active_download() would hide the error
+        # and leave the page stuck on "Downloading..." forever.
+        if self.method_idx == 1:
             return self.provider.request_for_model.download_status()
-        else:
-            return self.provider.model_provider.check_download_progress()
+        return self.provider.model_provider.check_download_progress()
 
     def get_view(self) -> List[str]:
         model_id = self.new_model_id[-40:] if len(self.new_model_id) > 40 else self.new_model_id

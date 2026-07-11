@@ -20,6 +20,11 @@ class RFMRequestState:
     file_data: Optional[Dict[str, Dict[str, bytes]]]
     expected_manifest: Optional[Dict[str, ModelFileData]]
     last_activity: Optional[float]
+    # Files fully received but still being hashed/written to disk on a
+    # background thread, and whether DONE_SENDING has arrived. Together these
+    # decide when the download can be finalized. Guarded by ``lock``.
+    pending_writes: int
+    done_received: bool
 
     def __init__(self):
         self.lock = threading.RLock()
@@ -34,6 +39,8 @@ class RFMRequestState:
         self.expected_manifest = None
         with self.lock:
             self.last_activity = None
+            self.pending_writes = 0
+            self.done_received = False
 
     def active_download(self) -> bool:
         return self.model_id is not None and self.last_activity is not None
@@ -53,14 +60,16 @@ class RFMRequestState:
         self.status = None
         self.mark_activity()
 
-    def total_size(self):
+    def total_size(self) -> int:
         assert self.active_download()
         assert self.expected_manifest is not None
 
+        # Bytes, to match downloaded_size(); the two are divided to form the
+        # download percentage, so their units must agree.
         total_size = 0
         for key in self.expected_manifest.keys():
             file = self.expected_manifest[key]
-            total_size += file.size / (1024 * 1024) # Get in MB
+            total_size += file.size
 
         return total_size
     

@@ -55,6 +55,19 @@ def patch_fetch_manifest(test_case: unittest.TestCase):
     patcher.start()
     test_case.addCleanup(patcher.stop)
 
+def drain(handler: RequestForModelHandler):
+    """Join the background write/finish threads spawned by the receive path.
+
+    File writes and download finalization happen off the packet-handler
+    thread (so tiny control packets aren't timed out waiting on multi-GB
+    writes); tests must join them before asserting on their effects.
+    """
+    for t in list(handler._write_threads):
+        t.join(timeout=5)
+    if handler._finish_thread is not None:
+        handler._finish_thread.join(timeout=5)
+
+
 def parse(data: bytes, cls: Type[T]) -> T:
     """Decode wire bytes and assert they dispatch to the expected packet type."""
     pkt = read_packet(data)
@@ -204,9 +217,13 @@ class RequestStateTests(unittest.TestCase):
         handler.request_model("model-1")
         self.assertEqual(handler.download_status(), "Downloading: 0 of 1 files completed (0%)")
 
-        # Status reports 32MB per buffered packet, so two packets read as 64MB.
-        handler.request_state.file_data = {"weights.bin": {"0": b"x", "1": b"y"}}
-        self.assertEqual(handler.download_status(), "Downloading: 0 of 1 files completed (0%)")
+        # downloaded_size (bytes) and total_size (bytes) must share units so the
+        # percentage stays in range. 50 of 100 bytes reads as 50%, not 5000000%.
+        handler.request_state.expected_manifest = {
+            "weights.bin": ModelFileData("weights.bin", "abc", 100)
+        }  # pyright: ignore[reportAttributeAccessIssue]
+        handler.request_state.file_data = {"weights.bin": {"0": b"x" * 50}}
+        self.assertEqual(handler.download_status(), "Downloading: 0 of 1 files completed (50%)")
 
 
 class WhoHasTests(unittest.TestCase):
@@ -334,6 +351,8 @@ class SendFileTests(_ModelDirTestCase):
         handler._handle_ready_to_receive(
             "A", parse(ReadyToReceiveRFMPacket.create("model-1"), ReadyToReceiveRFMPacket)
         )
+        assert handler._send_thread is not None
+        handler._send_thread.join()
 
         packets = [read_packet(data) for _, data in sent]
         self.assertTrue(all(node == "A" for node, _ in sent))
@@ -348,6 +367,28 @@ class SendFileTests(_ModelDirTestCase):
         self.assertEqual(data_packets[1].packet_data, b"")
         self.assertEqual(len(done_packets), 1)
 
+    def test_skips_subdirectories_in_data_dir(self):
+        # Regression: HuggingFace leaves a `.cache` directory next to the weight
+        # files. Opening it as a file raised IsADirectoryError and aborted the
+        # whole transfer, so the requester never received DONE_SENDING.
+        self.seed_file("model-1", "weights.bin", b"hello world")
+        (self.data_dir("model-1") / ".cache").mkdir()
+        handler, sent = make_handler(self, node_id="B", installed=["model-1"])
+        handler.send_state.node_id = "A"
+        handler.send_state.model_id = "model-1"
+
+        handler._handle_ready_to_receive(
+            "A", parse(ReadyToReceiveRFMPacket.create("model-1"), ReadyToReceiveRFMPacket)
+        )
+        assert handler._send_thread is not None
+        handler._send_thread.join()
+
+        packets = [read_packet(data) for _, data in sent]
+        done_packets = [p for p in packets if isinstance(p, DoneSendingRFMPacket)]
+        # The .cache directory was skipped and the transfer ran to completion.
+        self.assertEqual(len(done_packets), 1)
+        self.assertFalse(handler.send_state.sending)
+
     def test_multi_chunk_file_uses_increasing_indices(self):
         # Regression: each 32MB chunk must get a distinct, increasing index so the
         # receiver can reassemble it (a single chunk earlier overwrote index 0).
@@ -360,6 +401,8 @@ class SendFileTests(_ModelDirTestCase):
         handler._handle_ready_to_receive(
             "A", parse(ReadyToReceiveRFMPacket.create("model-1"), ReadyToReceiveRFMPacket)
         )
+        assert handler._send_thread is not None
+        handler._send_thread.join()
 
         data_packets = [
             p
@@ -389,6 +432,8 @@ class SendFileTests(_ModelDirTestCase):
         handler._handle_ready_to_receive(
             "A", parse(ReadyToReceiveRFMPacket.create("model-1"), ReadyToReceiveRFMPacket)
         )
+        assert handler._send_thread is not None
+        handler._send_thread.join()
 
         self.assertFalse(handler.send_state.sending)
         self.assertIsNone(handler.send_state.model_id)
@@ -430,6 +475,7 @@ class ReceiveFileTests(_ModelDirTestCase):
     def test_writes_completed_file_and_clears_buffer(self):
         handler, _ = self._arm_requester()
         self._feed(handler, "weights.bin", [b"hello ", b"world"])
+        drain(handler)
 
         written = self.data_dir("model-1") / "weights.bin"
         self.assertTrue(written.exists())
@@ -437,6 +483,28 @@ class ReceiveFileTests(_ModelDirTestCase):
         # Buffer for the finished file is dropped.
         assert handler.request_state.file_data is not None
         self.assertNotIn("weights.bin", handler.request_state.file_data)
+
+    def test_completes_when_manifest_size_equals_content(self):
+        # Regression: in production the manifest size equals the real file size,
+        # so the last data packet brings downloaded_size up to total_size. The
+        # overflow guard must not then reject the zero-length terminator, or the
+        # file never gets written and the download stalls near 100%.
+        handler, _ = self._arm_requester()
+        exact_manifest = {
+            "weights.bin": ModelFileData(
+                "weights.bin",
+                "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+                len(b"hello world"),
+            )
+        }
+        handler.request_state.expected_manifest = exact_manifest  # pyright: ignore[reportAttributeAccessIssue]
+
+        self._feed(handler, "weights.bin", [b"hello ", b"world"])
+        drain(handler)
+
+        written = self.data_dir("model-1") / "weights.bin"
+        self.assertTrue(written.exists())
+        self.assertEqual(written.read_bytes(), b"hello world")
 
     def test_partial_file_is_not_written(self):
         handler, _ = self._arm_requester()
@@ -459,14 +527,47 @@ class ReceiveFileTests(_ModelDirTestCase):
         )
         self.assertEqual(handler.request_state.file_data, {})
 
-    def test_done_sending_fires_callback_and_resets(self):
+    def test_done_sending_finalizes_and_resets(self):
         handler, _ = self._arm_requester()
+        # Every manifest file has been received and written.
+        handler.request_state.completed_files = [("weights.bin", 1024 * 1024 * 1024)]
 
         handler._handle_done_sending("B", parse(DoneSendingRFMPacket.create("model-1"), DoneSendingRFMPacket))
+        drain(handler)
 
         self.assertIsNone(handler.request_state.model_id)
         self.assertIsNone(handler.request_state.node_id)
         self.assertIsNone(handler.request_state.file_data)
+        self.assertEqual(handler.request_state.status, "SUCCESSFULLY Downloaded model")
+
+    def test_done_sending_with_missing_files_reports_error(self):
+        # Regression: a DONE_SENDING after a partial transfer (e.g. the sender
+        # aborted mid-way) must not be reported as a successful download.
+        handler, _ = self._arm_requester()
+
+        handler._handle_done_sending("B", parse(DoneSendingRFMPacket.create("model-1"), DoneSendingRFMPacket))
+        drain(handler)
+
+        self.assertIsNone(handler.request_state.model_id)
+        assert handler.request_state.status is not None
+        self.assertIn("ERROR", handler.request_state.status)
+
+    def test_eof_packet_returns_before_write_and_done_waits_for_it(self):
+        # Regression: hashing/writing a finished file used to run inline in the
+        # EOF packet's handler, holding its HTTP response open past the
+        # sender's 2s control-packet timeout; the retries were rejected as
+        # duplicates and the sender aborted before the remaining files. The
+        # write now runs on a background thread, and DONE_SENDING (which can
+        # arrive while the write is still in flight) must wait for it before
+        # finalizing.
+        handler, _ = self._arm_requester()
+        self._feed(handler, "weights.bin", [b"hello ", b"world"])
+        handler._handle_done_sending("B", parse(DoneSendingRFMPacket.create("model-1"), DoneSendingRFMPacket))
+        drain(handler)
+
+        written = self.data_dir("model-1") / "weights.bin"
+        self.assertEqual(written.read_bytes(), b"hello world")
+        self.assertEqual(handler.request_state.status, "SUCCESSFULLY Downloaded model")
 
 
 class IsFileDoneTests(unittest.TestCase):
@@ -544,6 +645,20 @@ class InactivityWatchdogTests(unittest.TestCase):
         self.assertEqual(handler.request_state.model_id, "model-1")
         self.assertIsNone(handler.request_state.status)
 
+    def test_pending_write_defers_watchdog(self):
+        # A multi-GB hash-and-write can legitimately take longer than the
+        # inactivity timeout while no packets arrive; the watchdog must not
+        # abort the download while a write is in flight.
+        handler, _ = make_handler(self, peers=["B"])
+        handler.request_model("model-1")
+        handler.request_state.last_activity = time() - (INACTIVITY_TIMEOUT_SECONDS + 1)
+        handler.request_state.pending_writes = 1
+
+        handler._check_inactivity()
+
+        self.assertEqual(handler.request_state.model_id, "model-1")
+        self.assertIsNone(handler.request_state.status)
+
     def test_ready_to_download_again_after_reset(self):
         handler, sent = make_handler(self, node_id="A", peers=["B"])
         handler.request_model("model-1")
@@ -585,11 +700,15 @@ class HandshakeIntegrationTests(_ModelDirTestCase):
         )
 
         requester.request_model("model-1")
+        assert provider._send_thread is not None
+        provider._send_thread.join()
+        drain(requester)
 
-        # Callback fired and requester state fully reset.
+        # Download finalized and requester state fully reset.
         self.assertIsNone(requester.request_state.model_id)
         self.assertIsNone(requester.request_state.node_id)
         self.assertIsNone(requester.request_state.file_data)
+        self.assertEqual(requester.request_state.status, "SUCCESSFULLY Downloaded model")
 
         # The transferred file landed on disk with the original content.
         written = self.data_dir("model-1") / "weights.bin"

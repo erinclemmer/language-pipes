@@ -156,6 +156,7 @@ The docs are published as a website at **https://erinclemmer.github.io/language-
 * [Architecture Overview](./documentation/architecture.md)
 * [OpenAI-Compatible API](./documentation/oai.md)
 * [Job Processor State Machine](./documentation/job-processor.md)
+* [Request For Model Protocol](./documentation/request-for-model.md)
 * [Distributed State Network](./documentation/distributed-state-network/README.md)
 * [LLM Layer Collector](./documentation/llm-layer-collector.md)
 * [Release Notes](./documentation/release-notes.md)

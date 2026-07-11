@@ -22,3 +22,6 @@ Below are the models that are tested and known to work. Any fine-tuned model bas
 - google/gemma-3-1b-it
 - google/gemma-4-E2B-it
 - google/geema-4-E4B-it
+
+**Mistral AI**
+- Ministral-3-8B-Instruct-2512
