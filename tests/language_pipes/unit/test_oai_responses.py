@@ -104,7 +104,7 @@ class ResponsesRequestTests(unittest.TestCase):
     def test_http_handler_routes_responses_endpoint(self):
         captured = {}
 
-        def complete(model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
             captured["model"] = model
             captured["messages"] = messages
             captured["max_completion_tokens"] = max_completion_tokens
@@ -112,7 +112,12 @@ class ResponsesRequestTests(unittest.TestCase):
             start(job)
             resolve(job)
 
-        server = OAIHttpServer(0, [], complete, lambda: ["model-1"])
+        server = OAIHttpServer(
+            port=5000, 
+            api_keys=[], 
+            complete=complete, 
+            get_models=lambda: ["model-1"]
+        )
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
 
@@ -198,6 +203,7 @@ class ToolCallParserTests(unittest.TestCase):
             self.tools,
         )
         self.assertIsNotNone(call)
+        assert call is not None
         self.assertEqual(call.name, "get_weather")
         self.assertEqual(json.loads(call.arguments), {"city": "Chicago"})
         self.assertTrue(call.call_id.startswith("call_"))
@@ -208,6 +214,7 @@ class ToolCallParserTests(unittest.TestCase):
             self.tools,
         )
         self.assertIsNotNone(call)
+        assert call is not None
         self.assertEqual(call.name, "get_weather")
 
     def test_rejects_unknown_tool_name(self):
@@ -233,6 +240,7 @@ class ToolCallParserTests(unittest.TestCase):
         )
         call = parse_tool_call(text, self.tools)
         self.assertIsNotNone(call)
+        assert call is not None
         self.assertEqual(call.name, "get_weather")
         self.assertEqual(json.loads(call.arguments), {"city": "Chicago"})
 
@@ -243,6 +251,7 @@ class ToolCallParserTests(unittest.TestCase):
         )
         call = parse_tool_call(text, self.tools)
         self.assertIsNotNone(call)
+        assert call is not None
         self.assertEqual(call.name, "get_weather")
 
     def test_think_block_with_braces_does_not_break_extraction(self):
@@ -252,6 +261,7 @@ class ToolCallParserTests(unittest.TestCase):
         )
         call = parse_tool_call(text, self.tools)
         self.assertIsNotNone(call)
+        assert call is not None
         self.assertEqual(json.loads(call.arguments), {"city": "Chicago"})
 
     def test_pure_reasoning_text_is_not_a_tool_call(self):
@@ -351,11 +361,11 @@ def _parse_sse_events(text):
 
 class StreamingTests(unittest.TestCase):
     def _serve(self, job):
-        def complete(model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
             start(job)
             resolve(job)
 
-        server = OAIHttpServer(0, [], complete, lambda: ["model-1"])
+        server = OAIHttpServer(5000, [], complete, lambda: ["model-1"])
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         return server, thread
@@ -518,14 +528,14 @@ class ReasoningResponseShapeTests(unittest.TestCase):
 
 class ReasoningStreamingTests(unittest.TestCase):
     def _serve_streaming(self, job, chunks):
-        def complete(model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
             start(job)
             for chunk in chunks:
                 job.delta = chunk
                 update(job)
             resolve(job)
 
-        server = OAIHttpServer(0, [], complete, lambda: ["model-1"])
+        server = OAIHttpServer(5000, [], complete, lambda: ["model-1"])
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         return server, thread
@@ -593,12 +603,12 @@ class ToolCallHttpTests(unittest.TestCase):
     def _serve(self, job):
         captured = {}
 
-        def complete(model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
             captured["messages"] = messages
             start(job)
             resolve(job)
 
-        server = OAIHttpServer(0, [], complete, lambda: ["model-1"])
+        server = OAIHttpServer(5000, [], complete, lambda: ["model-1"])
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         return server, thread, captured

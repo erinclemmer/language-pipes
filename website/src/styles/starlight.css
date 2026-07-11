@@ -1,0 +1,69 @@
+/* ------------------------------------------------------------------ *
+ * Starlight docs theme overrides — align with the terminal palette.   *
+ * Green accent, near-black CRT base, monospace headings.              *
+ * ------------------------------------------------------------------ */
+
+:root {
+  /* Accent ramp (green) */
+  --sl-color-accent-low: #10331d;
+  --sl-color-accent: #2f9d54;
+  --sl-color-accent-high: #a9f0c2;
+
+  /* Monospace headings, sans body for readability in long docs */
+  --sl-font-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Menlo",
+    "Consolas", "Liberation Mono", "DejaVu Sans Mono", monospace;
+}
+
+:root[data-theme='dark'] {
+  --sl-color-bg: #0a0e0a;
+  --sl-color-bg-nav: #0a0e0a;
+  --sl-color-bg-sidebar: #0b110b;
+  --sl-color-bg-inline-code: #10190f;
+  --sl-color-hairline-light: #1d2b1d;
+  --sl-color-hairline: #16221600;
+  --sl-color-gray-6: #0d130d;
+  --sl-color-gray-5: #16221a;
+  --sl-color-text-accent: #4ee27b;
+  --sl-color-white: #eef4ee;
+  --sl-color-gray-2: #cdd6cd;
+  --sl-color-gray-3: #9aa89a;
+}
+
+/* Monospace, tighter headings to match the landing wordmark */
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4,
+h1,
+.site-title {
+  font-family: var(--sl-font-mono);
+  letter-spacing: -0.01em;
+}
+
+/* Section-heading anchors get a terminal-style leading marker */
+.sl-markdown-content h2::before {
+  content: '## ';
+  color: var(--sl-color-accent);
+  opacity: 0.6;
+}
+.sl-markdown-content h3::before {
+  content: '### ';
+  color: var(--sl-color-accent);
+  opacity: 0.45;
+}
+
+/* Header hairline */
+header.header {
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+}
+
+/* Inline code + fenced code with the green-tinted panel */
+.sl-markdown-content code:not(:where(.expressive-code *)) {
+  border: 1px solid #1d2b1d;
+  color: #a9f0c2;
+}
+
+/* Links */
+.sl-markdown-content a {
+  text-underline-offset: 0.2em;
+}

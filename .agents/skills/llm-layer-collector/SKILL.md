@@ -218,15 +218,6 @@ Most models only need `state`, masks, RoPE, and the per-node KV cache. Some newe
 
 If the field is **mutated as it flows** (rare — e.g. cross-node KV sharing), you also need write-back: extend `compute_layers` to return the mutated value and `Job.set_layer` to write it into `job.data`, so it serializes to the next node. A read-only ride-along (like PLE) needs none of that.
 
-**Concrete write-back recipe (as implemented for Gemma4 `shared_kv_states`, a `Dict[str, Tuple[Tensor, Tensor]]`):**
-
-1. **`state_obj.py` / `job_data.py`** — add the field. For a dict, use `field(default_factory=dict)` (import `field` from `dataclasses`) so every other model gets a harmless empty `{}` with no constructor change. Serialize a `Dict[str, (k, v)]` with the **exact same loop already used for `position_embeddings`** (`write_int(len)`, then per key: `write_string(key)` + two `tensor_to_bytes`); read it back symmetrically. The existing `move_position_embeddings` helper already does the per-device `(k, v)` move — reuse it verbatim in both `computationStateToJobData` and `jobDataToComputationState`, and add a detach loop in `detachCompState`.
-2. **`modeling/compute.py`** — `compute_layers` now returns a **tuple** `(state.detach(), comp_state.shared_kv_states)`. This changes the return type for *all* models, so update **both** callers (`modeling/end_model.py` and `modeling/llm_model.py`) to unpack: `state, shared_kv_states = compute_layers(...)`.
-3. **`jobs/job.py`** — give `Job.set_layer` an optional `shared_kv_states=None` param and write `self.data.shared_kv_states = shared_kv_states` (guarded by `is not None`) so it survives onto the next hop. Pass it from both callers.
-4. **`modeling/NewModel.compute_layer`** — thread `state.shared_kv_states` (the live dict) into the layer kwargs instead of a throwaway `{}`; the layer mutates it in place.
-
-Note `JobData.hash_state` hashes `to_bytes`, so a mutated ride-along changes the per-hop hash — that's fine, the payload (`state`) already changes every hop; nothing treats the hash as a stable cross-node job identity.
-
 ---
 
 ## Verifying Your Changes
@@ -241,30 +232,56 @@ print(config.model_type)  # Should match your key in all mapper dicts
 
 ### 2. Run the layer collector test suite
 
-Add a test method to `tests/llm_layer_collector/test.py` following the existing pattern:
+The suite lives in `tests/llm_layer_collector/` and has three tiers. **The only
+file you edit to add a model is `specs.py`** — everything else (tiny-checkpoint
+building, HF parity, memory-capping) is driven off the spec tables.
 
-```python
-def test_new_model(self):
-    model_id = "org/model-name"
-    model_dir = get_model_dir(model_id)
-    cache_file = get_cache_file(model_id)
-    ensure_model(model_id)
-    check_cache(self, model_dir, cache_file, <expected_num_keys>)
-    check_embedding(self, model_dir, cache_file, 
-        (<batch>, <seq_len>, <hidden_size>),  # state shape
-        (<batch>, <seq_len>),                  # position_ids shape
-        (<batch>, <seq_len>, <head_dim>))      # position_embeddings shape
-    check_norm(self, model_dir, cache_file, <hidden_size>)
-    check_head(self, model_dir, cache_file, (<vocab_size>, <hidden_size>))
-    check_layers(self, model_dir, cache_file, 2)
-    check_stack(self, model_dir, cache_file, chunk_size=32)
+**Add one `TinyModelSpec` to `specs.py`.** Copy the closest existing architecture
+and set the tiny dims + flags (`per_type_rope`, `ple`, `fp8`, `key_style`,
+`mrope`). Then run the tiny-parity suite — no download, KBs of memory, tight
+float32 tolerances:
+
+```bash
+python -m unittest tests.llm_layer_collector.test_units tests.llm_layer_collector.test_tiny_models
+python -m unittest tests.llm_layer_collector.test_tiny_models -k <model_type>
 ```
 
-The `check_stack` test is the most important — it runs a full end-to-end inference (chunked prefill + decode) and verifies the model produces coherent output.
+`test_tiny_models` builds a random tiny model from your config class, saves it as
+real safetensors shards, loads it back through `LlmLayerCollector`, and compares
+the full forward path (single-shot, chunked-prefill, and decode) against the HF
+reference model's own `last_hidden_state` (`cosine ≥ 0.9999`, `max_abs_diff < 1e-4`).
+This is the primary CI gate — it fails loudly on the exact wiring bugs (unscaled
+fp8, wrong lm_head, missing embed scaling, uninitialized MoE experts) that the
+Debugging Playbook below exists for. Architecture quirks become spec-driven
+assertions (per-type masks/RoPE, PLE ride-along shape, fp8 dequant equality).
 
-### 3. Validate without a checkpoint (synthetic tiny-config vs HF reference)
+If a tiny spec surfaces a gap, **fix the spec table, not the test factory** — the
+factory is architecture-agnostic. Common tiny-config gotchas: Phi3's default
+`pad_token_id` exceeds a tiny vocab (set `pad_token_id=None`); Gemma3 per-type
+RoPE needs `sliding_window_pattern` + `rope_local_base_freq`; Gemma4/Ministral3
+real checkpoints nest weights under a multimodal wrapper, so the spec's
+`key_style` renames tiny keys to match (`gemma4_multimodal` = `model.language_model.*`,
+`mistral3_multimodal` = `language_model.model.*`).
 
-When the real checkpoint is gated or huge (Gemma4, large MoEs), you can still prove the wiring is correct **without downloading anything**. Build a tiny random model from the HF config class, copy its weights into your modeling path, and compare hidden states. A match here is stronger evidence than a single end-to-end run because it isolates *your* dispatch code from tokenizer/sampling noise.
+**Only then, optionally, add a `RealModelSpec`** for an opt-in real-checkpoint
+smoke test (prefer the smallest real checkpoint). Expected values are derived
+from `config.json` / the safetensors index — never hardcoded. Tier 2 is gated so
+default CI never downloads, runs each model in a memory-capped subprocess (10 GB
+RSS budget in `memguard.py`), and streams the layer stack one window at a time via
+`run_stack_windowed` so even a 16 GB-resident model fits under the cap:
+
+```bash
+LP_RUN_MODEL_TESTS=1       python -m unittest tests.llm_layer_collector.test_real_models -k <model_type>
+LP_RUN_MODEL_TESTS=nightly python -m unittest tests.llm_layer_collector.test_real_models   # + short decode
+```
+
+### 3. Validate a sub-component by hand (ad-hoc, no checkpoint)
+
+Tier 1 above *is* the automated synthetic-parity gate. For one-off debugging of a
+single component you can still build a tiny random model from the HF config class,
+copy its weights into your modeling path, and compare hidden states directly —
+stronger evidence than an end-to-end run because it isolates *your* dispatch code
+from tokenizer/sampling noise.
 
 ```bash
 PYTHONPATH=src python - <<'PY'
@@ -299,22 +316,6 @@ PY
 ```
 
 The same trick validates a sub-component in isolation (e.g. copy the 3 PLE weights into `Gemma4PerLayerEmbedder` and compare its output to HF's `get_per_layer_inputs` + `project_per_layer_inputs`).
-
-**Validating a *mutated* ride-along (cross-node KV sharing) — force a real wire hop.** A plain in-process loop won't prove the write-back path, because the mutated dict stays on the same object. To actually exercise serialization, round-trip `JobData` between every layer so `shared_kv_states` must survive `to_bytes`/`from_bytes`:
-
-```python
-from language_pipes.jobs.job_data import JobData, computationStateToJobData, jobDataToComputationState
-with torch.inference_mode():
-    for l in hf.layers:
-        jd = JobData.from_bytes(computationStateToJobData(state).to_bytes())  # simulated cross-node hop
-        new_state = jobDataToComputationState(jd, torch.device('cpu'))
-        new_state.per_layer_inputs = jd.per_layer_inputs   # re-attach PLE ride-along
-        new_state.state = Gemma4Model.compute_layer(W(l), new_state, cache)
-        state = new_state
-# cosine_last 1.0 / max_abs_diff 0.0 proves the producer's K/V crossed the wire to the consumer layers
-```
-
-**Gotcha — a tiny random config makes the HF reference itself crash with `KeyError: '<layer_type>'`.** With `num_kv_shared_layers > 0`, each shared (consumer) layer reads `shared_kv_states[self.layer_type]`, which is only populated by a *producer* of the same `layer_type` in the **non-shared prefix** (`layer_types[:num_hidden_layers - num_kv_shared_layers]`). Gemma4's default `layer_types` are almost all `sliding_attention` with a single trailing `full_attention` — so a `full_attention` consumer in the shared region has **no producer**, and the failure happens inside `Gemma4TextModel.forward` (the *reference*), not your code. Fix the config, not your wiring: pass an explicit alternating `layer_types=['full_attention','sliding_attention']*N` so both types appear in the prefix. Verify with `num_kv_shared_layers=2` (not the default `0`) to actually exercise consumers.
 
 ---
 
@@ -477,9 +478,17 @@ Hardware notes for `bfloat16`:
 - **`model_type` is `"gemma4_text"`**, module `transformers.models.gemma4.modeling_gemma4`. Classes: `Gemma4TextDecoderLayer`, `Gemma4RMSNorm`, `Gemma4TextRotaryEmbedding`, `Gemma4TextScaledWordEmbedding`. Like Gemma3, it needs the scaled word embedding (`embed_scale=sqrt(hidden_size)`) and per-type masks/RoPE keyed by `config.layer_types[layer_idx]`.
 - **Per-Layer Embeddings (PLE)** — active when `config.hidden_size_per_layer_input` is truthy. `compute_layer` **must** pass `per_layer_input` (the layer's slice of a `[batch, seq, num_layers, ple_dim]` tensor) or the forward silently goes wrong / errors. This is a ride-along tensor (see "Architectures Needing Extra Per-Forward Tensors"): computed once on the head node from the three weights `model.embed_tokens_per_layer.weight`, `model.per_layer_model_projection.weight`, `model.per_layer_projection_norm.weight`, reproducing `Gemma4TextModel.get_per_layer_inputs` + `project_per_layer_inputs`. **Never load `embed_tokens_per_layer` on layer nodes** — it's the largest tensor in the checkpoint.
 - **`shared_kv_states` must be a `dict`, not `None`** — `Gemma4TextDecoderLayer.forward` accepts `shared_kv_states=None`, but even with `num_kv_shared_layers == 0` the *producer* layers (`store_full_length_kv`, i.e. the last layer of each `layer_type`) execute `shared_kv_states[self.layer_type] = ...`. Passing `None` raises `TypeError: 'NoneType' object is not subscriptable`. Pass `{}` if you aren't implementing cross-node KV sharing — the writes are harmless because no layer reads them within a single forward when nothing is a `is_kv_shared_layer`.
-- **Cross-node KV sharing** (when `num_kv_shared_layers > 0`) is **implemented**: `shared_kv_states` is a mutated ride-along on `LLmComputationState`/`JobData` with write-back through `compute_layers` (returns `(state, shared_kv_states)`) and `Job.set_layer` (see the "Concrete write-back recipe" above). The dict is keyed by `layer_type` (~2 entries), produced by the last non-shared layer of each type and read by the trailing shared layers; because layers run in strict ascending order across the pipeline, the producer always precedes its consumers, so the dict only needs to flow *forward within one pass*. Shared layers legitimately lack `k_proj/v_proj/k_norm/v_norm` — `load_layers` already uses `load_state_dict(strict=False)`, so no load-path change is needed. Transport size is bounded by number of layer types (not layers), but each entry is full-length K/V — non-trivial on long contexts; an obvious later optimization is to stop shipping it once no downstream node owns a shared layer. To validate, see the "force a real wire hop" trick above (and its tiny-config `layer_types` gotcha).
+- **Cross-node KV sharing** (when `num_kv_shared_layers > 0`) is the one case that needs *mutated* ride-along state with write-back through `compute_layers`/`Job.set_layer`. The dict is keyed by `layer_type` (~2 entries), and shared layers legitimately lack `k_proj/v_proj/k_norm/v_norm` — `load_layers` already uses `load_state_dict(strict=False)`, so no load-path change is needed.
 - **MoE / double-wide MLP** (`enable_moe_block`, `Gemma4TextRouter`/`Gemma4TextExperts`) is internal to `Gemma4TextDecoderLayer` — no special handling in the modeling file.
 - **bf16 only** (same as Gemma3 — fp16 overflows).
+
+### 8) Ministral3 / FP8-quantized checkpoint gotchas (learned)
+
+- **`model_type` is `"ministral3"`** (text_config inside a top-level `"mistral3"` multimodal config), module `transformers.models.ministral3.modeling_ministral3`. The decoder layer takes the standard Llama-style kwargs; `AutoModelForCausalLM.from_config` handles the config directly — no special class needed in `helpers.get_config` (and `MinistralForCausalLM` is a *different*, older architecture — don't confuse them).
+- **Official checkpoints are FP8-quantized** (`config.quantization_config.quant_method == "fp8"`). Projection weights are `float8_e4m3fn` plus a `<name>.weight_scale_inv` dequant multiplier (scalar for per-tensor, 2D grid for block-wise) and an `activation_scale` (runtime-kernel-only). Casting fp8 → bf16 without multiplying by `weight_scale_inv` produces weights ~1000× too large → multilingual token-soup output with no error (`load_state_dict(strict=False)` silently ignores the scale keys). `get_shard_data` now calls `dequantize_fp8_weights` to apply the scales and drop the scale keys; norms/embeddings/head stay bf16 in the checkpoint (`modules_to_not_convert`).
+- **Multimodal weight naming nests the head**: keys are `language_model.model.layers.*`, `language_model.model.embed_tokens.weight`, and `language_model.lm_head.weight`. The cache builder derives layer/embed/norm names, but `lm_head.weight` used to keep its default → `load_head` silently fell back to the embedding weights (model is untied → garbage logits). `LlmLayerCollector.__init__` now scans `layer_files` for any key ending in `lm_head.weight` when the default is missing.
+- **Tokenizer needs `fix_mistral_regex=True`** (`AutoTokenizer.from_pretrained(..., fix_mistral_regex="mistralai" in model_id)` — see `end_model.py`), and in transformers 5 `apply_chat_template(..., return_tensors='pt')` returns a `BatchEncoding` unless you pass `return_dict=False`.
+- Two garbled-output causes can stack: wrong lm_head *and* unscaled fp8 weights. Verify the head key resolution (`collector.lm_head_name in collector.layer_files`) and compare one dequantized weight against a manual `weight.to(bf16) * weight_scale_inv` before running end-to-end.
 
 ---
 
@@ -497,13 +506,15 @@ grep -R "def compute_head" -n src tests
 # Find where a specific model class is referenced
 grep -R "Gemma3" -n src/language_pipes/llm_layer_collector
 
-# Run only the target llm_layer_collector test
-python -m unittest tests.llm_layer_collector.test.TestLlmLayerCollector.test_gemma3_1B 2>&1
+# Run only the target llm_layer_collector tiny-parity test
+python -m unittest tests.llm_layer_collector.test_tiny_models -k gemma3 2>&1
 ```
 
 ### 3. Determine expected test values
 
-Read these from the model's `config.json`:
+Tier 1 derives everything from your `TinyModelSpec` — you don't hand-type shapes.
+For a Tier 2 `RealModelSpec` (and for sanity-checking a spec), read these from the
+model's `config.json`:
 
 | Test Value | Config Field |
 |---|---|
@@ -542,7 +553,7 @@ If the new model uses non-standard names, you would need to either:
 - [ ] Add `RotaryEmbedding` (or equivalent) to `auto/auto_rotary.py` mapper
 - [ ] Create `modeling/NewModel.py` with `compute_embedding` and `compute_layer`
 - [ ] Add dispatch cases in `static_auto_model.py` for both `compute_embedding` and `compute_layer`
-- [ ] Add a test case in `tests/llm_layer_collector/test.py`
+- [ ] Add a `TinyModelSpec` to `tests/llm_layer_collector/specs.py` and run `test_tiny_models` (optionally add a `RealModelSpec` for Tier 2)
 - [ ] Run the test and verify end-to-end inference produces coherent output
 
 ## Example: How Qwen3 Was Added (Reference)

@@ -1,4 +1,7 @@
-# Distributed State Network
+---
+title: Distributed State Network
+description: A Python framework for building distributed applications where nodes automatically share state without explicit data requests.
+---
 
 A Python framework for building distributed applications where nodes automatically share state without explicit data requests.
 

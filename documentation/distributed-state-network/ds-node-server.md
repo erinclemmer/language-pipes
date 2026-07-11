@@ -1,3 +1,8 @@
+---
+title: DSNodeServer
+description: HTTP server wrapper for DSNode that handles incoming Distributed State Network requests.
+---
+
 ## DSNodeServer
 
 HTTP server wrapper for DSNode that handles incoming network requests.

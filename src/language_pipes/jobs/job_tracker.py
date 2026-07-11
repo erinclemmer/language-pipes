@@ -2,7 +2,7 @@ import gc
 import ctypes
 import torch
 from time import time
-from typing import List, Optional
+from typing import Dict, List, Optional
 from time import sleep
 from threading import Thread
 
@@ -24,12 +24,12 @@ except:  # noqa: E722
 
 class JobTracker:
     jobs_completed: List[str]
-    jobs_pending: List[Job]
+    jobs_pending: Dict[str, List[Job]]
     shutdown: bool
 
     def __init__(self):
         self.jobs_completed = []
-        self.jobs_pending = []
+        self.jobs_pending = { }
         self.shutdown = False
         Thread(target=self.check_stale_jobs, args=( )).start()
 
@@ -37,46 +37,50 @@ class JobTracker:
         while True:
             if self.shutdown:
                 return
-            remove_jobs = []
-            for j in self.jobs_pending:
-                if j.stale:
-                    remove_jobs.append(j.job_id)
-                    continue
-                stale_time = time() - j.last_update
-                # Unified timeout - prefill chunks regularly update last_update,
-                # so both prefill and decode phases use the same timeout
-                if stale_time > EXPIRED_JOB_TIME:
-                    remove_jobs.append(j.job_id)
+            for key in self.jobs_pending.keys():
+                remove_jobs = []
+                for j in self.jobs_pending[key]:
+                    if j.stale:
+                        remove_jobs.append(j.job_id)
+                        continue
+                    stale_time = time() - j.last_update
+                    # Unified timeout - prefill chunks regularly update last_update,
+                    # so both prefill and decode phases use the same timeout
+                    if stale_time > EXPIRED_JOB_TIME:
+                        remove_jobs.append(j.job_id)
 
-            if len(remove_jobs) == 0:
-                sleep(CHECK_JOB_INTERVAL)
-                continue
-        
-            for job_id in remove_jobs:
-                self.jobs_pending = [j for j in self.jobs_pending if j.job_id != job_id]
-            
-            gc.collect()
-            torch.cuda.empty_cache()
-            if _malloc_trim is not None:
-                _malloc_trim(0)
+                for job_id in remove_jobs:
+                    self.jobs_pending[key] = [j for j in self.jobs_pending[key] if j.job_id != job_id]
+
+                if len(remove_jobs) > 0:        
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    if _malloc_trim is not None:
+                        _malloc_trim(0)
 
             sleep(CHECK_JOB_INTERVAL)
 
     def get_job(self, job_id: str) -> Optional[Job]:
-        for j in self.jobs_pending:
-            if j.job_id == job_id:
-                return j
+        for key in self.jobs_pending.keys():
+            for j in self.jobs_pending[key]:
+                if j.job_id == job_id:
+                    return j
         return None
 
     def complete_job(self, job: Job):
         job_id = job.job_id
         if job_id in self.jobs_completed:
             return
+        
         self.jobs_completed.append(job_id)
+        
         if job.resolve is None:
             return
+        
         job.resolve(job) # pyright: ignore[reportCallIssue]
-        self.jobs_pending = [j for j in self.jobs_pending if j.job_id != job_id]
+
+        for key in self.jobs_pending.keys():
+            self.jobs_pending[key] = [j for j in self.jobs_pending[key] if j.job_id != job_id]
 
     def update_job_time(self, job_id: str):
         """Update the last_update time for a pending job to prevent stale timeout."""
@@ -108,5 +112,8 @@ class JobTracker:
         
         job.prompt_tokens = network_job.data.state.size()[1]
         job.last_update = time()
-        self.jobs_pending.append(job)
+        if 'network' not in self.jobs_pending:
+            self.jobs_pending['network'] = []
+        
+        self.jobs_pending['network'].append(job)
         return job

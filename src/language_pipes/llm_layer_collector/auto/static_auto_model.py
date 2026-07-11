@@ -5,6 +5,7 @@ from transformers.cache_utils import DynamicCache
 from transformers.configuration_utils import PretrainedConfig
 
 from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from language_pipes.llm_layer_collector.modeling.Ministral3Model import Ministral3Model
 from language_pipes.llm_layer_collector.modeling.Qwen3MoeModel import Qwen3MoeModel
 from language_pipes.llm_layer_collector.modeling.Qwen3Model import Qwen3Model
 from language_pipes.llm_layer_collector.modeling.LlamaModel import LlamaModel
@@ -50,10 +51,9 @@ class StaticAutoModel:
 
         mask_kwargs = { # pyright: ignore[reportUnknownVariableType]
             "config": config,
-            "input_embeds": hidden_state.detach(),
+            "inputs_embeds": hidden_state.detach(),
             # Let transformers build the default causal/sliding masks.
             "attention_mask": None,
-            "cache_position": cache_position,
             "past_key_values": cache,
             "position_ids": position_ids
         }
@@ -89,6 +89,9 @@ class StaticAutoModel:
 
             case "gemma4_text":
                 Gemma4Model.compute_embedding(state, config, mask_kwargs)
+            
+            case "ministral3":
+                Ministral3Model.compute_embedding(state, config, mask_kwargs)
 
         return state
 
@@ -117,6 +120,9 @@ class StaticAutoModel:
 
             case "gemma4_text":
                 return Gemma4Model.compute_layer(layer, state, cache)
+            
+            case "ministral3":
+                return Ministral3Model.compute_layer(layer, state, cache)
 
         return torch.tensor([])
 

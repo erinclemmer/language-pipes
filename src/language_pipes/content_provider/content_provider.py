@@ -69,11 +69,11 @@ class ContentProvider:
         self.sync_provider_state()
 
     def sync_provider_state(self):
-        self.state.visible_headers = ["Home", "Network", "Models"]
+        visible_headers = ["Home", "Network", "Models"]
         if self.router is not None and self.router.running:
-            self.state.visible_headers.extend(["Pipes", "Jobs"])
+            visible_headers.extend(["Pipes", "Jobs"])
 
-        self.state.visible_sub_menu = {
+        sub_menu = {
             "Home": ["Dashboard", "Activity"]
         }
 
@@ -87,7 +87,7 @@ class ContentProvider:
         
         network_paths.append("Configure")
 
-        self.state.visible_sub_menu["Network"] = network_paths
+        sub_menu["Network"] = network_paths
 
         model_paths = []
 
@@ -96,13 +96,16 @@ class ContentProvider:
 
         model_paths.append("Installed")
 
-        self.state.visible_sub_menu["Models"] = model_paths
+        sub_menu["Models"] = model_paths
 
-        if "Pipes" in self.state.visible_headers:
-            self.state.visible_sub_menu["Pipes"] = ["Connected", "Complete", "Incomplete"]
+        if "Pipes" in visible_headers:
+            sub_menu["Pipes"] = ["Connected", "Complete", "Incomplete"]
 
-        if "Jobs" in self.state.visible_headers:
-            self.state.visible_sub_menu["Jobs"] = ["Server", "Active"]
+        if "Jobs" in visible_headers:
+            sub_menu["Jobs"] = ["Server", "Active"]
+        
+        self.state.visible_sub_menu = sub_menu
+        self.state.visible_headers = visible_headers
 
     def set_router(self, router: Optional[DSNodeServer]):
         self.router = router

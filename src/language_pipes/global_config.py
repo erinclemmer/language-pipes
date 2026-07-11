@@ -31,6 +31,7 @@ class GlobalConfig:
         file_path = get_app_dir() / "globals.toml"
         
         if not os.path.exists(file_path):
+            cfg._file_path = file_path
             return cfg
 
         with open(file_path, 'r', encoding='utf-8') as f:

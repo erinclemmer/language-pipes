@@ -1,4 +1,7 @@
-# OpenAI-Compatible API
+---
+title: OpenAI-Compatible API
+description: Use existing OpenAI client tools with Language Pipes — endpoints, sampling parameters, and function tool calling.
+---
 
 Language Pipes provides an OpenAI-compatible API server, allowing you to use existing tools and libraries designed for OpenAI's API.
 
@@ -391,16 +394,3 @@ Unlike frequency penalty, presence penalty applies equally to all tokens that ha
 - **API key authentication is optional** — if `api_keys` is empty (the default), the server accepts requests without an `Authorization` header and any `api_key` value works. If `api_keys` is set, clients must send `Authorization: Bearer <key>` with one of the configured keys; missing or invalid keys are rejected with `400`/`401`.
 - **Model names** — Use the exact HuggingFace model ID you configured (e.g., `Qwen/Qwen3-1.7B`)
 - **Network access** — Ensure the client can reach the node hosting the OpenAI server
-
----
-
-### Documentation
-* [CLI Reference](./cli.md)
-* [Privacy Protection](./privacy.md)
-* [Configuration Manual](./configuration.md)
-* [Architecture Overview](./architecture.md)
-* [OpenAI-Compatible API](./oai.md)
-* [Job Processor State Machine](./job-processor.md)
-* [Distributed State Network](./distributed-state-network/README.md)
-* [LLM Layer Collector](./llm-layer-collector.md)
-* [Release Notes](./release-notes.md)

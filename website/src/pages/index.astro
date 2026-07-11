@@ -1,0 +1,283 @@
+---
+import Base from '../layouts/Base.astro';
+import { SITE } from '../consts.ts';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const docs = (slug: string) => `${base}/${slug}`;
+
+// Rendered with set:html so the literal `{ }` in the Python dict aren't
+// parsed as Astro expressions.
+const clientCode = `<span class="tok-p">from</span> openai <span class="tok-p">import</span> OpenAI
+
+client = <span class="tok-f">OpenAI</span>(
+    base_url=<span class="tok-s">"http://127.0.0.1:8000/v1"</span>,  <span class="tok-c"># node-1 IP + job port</span>
+    api_key=<span class="tok-s">"not-needed"</span>,
+)
+
+resp = client.chat.completions.<span class="tok-f">create</span>(
+    model=<span class="tok-s">"Qwen/Qwen3-1.7B"</span>,
+    messages=[{<span class="tok-s">"role"</span>: <span class="tok-s">"user"</span>,
+               <span class="tok-s">"content"</span>: <span class="tok-s">"Write a haiku about distributed systems."</span>}],
+)
+<span class="tok-f">print</span>(resp.choices[<span class="tok-s">0</span>].message.content)`;
+---
+
+<Base>
+  <main>
+    <!-- ============================ HERO ============================ -->
+    <header class="lp-section lp-hero">
+      <div class="lp-container">
+        <pre class="lp-logo" aria-label="Language Pipes"> _                                                 ____   _
+| |                                               |  __`\(_)
+| |     __ _  ___   ___  _   _  __ _  __ _  ___   | |__) | |_ __   ___  ___
+| |    / _` |/ _ \ / _ `| | | |/ _` |/ _` |/ _ \  |  ___/| | '_ \ / _ \/ __|
+| |___( (_| | | | | (_| | |_| | (_| | (_| |  __/  | |    | | |_) |  __/\__ \
+|______\__,_|_| |_|\__, |\__,_|\__,_|\__, |\___|  |_|    |_| .__/ \___||___/
+                    __/ |             __/ |                | |
+                   |___/             |___/                 |_|</pre>
+
+        <div class="lp-tagline">
+          Made with &lt;3 by Erin
+        </div>
+
+        <div class="lp-badges">
+          <a href={`${SITE.github}/releases/latest`}>
+            <img src="https://img.shields.io/github/v/release/erinclemmer/language-pipes?color=2f9d54&label=release" alt="Latest release" />
+          </a>
+          <a href={`${SITE.github}/blob/main/LICENSE`}>
+            <img src="https://img.shields.io/badge/license-MIT-2f9d54.svg" alt="MIT license" />
+          </a>
+        </div>
+        <div class="lp-install">
+          <span class="lp-prompt">$</span>
+          <code id="install-cmd">pip install language-pipes</code>
+          <button class="lp-copy" data-copy="pip install language-pipes" aria-label="Copy install command">copy</button>
+        </div>
+
+        <div class="lp-actions">
+          <a class="lp-btn lp-btn--primary" href={docs('architecture')}>Read the docs →</a>
+          <a class="lp-btn" href={SITE.github}>GitHub</a>
+          <a class="lp-btn" href={SITE.pypi}>PyPI</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- =========================== PITCH =========================== -->
+    <section class="lp-section">
+      <div class="lp-container">
+        <p class="lp-eyebrow">The idea</p>
+        <h2 class="lp-h2">P2P inference for open-source LLMs</h2>
+        <p class="lp-lede">
+          Language models run their input through a long stack of transformer layers. Language
+          Pipes cuts that stack into segments and hands each segment to a different machine, so
+          the memory cost is shared across a network you control. No single node needs to hold
+          the whole model and no central server sits between your nodes. It's
+          <span class="lp-accent">peer-to-peer</span>, decentralized, and Python-native.
+        </p>  
+      </div>
+    </section>
+
+    <!-- ========================== PILLARS ========================== -->
+    <section class="lp-section">
+      <div class="lp-container">
+        <p class="lp-eyebrow">Why Language Pipes</p>
+        <h2 class="lp-h2">Distributed · Decentralized · Standardized API</h2>
+        <div class="lp-grid">
+          <a class="lp-card" href={docs('architecture')}>
+            <div class="lp-icon">⌗</div>
+            <h3>Distributed Inference</h3>
+            <p>
+              Transformer layers are split across multiple machines over a peer-to-peer control
+              plane, so a model too large for any one box runs across the network.
+            </p>
+            <span class="lp-more">Architecture →</span>
+          </a>
+          <a class="lp-card" href={docs('configuration')}>
+            <div class="lp-icon">◈</div>
+            <h3>Decentralized Config</h3>
+            <p>
+              Only the node hosting the <em>End model</em> ever sees raw text. 
+              Each node can host their own End models so there is
+              no central authority or central configuration.
+            </p>
+            <span class="lp-more">Configuration →</span>
+          </a>
+          <a class="lp-card" href={docs('oai')}>
+            <div class="lp-icon">↯</div>
+            <h3>OpenAI-compatible API</h3>
+            <p>
+              A drop-in <code>base_url</code> swap for existing OpenAI client code. Point your
+              tools at a node and keep the SDK you already use.
+            </p>
+            <span class="lp-more">API reference →</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================== HOW IT WORKS ======================= -->
+    <section class="lp-section" id="how-it-works">
+      <div class="lp-container">
+        <p class="lp-eyebrow">How it works</p>
+        <h2 class="lp-h2">Layer models and the End model</h2>
+        <p class="lp-lede">
+          Inference flows through a pipeline. The <span class="lp-accent">End model</span> keeps
+          the text-handling stages (tokenization, embedding, final norm and the output head) on
+          one trusted node. The transformer <span class="lp-amber">layers</span> in between are
+          distributed across <span class="lp-amber">Layer models</span> on other machines, which
+          only ever see continuous-valued hidden-state tensors.
+        </p>
+
+        <div class="lp-pipeline">
+          <div class="lp-flow">
+            <div class="lp-stage lp-stage--end">
+              <span class="lp-stage__name">TOKENIZE</span>
+              <span class="lp-stage__where">End model</span>
+            </div>
+            <span class="lp-arrow">→</span>
+            <div class="lp-stage lp-stage--end">
+              <span class="lp-stage__name">EMBED</span>
+              <span class="lp-stage__where">End model</span>
+            </div>
+            <span class="lp-arrow">⇢</span>
+            <div class="lp-stage lp-stage--layer">
+              <span class="lp-stage__name">LAYERS ×N</span>
+              <span class="lp-stage__where">Layer models</span>
+            </div>
+            <span class="lp-arrow">⇢</span>
+            <div class="lp-stage lp-stage--end">
+              <span class="lp-stage__name">NORM</span>
+              <span class="lp-stage__where">End model</span>
+            </div>
+            <span class="lp-arrow">→</span>
+            <div class="lp-stage lp-stage--end">
+              <span class="lp-stage__name">HEAD</span>
+              <span class="lp-stage__where">End model</span>
+            </div>
+          </div>
+          <div class="lp-legend">
+            <span class="lp-l-end">End model — text stays here (one trusted node)</span>
+            <span class="lp-l-layer">Layer models — opaque tensors only (distributed)</span>
+            <span>⇢ hidden-state tensor sent over the network</span>
+          </div>
+        </div>
+        <p class="lp-lede" style="margin-top:1.5rem">
+          Each layer performs matrix multiplications between learned weights and a hidden-state
+          tensor, then passes the result down the pipe. Splitting where the layers are hosted 
+          shares the memory cost and keeps text off every node but the one making the request.<br />
+          <a href={docs('job-processor')}>See the job processor state machine →</a><br />
+          <a href={docs('privacy')}>Understand the threat model →</a>
+        </p>
+      </div>
+    </section>
+
+    <!-- ========================= QUICK START ======================= -->
+    <section class="lp-section" id="quick-start">
+      <div class="lp-container">
+        <p class="lp-eyebrow">Quick start</p>
+        <h2 class="lp-h2">Example</h2>
+        <p class="lp-lede">
+          Distribute <code>Qwen/Qwen3-1.7B</code> across two machines. Node&nbsp;1 hosts the End
+          Model, so prompts and responses stay on Node&nbsp;1, plus enough layers to fit its
+          memory. Node&nbsp;2 hosts the rest. Launch the TUI with <code>language-pipes</code> and
+          configure each node, then call it like any OpenAI endpoint:
+        </p>
+
+        <div class="lp-terminal">
+          <div class="lp-terminal__bar">
+            <span class="lp-terminal__dot lp-terminal__dot--r"></span>
+            <span class="lp-terminal__dot lp-terminal__dot--y"></span>
+            <span class="lp-terminal__dot lp-terminal__dot--g"></span>
+            <span class="lp-terminal__title">node-1 — client.py</span>
+          </div>
+          <pre><code set:html={clientCode}></code></pre>
+        </div>
+
+        <div class="lp-actions" style="margin-top:1.75rem">
+          <a class="lp-btn lp-btn--primary" href={docs('cli')}>CLI reference →</a>
+          <a class="lp-btn" href={docs('configuration')}>Configuration</a>
+          <a class="lp-btn" href={`${SITE.github}#two-node-example`}>Full two-node walkthrough</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== MODELS + ROADMAP ======================= -->
+    <section class="lp-section" id="models">
+      <div class="lp-container">
+        <p class="lp-eyebrow">Support</p>
+        <h2 class="lp-h2">Supported models</h2>
+        <div class="lp-cols">
+          <div>
+            <h3 style="color:var(--lp-fg-bright);margin:0">Model families today</h3>
+            <ul class="lp-list lp-list--done">
+              <li>Qwen3</li>
+              <li>Phi 4</li>
+              <li>Meta Llama 2 and 3</li>
+              <li>Gemma 3 and 4</li>
+            </ul>
+            <p class="lp-muted" style="margin-top:0.9rem;font-size:0.9rem">
+              Fine-tunes of a supported base model should work too.<br />
+              <a href={docs('model_support')}>See all tested models →</a>
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================== FOOTER ========================== -->
+    <footer class="lp-footer">
+      <div class="lp-container">
+        <div class="lp-footer__cols">
+          <div>
+            <h4>Language Pipes</h4>
+            <p class="lp-muted" style="max-width:34ch">
+              Peer-to-peer distributed inference for open-source language models.
+              MIT-licensed.
+            </p>
+          </div>
+          <div>
+            <h4>Docs</h4>
+            <ul>
+              <li><a href={docs('architecture')}>Architecture</a></li>
+              <li><a href={docs('privacy')}>Privacy threat model</a></li>
+              <li><a href={docs('oai')}>OpenAI-compatible API</a></li>
+              <li><a href={docs('cli')}>CLI reference</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4>Project</h4>
+            <ul>
+              <li><a href={SITE.github}>GitHub</a></li>
+              <li><a href={SITE.pypi}>PyPI</a></li>
+              <li><a href={`${SITE.github}/blob/main/LICENSE`}>MIT License</a></li>
+              <li><a href={`${SITE.github}/releases`}>Release notes</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="lp-cite">
+          <span class="lp-muted">Cite this project:</span><br />
+          Clemmer, Erin. <em>Language Pipes</em> <br />
+          Peer-to-peer distributed inference for open-source language models. <br />
+          Github: https://github.com/erinclemmer/language-pipes<br />
+          ORCID: 0009-0005-0597-6197
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <script is:inline>
+    document.querySelectorAll('.lp-copy').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(btn.getAttribute('data-copy'));
+          const prev = btn.textContent;
+          btn.textContent = 'copied';
+          setTimeout(() => (btn.textContent = prev), 1400);
+        } catch (e) {
+          /* clipboard unavailable */
+        }
+      });
+    });
+  </script>
+</Base>

@@ -16,7 +16,7 @@ def make_computed():
     metadata.avg_layer_size = 64
     metadata.embed_hash = "embed"
     metadata.head_hash = "head"
-    metadata.layer_hashes=["l0", "l1", "l2", "l3"]
+    metadata.layer_hash= "l0"
     return metadata
 
 

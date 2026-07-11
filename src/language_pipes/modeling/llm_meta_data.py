@@ -1,3 +1,4 @@
+import logging
 import os
 import json
 from pathlib import Path
@@ -12,6 +13,7 @@ from language_pipes.util.utils import size_of_tensor, tensor_hash
 from language_pipes.util.enums import ModelPartType
 from language_pipes.llm_layer_collector.helpers import get_config
 
+META_VER = '1.0.0'
 
 def get_avg_layer_size(model_path: Path) -> Tuple[int, str]:
     if not os.path.exists(model_path):
@@ -20,7 +22,7 @@ def get_avg_layer_size(model_path: Path) -> Tuple[int, str]:
         model_dir=model_path,
         cache_file=model_path / ".." / "cache.json",
         device=torch.device("cpu"),
-        dtype=torch.bfloat16,
+        dtype=torch.bfloat16
     )
 
     shard_data = get_shard_data(0, 0, torch.device('cpu'), collector.model_dir, collector.layer_prefix, collector.layer_files, torch.bfloat16)
@@ -85,7 +87,7 @@ def get_computed_data(model_path: Path):
     meta_data["head_hash"] = hash
     size, hash = get_avg_layer_size(model_path)
     meta_data["avg_layer_size"] = size
-    meta_data["layer_hashes"] = hash
+    meta_data["layer_hash"] = hash
     collector = LlmLayerCollector(
         model_dir=model_path,
         cache_file=model_path / ".." / "cache.json",
@@ -93,6 +95,7 @@ def get_computed_data(model_path: Path):
         dtype=torch.bfloat16,
     )
     meta_data["num_hidden_layers"] = collector.config.num_hidden_layers
+    meta_data["version"] = META_VER
 
     with open(computed_path, "w") as f:
         json.dump(meta_data, f)
@@ -105,38 +108,55 @@ class LlmMetadata:
     head_size: int
     avg_layer_size: int
     num_hidden_layers: int
+    version: str
 
     embed_hash: str
     head_hash: str
-    layer_hashes: List[str]
+    layer_hash: str
 
     def __init__(self, model_dir: Optional[Path] = None):
         if model_dir is None:
             return
+        try:
+            data = self._get_data(model_dir)
+
+            if "version" not in data or data["version"] != META_VER:
+                self._delete_files(model_dir)
+                data = get_computed_data(model_dir)
+            self._init_props(data)
+
+        except Exception as e:
+            logging.getLogger(__name__).error(e)
+            raise e
+
+    def _delete_files(self, model_dir: Path):
+        cache_file = model_dir / "cache.json"
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
         
+        metadata_file = model_dir / "meta_data.json"
+        if os.path.exists(metadata_file):
+            os.remove(metadata_file)
+
+    def _get_data(self, model_dir: Path) -> Dict[str, Any]:
         try:
             data = get_computed_data(model_dir)
-            self.init_props(data)
+            self._init_props(data)
         except:  # noqa: E722
-            cache_file = model_dir / "cache.json"
-            if os.path.exists(cache_file):
-                os.remove(cache_file)
-            
-            metadata_file = model_dir / "meta_data.json"
-            if os.path.exists(metadata_file):
-                os.remove(metadata_file)
-
+            self._delete_files(model_dir)
             data = get_computed_data(model_dir)
-            self.init_props(data)
 
-    def init_props(self, data: Dict[str, Any]):
+        return data
+
+    def _init_props(self, data: Dict[str, Any]):
         self.embed_size = data["embed_size"]
         self.head_size = data["head_size"]
         self.avg_layer_size = data["avg_layer_size"]
         self.embed_hash = data["embed_hash"]
         self.head_hash = data["head_hash"]
-        self.layer_hashes = data["layer_hashes"]
+        self.layer_hash = data["layer_hash"]
         self.num_hidden_layers = data["num_hidden_layers"]
+        self.version = data["version"]
 
     def to_json(self):
         return {
@@ -145,7 +165,8 @@ class LlmMetadata:
             "avg_layer_size": self.avg_layer_size,
             "embed_hash": self.embed_hash,
             "head_hash": self.head_hash,
-            "layer_hashes": self.layer_hashes,
+            "layer_hash": self.layer_hash,
+            "version": self.version
         }
 
     @staticmethod
@@ -156,7 +177,8 @@ class LlmMetadata:
         c.avg_layer_size = data["avg_layer_size"]
         c.embed_hash = data["embed_hash"]
         c.head_hash = data["head_hash"]
-        c.layer_hashes = data["layer_hashes"]
+        c.layer_hash = data["layer_hash"]
+        c.version = data["version"]
         return c
 
 
@@ -164,5 +186,5 @@ def validate_model(c1: LlmMetadata, c2: LlmMetadata):
     return (
         c1.embed_hash == c2.embed_hash
         and c1.head_hash == c2.head_hash
-        and c1.layer_hashes == c2.layer_hashes
+        and c1.layer_hash == c2.layer_hash
     )

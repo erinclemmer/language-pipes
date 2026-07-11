@@ -1,4 +1,7 @@
-# LLM Layer Collector
+---
+title: LLM Layer Collector
+description: A Python package for loading specific components of large, sharded HuggingFace model checkpoints at the layer level.
+---
 
 A practical Python package for working with [Huggingface](huggingface.co) models at the layer level. Designed to help developers and researchers load specific model components when working with large, sharded checkpoints.
 
@@ -25,6 +28,7 @@ The LlmLayerCollector class serves as your central interface to the package's fu
 - `lm_head_name`: Name for the head weight (default: 'lm_head.weight')
 - `device`: Target device for tensor operations ("cpu" or "cuda") (default: "cpu")
 - `dtype`: Desired numerical precision (default: torch.float16)
+- `load_in_8bit`: Quantize decoder layer linear weights to 8-bit with [bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes) (LLM.int8). Requires the `bitsandbytes` package; forces `dtype` to `torch.float16` (default: False)
 
 ## Example
 This example uses all of the parts of the package to generate a token prediction
@@ -68,14 +72,3 @@ Our helper functions provide a streamlined approach to model operations:
 - `compute_embedding`: Handles input embedding and causal mask setup
 - `compute_layer`: Manages state transitions through decoder layers
 - `compute_head`: Processes final linear projections and token prediction
-
-### Documentation
-* [CLI Reference](./cli.md)
-* [Privacy Protection](./privacy.md)
-* [Configuration Manual](./configuration.md)
-* [Architecture Overview](./architecture.md)
-* [OpenAI-Compatible API](./oai.md)
-* [Job Processor State Machine](./job-processor.md)
-* [Distributed State Network](./distributed-state-network/README.md)
-* [LLM Layer Collector](./llm-layer-collector.md)
-* [Release Notes](./release-notes.md)

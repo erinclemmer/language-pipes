@@ -1,4 +1,7 @@
-# Configuration Reference
+---
+title: Configuration Reference
+description: The TOML configuration file format used by Language Pipes (LpConfig) — every field, type, and default.
+---
 
 This document describes the TOML configuration file format used by Language
 Pipes (`LpConfig`). See the [CLI Reference](./cli.md) for how `-c`/`--config`
@@ -321,6 +324,54 @@ end model should use the same value so that model layers are loaded correctly.
 export LP_NUM_LOCAL_LAYERS=1
 ```
 
+#### `LP_MAX_NODE_JOBS`
+
+Maximum number of jobs this node will queue for a single peer node. Incoming
+jobs from a node whose queue is already full are rejected.
+
+| Default |
+|---------|
+| `10` |
+
+```bash
+export LP_MAX_NODE_JOBS=10
+```
+
+#### `LP_MAX_API_JOBS`
+
+Maximum number of pending jobs allowed per API key on the
+[OpenAI-compatible API](./oai.md). Requests beyond this limit are rejected
+until earlier jobs for that key complete.
+
+| Default |
+|---------|
+| `5` |
+
+```bash
+export LP_MAX_API_JOBS=5
+```
+
+#### `LP_8_BIT_MODE`
+
+Load model layers in 8-bit precision using the
+[bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes) library
+(LLM.int8 quantization) instead of the default 16-bit floating point. This
+roughly halves the memory needed for hosted layers at a small cost in output
+quality and speed.
+
+The linear projection weights of each decoder layer are quantized to int8;
+the embedding, norms, and language-model head stay in `float16`.
+
+**Note**: Requires the `bitsandbytes` package: `pip install language-pipes[quantization]` or `pip install bitsandbytes`.
+
+| Default |
+|---------|
+| `false` |
+
+```bash
+export LP_8_BIT_MODE=true
+```
+
 ---
 
 ## Hugging Face Authentication
@@ -335,16 +386,3 @@ downloading a gated model and offers to save it for future downloads.
 Get your token from [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
 
 **Note:** For gated models (like Llama), you must also accept the model's license agreement on the HuggingFace website before downloading.
-
----
-
-### Documentation
-* [CLI Reference](./cli.md)
-* [Privacy Protection](./privacy.md)
-* [Configuration Manual](./configuration.md)
-* [Architecture Overview](./architecture.md)
-* [OpenAI-Compatible API](./oai.md)
-* [Job Processor State Machine](./job-processor.md)
-* [Distributed State Network](./distributed-state-network/README.md)
-* [LLM Layer Collector](./llm-layer-collector.md)
-* [Release Notes](./release-notes.md)

@@ -28,13 +28,19 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
             return None
         return header[7:]
     
-    def authorize(self) -> bool:
+    def _get_api_key(self) -> Optional[str]:
         api_key_header = self.headers.get("Authorization", None) 
         if api_key_header is None:
+            return None
+        return self._extract_api_key(api_key_header)
+
+    def authorize(self) -> bool:
+        api_key = self._get_api_key()
+        if api_key is None:
             _send_code(400, self, "No authorization token supplied")
             return False
-        api_key = self._extract_api_key(api_key_header)
-        if api_key is None or api_key not in self.server.api_keys:
+         
+        if api_key not in self.server.api_keys:
             _send_code(401, self, "Unauthorized")
             return False
         return True
@@ -42,6 +48,8 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if len(self.server.api_keys) > 0 and not self.authorize():
             return
+        
+        api_key = self._get_api_key() or "anon"
                 
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length)
@@ -65,7 +73,7 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
                 return
 
             self.log('/v1/chat/completions')
-            oai_chat_complete(self, self.server.complete, data)
+            oai_chat_complete(self, self.server.complete, data, api_key)
             return
 
         if self.path == '/v1/responses':
@@ -78,7 +86,7 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
                 return
 
             self.log('/v1/responses')
-            oai_responses_create(self, self.server.complete, data)
+            oai_responses_create(self, self.server.complete, data, api_key)
             return
 
         _send_code(404, self, "Not found")

@@ -1,4 +1,23 @@
-# Change Log
+---
+title: Release Notes
+description: Change log for Language Pipes releases.
+---
+
+## Release  2.1.0
+
+### Job Limits
+Added two environment variables to protect nodes from being overloaded with jobs:
+- **`LP_MAX_NODE_JOBS`** (default `10`): maximum number of jobs this node will queue for a single peer node. Incoming jobs beyond this limit are rejected.
+- **`LP_MAX_API_JOBS`** (default `5`): maximum number of pending jobs per API key on the OpenAI-compatible server. Requests beyond this limit are rejected until earlier jobs for that key complete.
+
+See the [Configuration Manual](./configuration.md#environment-variables) for details.
+
+### 8-Bit Quantization
+- **`LP_8_BIT_MODE`** (default `false`): load model layers in 8-bit precision via [bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes) (LLM.int8), roughly halving layer memory usage. Requires the `bitsandbytes` package (`pip install language-pipes[quantization]`).
+
+### Bugs
+- Fixed glitching in menu going from models / installed to models / layers
+- Fixed saving and loading huggingface api key
 
 ## Release 2.0.0
 
@@ -79,7 +98,7 @@ Added flag to denote API keys to use for OpenAI compatible server. This flag can
 ## Release 1.1.0
 
 ### Model Support
-Added model support for GLM4.1v, Gemma3, and Phi4 model families. Below is a list of newly tested models, the same model but . You can view current model support at [the model support page](documentation/model_support.md). Models of the same family but in different sizes should also work.
+Added model support for GLM4.1v, Gemma3, and Phi4 model families. Below is a list of newly tested models, the same model but . You can view current model support at [the model support page](./model_support.md). Models of the same family but in different sizes should also work.
 
 **Phi:**
 - microsoft/Phi-4-mini-reasoning
@@ -139,14 +158,3 @@ Added the date and time to the logger for better logs on long running servers.
 
 ### Notes
 I'm finally happy with the way the project is laid out and what it is trying to accomplish. Privacy for layer nodes is a much more complicated problem that I first realized so I have updated the privacy wording in the documentation to match a probabilistic threat model instead of assuming hidden states can never be reversed. I will be doing case studies in hidden state reversal and finding mitigation techniques that give the user more trust that their prompts will not be compromised.
-
-### Documentation
-* [CLI Reference](./cli.md)
-* [Privacy Protection](./privacy.md)
-* [Configuration Manual](./configuration.md)
-* [Architecture Overview](./architecture.md)
-* [OpenAI-Compatible API](./oai.md)
-* [Job Processor State Machine](./job-processor.md)
-* [Distributed State Network](./distributed-state-network/README.md)
-* [LLM Layer Collector](./llm-layer-collector.md)
-* [Release Notes](./release-notes.md)

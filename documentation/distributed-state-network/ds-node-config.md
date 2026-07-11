@@ -1,3 +1,8 @@
+---
+title: DSNodeConfig
+description: Configuration object for initializing a DSNode instance in the Distributed State Network.
+---
+
 ## DSNodeConfig
 
 Configuration object for initializing a DSNode instance.

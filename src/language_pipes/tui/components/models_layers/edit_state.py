@@ -8,6 +8,7 @@ from language_pipes.content_provider.model_provider import ModelProvider, ModelS
 from language_pipes.tui.components.page import PageState
 from language_pipes.tui.frame.tips import TIPS
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text
+from language_pipes.util.config import is_8_bit_mode
 
 
 class EditPageState(PageState):
@@ -244,6 +245,9 @@ class EditPageState(PageState):
         assert self.model_id is not None
         metadata = ModelProvider.get_model_metadata(self.model_id)
         layer_size = metadata.avg_layer_size / 1024**3
+        if is_8_bit_mode():
+            layer_size /= 2
+
         num_layers = min(int(float(self.device_memory) / layer_size), metadata.num_hidden_layers)
         total_size = layer_size * metadata.num_hidden_layers
         s = f"/ {total_size:.1f}GB ({num_layers} of {metadata.num_hidden_layers} layers)"

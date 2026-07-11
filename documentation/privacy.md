@@ -1,4 +1,7 @@
-# Privacy
+---
+title: Privacy
+description: The privacy properties of Language Pipes, the End Model boundary, and a probabilistic threat model for hidden-state inversion attacks.
+---
 
 This document describes the privacy properties Language Pipes and the known attack surfaces.
 
@@ -245,14 +248,3 @@ Your friend can choose to also host an end model, but only your machine will see
 
 - Gupta, Basu, and Goel. "Transformers are Injective: SipIt Sequential Prompt Inversion from Intermediate Representations." 2025. [arXiv:2510.15511](https://arxiv.org/abs/2510.15511)
 - Borzunov et al. "Petals: Collaborative Inference and Fine-tuning of Large Models." ACL 2023. [arXiv:2209.01188](https://arxiv.org/abs/2209.01188)
-
-### Documentation
-* [CLI Reference](./cli.md)
-* [Privacy Protection](./privacy.md)
-* [Configuration Manual](./configuration.md)
-* [Architecture Overview](./architecture.md)
-* [OpenAI-Compatible API](./oai.md)
-* [Job Processor State Machine](./job-processor.md)
-* [Distributed State Network](./distributed-state-network/README.md)
-* [LLM Layer Collector](./llm-layer-collector.md)
-* [Release Notes](./release-notes.md)

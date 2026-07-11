@@ -7,6 +7,7 @@ from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.pipes.pipe_manager import PipeManager
+from language_pipes.util.config import get_max_api_jobs
 
 class JobFactory:
     job_tracker: JobTracker
@@ -23,6 +24,7 @@ class JobFactory:
 
     def start_job(
         self, 
+        api_key: str,
         model_id: str, 
         messages: List[ChatMessage], 
         max_completion_tokens: int, 
@@ -47,6 +49,11 @@ class JobFactory:
                 resolve('NO_PIPE') # pyright: ignore[reportCallIssue]
             return
 
+        if api_key in self.job_tracker.jobs_pending and len(self.job_tracker.jobs_pending[api_key]) > get_max_api_jobs():
+            if resolve is not None:
+                resolve('MAX_JOBS') # pyright: ignore[reportCallIssue]
+            return
+        
         node_id = self.pipe_manager.router_pipes.router.node_id()
 
         job = Job(
@@ -70,9 +77,13 @@ class JobFactory:
         
         network_job = job.to_network_job()
         pipe.send_job(network_job, node_id)
-        self.job_tracker.jobs_pending.append(job)
+        if api_key not in self.job_tracker.jobs_pending:
+            self.job_tracker.jobs_pending[api_key] = [ ]
+
+        self.job_tracker.jobs_pending[api_key].append(job)
 
         if start is not None:
             start(job)
 
         return job
+

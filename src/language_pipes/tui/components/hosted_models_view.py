@@ -1,6 +1,7 @@
 from typing import List, Dict
 from language_pipes.content_provider.model_provider import ModelStatusInfo, ModelToLoad, ModelStatus
 from language_pipes.tui.util.text import make_selectable_text
+from language_pipes.util.config import is_8_bit_mode
 
 def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
     pipes: Dict[str, List[ModelStatusInfo]] = { }
@@ -54,6 +55,8 @@ def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
     for key in pipe_strings.keys():
         pipe = pipes[key]
         ram_used = sum([m.ram_used for m in pipe]) / 1024**3
+        if is_8_bit_mode():
+            ram_used /= 2.0
         lines.append(f"Pipe {key[:4]} >{norm_pipe_strings[key]}< ({ram_used:.2f}GB)")
 
     return lines

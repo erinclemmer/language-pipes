@@ -1,4 +1,7 @@
-# Migrating to Language Pipes 2.0.0
+---
+title: Migrating to Language Pipes 2.0
+description: What changed in Language Pipes 2.0.0 — the move from a flag-driven CLI to TOML-based configuration and the interactive TUI.
+---
 
 Language Pipes 2.0.0 replaces the flag-driven `serve`/`init` CLI with a
 TOML configuration file plus an interactive TUI. **No CLI flags configure a
@@ -223,16 +226,3 @@ export LP_NUM_LOCAL_LAYERS=1
 ```bash
 language-pipes -c config.toml run
 ```
-
----
-
-### Documentation
-* [CLI Reference](./cli.md)
-* [Privacy Protection](./privacy.md)
-* [Configuration Manual](./configuration.md)
-* [Architecture Overview](./architecture.md)
-* [OpenAI-Compatible API](./oai.md)
-* [Job Processor State Machine](./job-processor.md)
-* [Distributed State Network](./distributed-state-network/README.md)
-* [LLM Layer Collector](./llm-layer-collector.md)
-* [Release Notes](./release-notes.md)

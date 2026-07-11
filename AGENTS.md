@@ -12,7 +12,8 @@ Language Pipes is a Python 3.10 application that distributes LLM inference acros
   - `llm_layer_collector/`: layer-level HuggingFace model loading helper
   - `util/`: shared utilities, including the OpenAI-compatible server helpers
   - `cli.py`, `runner.py`, `oai_server.py`, `config.py`: CLI entrypoint, node runner, OAI HTTP server, TOML config model
-- `documentation/`: product and operator docs
+- `documentation/`: product and operator docs (source of truth; also published to the website)
+- `website/`: Astro + Starlight site (landing page + docs). Consumes `documentation/` in place at build time; deployed to GitHub Pages via `.github/workflows/deploy-website.yml`
 - `tests/`: pytest suite, mirroring `src/language_pipes` (`tests/language_pipes`, `tests/distributed_state_network`, `tests/llm_layer_collector`)
 - `pyproject.toml`: project metadata and dependencies
 

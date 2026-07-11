@@ -24,6 +24,8 @@
 [PyPiVersion-Url]: https://img.shields.io/pypi/v/language-pipes
 [PythonVersion-Url]: https://img.shields.io/pypi/pyversions/language-pipes
 
+**Documentation & site:** https://languagepipes.com
+
 Language Pipes is an open-source distributed inference system built on the [transformers library](https://github.com/huggingface/transformers) that splits large language model computation across multiple machines. By separating the model's text-handling components (embedding and output head) from its intermediate transformer layers, Language Pipes enables peer-to-peer inference.
 
 #### Features
@@ -146,6 +148,8 @@ Language Pipes currently supports a few model families including Qwen3, Phi, Met
 - [transformers](https://huggingface.co/docs/transformers) 
 
 ### Documentation
+The docs are published as a website at **https://erinclemmer.github.io/language-pipes** (built from this folder by [`website/`](./website)). The Markdown source of truth lives in [`documentation/`](./documentation):
+
 * [CLI Reference](./documentation/cli.md)
 * [Privacy Protection](./documentation/privacy.md)
 * [Configuration Manual](./documentation/configuration.md)

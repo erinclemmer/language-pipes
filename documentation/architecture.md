@@ -1,4 +1,7 @@
-# Architecture Overview
+---
+title: Architecture Overview
+description: How Language Pipes distributes transformer inference across machines, from node startup through job execution.
+---
 
 Language Pipes distributes transformer inference across multiple machines by splitting a model into **layer segments** that are coordinated over a peer-to-peer control plane. This document describes how the protocol works, from node startup through job execution.
 
@@ -124,14 +127,3 @@ Only the node hosting the **EndModel** can see raw text:
 For privacy-sensitive deployments, include the model in your `end_models` list on your own machine and let other nodes host only layer segments.
 
 For more information how the architecture ensures privacy see [the privacy documentation](./privacy.md).
-
-### Documentation
-* [CLI Reference](./cli.md)
-* [Privacy Protection](./privacy.md)
-* [Configuration Manual](./configuration.md)
-* [Architecture Overview](./architecture.md)
-* [OpenAI-Compatible API](./oai.md)
-* [Job Processor State Machine](./job-processor.md)
-* [Distributed State Network](./distributed-state-network/README.md)
-* [LLM Layer Collector](./llm-layer-collector.md)
-* [Release Notes](./release-notes.md)
