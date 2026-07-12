@@ -8,6 +8,7 @@ from language_pipes.network_protocol import StateNetworkNode
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.jobs.network_job import NetworkJob
+from language_pipes.util.byte_helper import ByteHelper
 from language_pipes.util.chat import ChatMessage
 
 class Pipe:
@@ -37,6 +38,10 @@ class Pipe:
 
     def send_job(self, job: NetworkJob, node_id: str):
         data = job.to_bytes()
+        bts = ByteHelper()
+        bts.write_int(0) # Job Protocol
+        bts.write_bytes(data)
+        data = bts.get_bytes()
         if node_id == self.router.node_id():
             self.router.receive_data(data)
         else:

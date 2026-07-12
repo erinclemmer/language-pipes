@@ -32,6 +32,8 @@ from language_pipes.llm_layer_collector import StaticAutoModel
 from language_pipes.llm_layer_collector.auto.auto_layer import mapper as LAYER_MAPPER
 from language_pipes.llm_layer_collector.state_obj import LLmComputationState
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+
 from specs import RealModelSpec, REAL_MODEL_SPECS
 from memguard import run_capped, MEMORY_BUDGET_BYTES
 

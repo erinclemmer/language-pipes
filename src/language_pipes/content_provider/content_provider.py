@@ -5,9 +5,11 @@ import psutil
 import torch
 from typing import Callable, List, Optional, Dict
 
+from language_pipes.request_for_model.rfm import RequestForModelHandler
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
+from language_pipes.util.byte_helper import ByteHelper
 from language_pipes.util.utils import is_port_available
 from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
@@ -36,6 +38,7 @@ class ContentProvider:
     network_provider: NetworkProvider
     pipe_provider: PipeProvider
     job_provider: JobProvider
+    request_for_model: RequestForModelHandler
     config_file: Path
     create_alert: Callable[[str], None]
 
@@ -119,14 +122,37 @@ class ContentProvider:
                 is_shutdown=self.router_pipes.router.is_shut_down
             )
 
-            self.router_pipes.router.set_receive_cb(self.job_receiver.receive_data)
+            self.router_pipes.router.set_receive_cb(self._receive_data)
+            self.request_for_model = RequestForModelHandler(
+                router.node_id(),
+                router.peers,
+                router.send_to_node, 
+                self.model_provider.get_installed_models,
+                router.node.logger
+            )
         else:
             self.router_pipes = None
             self.pipe_manager = None
 
+    def request_model(self, model_id: str, token: Optional[str] = None):
+        if self.request_for_model is None:
+            return
+
+        self.request_for_model.request_state.reset()
+        self.request_for_model.request_model(model_id, token)
+
+    def _receive_data(self, node_id: str, data: bytes):
+        bts = ByteHelper(data)
+        protocol = bts.read_int() # Protocol number
+        if protocol == 0 and self.job_receiver is not None:
+            self.job_receiver.receive_data(node_id, bts.read_bytes())
+        if protocol == 1:
+            self.request_for_model.receive_data(node_id, data)
+
     def stop_network(self):
         if self.router is None:
             return
+        self.request_for_model.shutdown()
         self.model_provider.unload_all_models()
         self.job_provider.stop_oai_server()
         self.network_provider._stop_network()
@@ -134,7 +160,6 @@ class ContentProvider:
             self.job_tracker.shutdown = True
         if self.job_receiver is not None:
             self.job_receiver.shutdown = True
-        
 
     @staticmethod
     def get_total_system_ram() -> float:

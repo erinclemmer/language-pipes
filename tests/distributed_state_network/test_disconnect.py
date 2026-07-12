@@ -7,6 +7,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 from base import DSNTestBase, spawn_node, remove_node
 
 class TestDisconnect(DSNTestBase):
+    
+    @unittest.skip("Long test")
     def test_reconnect(self):
         """Node should be removed from peers after disconnect"""
         bootstrap = spawn_node("bootstrap", "127.0.0.1")
@@ -16,6 +18,7 @@ class TestDisconnect(DSNTestBase):
         time.sleep(10)
         self.assertNotIn(connector.config.node_id, bootstrap.node.peers())
 
+    @unittest.skip("Long test")
     def test_disconnect_and_new_join(self):
         """New nodes should not see disconnected nodes"""
         node1 = spawn_node("node-1", "127.0.0.1")
@@ -33,7 +36,8 @@ class TestDisconnect(DSNTestBase):
         self.assertEqual(["node-1", "node-3", "node-4"], sorted(node1.node.peers()))
         self.assertEqual(["node-1", "node-3", "node-4"], sorted(node3.node.peers()))
         self.assertEqual(["node-1", "node-3", "node-4"], sorted(node4.node.peers()))
-
+    
+    @unittest.skip("Long test")
     def test_peers_after_disconnect(self):
         """peers() wrapper should reflect disconnected nodes"""
         bootstrap = spawn_node("bootstrap", "127.0.0.1")

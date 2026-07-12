@@ -81,6 +81,7 @@ export default defineConfig({
           items: [
             { label: 'Overview', slug: 'architecture' },
             { label: 'Job Processor State Machine', slug: 'job-processor' },
+            { label: 'Request For Model Protocol', slug: 'request-for-model' },
             { label: 'Distributed State Network', slug: 'distributed-state-network' },
             { label: 'DSN Protocol', slug: 'distributed-state-network/protocol' },
             { label: 'DSN Node Config', slug: 'distributed-state-network/ds-node-config' },

@@ -3,7 +3,6 @@ import random
 import logging
 import threading
 import requests
-from datetime import datetime
 from typing import Dict, List, Optional, Callable, Tuple
 
 from language_pipes.distributed_state_network.objects.endpoint import Endpoint
@@ -19,6 +18,8 @@ from language_pipes.distributed_state_network.util.aes import aes_encrypt, aes_d
 
 TICK_INTERVAL = 3
 HTTP_TIMEOUT = 2  # seconds
+
+MIN_TRANSFER_BYTES_PER_SEC = 1024 * 1024  # 1 MB/s floor
 
 # Message type constants (must match handler.py)
 MSG_HELLO = 1
@@ -192,12 +193,15 @@ class DSNode:
             path = MSG_TYPE_TO_PATH.get(msg_type, '/unknown')
             url = f"http://{endpoint.address}:{endpoint.port}{path}"
             
+            # Scale timeout to transfer size
+            timeout = max(HTTP_TIMEOUT, len(data) / MIN_TRANSFER_BYTES_PER_SEC)
+
             # Send HTTP POST request
             response = requests.post(
                 url,
                 data=data,
                 headers={'Content-Type': 'application/octet-stream'},
-                timeout=HTTP_TIMEOUT
+                timeout=timeout
             )
             
             # Check response status
