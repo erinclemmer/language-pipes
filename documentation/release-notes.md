@@ -11,7 +11,10 @@ Nodes can now install a model directly from another node on the network instead 
 Every transferred file is verified against the model's HuggingFace manifest by size and SHA-256 hash before it is accepted. See the [Request For Model Protocol documentation](./request-for-model.md) for how the transfer works under the hood.
 
 ### Model Support
-Added support for ministral models, tested Ministral-3-8B-Instruct-2512
+Added support for ministral models from Mistral AI, tested Ministral-3-8B-Instruct-2512
+
+### Tweaks
+Added connected pipes information to network / peers page. 
 
 ## Release  2.1.0
 
