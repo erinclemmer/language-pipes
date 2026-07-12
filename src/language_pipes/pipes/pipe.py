@@ -8,6 +8,7 @@ from language_pipes.network_protocol import StateNetworkNode
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.jobs.network_job import NetworkJob
+from language_pipes.util.byte_helper import ByteHelper
 from language_pipes.util.chat import ChatMessage
 
 class Pipe:
@@ -27,7 +28,6 @@ class Pipe:
         ):
         self.router = router
         self.model_id = model_id
-        model_path = str(Path(model_dir) / model_id / 'data')
         
         if pipe_id is None:
             self.pipe_id = str(uuid4())
@@ -35,20 +35,17 @@ class Pipe:
             self.pipe_id = pipe_id
 
         self.segments = []
-        self.tokenizer = lambda: AutoTokenizer.from_pretrained(model_path)
 
     def send_job(self, job: NetworkJob, node_id: str):
         data = job.to_bytes()
+        bts = ByteHelper()
+        bts.write_int(0) # Job Protocol
+        bts.write_bytes(data)
+        data = bts.get_bytes()
         if node_id == self.router.node_id():
             self.router.receive_data(data)
         else:
             self.router.send_to_node(node_id, data)
-
-    def tokenize(self, prompt: Optional[str], messages: List[ChatMessage]) -> List[int]:
-        tokenizer: AutoTokenizer = self.tokenizer()
-        if prompt is None:
-            prompt = tokenizer.apply_chat_template([m.to_json() for m in messages], tokenize=False, add_generation_prompt=True, chat_template=tokenizer.chat_template) # type: ignore
-        return [int(t) for t in tokenizer.encode(prompt, return_tensors='pt')[0].numpy()] # type: ignore
 
     def get_layer(self, layer: int, need_physical: bool = False) -> Optional[LlmModel]:
         for segment in self.segments:

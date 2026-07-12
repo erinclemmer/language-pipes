@@ -132,6 +132,8 @@ class NetworkForm:
         return fields
 
     def get_current_field(self) -> Optional[tuple[str, str]]:
+        if self.edit_field_idx >= len(self.get_edit_fields()) or self.edit_field_idx < 0:
+            return
         field = self.get_edit_fields()[self.edit_field_idx]
         field_name = str(field.get("name", ""))
         raw = str(field.get("value", "")).strip()

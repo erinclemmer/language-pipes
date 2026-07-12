@@ -13,7 +13,7 @@ The distributed layer-splitting architecture used by Language Pipes is similar t
 
 However, the Petals project does not provide a quantitative analysis of the privacy properties of this architecture. Its documentation acknowledges that data is "processed with the help of other people in the public swarm" and recommends private swarms for sensitive data, but does not characterize the difficulty of prompt reconstruction from intercepted hidden states, nor does it evaluate specific inversion attacks or mitigations.
 
-Additionally, Petals targets a fixed set of older model architectures (Llama 3.1, Mixtral 8x22B, Falcon, BLOOM), several of which are no longer actively developed. Language Pipes targets current-generation open-source models, beginning with the Qwen3 and Qwen3-MoE architectures.
+Additionally, Petals targets a fixed set of older model architectures (Llama 3.1, Mixtral 8x22B, Falcon, BLOOM), several of which are no longer actively developed. Language Pipes targets current-generation open-source models; see the [supported-models list](./model_support.md) for the current, authoritative set of families and tested checkpoints.
 
 ---
 
@@ -167,13 +167,15 @@ If hidden states are transmitted immediately after embedding (capture at layer 0
 
 **Baseline recovery probability: ~100%** at layer 0.
 
-**Mitigation:** Retaining the first N transformer layers on the End Model node by setting the `LP_NUM_LOCAL_LAYERS` environment variable eliminates layer-0 exposure entirely. For this reason `LP_NUM_LOCAL_LAYERS` defaults to 1.
+**Mitigation:** Retaining the first N transformer layers on the End Model node by setting the `LP_NUM_LOCAL_LAYERS` environment variable eliminates layer-0 exposure entirely. `LP_NUM_LOCAL_LAYERS` defaults to `1`, which is enough to remove the trivial layer-0 attack; for privacy-sensitive deployments we recommend raising it so more of the early pipeline stays on your machine. All nodes hosting the same end model must use the same value.
 
 #### 2. SipIt Deep-Layer Recovery
 
-The SipIt algorithm (Gupta, Basu, and Goel, 2025) recovers tokens sequentially by replaying candidate embeddings through layers 0 to L and comparing against the captured hidden state. Recovery difficulty increases exponentially with capture depth due to float16 precision accumulation, non-convex optimization landscapes, and computational cost scaling.
+The SipIt algorithm (Gupta, Basu, and Goel, 2025) recovers tokens sequentially by replaying candidate embeddings through layers 0 to L and comparing against the captured hidden state. Its worst-case running time is `O(T × |V|)` — polynomial in the sequence length T and vocabulary size |V| so deeper capture does not change the asymptotic hardness of recovery. What it does change is the *practical* cost: as hidden states pass through more layers, `float16` rounding accumulates and the mapping back to token-space becomes numerically harder to invert exactly, so a successful attack needs more compute and more careful search per token.
 
-**Mitigation:** Network security is the best way to avoid attacks. Assume that a determined attacker can reverse the hidden states passed between nodes.
+We expect recovery to become harder with capture depth for these reasons, **but we have not measured this.** Quantifying how recovery success rate falls off with depth (e.g. capturing hidden states at layers 1, 5, 10, and 20 and reporting recovery rates) is the experiment this threat model does not yet contain; treat the "harder with depth" expectation as unverified until it is run. Do not rely on depth alone as a security boundary.
+
+**Mitigation:** Network security is the best way to avoid attacks. Assume that a determined attacker with the model weights can invert the hidden states passed between nodes, and keep layer nodes on machines you trust.
 
 #### 3. Network Eavesdropping
 
@@ -187,27 +189,55 @@ The OpenAI-compatible API server binds to `0.0.0.0` with no authentication by de
 
 **Mitigation:** Restrict API access via firewall rules or bind to localhost when the API is not intended for external use.
 
+#### 5. Malicious Layer Node Returning Bad Tensors (Integrity)
+
+The attack vectors above concern **confidentiality**. Can a layer node read your prompt? They do not address **integrity**. Can a layer node lie to you?
+
+A hostile layer node is free to return whatever tensor it likes. It can compute garbage, or, more insidiously, a *subtly steered* hidden state that biases the final output in a chosen direction, and then hash the result correctly. The SHA-256 check on each `NetworkJob` validates **transport integrity** (the bytes were not corrupted or tampered with in transit); it does **not** validate **computational honesty** (that the node actually ran the correct layers on the correct weights). A node that deliberately returns a manipulated tensor produces a valid hash for that manipulated tensor.
+
+In a genuinely open peer-to-peer swarm this is arguably a larger problem than prompt recovery: a malicious node can influence generated outputs without ever being detected, and there is currently no cross-checking, redundant recomputation, or attestation that would catch it.
+
+**Mitigation:** Known gap. Currently mitigated only by trusting your layer operators. Run layer nodes on machines you control or trust, or restrict the swarm to whitelisted node IDs (`whitelist_node_ids`). Language Pipes does not yet provide redundant recomputation or verifiable-computation guarantees against a dishonest layer node.
+
 ### Mitigation Stack Summary
 
 The following table summarizes the available mitigations, their effectiveness against each attack vector, and their configuration:
 
-| Mitigation | SipIt | Network Eavesdrop | Configuration |
-|------------|-------|--------------------|---------------|
-| **Architectural separation** (always on) | Prevents casual observation; does not prevent deliberate inversion | Same | Default behavior |
-| **AES encryption** (`network_key`) | Does not apply (malicious node decrypts to compute) | Same | `network_key` in config |
-| **Trusted layer nodes** | **Effective.** Trusted operator should not attempt inversion | **Effective.** Same | Deploy layer nodes only on trusted machines |
+| Mitigation | SipIt (confidentiality) | Network Eavesdrop | Bad tensors (integrity) | Configuration |
+|------------|-------|--------------------|-------|---------------|
+| **Architectural separation** (always on) | Prevents casual observation; does not prevent deliberate inversion | Same | No effect — a node still controls its own output | Default behavior |
+| **Local layers** (`LP_NUM_LOCAL_LAYERS`) | Removes layer-0 exposure and keeps early layers on your machine; raises practical inversion cost | No effect | No effect | `LP_NUM_LOCAL_LAYERS` env var (default `1`) |
+| **AES encryption** (`network_key`) | Does not apply (malicious node decrypts to compute) | **Effective.** Encrypts transport | No effect | `network_key` in config |
+| **Trusted layer nodes** | **Effective.** Trusted operator should not attempt inversion | **Effective.** Same | **Effective** — the only current defense; trusted operator should not return manipulated tensors | Deploy layer nodes only on trusted machines; `whitelist_node_ids` |
 
 ### Probabilistic Security Summary
 
-With recommended mitigations (AES encryption + first-5 local layers):
+The `LP_NUM_LOCAL_LAYERS` environment variable defaults to `1`. For privacy-sensitive
+deployments we recommend **raising it** so more of the early pipeline stays on your
+machine; the summary below assumes AES encryption plus a raised `LP_NUM_LOCAL_LAYERS`
+(all nodes hosting the same end model must use the same value):
 
 | Attack Vector | Estimated Difficulty | Notes |
 |---------------|---------------------|-------|
 | Casual observation by layer operator | **Infeasible** | Layer nodes see only floating-point tensors |
 | Network eavesdropping | **Infeasible** | AES-encrypted transport |
-| SipIt prompt recovery | **Possible** | The algorithm is non-polynomial but can successeed with enough time |
+| SipIt prompt recovery | **Possible** | The algorithm is polynomial — `O(T × \|V\|)` — in sequence length and vocabulary size. The practical barrier is float precision and search cost, not asymptotic hardness. Given enough compute and time, a layer operator with the model weights can succeed. |
+| Output tampering by layer node | **Possible** | Undetectable without trusting the operator; the SHA-256 check does not verify computational honesty |
 
-With recommended mitigations + **trusted layer node operators**:
+With recommended mitigations **plus trusted layer node operators** — i.e. you also
+control or trust every machine hosting layer segments — the residual risk changes
+substantially:
+
+| Attack Vector | Estimated Difficulty | Notes |
+|---------------|---------------------|-------|
+| Casual observation by layer operator | **Infeasible** | As above |
+| Network eavesdropping | **Infeasible** | As above |
+| SipIt prompt recovery | **Infeasible in practice** | A trusted operator with the capability to invert has no incentive to; the attack requires an operator who is both capable and hostile |
+| Output tampering by layer node | **Infeasible in practice** | Same — tampering requires a hostile operator |
+
+Trusting the layer operators collapses the confidentiality *and* integrity risks to
+the operators themselves, which is why hosting layer nodes only on machines you trust
+is the strongest single mitigation available today.
 
 ---
 

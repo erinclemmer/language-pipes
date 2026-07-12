@@ -3,22 +3,46 @@ title: Supported Models
 description: Model families and specific checkpoints tested and known to work with Language Pipes.
 ---
 
-Below are the models that are tested and known to work. Any fine-tuned model based on a supported model should also work.
+This page is the single source of truth for model support. Any fine-tuned model based
+on a supported base architecture should also work.
+
+## Supported model families
+
+- **Qwen3** (dense)
+- **Qwen3-MoE** (mixture-of-experts)
+- **Phi** (Phi-3 / Phi-4 architecture)
+- **Meta Llama** (Llama 2 and Llama 3.x)
+- **Gemma 3**
+- **Gemma 4**
+- **Ministral 3**
+
+## Tested checkpoints
+
+Below are the specific checkpoints that have been tested and are known to work.
 
 **Qwen3:**
+- Qwen/Qwen3-0.6B
 - Qwen/Qwen3-1.7B
 - Qwen/Qwen3-14B
+
+**Qwen3-MoE:**
 - Qwen/Qwen3-30B-A3B-Thinking-2507
 
 **Phi:**
 - microsoft/Phi-4-mini-reasoning
 - microsoft/Phi-4-reasoning-plus
 
-**Meta:**
+**Meta Llama:**
+- meta-llama/Llama-2-7b
 - meta-llama/Llama-3.1-8B-Instruct
 - meta-llama/Llama-3.2-1B-Instruct
 
-**Google**
+**Gemma 3:**
 - google/gemma-3-1b-it
+
+**Gemma 4:**
 - google/gemma-4-E2B-it
-- google/geema-4-E4B-it
+- google/gemma-4-E4B-it
+
+**Ministral 3:**
+- mistralai/Ministral-3-8B-Instruct-2512

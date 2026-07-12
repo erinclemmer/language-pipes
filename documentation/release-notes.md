@@ -3,6 +3,19 @@ title: Release Notes
 description: Change log for Language Pipes releases.
 ---
 
+## Release 2.2.0
+
+### Request Models From Peers
+Nodes can now install a model directly from another node on the network instead of downloading it from HuggingFace. When installing a model in the TUI (**Models / Installed**) while connected to a network, you can choose between **Download from Huggingface** and the new **Request model locally** option. If a peer has the model installed, it streams the weight files to your node over the encrypted peer-to-peer channel — so on a home or lab network only one machine has to pay for the internet download.
+
+Every transferred file is verified against the model's HuggingFace manifest by size and SHA-256 hash before it is accepted. See the [Request For Model Protocol documentation](./request-for-model.md) for how the transfer works under the hood.
+
+### Model Support
+Added support for ministral models from Mistral AI, tested Ministral-3-8B-Instruct-2512
+
+### Tweaks
+Added connected pipes information to network / peers page. 
+
 ## Release  2.1.0
 
 ### Job Limits
@@ -80,7 +93,7 @@ print(response.output_text)
 ### Gemma 4 Support
 Added support for Google's newest language model line. Tested Models:
 - google/gemma-4-E2B-it
-- google/geema-4-E4B-it
+- google/gemma-4-E4B-it
 - More tests in the future, but the program should support any Gemma 4 model!
 
 ## Release 1.2.0

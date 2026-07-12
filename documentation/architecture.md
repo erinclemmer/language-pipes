@@ -104,10 +104,112 @@ Key behaviors:
 
 `JobReceiver` validates the hash before enqueuing a job; if validation fails, it requests a restart by sending the job back to the origin for re-embedding and the current token is restarted.
 
+## Failure Modes and Limitations
+
+The sections above describe the happy path. This section documents what happens
+when things go wrong and where the current implementation has hard limits. These
+are the questions a distributed system gets asked first, so they are answered
+plainly here.
+
+### A layer node drops mid-generation
+
+**There is no automatic failover or rerouting.** If a node holding part of the
+pipeline becomes unreachable while a token is being generated, the in-flight job
+stalls at that hop.
+
+The origin node tracks every pending job with a `last_update` timestamp. A
+background thread (`JobTracker.check_stale_jobs`) drops any job that has gone
+longer than `EXPIRED_JOB_TIME` (currently 60 seconds) without an update, frees
+its memory, and the corresponding API request fails. The job is **not** retried
+on a different node and its layers are **not** re-hosted elsewhere; recovery
+means resubmitting the request against a pipe that is once again complete.
+
+This is distinct from **transient corruption**: if a `NetworkJob`'s SHA-256 hash
+fails validation on arrival (`JobReceiver`), the receiver asks the origin to
+restart the *current token* by re-embedding, rather than failing the whole
+request. That path handles a garbled payload, not a vanished node.
+
+> **Practical implication:** run pipes over reliable links, and treat a dropped
+> layer node as a failed request rather than something the system silently heals.
+
+### Concurrent requests and batching
+
+Multiple jobs can be **in flight at once** the pipeline is designed to be
+asynchronous, and each node processes jobs as they arrive. Two backpressure limits
+bound concurrency:
+
+- `LP_MAX_API_JOBS` (default `5`): maximum pending jobs **per API key** on the
+  OpenAI-compatible server. Requests beyond this are rejected until earlier jobs
+  for that key finish.
+- `LP_MAX_NODE_JOBS` (default `10`): maximum jobs a node will queue for any one
+  peer. Incoming jobs from a peer whose queue is already full are rejected.
+
+**There is no batched inference.** Each request is its own `Job` carrying its own
+hidden-state tensor, and each layer segment runs a separate forward pass per job.
+Concurrency comes from pipelining independent jobs through the network, not from
+fusing multiple requests into one batched matrix multiply. This keeps the design
+simple but means throughput does not benefit from the batching speedups a
+single-box server like vLLM provides.
+
+### KV cache handling across nodes
+
+**Each node holds the KV cache for only its own layer segment, and that cache
+never leaves the node.** When a job first arrives at a node, `JobTracker.add_job`
+creates a `Job` with its own `DynamicCache`. Subsequent decode steps for the same
+`job_id` route back to the same node and reuse that cache, so each layer node
+accumulates the keys and values for the layers it hosts.
+
+The serialized `NetworkJob` carries only the hidden state, position IDs,
+attention mask, and cache position — **not** the `DynamicCache`. (The one
+exception is cross-node KV sharing for the Gemma 4 architecture, whose
+`shared_kv_states` are transmitted in `JobData` because that architecture
+requires them downstream.)
+
+Because caches are pinned to specific nodes:
+
+- On a **reroute or restart**, there is no cache migration. A token restart
+  re-embeds from the origin; nodes recompute as the job flows through again.
+- If a **node is lost**, its portion of the cache is lost with it. The job cannot
+  be moved to a different node hosting the same layers without recomputation, so
+  in practice the job simply expires (see above).
+
+### System requirements
+
+| Requirement | Detail |
+|---|---|
+| **Python** | 3.10 or newer |
+| **PyTorch** | CPU or CUDA build; install the build matching your CUDA version for GPU support |
+| **GPU** | Optional. Each layer model sets `device = "cpu"` or `device = "cuda:N"`; you can run entirely on CPU |
+| **Memory per node** | Enough to hold the layers that node hosts plus their KV cache. Inference runs in `fp16`; `LP_8_BIT_MODE` roughly halves layer memory via int8 quantization |
+| **Weights format** | `safetensors` (GGUF is not supported yet) |
+| **Platform** | OS-independent (Linux, macOS, Windows) |
+
+There is no fixed minimum RAM — it scales with how many layers a node volunteers
+via each layer model's `memory` budget. A node can host as little as a single
+layer.
+
+### Network requirements
+
+- **Transport.** Nodes communicate over IP using the router
+  (`distributed_state_network` by default). Each node listens on a `peer_port`
+  (default `5000`) for the control plane and, if it serves the API, a `job_port`
+  (default `8000`).
+- **Reachability.** A node others connect to must be reachable at the
+  `network_ip` it advertises and its `peer_port`. Bootstrap nodes join by
+  contacting an existing node's advertised address and port.
+- **LAN vs WAN.** The system works over any IP network where nodes can open
+  connections to each other's ports: a LAN, a VPN overlay, or a WAN with the
+  relevant ports reachable. **NAT traversal is not provided:** there is no
+  hole-punching or relay, so nodes behind NAT need port forwarding or a shared
+  private network (e.g. WireGuard/Tailscale) to be reachable.
+- **Access control.** `whitelist_ips` and `whitelist_node_ids` restrict which
+  peers a node will talk to, and `network_key` enables AES encryption of
+  peer-to-peer traffic. See the [Configuration Reference](./configuration.md).
+
 ## Network Agnostic Architecture
 Language Pipes is designed to be network agnostic except for a few assumptions. The network layer is expected to handle peer discovery, encryption, and data transfer.
 
-**Note:** To be more flexible we denote a "pipe system" here as a network or network partition that is expected to put pipe parts together. The default implementation (DistributedStateNetwork) uses one pool  for all nodes but that does not have to be the case as long as the router supports everything that DSN suports.
+**Note:** To be more flexible we denote a "pipe system" here as a network or network partition that is expected to put pipe parts together. The default implementation (DistributedStateNetwork) uses one pool  for all nodes but that does not have to be the case as long as the router supports everything that DSN supports.
 
 These are the assumptions about the router that Language Pipes makes:
 - The network hosts a distributed database where each node can write data about themselves to the network.
@@ -115,7 +217,7 @@ These are the assumptions about the router that Language Pipes makes:
 - The network operates by unique node IDs and each node can see all other node IDs in the pipe system.
 - The network supports a way of sending data from one node to another using a node ID.
 
-See `src/language_pipes/network_protocol.py` for the exact network protocol specification. If a network can be made that satisifies this interface then Language Pipes can be made to run on top of it.
+See `src/language_pipes/network_protocol.py` for the exact network protocol specification. If a network can be made that satisfies this interface then Language Pipes can be made to run on top of it.
 
 ## Privacy Architecture (End Model)
 

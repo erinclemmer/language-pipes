@@ -79,8 +79,6 @@ class Gemma4Model:
         config: PretrainedConfig,
         mask_kwargs: Dict[str, any] # pyright: ignore[reportGeneralTypeIssues]
     ) -> LLmComputationState:
-        del mask_kwargs["cache_position"]
-
         full_causal_mask: torch.Tensor = create_causal_mask(**mask_kwargs) # type: ignore
         sliding_causal_mask: torch.Tensor = create_sliding_window_causal_mask(**mask_kwargs) # type: ignore
 

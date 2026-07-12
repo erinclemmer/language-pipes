@@ -164,7 +164,8 @@ class OpenAITests(unittest.TestCase):
         time.sleep(5)
         start_node("node-2", 3, 5001, None, 5000)
         time.sleep(5)
-        with open('mcbeth.txt', 'r', encoding='utf-8') as f:
+        macbeth_path = os.path.join(os.path.dirname(__file__), '..', '..', 'macbeth.txt')
+        with open(macbeth_path, 'r', encoding='utf-8') as f:
             mcbeth = f.read()
         res = oai_complete(8000, [
             ChatMessage(ChatRole.SYSTEM, "You are a helpful assistant"),

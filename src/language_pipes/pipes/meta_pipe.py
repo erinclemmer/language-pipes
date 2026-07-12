@@ -39,7 +39,6 @@ class MetaPipe:
 
     def print_pipe(self, start_layer: int):
         filled_slots = self.get_filled_slots()
-        num_layers = len(filled_slots)
         pipe_pieces = ["|>"]
         for slot in filled_slots[start_layer:]:
             match (slot):

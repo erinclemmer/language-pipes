@@ -94,7 +94,7 @@ class ModelProvider:
         self.config_file = config_file
         self.get_model_manager = get_model_manager
         self.get_router_pipes = get_router_pipes
-
+        
     def get_model_manager_logs(self) -> List[Tuple[float, str]]:
         mm = self.get_model_manager()
         return mm.logs

@@ -20,6 +20,37 @@ resp = client.chat.completions.<span class="tok-f">create</span>(
                <span class="tok-s">"content"</span>: <span class="tok-s">"Write a haiku about distributed systems."</span>}],
 )
 <span class="tok-f">print</span>(resp.choices[<span class="tok-s">0</span>].message.content)`;
+
+// node-1 hosts the End model (prompts stay here) plus a few layers.
+const node1Config = `<span class="tok-c"># node-1.toml — hosts the End model, so text stays here</span>
+node_id = <span class="tok-s">"node-1"</span>
+network_ip = <span class="tok-s">"192.168.0.1"</span>   <span class="tok-c"># this machine's LAN IP</span>
+job_port = <span class="tok-s">8000</span>              <span class="tok-c"># OpenAI-compatible API</span>
+end_models = [<span class="tok-s">"Qwen/Qwen3-1.7B"</span>]
+
+[[layer_models]]
+model_id = <span class="tok-s">"Qwen/Qwen3-1.7B"</span>
+device = <span class="tok-s">"cpu"</span>
+memory = <span class="tok-s">2</span>`;
+
+// node-2 hosts the remaining layers and joins node-1's network.
+const node2Config = `<span class="tok-c"># node-2.toml — hosts the remaining layers only</span>
+node_id = <span class="tok-s">"node-2"</span>
+
+[[layer_models]]
+model_id = <span class="tok-s">"Qwen/Qwen3-1.7B"</span>
+device = <span class="tok-s">"cuda:0"</span>
+memory = <span class="tok-s">4</span>
+
+[[bootstrap_nodes]]
+address = <span class="tok-s">"192.168.0.1"</span>   <span class="tok-c"># node-1's LAN IP</span>
+port = <span class="tok-s">5000</span>`;
+
+const runCommands = `<span class="tok-c"># on machine 1</span>
+$ language-pipes -c node-1.toml run
+
+<span class="tok-c"># on machine 2</span>
+$ language-pipes -c node-2.toml run`;
 ---
 
 <Base>
@@ -37,10 +68,13 @@ resp = client.chat.completions.<span class="tok-f">create</span>(
                    |___/             |___/                 |_|</pre>
 
         <div class="lp-tagline">
-          Made with &lt;3 by Erin
+          Made with &lt;3 by Erin — <a href={`${SITE.github}/blob/main/CONTRIBUTING.md`}>Contributing →</a>
         </div>
 
         <div class="lp-badges">
+          <a href={`${SITE.github}/actions/workflows/tests.yml`}>
+            <img src="https://img.shields.io/github/actions/workflow/status/erinclemmer/language-pipes/tests.yml?branch=main&color=2f9d54&label=tests" alt="CI status" />
+          </a>
           <a href={`${SITE.github}/releases/latest`}>
             <img src="https://img.shields.io/github/v/release/erinclemmer/language-pipes?color=2f9d54&label=release" alt="Latest release" />
           </a>
@@ -73,7 +107,10 @@ resp = client.chat.completions.<span class="tok-f">create</span>(
           the memory cost is shared across a network you control. No single node needs to hold
           the whole model and no central server sits between your nodes. It's
           <span class="lp-accent">peer-to-peer</span>, decentralized, and Python-native.
-        </p>  
+        </p>
+        <p class="lp-lede" style="margin-top:0.75rem">
+          <a href={docs('comparison')}>Why this instead of Petals, exo, llama.cpp, or vLLM? →</a>
+        </p>
       </div>
     </section>
 
@@ -94,11 +131,11 @@ resp = client.chat.completions.<span class="tok-f">create</span>(
           </a>
           <a class="lp-card" href={docs('configuration')}>
             <div class="lp-icon">◈</div>
-            <h3>Decentralized Config</h3>
+            <h3>You host the text boundary</h3>
             <p>
-              Only the node hosting the <em>End model</em> ever sees raw text. 
-              Each node can host their own End models so there is
-              no central authority or central configuration.
+              Only the node hosting the <em>End model</em> ever sees raw text, and you host
+              it. Each node can run its own End model, so there is no central authority and no
+              central configuration.
             </p>
             <span class="lp-more">Configuration →</span>
           </a>
@@ -160,6 +197,14 @@ resp = client.chat.completions.<span class="tok-f">create</span>(
             <span class="lp-l-layer">Layer models — opaque tensors only (distributed)</span>
             <span>⇢ hidden-state tensor sent over the network</span>
           </div>
+
+          <p class="lp-caveat">
+            Raw text never leaves the End model node, and layer nodes see only hidden-state
+            tensors — <strong>but hidden states are not encryption.</strong> A determined layer
+            operator who also has the open model weights may be able to invert them back toward
+            your prompt. Run layer nodes on machines you trust.
+            <a href={docs('privacy')}>See the threat model →</a>
+          </p>
         </div>
         <p class="lp-lede" style="margin-top:1.5rem">
           Each layer performs matrix multiplications between learned weights and a hidden-state
@@ -175,23 +220,63 @@ resp = client.chat.completions.<span class="tok-f">create</span>(
     <section class="lp-section" id="quick-start">
       <div class="lp-container">
         <p class="lp-eyebrow">Quick start</p>
-        <h2 class="lp-h2">Example</h2>
+        <h2 class="lp-h2">Two nodes, two config files</h2>
         <p class="lp-lede">
-          Distribute <code>Qwen/Qwen3-1.7B</code> across two machines. Node&nbsp;1 hosts the End
+          Distribute <code>Qwen/Qwen3-1.7B</code> across two machines. Write a TOML config for
+          each node and run it headless — no clicking through the TUI. Node&nbsp;1 hosts the End
           Model, so prompts and responses stay on Node&nbsp;1, plus enough layers to fit its
-          memory. Node&nbsp;2 hosts the rest. Launch the TUI with <code>language-pipes</code> and
-          configure each node, then call it like any OpenAI endpoint:
+          memory. Node&nbsp;2 hosts the rest and joins Node&nbsp;1's network.
         </p>
 
+        <div class="lp-configs">
+          <div class="lp-terminal lp-terminal--flush">
+            <div class="lp-terminal__bar">
+              <span class="lp-terminal__dot lp-terminal__dot--r"></span>
+              <span class="lp-terminal__dot lp-terminal__dot--y"></span>
+              <span class="lp-terminal__dot lp-terminal__dot--g"></span>
+              <span class="lp-terminal__title">node-1.toml</span>
+            </div>
+            <pre><code set:html={node1Config}></code></pre>
+          </div>
+          <div class="lp-terminal lp-terminal--flush">
+            <div class="lp-terminal__bar">
+              <span class="lp-terminal__dot lp-terminal__dot--r"></span>
+              <span class="lp-terminal__dot lp-terminal__dot--y"></span>
+              <span class="lp-terminal__dot lp-terminal__dot--g"></span>
+              <span class="lp-terminal__title">node-2.toml</span>
+            </div>
+            <pre><code set:html={node2Config}></code></pre>
+          </div>
+        </div>
+
+        <p class="lp-lede" style="margin-top:1.5rem">Start each node from its config file:</p>
         <div class="lp-terminal">
           <div class="lp-terminal__bar">
             <span class="lp-terminal__dot lp-terminal__dot--r"></span>
             <span class="lp-terminal__dot lp-terminal__dot--y"></span>
             <span class="lp-terminal__dot lp-terminal__dot--g"></span>
-            <span class="lp-terminal__title">node-1 — client.py</span>
+            <span class="lp-terminal__title">shell</span>
+          </div>
+          <pre><code set:html={runCommands}></code></pre>
+        </div>
+
+        <p class="lp-lede" style="margin-top:1.5rem">
+          Once both nodes have loaded their layers, call Node&nbsp;1 like any OpenAI endpoint:
+        </p>
+        <div class="lp-terminal">
+          <div class="lp-terminal__bar">
+            <span class="lp-terminal__dot lp-terminal__dot--r"></span>
+            <span class="lp-terminal__dot lp-terminal__dot--y"></span>
+            <span class="lp-terminal__dot lp-terminal__dot--g"></span>
+            <span class="lp-terminal__title">client.py</span>
           </div>
           <pre><code set:html={clientCode}></code></pre>
         </div>
+
+        <p class="lp-muted" style="margin-top:1.25rem;font-size:0.9rem">
+          Prefer a guided setup? Run <code>language-pipes</code> with no arguments to configure
+          each node in the interactive TUI instead.
+        </p>
 
         <div class="lp-actions" style="margin-top:1.75rem">
           <a class="lp-btn lp-btn--primary" href={docs('cli')}>CLI reference →</a>
@@ -210,14 +295,16 @@ resp = client.chat.completions.<span class="tok-f">create</span>(
           <div>
             <h3 style="color:var(--lp-fg-bright);margin:0">Model families today</h3>
             <ul class="lp-list lp-list--done">
-              <li>Qwen3</li>
-              <li>Phi 4</li>
+              <li>Qwen3 &amp; Qwen3-MoE</li>
+              <li>Phi (Phi-4)</li>
               <li>Meta Llama 2 and 3</li>
               <li>Gemma 3 and 4</li>
+              <li>Ministral 3</li>
             </ul>
             <p class="lp-muted" style="margin-top:0.9rem;font-size:0.9rem">
-              Fine-tunes of a supported base model should work too.<br />
-              <a href={docs('model_support')}>See all tested models →</a>
+              Fine-tunes of a supported base model should work too. The
+              <a href={docs('model_support')}>supported-models list</a> is the
+              authoritative, up-to-date reference.
             </p>
           </div>
         </div>
@@ -240,8 +327,18 @@ resp = client.chat.completions.<span class="tok-f">create</span>(
             <ul>
               <li><a href={docs('architecture')}>Architecture</a></li>
               <li><a href={docs('privacy')}>Privacy threat model</a></li>
+              <li><a href={docs('comparison')}>Why Language Pipes?</a></li>
               <li><a href={docs('oai')}>OpenAI-compatible API</a></li>
               <li><a href={docs('cli')}>CLI reference</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4>Community</h4>
+            <ul>
+              <li><a href={`${SITE.github}/discussions`}>Discussions</a></li>
+              <li><a href={`${SITE.github}/blob/main/CONTRIBUTING.md`}>Contributing</a></li>
+              <li><a href={docs('roadmap')}>Roadmap</a></li>
+              <li><a href={`${SITE.github}/blob/main/CODE_OF_CONDUCT.md`}>Code of Conduct</a></li>
             </ul>
           </div>
           <div>
