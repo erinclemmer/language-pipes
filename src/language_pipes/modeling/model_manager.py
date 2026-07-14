@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple, Dict
 
 from transformers import PretrainedConfig
 
-from language_pipes.llm_layer_collector.layer_collector import LlmLayerCollector
+from llm_layer_collector.layer_collector import LlmLayerCollector
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.pipes.router_pipes import RouterPipes
 

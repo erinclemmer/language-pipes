@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llm-layer-collector"
+version = "1.0.0"
+authors = [{name="Erin Clemmer", email="erin.c.clemmer@gmail.com"}]
+description = "Load and dispatch individual transformer layers from HuggingFace model checkpoints"
+keywords = ["transformers", "layer", "inference", "huggingface", "Language Model"]
+license = "MIT"
+readme = "README.md"
+license-files = ["LICENSE"]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed"
+]
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "transformers",
+    "safetensors"
+]
+
+[project.urls]
+Homepage = "https://github.com/erinclemmer/language-pipes"
+Issues = "https://github.com/erinclemmer/language-pipes/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llm_layer_collector"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

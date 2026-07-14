@@ -9,7 +9,7 @@ description: Guide for adding HuggingFace transformer model architecture support
 
 The `llm_layer_collector` is the abstraction layer that allows Language Pipes to work with different HuggingFace transformer model architectures at the individual layer level. It loads model components (embedding, norm, head, decoder layers) from safetensor shards and dispatches computation to model-specific implementations based on the `model_type` field in the model's HuggingFace `config.json`.
 
-To add support for a new model architecture you must modify **4 existing files** and create **1 new file**. All changes are within `src/language_pipes/llm_layer_collector/`.
+To add support for a new model architecture you must modify **4 existing files** and create **1 new file**. All changes are within `packages/llm-layer-collector/src/llm_layer_collector/`.
 
 ---
 
@@ -120,7 +120,7 @@ Import your new model class and add `case` branches to the `match` statements in
 
 ```python
 # Add import at top
-from language_pipes.llm_layer_collector.modeling.NewModel import NewModel
+from llm_layer_collector.modeling.NewModel import NewModel
 
 # In compute_embedding(), add a case:
 match config.model_type:
@@ -147,16 +147,16 @@ match layer.config.model_type:
 
 ### Step 5: Create the Bespoke Model File `modeling/NewModel.py`
 
-Create a new file at `src/language_pipes/llm_layer_collector/modeling/NewModel.py` with two static methods.
+Create a new file at `packages/llm-layer-collector/src/llm_layer_collector/modeling/NewModel.py` with two static methods.
 
 ```python
 import torch
 from transformers.cache_utils import DynamicCache
 from transformers.configuration_utils import PretrainedConfig
-from language_pipes.llm_layer_collector.auto.auto_rotary import AutoRotaryEmbedding
+from llm_layer_collector.auto.auto_rotary import AutoRotaryEmbedding
 
-from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
-from language_pipes.llm_layer_collector.state_obj import LLmComputationState
+from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from llm_layer_collector.state_obj import LLmComputationState
 
 class NewModel:
     @staticmethod
@@ -232,7 +232,7 @@ print(config.model_type)  # Should match your key in all mapper dicts
 
 ### 2. Run the layer collector test suite
 
-The suite lives in `tests/llm_layer_collector/` and has three tiers. **The only
+The suite lives in `packages/llm-layer-collector/tests/` and has three tiers. **The only
 file you edit to add a model is `specs.py`** — everything else (tiny-checkpoint
 building, HF parity, memory-capping) is driven off the spec tables.
 
@@ -289,8 +289,8 @@ import torch
 from transformers.cache_utils import DynamicCache
 from transformers.models.gemma4.configuration_gemma4 import Gemma4TextConfig
 from transformers.models.gemma4.modeling_gemma4 import Gemma4TextModel
-from language_pipes.llm_layer_collector.auto.static_auto_model import StaticAutoModel
-from language_pipes.llm_layer_collector.modeling.Gemma4Model import Gemma4Model
+from llm_layer_collector.auto.static_auto_model import StaticAutoModel
+from llm_layer_collector.modeling.Gemma4Model import Gemma4Model
 
 cfg = Gemma4TextConfig(vocab_size=128, hidden_size=64, intermediate_size=128,
     num_hidden_layers=4, num_attention_heads=4, num_key_value_heads=1,
@@ -334,8 +334,8 @@ PYTHONPATH=/home/erin/prog/language-pipes/src python - <<'PY'
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from transformers.cache_utils import DynamicCache
-from language_pipes.llm_layer_collector.layer_collector import LlmLayerCollector
-from language_pipes.llm_layer_collector import StaticAutoModel
+from llm_layer_collector.layer_collector import LlmLayerCollector
+from llm_layer_collector import StaticAutoModel
 
 model_dir='/home/erin/.cache/language_pipes/models/google/gemma-3-1b-it/data'
 cache_file='/home/erin/.cache/language_pipes/models/google/gemma-3-1b-it/cache.json'
@@ -388,8 +388,8 @@ Before blaming sampling, confirm no silent state_dict mismatch:
 PYTHONPATH=/home/erin/prog/language-pipes/src python - <<'PY'
 import torch, json
 from transformers import AutoConfig
-from language_pipes.llm_layer_collector.load_layer import get_shard_data
-from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from llm_layer_collector.load_layer import get_shard_data
+from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 model_dir='/home/erin/.cache/language_pipes/models/google/gemma-3-1b-it/data'
 cache_file='/home/erin/.cache/language_pipes/models/google/gemma-3-1b-it/cache.json'
@@ -498,13 +498,13 @@ Fast code discovery commands that help during model bring-up:
 
 ```bash
 # Find model_type dispatch points
-grep -R "model_type" -n src/language_pipes/llm_layer_collector
+grep -R "model_type" -n packages/llm-layer-collector/src/llm_layer_collector
 
 # Find compute_head / sampling path
 grep -R "def compute_head" -n src tests
 
 # Find where a specific model class is referenced
-grep -R "Gemma3" -n src/language_pipes/llm_layer_collector
+grep -R "Gemma3" -n packages/llm-layer-collector/src/llm_layer_collector
 
 # Run only the target llm_layer_collector tiny-parity test
 python -m unittest tests.llm_layer_collector.test_tiny_models -k gemma3 2>&1
@@ -553,7 +553,7 @@ If the new model uses non-standard names, you would need to either:
 - [ ] Add `RotaryEmbedding` (or equivalent) to `auto/auto_rotary.py` mapper
 - [ ] Create `modeling/NewModel.py` with `compute_embedding` and `compute_layer`
 - [ ] Add dispatch cases in `static_auto_model.py` for both `compute_embedding` and `compute_layer`
-- [ ] Add a `TinyModelSpec` to `tests/llm_layer_collector/specs.py` and run `test_tiny_models` (optionally add a `RealModelSpec` for Tier 2)
+- [ ] Add a `TinyModelSpec` to `packages/llm-layer-collector/tests/specs.py` and run `test_tiny_models` (optionally add a `RealModelSpec` for Tier 2)
 - [ ] Run the test and verify end-to-end inference produces coherent output
 
 ## Example: How Qwen3 Was Added (Reference)

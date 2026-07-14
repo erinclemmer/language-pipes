@@ -8,7 +8,7 @@ description: Configuration object for initializing a DSNode instance in the Dist
 Configuration object for initializing a DSNode instance.
 
 ```python
-from language_pipes.distributed_state_network import DSNodeConfig
+from distributed_state_network import DSNodeConfig
 ```
 
 ### Class Definition

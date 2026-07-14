@@ -1,16 +1,5 @@
 [build-system]
-requires = [
-    "hatchling",
-    "torch",
-    "transformers",
-    "uuid",
-    "promise",
-    "requests",
-    "logging",
-    "distributed-state-network",
-    "llm-layer-collector",
-    "toml"
-]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
@@ -33,6 +22,8 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "llm-layer-collector==1.0.0",
+    "distributed-state-network==1.0.0",
     "torch",
     "transformers",
     "huggingface_hub",
@@ -52,7 +43,7 @@ dependencies = [
 quantization = ["bitsandbytes"]
 
 [project.urls]
-Homepage = "https://github.com/erinclemmer/language-pipes"
+Homepage = "https://languagepipes.com"
 Issues = "https://github.com/erinclemmer/language-pipes/issues"
  
 [project.scripts]
@@ -74,6 +65,5 @@ omit = [
 omit = [
     "*/_remote_module_non_scriptable",
     "src/language_pipes/commands/*",
-    "src/language_pipes/distributed_state_network/*",
     "src/language_pipes/util/user_prompts.py"
 ]

@@ -3,7 +3,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from transformers import AutoTokenizer
-from language_pipes.network_protocol import StateNetworkNode
+from distributed_state_network import StateNetworkNode
 
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.llm_model import LlmModel

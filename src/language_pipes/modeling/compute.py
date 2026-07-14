@@ -4,9 +4,9 @@ from transformers import PretrainedConfig
 from transformers.cache_utils import DynamicCache
 
 from language_pipes.jobs.job_data import JobData
-from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 from language_pipes.jobs.job_data import jobDataToComputationState, detachCompState
-from language_pipes.llm_layer_collector.auto.static_auto_model import StaticAutoModel
+from llm_layer_collector.auto.static_auto_model import StaticAutoModel
 
 def compute_layers(start_layer: int, job_data: JobData, device: torch.device, config: PretrainedConfig, layers: List[AutoDecoderLayer], cache: DynamicCache):
     comp_state = jobDataToComputationState(job_data, device)

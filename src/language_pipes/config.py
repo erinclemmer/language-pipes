@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 import toml
 import torch
 
-from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.util.config import get_app_dir
 
 @dataclass

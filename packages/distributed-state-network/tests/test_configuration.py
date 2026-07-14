@@ -1,0 +1,65 @@
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
+
+from distributed_state_network import DSNodeServer, DSNodeConfig
+
+from base import DSNTestBase
+
+
+class TestConfiguration(DSNTestBase):
+    def test_config_dict(self):
+        """DSNodeConfig.from_dict should parse config correctly"""
+        config_dict = {
+            "node_id": "node",
+            "port": 8000,
+            "aes_key": "XXX",
+            "whitelist_ips": ["127.0.0.1"],
+            "whitelist_node_ids": ["node-a", "node-b"],
+            "bootstrap_nodes": [
+                {
+                    "address": "127.0.0.1",
+                    "port": 8001
+                }
+            ]
+        }
+
+        config = DSNodeConfig.from_dict(config_dict)
+        self.assertEqual(config_dict["node_id"], config.node_id)
+        self.assertEqual(config_dict["port"], config.port)
+        self.assertEqual(config_dict["aes_key"], config.aes_key)
+        self.assertEqual(config_dict["whitelist_ips"], config.whitelist_ips)
+        self.assertEqual(config_dict["whitelist_node_ids"], config.whitelist_node_ids)
+        self.assertTrue(len(config.bootstrap_nodes) > 0)
+        self.assertEqual(config_dict["bootstrap_nodes"][0]["address"], config.bootstrap_nodes[0].address)
+        self.assertEqual(config_dict["bootstrap_nodes"][0]["port"], config.bootstrap_nodes[0].port)
+
+    def test_config_whitelist_ips_default(self):
+        """DSNodeConfig.from_dict should default whitelist_ips to []"""
+        config = DSNodeConfig.from_dict({
+            "node_id": "node",
+            "port": 8000,
+            "bootstrap_nodes": []
+        })
+        self.assertEqual([], config.whitelist_ips)
+
+    def test_config_whitelist_node_ids_default(self):
+        """DSNodeConfig.from_dict should default whitelist_node_ids to []"""
+        config = DSNodeConfig.from_dict({
+            "node_id": "node",
+            "port": 8000,
+            "bootstrap_nodes": []
+        })
+        self.assertEqual([], config.whitelist_node_ids)
+
+    def test_aes_key_generation(self):
+        """Generated AES key should be 32 hex characters (16 bytes)"""
+        key = DSNodeServer.generate_key()
+        self.assertEqual(32, len(key))
+
+
+if __name__ == "__main__":
+    unittest.main()

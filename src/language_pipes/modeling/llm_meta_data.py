@@ -5,13 +5,13 @@ from pathlib import Path
 import torch
 from typing import Any, Dict, List, Tuple, Optional
 
-from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
-from language_pipes.llm_layer_collector import LlmLayerCollector
+from llm_layer_collector.auto.auto_rms import AutoRMSNorm
+from llm_layer_collector import LlmLayerCollector
 
-from language_pipes.llm_layer_collector.load_layer import get_shard_data
+from llm_layer_collector.load_layer import get_shard_data
 from language_pipes.util.utils import size_of_tensor, tensor_hash
 from language_pipes.util.enums import ModelPartType
-from language_pipes.llm_layer_collector.helpers import get_config
+from llm_layer_collector.helpers import get_config
 
 META_VER = '1.0.0'
 
