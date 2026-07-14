@@ -2,7 +2,7 @@ from typing import List, Dict, Callable
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from ansinout import PressedKey
-from language_pipes.distributed_state_network.objects.state_packet import StatePacket
+from distributed_state_network.objects.state_packet import StatePacket
 from language_pipes.tui.components.view_pipe import format_pipe_view
 from language_pipes.tui.util.text import make_footer_text, make_window_text
 

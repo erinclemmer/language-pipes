@@ -3,6 +3,18 @@ title: Release Notes
 description: Change log for Language Pipes releases.
 ---
 
+## Release 2.3.0
+
+### Standalone Packages
+Two pieces of Language Pipes are now maintained as their own PyPI packages, published from this repo under [`packages/`](https://github.com/erinclemmer/language-pipes/tree/main/packages):
+
+- **[llm-layer-collector](https://pypi.org/project/llm-layer-collector/)** — loads individual transformer components (embedding, decoder layers, norm, head) from sharded HuggingFace checkpoints and dispatches per-architecture computation. See the [package documentation](./llm-layer-collector.md).
+- **[distributed-state-network](https://pypi.org/project/distributed-state-network/)** — the encrypted peer-to-peer state-sharing network that Language Pipes uses as its default router. See the [package documentation](./distributed-state-network/README.md).
+
+Both are released at **1.0.0**. Language Pipes depends on them with exact version pins, so installing or upgrading `language-pipes` always pulls the matching versions of these packages and you never have to update them yourself.
+
+Both packages had existed on PyPI before but I had archived them. People were still downloading them, so I've unarchived both and will be keeping them updated from this monorepo going forward. If you depend on either package directly, the `1.0.0` line is the current, maintained version.
+
 ## Release 2.2.0
 
 ### Request Models From Peers

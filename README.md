@@ -157,6 +157,14 @@ See the [full roadmap](./documentation/roadmap.md) for details and open research
 ### Contributing
 Contributions are welcome! Bug reports, documentation fixes, and especially new model architectures. See [CONTRIBUTING.md](./CONTRIBUTING.md) for dev setup, how to run the tests, and PR expectations, and the [Code of Conduct](./CODE_OF_CONDUCT.md). Questions and ideas are welcome in [GitHub Discussions](https://github.com/erinclemmer/language-pipes/discussions).
 
+### Packages
+Language Pipes is built on two components that are also published as standalone PyPI packages, maintained from this repo under [`packages/`](./packages):
+
+- **[llm-layer-collector](https://pypi.org/project/llm-layer-collector/)** — load individual transformer components (embedding, decoder layers, norm, head) from sharded HuggingFace checkpoints and run per-architecture computation. [Docs](./documentation/llm-layer-collector.md)
+- **[distributed-state-network](https://pypi.org/project/distributed-state-network/)** — an encrypted peer-to-peer state-sharing network over HTTP. [Docs](./documentation/distributed-state-network/README.md)
+
+Language Pipes pins exact versions of both, so `pip install language-pipes` always pulls the matching releases — you never have to update them yourself.
+
 ### Dependencies
 - [pytorch](https://pytorch.org)
 - [transformers](https://huggingface.co/docs/transformers) 

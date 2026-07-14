@@ -9,7 +9,7 @@ description: Reference for the Distributed State Network peer-to-peer HTTP proto
 
 The Distributed State Network (DSN) is a peer-to-peer state replication framework that runs over HTTP. Each node owns its own key-value state and automatically broadcasts updates to all peers. The protocol uses AES-128-CBC encryption for transport confidentiality and ECDSA (secp256k1) signatures for authentication. It is based on gossip-protocol research (RFC 677, Demers et al. epidemic algorithms) and is designed for local-network operation within Language Pipes.
 
-All source code lives under `src/language_pipes/distributed_state_network/`. The public API is exported from `__init__.py`: `DSNodeServer`, `DSNode`, `DSNodeConfig`, `Endpoint`.
+All source code lives under `packages/distributed-state-network/src/distributed_state_network/`. The public API is exported from `__init__.py`: `DSNodeServer`, `DSNode`, `DSNodeConfig`, `Endpoint`, `StateNetworkNode`.
 
 ---
 
@@ -400,32 +400,32 @@ Create from dict via `DSNodeConfig.from_dict(data)`.
 
 ```bash
 # Find all message type references
-grep -rn "MSG_" src/language_pipes/distributed_state_network/
+grep -rn "MSG_" packages/distributed-state-network/src/distributed_state_network/
 
 # Find all HTTP route definitions
-grep -rn "@self.app.route" src/language_pipes/distributed_state_network/handler.py
+grep -rn "@self.app.route" packages/distributed-state-network/src/distributed_state_network/handler.py
 
 # Find all packet classes
-grep -rn "class.*Packet" src/language_pipes/distributed_state_network/objects/
+grep -rn "class.*Packet" packages/distributed-state-network/src/distributed_state_network/objects/
 
 # Find signature verification points
-grep -rn "verify_signature" src/language_pipes/distributed_state_network/
+grep -rn "verify_signature" packages/distributed-state-network/src/distributed_state_network/
 
 # Find state update logic
-grep -rn "update_state\|handle_update" src/language_pipes/distributed_state_network/dsnode.py
+grep -rn "update_state\|handle_update" packages/distributed-state-network/src/distributed_state_network/dsnode.py
 
 # Run DSN tests
-python -m pytest tests/distributed_state_network/ -v
+python -m pytest packages/distributed-state-network/tests/ -v
 
 # Find all error status codes raised in protocol handling
-grep -rn "raise Exception" src/language_pipes/distributed_state_network/dsnode.py
+grep -rn "raise Exception" packages/distributed-state-network/src/distributed_state_network/dsnode.py
 ```
 
 ---
 
 ## Test Suite
 
-Tests live in `tests/distributed_state_network/` and cover:
+Tests live in `packages/distributed-state-network/tests/` and cover:
 
 | Test File | What It Tests |
 |-----------|--------------|

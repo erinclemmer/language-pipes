@@ -6,10 +6,10 @@ from typing import List, Set, Optional
 
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
-from language_pipes.llm_layer_collector import LlmLayerCollector
-from language_pipes.llm_layer_collector.auto.auto_rms import AutoRMSNorm
-from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
-from language_pipes.llm_layer_collector.auto.static_auto_model import StaticAutoModel
+from llm_layer_collector import LlmLayerCollector
+from llm_layer_collector.auto.auto_rms import AutoRMSNorm
+from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from llm_layer_collector.auto.static_auto_model import StaticAutoModel
 
 from language_pipes.jobs.job import ComputeStep, Job
 from language_pipes.jobs.job_data import computationStateToJobData

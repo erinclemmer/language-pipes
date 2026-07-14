@@ -8,7 +8,7 @@ description: HTTP server wrapper for DSNode that handles incoming Distributed St
 HTTP server wrapper for DSNode that handles incoming network requests.
 
 ```python
-from language_pipes.distributed_state_network import DSNodeServer
+from distributed_state_network import DSNodeServer
 ```
 
 ### Class Definition

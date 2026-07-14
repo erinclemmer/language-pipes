@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "distributed-state-network"
+version = "1.0.0"
+authors = [{name="Erin Clemmer", email="erin.c.clemmer@gmail.com"}]
+description = "Peer-to-peer encrypted state-sharing network over HTTP"
+keywords = ["distributed", "networking", "peer-to-peer", "state", "encryption"]
+license = "MIT"
+readme = "README.md"
+license-files = ["LICENSE"]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: System :: Networking",
+    "Typing :: Typed"
+]
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "ecdsa",
+    "cryptography"
+]
+
+[project.urls]
+Homepage = "https://github.com/erinclemmer/language-pipes"
+Issues = "https://github.com/erinclemmer/language-pipes/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/distributed_state_network"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

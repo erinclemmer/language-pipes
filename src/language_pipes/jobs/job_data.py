@@ -4,7 +4,7 @@ import torch
 import hashlib
 from typing import Dict, Optional, Tuple
 from language_pipes.util.byte_helper import ByteHelper
-from language_pipes.llm_layer_collector.state_obj import LLmComputationState
+from llm_layer_collector.state_obj import LLmComputationState
 
 from language_pipes.util.utils import tensor_to_bytes, bytes_to_tensor
 

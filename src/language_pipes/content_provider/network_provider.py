@@ -8,15 +8,15 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Callable, Tuple
 
 from language_pipes.config import LpConfig
-from language_pipes.distributed_state_network.objects.endpoint import Endpoint
+from distributed_state_network.objects.endpoint import Endpoint
 from language_pipes.util.config import get_app_dir
 from language_pipes.util.aes import generate_aes_key
-from language_pipes.distributed_state_network.util import stop_thread
+from distributed_state_network.util import stop_thread
 
-from language_pipes.distributed_state_network.handler import DSNodeServer
-from language_pipes.distributed_state_network.objects.config import DSNodeConfig
-from language_pipes.distributed_state_network.objects.state_packet import StatePacket
-from language_pipes.distributed_state_network.util.key_manager import CredentialManager
+from distributed_state_network.handler import DSNodeServer
+from distributed_state_network.objects.config import DSNodeConfig
+from distributed_state_network.objects.state_packet import StatePacket
+from distributed_state_network.util.key_manager import CredentialManager
 
 AES_KEY_LEN = 16
 
