@@ -33,7 +33,7 @@ class TopPageState(PageState):
             self._on_enter()
         elif key == PressedKey.Escape:
             self._on_escape()
-        elif key == PressedKey.Alpha:
+        elif key in (PressedKey.Alpha, PressedKey.Paste):
             self._on_char(ch)
         elif key == PressedKey.Backspace:
             self._on_backspace()

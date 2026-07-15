@@ -32,7 +32,7 @@ class NetworkIpEditor:
             self.on_enter()
         elif key == PressedKey.Backspace:
             self.on_backspace()
-        elif key == PressedKey.Alpha:
+        elif key in (PressedKey.Alpha, PressedKey.Paste):
             self.on_char(ch)
 
     def back(self) -> bool:

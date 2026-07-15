@@ -147,7 +147,7 @@ class ListEditor(ABC, Generic[T]):
             self.on_enter()
         elif key == PressedKey.Backspace:
             self.on_backspace()
-        elif key == PressedKey.Alpha:
+        elif key in (PressedKey.Alpha, PressedKey.Paste):
             self.on_char(ch)
         elif key == PressedKey.Delete:
             self.on_delete()
