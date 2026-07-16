@@ -159,7 +159,9 @@ def maybeTo(t: Optional[torch.Tensor], device: torch.device) -> Optional[torch.T
         return t.detach()
     return t.detach().to(device)
 
-def is_port_available(port: int) -> bool:
+def is_port_available(port: Optional[int]) -> bool:
+    if port is None:
+        return False
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:

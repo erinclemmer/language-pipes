@@ -204,7 +204,7 @@ class ContentProvider:
         return f"System RAM:  {used_ram:.1f}/{total_ram:.1f}GB".ljust(26) + f"System Swap: {used_swap:.1f}/{total_swap:.1f}GB"
 
     @staticmethod
-    def is_port_available(port: int) -> bool:
+    def is_port_available(port: Optional[int]) -> bool:
         return is_port_available(port)
     
     def shutdown(self):
