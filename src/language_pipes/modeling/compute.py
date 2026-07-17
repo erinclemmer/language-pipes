@@ -9,7 +9,8 @@ from language_pipes.jobs.job_data import jobDataToComputationState, detachCompSt
 from llm_layer_collector.auto.static_auto_model import StaticAutoModel
 
 def compute_layers(start_layer: int, job_data: JobData, device: torch.device, config: PretrainedConfig, layers: List[AutoDecoderLayer], cache: DynamicCache):
-    comp_state = jobDataToComputationState(job_data, device)
+    local_dtype = next((p.dtype for p in layers[0].cls.parameters() if p.is_floating_point()), None)
+    comp_state = jobDataToComputationState(job_data, device, local_dtype)
     comp_state = detachCompState(comp_state)
 
     first_layer_idx: int = layers[0].cls.self_attn.layer_idx # pyright: ignore[reportAssignmentType, reportAttributeAccessIssue]
