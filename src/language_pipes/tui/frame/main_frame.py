@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from time import sleep
 from threading import Lock, Thread
@@ -88,7 +89,11 @@ class MainFrame:
             if self.shutdown:
                 return
             self.provider.sync_provider_state()
-            self._render_all()
+            try:
+                self._render_all()
+            except Exception as e:
+                logger = logging.getLogger(__name__)
+                logger.error(e)
             sleep(1)
 
     def shutdown_frame(self):
