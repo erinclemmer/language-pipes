@@ -115,7 +115,7 @@ class EndModel:
         if job.data is None or job.data.state is None:
             raise RuntimeError("Cannot compute norm without job data")
         assert self.norm is not None
-        norm = self.norm(job.data.state.to(self.device))
+        norm = self.norm(job.data.state.to(self.device, self.collector.dtype))
         job.set_norm(norm)
 
     @staticmethod
@@ -139,8 +139,8 @@ class EndModel:
             raise RuntimeError("Cannot compute head without job data")
         
         head = StaticAutoModel.compute_head(
-            head=self.head, 
-            state=job.data.state, 
+            head=self.head,
+            state=job.data.state.to(self.collector.dtype),
             device=str(self.device),
             top_k=job.top_k,
             top_p=job.top_p,

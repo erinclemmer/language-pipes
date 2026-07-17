@@ -34,7 +34,7 @@ def bytes_to_int(b: bytes) -> int:
 _DTYPE_TO_CODE = {
     torch.float32: 0, torch.float64: 1, torch.bfloat16: 2,
     torch.int32: 3, torch.int64: 4, torch.int16: 5, torch.int8: 6,
-    torch.uint8: 7, torch.bool: 8, torch.bfloat16: 9,
+    torch.uint8: 7, torch.bool: 8, torch.float16: 9,
 }
 _CODE_TO_DTYPE = {v: k for k, v in _DTYPE_TO_CODE.items()}
 

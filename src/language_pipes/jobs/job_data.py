@@ -132,17 +132,22 @@ class JobData:
         current_hash = hashlib.sha256(data).digest()
         return current_hash == state_hash
 
-def move_position_embeddings(t: Dict[str, Tuple[torch.Tensor, torch.Tensor]], device: torch.device) -> Dict[str, Tuple[torch.Tensor, torch.Tensor]]:
-    for key in t.keys():
-        t[key] = (t[key][0].to(device), t[key][1].to(device))
-    
+def _cast_float(t: torch.Tensor, dtype: Optional[torch.dtype]) -> torch.Tensor:
+    if dtype is not None and t.is_floating_point():
+        return t.to(dtype)
     return t
 
-def move_causal_mask(t: Dict[str, Optional[torch.Tensor]], device: torch.device) -> Dict[str, Optional[torch.Tensor]]:
+def move_position_embeddings(t: Dict[str, Tuple[torch.Tensor, torch.Tensor]], device: torch.device, dtype: Optional[torch.dtype] = None) -> Dict[str, Tuple[torch.Tensor, torch.Tensor]]:
     for key in t.keys():
-        if t[key] is not None:        
-            t[key] = t[key].to(device) # type: ignore
-    
+        t[key] = (_cast_float(t[key][0].to(device), dtype), _cast_float(t[key][1].to(device), dtype))
+
+    return t
+
+def move_causal_mask(t: Dict[str, Optional[torch.Tensor]], device: torch.device, dtype: Optional[torch.dtype] = None) -> Dict[str, Optional[torch.Tensor]]:
+    for key in t.keys():
+        if t[key] is not None:
+            t[key] = _cast_float(t[key].to(device), dtype) # type: ignore
+
     return t
 
 def computationStateToJobData(data: LLmComputationState) -> JobData:
@@ -156,15 +161,15 @@ def computationStateToJobData(data: LLmComputationState) -> JobData:
         shared_kv_states=move_position_embeddings(data.shared_kv_states, torch.device('cpu')),
     )
 
-def jobDataToComputationState(data: JobData, device: torch.device) -> LLmComputationState:
+def jobDataToComputationState(data: JobData, device: torch.device, dtype: Optional[torch.dtype] = None) -> LLmComputationState:
     return LLmComputationState(
-        state=data.state.to(device),
+        state=_cast_float(data.state.to(device), dtype),
         position_ids=data.position_ids.to(device),
         cache_position=data.cache_position.to(device),
-        causal_mask=move_causal_mask(data.causal_mask, device),
-        position_embeddings=move_position_embeddings(data.position_embeddings, device),
-        per_layer_inputs=None if data.per_layer_inputs is None else data.per_layer_inputs.to(device),
-        shared_kv_states=move_position_embeddings(data.shared_kv_states, device),
+        causal_mask=move_causal_mask(data.causal_mask, device, dtype),
+        position_embeddings=move_position_embeddings(data.position_embeddings, device, dtype),
+        per_layer_inputs=None if data.per_layer_inputs is None else _cast_float(data.per_layer_inputs.to(device), dtype),
+        shared_kv_states=move_position_embeddings(data.shared_kv_states, device, dtype),
     )
 
 def detachCompState(state: LLmComputationState) -> LLmComputationState:
