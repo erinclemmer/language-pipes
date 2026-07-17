@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Tuple
 from ansinout import PressedKey
 
 from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.content_provider.job_provider import DEFAULT_JOB_PORT
 from language_pipes.tui.components.page import PageState
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 
@@ -107,8 +108,8 @@ class TopPageState(PageState):
 
         if self.can_start_server():
             lines.append(make_selectable_text("Start Server", self.focus_idx == 2))
-        elif not self.server_running and not ContentProvider.is_port_available(self._get_job_port()):
-            lines.append(f"   Warning: Can't start server, port {self._get_job_port()} is not available")
+        elif not self.server_running and not ContentProvider.is_port_available(self._current_port()):
+            lines.append(f"   Warning: Can't start server, port {self._current_port()} is not available")
 
         if self.server_running:
             lines.append(make_selectable_text("Stop Server", True))
@@ -140,14 +141,17 @@ class TopPageState(PageState):
 
         return ""
 
-    def _get_job_port(self) -> int:
+    def _get_job_port(self) -> Optional[int]:
         if self.job_port is None:
             self.job_port = self.provider.job_provider.get_job_port()
         return self.job_port
 
     def _port_str(self) -> str:
         if self.edit_job_port is None:
-            self.edit_job_port = str(self._get_job_port())
+            port = self._get_job_port()
+            # New/unset config: suggest a default rather than showing a blank field.
+            # Nothing is persisted until the user actually saves/starts the server.
+            self.edit_job_port = str(port) if port is not None else str(DEFAULT_JOB_PORT)
         return self.edit_job_port
 
     def _network_running(self) -> bool:
@@ -155,11 +159,15 @@ class TopPageState(PageState):
         return network_status is not None and network_status.running
 
     def can_start_server(self) -> bool:
-        return self.validate_job_port() and ContentProvider.is_port_available(self._get_job_port()) and self._network_running() and not self.server_running
+        return self.validate_job_port() and ContentProvider.is_port_available(self._current_port()) and self._network_running() and not self.server_running
+
+    def _current_port(self) -> Optional[int]:
+        """The port currently shown/typed in the edit field, not the last-saved config value."""
+        try:
+            return int(self._port_str())
+        except ValueError:
+            return None
 
     def validate_job_port(self) -> bool:
-        try:
-            port = int(self._port_str())
-            return port < 65000 and port > 0
-        except ValueError:
-            return False
+        port = self._current_port()
+        return port is not None and port < 65000 and port > 0
