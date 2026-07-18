@@ -37,6 +37,8 @@ Below are the specific checkpoints that have been tested and are known to work.
 - meta-llama/Llama-2-7b
 - meta-llama/Llama-3.1-8B-Instruct
 - meta-llama/Llama-3.2-1B-Instruct
+- meta-llama/Llama-3.2-3B-Instruct
+- meta-llama/Llama-3.3-70B-Instruct
 
 **Gemma 3:**
 - google/gemma-3-1b-it
@@ -44,6 +46,10 @@ Below are the specific checkpoints that have been tested and are known to work.
 **Gemma 4:**
 - google/gemma-4-E2B-it
 - google/gemma-4-E4B-it
+- google/gemma-4-12B-it
 
 **Ministral 3:**
+- mistralai/Ministral-3-3B-Reasoning-2512
+- mistralai/Ministral-3-3B-Instruct-2512
 - mistralai/Ministral-3-8B-Instruct-2512
+- mistralai/Ministral-3-14B-Instruct-2512
