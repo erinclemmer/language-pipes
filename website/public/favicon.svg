@@ -1,12 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" xmlns:bx="https://boxy-svg.com">
-  <defs>
-    <bx:export>
-      <bx:file format="svg"></bx:file>
-    </bx:export>
-  </defs>
-  <line x1="218.843" y1="380.618" x2="307.759" y2="380.618" stroke="#4ee27b" stroke-linecap="round" style="vector-effect: non-scaling-stroke; stroke-width: 28px; transform-origin: 409.913px 380.618px 0px;"></line>
-  <circle cx="200.587" cy="256.231" r="30" fill="#0a0e0a" stroke="#4ee27b" style="stroke-width: 20px;" transform="matrix(1.481931, 0, 0, 1.388967, -135.798203, 24.935314)"></circle>
-  <circle cx="220.587" cy="256.231" r="30" fill="#0a0e0a" stroke="#4ee27b" style="stroke-width: 20px;" transform="matrix(1.481931, 0, 0, 1.388967, 34.623962, 24.935143)"></circle>
-  <line x1="69.799" y1="266.275" x2="222.585" y2="266.275" stroke="#4ee27b" stroke-linecap="round" style="--darkreader-inline-stroke: var(--darkreader-border-4ee27b, #178d3b); vector-effect: non-scaling-stroke; stroke-width: 28px; transform-origin: 164.25px 266.275px 0px;" data-darkreader-inline-stroke="" transform="matrix(0, 1, -1, 0, 0, 0)"></line>
-  <circle cx="220.587" cy="256.231" r="30" fill="#0a0e0a" stroke="#4ee27b" style="stroke-width: 20px;" transform="matrix(1.481931, 0, 0, 1.388967, -163.954727, -239.891266)"></circle>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+  <g stroke="#4ee27b" stroke-linecap="round" fill="none">
+    <line x1="162" y1="116" x2="162" y2="381" stroke-width="28"></line>
+    <line x1="162" y1="381" x2="361" y2="381" stroke-width="28"></line>
+    <circle cx="162" cy="116" r="43" fill="#0a0e0a" stroke-width="20"></circle>
+    <circle cx="162" cy="381" r="43" fill="#0a0e0a" stroke-width="20"></circle>
+    <circle cx="361" cy="381" r="43" fill="#0a0e0a" stroke-width="20"></circle>
+  </g>
 </svg>

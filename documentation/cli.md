@@ -11,7 +11,6 @@ language-pipes -c config.toml               # Launch TUI with a config preloaded
 language-pipes -c config.toml --start       # Launch TUI and start serving immediately
 language-pipes -c config.toml run           # Run headless from a config file
 language-pipes -c config.toml config        # Print the configuration
-language-pipes keygen [output]              # Generate an AES encryption key
 ```
 
 > **Argument order matters.** `-c`/`--config`, `--start`, `-v`, and `-h` are
@@ -68,9 +67,7 @@ language-pipes -c config.toml --start   # Open and begin serving immediately
   confirmation.
 
 In TUI mode the configuration file is authoritative. Environment variables and
-flags do not override config values. The exceptions are machine-local settings
-(`LP_APP_DIR`, `LP_MODEL_DIR`, `LP_HUGGINGFACE_TOKEN`), which describe the host
-environment rather than the node's behavior.
+flags do not override config values.
 
 ---
 
@@ -144,56 +141,28 @@ End Models:
 
 ---
 
-### `keygen`
-
-Generate an AES encryption key for network communication and write it to disk.
-
-**Format:**
-```bash
-language-pipes keygen [output]
-```
-
-| Argument | Description | Default |
-|----------|-------------|---------|
-| `output` | Output file path | `network.key` |
-
-**Example:**
-```bash
-$ language-pipes keygen network.key
-✓ Network key generated: <key>
-✓ Network key saved to 'network.key'
-```
-
----
-
 ## Examples
 
-### Launch the TUI with a saved configuration
+#### Launch the TUI with a saved configuration
 
 ```bash
 language-pipes -c node4
 ```
 
-### Run a node headless from a config file
+#### Run a node headless from a config file
 
 ```bash
 language-pipes -c config.toml run
 ```
 
-### Run a node headless and log to a file as well as the terminal
+#### Run a node headless and log to a file as well as the terminal
 
 ```bash
 language-pipes -c node4.toml run | tee node4.log
 ```
 
-### Inspect the configuration
+#### Inspect the configuration
 
 ```bash
 language-pipes -c node4.toml config
-```
-
-### Generate a network key
-
-```bash
-language-pipes keygen network.key
 ```

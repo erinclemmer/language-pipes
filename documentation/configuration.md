@@ -18,7 +18,6 @@ below.
 
 ```toml
 node_id = "my-node"
-network_ip = "[Your local IP address]"
 job_port = 8000
 end_models = ["Qwen/Qwen3-1.7B"]
 
@@ -238,13 +237,7 @@ Hex-encoded AES-128 key used to encrypt peer-to-peer traffic. If null or omitted
 network_key = "9f86d081884c7d659a2feaa0c55ad015"
 ```
 
-Generate a key with:
-```bash
-language-pipes keygen
-```
-This prints a hex key (and writes the same value to `network.key`). Copy that
-hex string into `network_key`, or generate one directly from the network
-configuration screen in the TUI.
+Generate key from the TUI.
 
 #### `whitelist_ips`
 
