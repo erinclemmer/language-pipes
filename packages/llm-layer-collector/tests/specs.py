@@ -186,7 +186,6 @@ REAL_MODEL_SPECS: List[RealModelSpec] = [
                   template_kwargs={"enable_thinking": False}),
     # RealModelSpec("qwen3_moe", "Qwen/Qwen3-30B-A3B-Thinking-2507", expected_next="Paris"),
     RealModelSpec("llama", "meta-llama/Llama-3.2-1B", expected_next="Paris"),
-    # Reasoning model: emits a '<think>' block, so the answer is far past a short decode.
     RealModelSpec("phi3", "microsoft/Phi-4-mini-instruct", expected_next="Paris"),
     RealModelSpec("gemma3_text", "google/gemma-3-1b-it", expected_next="Paris"),
     RealModelSpec("gemma4_text", "google/gemma-4-E2B-it", expected_next="Paris"),
