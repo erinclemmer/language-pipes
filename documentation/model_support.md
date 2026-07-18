@@ -56,3 +56,6 @@ Below are the specific checkpoints that have been tested and are known to work.
 - mistralai/Ministral-3-3B-Instruct-2512
 - mistralai/Ministral-3-8B-Instruct-2512
 - mistralai/Ministral-3-14B-Instruct-2512
+
+**Open AI:**
+- openai/gpt-oss-20b
