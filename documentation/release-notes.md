@@ -13,7 +13,13 @@ Two pieces of Language Pipes are now maintained as their own PyPI packages, publ
 
 Both are released at **1.0.0**. Language Pipes depends on them with exact version pins, so installing or upgrading `language-pipes` always pulls the matching versions of these packages and you never have to update them yourself.
 
-Both packages had existed on PyPI before but I had archived them. People were still downloading them, so I've unarchived both and will be keeping them updated from this monorepo going forward. If you depend on either package directly, the `1.0.0` line is the current, maintained version.
+Both packages had existed on PyPI before but I had archived them. People were still downloading them, so I've unarchived both and will be keeping them updated from this monorepo going forward. If you depend on either package directly, the `1.0.0` line is the current version.
+
+### Bugs
+- Fixed issue where job server was starting with `language-pipes run` even if the job_port property is not set.
+- Logs exceptions made on frame render and does not crash app when that happens
+- Fixed bug where if one node was running a model in 8 bit mode and another node was running normally it would error. Mixed precision pipes should work correctly now.
+- Added keep alive message to ensure connection stays alive if preprocessing time is lengthy.
 
 ## Release 2.2.0
 
