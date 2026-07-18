@@ -26,9 +26,9 @@ def prompt(txt: TermText, window: TuiWindow, pos: Tuple[int, int], initial: str 
 
     while True:
         key, ch = read_key()
-        if key == PressedKey.Alpha:
+        if key in (PressedKey.Alpha, PressedKey.Paste):
             window.update_text(buffer_id, TermText(buffer.text.value[:cursor_idx] + ch + buffer.text.value[cursor_idx:]))
-            cursor_idx += 1
+            cursor_idx += len(ch)
             window.paint()
             update_cursor()
         elif key == PressedKey.ArrowLeft:

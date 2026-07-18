@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 import toml
 import torch
 
-from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.util.config import get_app_dir
 
 @dataclass
@@ -31,7 +31,7 @@ class ModelToLoad:
         )
 
 class LpConfig:
-    job_port: int
+    job_port: Optional[int]
     api_keys: List[str]
     layer_models: List[ModelToLoad]
     end_models: List[str]
@@ -42,7 +42,7 @@ class LpConfig:
     _file_path: Optional[Path]
 
     def __init__(self):
-        self.job_port = 8000 
+        self.job_port = None
         self.api_keys = []
         self.layer_models = []
         self._file_path = None
@@ -52,23 +52,26 @@ class LpConfig:
         if self._file_path is None:
             return
         
+        data = {
+            "api_keys": self.api_keys,
+            "layer_models": [o.to_dict() for o in self.layer_models],
+            "end_models": self.end_models,
+            "node_id": self.network_config.node_id,
+            "peer_port": self.network_config.port,
+            "network_ip": self.network_config.network_ip,
+            "network_key": self.network_config.aes_key,
+            "whitelist_ips": self.network_config.whitelist_ips,
+            "whitelist_node_ids": self.network_config.whitelist_node_ids,
+            "bootstrap_nodes": [{
+                "address": o.address,
+                "port": o.port
+            } for o in self.network_config.bootstrap_nodes]
+        }
+        if self.job_port is not None:
+            data["job_port"] = self.job_port
+
         with open(self._file_path, 'w', encoding='utf-8') as f:
-            toml.dump({
-                "job_port": self.job_port,
-                "api_keys": self.api_keys,
-                "layer_models": [o.to_dict() for o in self.layer_models],
-                "end_models": self.end_models,
-                "node_id": self.network_config.node_id,
-                "peer_port": self.network_config.port,
-                "network_ip": self.network_config.network_ip,
-                "network_key": self.network_config.aes_key,
-                "whitelist_ips": self.network_config.whitelist_ips,
-                "whitelist_node_ids": self.network_config.whitelist_node_ids,
-                "bootstrap_nodes": [{
-                    "address": o.address,
-                    "port": o.port
-                } for o in self.network_config.bootstrap_nodes]
-            }, f)
+            toml.dump(data, f)
 
     def to_string(self) -> str:
         lines = [
@@ -76,7 +79,7 @@ class LpConfig:
             "--- Configuration Settings ---",
             "=" * 60,
             "",
-            f"Job Port: {self.job_port}"
+            f"Job Port: {self.job_port if self.job_port is not None else 'Disabled'}"
         ]
 
         lines.append("API Keys:")
@@ -121,7 +124,7 @@ class LpConfig:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = toml.load(f)
 
-        cfg.job_port = data.get("job_port", 8000)
+        cfg.job_port = data.get("job_port")
         cfg.api_keys = data.get("api_keys", [])
         cfg.layer_models = [ModelToLoad.from_dict(o) for o in data.get("layer_models", [])]
         cfg.end_models = data.get("end_models", [])

@@ -1,5 +1,6 @@
 import json
 import time
+import threading
 from typing import Any, Callable, List, Optional
 
 from promise import Promise
@@ -8,7 +9,12 @@ from http.server import BaseHTTPRequestHandler
 from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage, ChatRole
 from language_pipes.util.http import _respond_json, _send_code, _send_sse_headers
-from language_pipes.util.oai_chunks import send_complete, send_initial_chunk, send_update_chunk
+from language_pipes.util.oai_chunks import send_complete, send_initial_chunk, send_keepalive, send_update_chunk
+
+# Emit an SSE keepalive comment after this many seconds of write silence so the
+# stream survives long time-to-first-token (e.g. slow 8-bit prefill) and slow
+# inter-token gaps. Kept well under common 30-60s client/proxy idle timeouts.
+SSE_KEEPALIVE_INTERVAL = 10.0
 from language_pipes.util.oai_tool_calls import (
     ReasoningStreamSplitter,
     ResponsesTool,
@@ -304,27 +310,53 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
     req = ChatCompletionRequest.from_dict(data)
     created_at = time.time()
 
+    # Serialize every write to the SSE socket: the heartbeat thread and the
+    # token-update callbacks both write to handler.wfile concurrently.
+    write_lock = threading.Lock()
+    stop_heartbeat = threading.Event()
+    last_write = [time.time()]
+
+    def _heartbeat():
+        # Fill silent gaps (long prefill / slow tokens) so the idle stream is
+        # not dropped by the client before the first token arrives.
+        poll = min(1.0, SSE_KEEPALIVE_INTERVAL / 3)
+        while not stop_heartbeat.wait(poll):
+            with write_lock:
+                if time.time() - last_write[0] < SSE_KEEPALIVE_INTERVAL:
+                    continue
+                if not send_keepalive(handler):
+                    return
+                last_write[0] = time.time()
+
     def start(job: Job):
         if not req.stream:
             return
         _send_sse_headers(handler)
-        send_initial_chunk(job, created_at, handler)
+        with write_lock:
+            send_initial_chunk(job, created_at, handler)
+            last_write[0] = time.time()
+        threading.Thread(target=_heartbeat, daemon=True).start()
 
     def update(job: Job):
         if not req.stream:
             return True
-        return send_update_chunk(job, {
-            "content": job.delta
-        }, created_at, None, handler)
-        
+        with write_lock:
+            ok = send_update_chunk(job, {
+                "content": job.delta
+            }, created_at, None, handler)
+            last_write[0] = time.time()
+        return ok
+
     def complete(job: Job):
+        stop_heartbeat.set()
         if type(job) is type('') and job == 'NO_PIPE':
             _respond_json(handler, { "error": "no pipe available" })
         elif type(job) is type('') and job == 'NO_ENDS':
             _respond_json(handler, { "error": "no model ends available" })
         else:
             if req.stream:
-                send_complete(job, created_at, handler)
+                with write_lock:
+                    send_complete(job, created_at, handler)
             else:
                 _respond_json(handler, {
                     "id": f"chatcmpl-{job.job_id}",

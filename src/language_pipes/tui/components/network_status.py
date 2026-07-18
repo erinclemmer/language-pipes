@@ -2,7 +2,7 @@ from typing import List, Optional, Callable
 import time
 
 from language_pipes.content_provider.content_provider import ContentProvider
-from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from distributed_state_network.objects.config import DSNodeConfig
 from ansinout import PressedKey
 from language_pipes.content_provider.network_provider import RouterStatus
 

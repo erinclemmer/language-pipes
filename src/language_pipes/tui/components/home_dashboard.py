@@ -1,7 +1,8 @@
 from typing import Callable, List, Optional, Dict, Set, Tuple
 
 from language_pipes.content_provider.content_provider import ContentProvider
-from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from language_pipes.content_provider.job_provider import DEFAULT_JOB_PORT
+from distributed_state_network.objects.config import DSNodeConfig
 from ansinout import PressedKey
 from language_pipes.content_provider.network_provider import RouterStatus
 from language_pipes.pipes.meta_pipe import MetaPipe
@@ -57,7 +58,7 @@ class Dashboard:
     router_status: Optional[RouterStatus]
 
     selected_idx: int
-    job_port: int
+    job_port: Optional[int]
     job_serv_running: bool
     connected_pipes: List[MetaPipe]
     layer_models: List[ModelToLoad]
@@ -88,7 +89,8 @@ class Dashboard:
         return ContentProvider.is_port_available(self.network_config.port)
 
     def job_port_available(self) -> bool:
-        return ContentProvider.is_port_available(self.job_port)
+        port = self.job_port if self.job_port is not None else DEFAULT_JOB_PORT
+        return ContentProvider.is_port_available(port)
 
     def on_prev(self):
         self.selected_idx -= 1
@@ -136,6 +138,8 @@ class Dashboard:
         elif selected_option == "Configure End Models":
             self.change_nav("Models", "End Models")
         elif selected_option == "Start Job Server":
+            if self.provider.job_provider.get_job_port() is None:
+                self.provider.job_provider.set_job_port(DEFAULT_JOB_PORT)
             self.provider.job_provider.start_oai_server()
         elif selected_option == "Stop Job Server":
             self.provider.job_provider.stop_oai_server()
@@ -224,15 +228,20 @@ class Dashboard:
 
     def _get_job_status(self):
         lines = ["Job Server:"]
-        
-        job_str = f"running on port {self.job_port}" if self.job_serv_running else "stopped"
+
+        if self.job_serv_running:
+            job_str = f"running on port {self.job_port}"
+        elif self.job_port is None:
+            job_str = "disabled"
+        else:
+            job_str = "stopped"
         lines.append(f"Status: {job_str}")
-        
+
         api_keys = self.provider.job_provider.get_api_keys()
         if len(api_keys) > 0:
             lines.append(f"{len(api_keys)} API Key(s)")
-        
-        if not self.job_serv_running and not self.job_port_available():
+
+        if self.job_port is not None and not self.job_serv_running and not self.job_port_available():
             lines.append(f"Warning:\nJob port {self.job_port} is not available")
 
         if self.job_serv_running:

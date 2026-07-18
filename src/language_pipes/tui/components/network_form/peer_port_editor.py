@@ -4,7 +4,7 @@ from language_pipes.content_provider.content_provider import ContentProvider
 from ansinout import PressedKey
 from language_pipes.tui.components.confirm import Confirm
 
-from language_pipes.distributed_state_network.objects.config import DSNodeConfig
+from distributed_state_network.objects.config import DSNodeConfig
 from language_pipes.tui.components.network_form.util import validate_port
 
 class PeerPortEditor:
@@ -31,7 +31,7 @@ class PeerPortEditor:
             self.on_enter()
         elif key == PressedKey.Backspace:
             self.on_backspace()
-        elif key == PressedKey.Alpha:
+        elif key in (PressedKey.Alpha, PressedKey.Paste):
             self.on_char(ch)
 
     def back(self) -> bool:

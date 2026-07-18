@@ -60,6 +60,17 @@ def send_update_chunk(
         return False
     return True
 
+def send_keepalive(handler: BaseHTTPRequestHandler) -> bool:
+    # SSE comment line (starts with ':'). Clients ignore the payload but it keeps
+    # the connection alive during a long time-to-first-token or slow inter-token
+    # gaps, which otherwise get the idle stream dropped by the client/proxy.
+    try:
+        handler.wfile.write(b': keepalive\n\n')
+        handler.wfile.flush()
+    except Exception:
+        return False
+    return True
+
 def send_complete(job: Job, created: float, handler: BaseHTTPRequestHandler):
     final = {
         "id": f"chatcmpl-{job.job_id}",

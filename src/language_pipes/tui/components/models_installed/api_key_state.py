@@ -16,7 +16,7 @@ class ApiKeyPageState(PageState):
         self.token_string = ""
 
     def on_key(self, key: PressedKey, ch: str):
-        if key == PressedKey.Alpha:
+        if key in (PressedKey.Alpha, PressedKey.Paste):
             self._on_char(ch)
         if key == PressedKey.Backspace:
             self._on_backspace()

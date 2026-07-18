@@ -8,13 +8,14 @@ Language Pipes is a Python 3.10 application that distributes LLM inference acros
   - `tui/`: interactive terminal UI for creating, editing, and running configs
   - `pipes/`, `jobs/`, `modeling/`: pipe construction and the job-processing FSM
   - `content_provider/`: bridges the TUI to runtime/config state
-  - `distributed_state_network/`: default peer-to-peer router implementation
-  - `llm_layer_collector/`: layer-level HuggingFace model loading helper
   - `util/`: shared utilities, including the OpenAI-compatible server helpers
   - `cli.py`, `runner.py`, `oai_server.py`, `config.py`: CLI entrypoint, node runner, OAI HTTP server, TOML config model
+- `packages/`: independently versioned/published sub-packages that `language-pipes` depends on via exact-version pins (install editable for local dev — see CONTRIBUTING.md)
+  - `distributed-state-network/`: peer-to-peer router implementation (top-level import `distributed_state_network`)
+  - `llm-layer-collector/`: layer-level HuggingFace model loading helper (top-level import `llm_layer_collector`)
 - `documentation/`: product and operator docs (source of truth; also published to the website)
 - `website/`: Astro + Starlight site (landing page + docs). Consumes `documentation/` in place at build time; deployed to GitHub Pages via `.github/workflows/deploy-website.yml`
-- `tests/`: pytest suite, mirroring `src/language_pipes` (`tests/language_pipes`, `tests/distributed_state_network`, `tests/llm_layer_collector`)
+- `tests/`: pytest suite for the app (`tests/language_pipes`); each sub-package keeps its own tests under `packages/<name>/tests`
 - `pyproject.toml`: project metadata and dependencies
 
 ## Development guidelines

@@ -34,7 +34,7 @@ def bytes_to_int(b: bytes) -> int:
 _DTYPE_TO_CODE = {
     torch.float32: 0, torch.float64: 1, torch.bfloat16: 2,
     torch.int32: 3, torch.int64: 4, torch.int16: 5, torch.int8: 6,
-    torch.uint8: 7, torch.bool: 8, torch.bfloat16: 9,
+    torch.uint8: 7, torch.bool: 8, torch.float16: 9,
 }
 _CODE_TO_DTYPE = {v: k for k, v in _DTYPE_TO_CODE.items()}
 
@@ -159,7 +159,9 @@ def maybeTo(t: Optional[torch.Tensor], device: torch.device) -> Optional[torch.T
         return t.detach()
     return t.detach().to(device)
 
-def is_port_available(port: int) -> bool:
+def is_port_available(port: Optional[int]) -> bool:
+    if port is None:
+        return False
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:

@@ -23,7 +23,10 @@ cd language-pipes
 python -m venv env
 source env/bin/activate        # Windows: env\Scripts\activate
 
-# 3. Install in editable mode with the dev dependencies
+# 3. Install the in-repo sub-packages (editable), then language-pipes itself.
+# language-pipes pins exact versions of these, so installing them editable first
+# satisfies those pins with your local checkout instead of pulling from PyPI.
+pip install -e packages/llm-layer-collector -e packages/distributed-state-network
 pip install -e .
 pip install pytest coverage
 
@@ -92,7 +95,7 @@ Continuous integration runs the unit tests on every pull request — see
 ## Adding a new model architecture
 
 Adding support for a model family is one of the most valuable contributions you can make, and makes a great first PR. The model-loading code lives under
-`src/language_pipes/llm_layer_collector/modeling/`, alongside the existing
+`packages/llm-layer-collector/src/llm_layer_collector/modeling/`, alongside the existing
 `Qwen3`, `Qwen3Moe`, `Phi3`, `Llama`, `Gemma3`, `Gemma4`, and `Ministral3`
 implementations. Use one of those as a template, wire it into
 `llm_layer_collector/helpers.py`, add a tested checkpoint to

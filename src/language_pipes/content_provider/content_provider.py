@@ -15,7 +15,7 @@ from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.content_provider.job_provider import JobProvider
-from language_pipes.distributed_state_network.handler import DSNodeServer
+from distributed_state_network.handler import DSNodeServer
 from language_pipes.content_provider.pipe_provider import PipeProvider
 from language_pipes.content_provider.model_provider import ModelProvider
 from language_pipes.content_provider.network_provider import NetworkProvider
@@ -204,7 +204,7 @@ class ContentProvider:
         return f"System RAM:  {used_ram:.1f}/{total_ram:.1f}GB".ljust(26) + f"System Swap: {used_swap:.1f}/{total_swap:.1f}GB"
 
     @staticmethod
-    def is_port_available(port: int) -> bool:
+    def is_port_available(port: Optional[int]) -> bool:
         return is_port_available(port)
     
     def shutdown(self):

@@ -17,7 +17,7 @@ from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.pipes.router_pipes import RouterPipes
-from language_pipes.distributed_state_network.util import stop_thread
+from distributed_state_network.util import stop_thread
 from language_pipes.util.config import get_model_dir
 
 

@@ -33,7 +33,7 @@ class DownloadPageState(PageState):
         if self.choosing_method:
             self._on_method_key(key)
             return
-        if key == PressedKey.Alpha:
+        if key in (PressedKey.Alpha, PressedKey.Paste):
             self._on_char(ch)
         if key == PressedKey.Backspace:
             self._on_backspace()

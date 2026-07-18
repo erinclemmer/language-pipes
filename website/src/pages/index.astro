@@ -311,6 +311,45 @@ $ language-pipes -c node-2.toml run`;
       </div>
     </section>
 
+    <!-- ========================== PACKAGES ========================= -->
+    <section class="lp-section" id="packages">
+      <div class="lp-container">
+        <p class="lp-eyebrow">Built on</p>
+        <h2 class="lp-h2">Reusable standalone packages</h2>
+        <p class="lp-lede">
+          Two building blocks of Language Pipes are published as their own MIT-licensed
+          packages on PyPI, maintained from this repo. Use them on their own, or let Language
+          Pipes pull them in. It pins exact versions of both, so a <code>language-pipes</code>
+          upgrade always installs the matching releases.
+        </p>
+        <div class="lp-grid">
+          <a class="lp-card" href={docs('llm-layer-collector')}>
+            <div class="lp-icon">⌗</div>
+            <h3>llm-layer-collector</h3>
+            <p>
+              Load individual transformer components, embedding, decoder layers, norm and
+              head, from sharded HuggingFace checkpoints and run per-architecture computation.
+            </p>
+            <span class="lp-more">Documentation →</span>
+          </a>
+          <a class="lp-card" href={docs('distributed-state-network')}>
+            <div class="lp-icon">◈</div>
+            <h3>distributed-state-network</h3>
+            <p>
+              The encrypted peer-to-peer state-sharing network over HTTP that Language Pipes
+              uses as its default router. Signed packets, rolling AES, self-organizing peers.
+            </p>
+            <span class="lp-more">Documentation →</span>
+          </a>
+        </div>
+        <p class="lp-muted" style="margin-top:1rem;font-size:0.9rem">
+          On PyPI:
+          <a href="https://pypi.org/project/llm-layer-collector/">llm-layer-collector</a> ·
+          <a href="https://pypi.org/project/distributed-state-network/">distributed-state-network</a>
+        </p>
+      </div>
+    </section>
+
     <!-- =========================== FOOTER ========================== -->
     <footer class="lp-footer">
       <div class="lp-container">
@@ -330,6 +369,8 @@ $ language-pipes -c node-2.toml run`;
               <li><a href={docs('comparison')}>Why Language Pipes?</a></li>
               <li><a href={docs('oai')}>OpenAI-compatible API</a></li>
               <li><a href={docs('cli')}>CLI reference</a></li>
+              <li><a href={docs('llm-layer-collector')}>llm-layer-collector</a></li>
+              <li><a href={docs('distributed-state-network')}>distributed-state-network</a></li>
             </ul>
           </div>
           <div>

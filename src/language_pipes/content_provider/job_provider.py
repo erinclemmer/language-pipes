@@ -18,6 +18,8 @@ from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.util.utils import stop_thread
 
+DEFAULT_JOB_PORT = 8000
+
 @dataclass
 class MetaJob:
     job_id: str
@@ -60,11 +62,11 @@ class JobProvider:
         self.oai_server = None
         self.oai_thread = None
 
-    def get_job_port(self) -> int:
+    def get_job_port(self) -> Optional[int]:
         cfg = LpConfig.from_file(self.config_file)
         return cfg.job_port
-    
-    def set_job_port(self, port: int):
+
+    def set_job_port(self, port: Optional[int]):
         cfg = LpConfig.from_file(self.config_file)
         cfg.job_port = port
         cfg.save()
@@ -94,7 +96,10 @@ class JobProvider:
 
         if cfg is None:
             cfg = LpConfig.from_file(self.config_file)
-        
+
+        if cfg.job_port is None:
+            return
+
         self.oai_server = OAIHttpServer(
             api_keys=cfg.api_keys,
             port=cfg.job_port,

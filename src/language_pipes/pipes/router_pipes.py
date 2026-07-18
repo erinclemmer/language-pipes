@@ -2,8 +2,8 @@ import json
 import random
 import logging
 from typing import List, Dict, Optional
-from language_pipes.distributed_state_network.handler import DSNodeServer
-from language_pipes.network_protocol import StateNetworkNode
+from distributed_state_network.handler import DSNodeServer
+from distributed_state_network import StateNetworkNode
 
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.meta_model import MetaModel

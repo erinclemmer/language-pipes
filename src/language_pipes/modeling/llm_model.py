@@ -5,8 +5,8 @@ from typing import List, Optional, Callable
 
 import torch
 
-from language_pipes.llm_layer_collector import LlmLayerCollector
-from language_pipes.llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from llm_layer_collector import LlmLayerCollector
+from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 from language_pipes.util.utils import clone_model
 from language_pipes.util.config import is_8_bit_mode
