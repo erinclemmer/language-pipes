@@ -103,7 +103,3 @@ own hardware while borrowing compute from someone else's.
 | Batched / high throughput | — | Limited | Limited | Limited | ✓✓ |
 | Fine-tuning | — | ✓ | — | — | (training separate) |
 | OpenAI-compatible API | ✓ | Partial | ✓ | ✓ (server) | ✓ |
-
-Every project here is a reasonable choice; the honest differentiators for
-Language Pipes are decentralized, privacy-aware placement of current-generation
-models behind a familiar API, not raw throughput.
