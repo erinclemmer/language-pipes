@@ -30,6 +30,7 @@ Below are the specific checkpoints that have been tested and are known to work.
 **Phi:**
 - microsoft/phi-4
 - microsoft/Phi-4-reasoning
+- microsoft/Phi-4-mini-instruct
 - microsoft/Phi-4-mini-reasoning
 - microsoft/Phi-4-reasoning-plus
 
