@@ -24,6 +24,7 @@ from transformers.models.gemma3.configuration_gemma3 import Gemma3TextConfig
 from transformers.models.gemma4.configuration_gemma4 import Gemma4TextConfig
 from transformers.models.gemma4_unified.configuration_gemma4_unified import Gemma4UnifiedTextConfig
 from transformers.models.ministral3.configuration_ministral3 import Ministral3Config
+from transformers.models.gpt_oss.configuration_gpt_oss import GptOssConfig
 
 
 # Multimodal weight-naming conventions. Real checkpoints for some architectures
@@ -41,6 +42,7 @@ class TinyModelSpec:
     config_kwargs: Dict                   # tiny dims
     key_style: str = KEY_STYLE_STANDARD   # multimodal key nesting to emit
     fp8: bool = False                     # emit float8_e4m3fn weights + weight_scale_inv
+    mxfp4: bool = False                   # emit packed uint8 MoE expert blocks + scales
     per_type_rope: bool = False           # gemma3/gemma4 per-layer-type masks + RoPE
     ple: bool = False                     # gemma4 per-layer-embedding ride-along
     mrope: bool = False                   # GLM-style multimodal rope (position_ids (3,1,seq))
@@ -206,6 +208,27 @@ TINY_MODEL_SPECS: List[TinyModelSpec] = [
         key_style=KEY_STYLE_MISTRAL3_MM,
         fp8=True,
     ),
+    TinyModelSpec(
+        model_type="gpt_oss",
+        config_cls=GptOssConfig,
+        # sliding_window + 4 layers gives the default alternating layer_types both
+        # attention kinds. hidden_size and intermediate_size must stay multiples of
+        # 32 — that's the mxfp4 block width the expert weights are packed in.
+        config_kwargs=dict(_TINY) | dict(
+            sliding_window=16,
+            num_local_experts=4,
+            num_experts_per_tok=2,
+            # gpt_oss uses YaRN; transformers cross-checks the explicit factor
+            # against max_position_embeddings / original_max_position_embeddings,
+            # so scale the pre-yarn length down with the tiny context.
+            rope_parameters=dict(
+                rope_type="yarn", rope_theta=150_000.0, factor=32.0,
+                beta_fast=32.0, beta_slow=1.0,
+                original_max_position_embeddings=2, truncate=False,
+            ),
+        ),
+        mxfp4=True,
+    ),
 ]
 
 
@@ -259,4 +282,10 @@ REAL_MODEL_SPECS: List[RealModelSpec] = [
     RealModelSpec("gemma4_text", "google/gemma-4-26B-A4B-it", expected_next="Paris",
                   test_name="gemma4_text_26b_a4b"),
     RealModelSpec("ministral3", "mistralai/Ministral-3-3B-Instruct-2512", expected_next="Paris"),
+    # Harmony format: the template opens an <|channel|>analysis reasoning turn, so the
+    # answer only appears well into the continuation. Measured greedy output is
+    # '<|channel|>analysis<|message|>The user asks: "What is the capital of France?"
+    # The answer: Paris.' — "Paris" is token 19 (see skill §9 on measuring this).
+    RealModelSpec("gpt_oss", "openai/gpt-oss-20b", expected_next="Paris",
+                  coherence_tokens=20),
 ]

@@ -26,13 +26,16 @@ def get_avg_layer_size(model_path: Path) -> Tuple[int, str]:
     )
 
     shard_data = get_shard_data(0, 0, torch.device('cpu'), collector.model_dir, collector.layer_prefix, collector.layer_files, torch.bfloat16)
-    total_size = 0
-    for key in collector.layer_files:
-        if (collector.layer_prefix + "0.") in key:
-            try:
-                total_size += size_of_tensor(shard_data[key])
-            except:  # noqa: E722
-                pass
+    # Size the layer from what get_shard_data actually produced, not from the
+    # checkpoint key list: dequantization rewrites keys (mxfp4 experts arrive as
+    # "<proj>_blocks"/"<proj>_scales" and leave as a single dense "<proj>"), so
+    # looking up checkpoint names would miss the expert weights entirely and
+    # under-report a gpt_oss layer by most of its mass.
+    total_size = sum(
+        size_of_tensor(tensor)
+        for key, tensor in shard_data.items()
+        if (collector.layer_prefix + "0.") in key
+    )
     lyrs = collector.load_layer_set(0, 0)
 
     hsh = ""

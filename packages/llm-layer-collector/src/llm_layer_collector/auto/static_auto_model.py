@@ -12,6 +12,7 @@ from llm_layer_collector.modeling.LlamaModel import LlamaModel
 from llm_layer_collector.modeling.Gemma3Model import Gemma3Model
 from llm_layer_collector.modeling.Gemma4Model import Gemma4Model
 from llm_layer_collector.modeling.Phi3Model import Phi3Model
+from llm_layer_collector.modeling.GptOssModel import GptOssModel
 from llm_layer_collector.state_obj import LLmComputationState
 
 class StaticAutoModel:
@@ -93,6 +94,9 @@ class StaticAutoModel:
             case "ministral3":
                 Ministral3Model.compute_embedding(state, config, mask_kwargs)
 
+            case "gpt_oss":
+                GptOssModel.compute_embedding(state, config, mask_kwargs)
+
         return state
 
     @staticmethod
@@ -123,6 +127,9 @@ class StaticAutoModel:
             
             case "ministral3":
                 return Ministral3Model.compute_layer(layer, state, cache)
+
+            case "gpt_oss":
+                return GptOssModel.compute_layer(layer, config, state, cache)
 
         return torch.tensor([])
 

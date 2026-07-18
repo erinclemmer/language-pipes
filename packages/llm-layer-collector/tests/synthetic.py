@@ -69,6 +69,35 @@ def _quantize_model_fp8(model: torch.nn.Module) -> Dict[str, Tuple[torch.Tensor,
     return quantized
 
 
+def _quantize_model_mxfp4(model: torch.nn.Module) -> Dict[str, Tuple[torch.Tensor, torch.Tensor]]:
+    """Replace fused MoE expert weights with values drawn from the mxfp4 grid,
+    mutating the model in place. Returns ``{key: (blocks, scales)}`` to write into
+    the shards.
+
+    Rather than implement a quantizer, this samples random *packed* blocks/scales
+    and dequantizes them with the same routine the loader uses, so the roundtrip is
+    exact by construction and the test measures the loader's unpacking rather than
+    rounding error. Real checkpoints store a param of shape ``[E, A, B]`` as blocks
+    of shape ``[E, B, A // 32, 16]`` (two 4-bit values per byte, 32 per block).
+    """
+    from transformers.integrations.mxfp4 import convert_moe_packed_tensors
+
+    quantized: Dict[str, Tuple[torch.Tensor, torch.Tensor]] = {}
+    for name, weight in dict(model.named_parameters()).items():
+        if not name.endswith(("experts.gate_up_proj", "experts.down_proj")):
+            continue
+        experts, a_dim, b_dim = weight.shape
+        assert a_dim % 32 == 0, f"{name}: {a_dim} is not a multiple of the mxfp4 block width"
+        blocks = torch.randint(0, 256, (experts, b_dim, a_dim // 32, 16), dtype=torch.uint8)
+        # Exponent bias is 127; a narrow band keeps the tiny forward well away from
+        # both bf16 overflow and flush-to-zero.
+        scales = torch.randint(120, 131, (experts, b_dim, a_dim // 32), dtype=torch.uint8)
+        dequant = convert_moe_packed_tensors(blocks, scales, dtype=torch.float32)
+        weight.data.copy_(dequant.to(weight.dtype))
+        quantized[name] = (blocks, scales)
+    return quantized
+
+
 def _rename_key(key: str, key_style: str) -> str:
     if key_style == KEY_STYLE_GEMMA4_MM:
         if key.startswith("model."):
@@ -100,6 +129,9 @@ def build_tiny_checkpoint(spec: TinyModelSpec, dest_dir: str, seed: int = 0) -> 
     quantized: Dict[str, Tuple[torch.Tensor, torch.Tensor]] = {}
     if spec.fp8:
         quantized = _quantize_model_fp8(model)
+    mxfp4: Dict[str, Tuple[torch.Tensor, torch.Tensor]] = {}
+    if spec.mxfp4:
+        mxfp4 = _quantize_model_mxfp4(model)
 
     model.save_pretrained(
         dest_dir,
@@ -107,9 +139,9 @@ def build_tiny_checkpoint(spec: TinyModelSpec, dest_dir: str, seed: int = 0) -> 
         max_shard_size=_max_shard_size(model, spec.shards),
     )
 
-    needs_rewrite = spec.fp8 or spec.key_style != "standard"
+    needs_rewrite = spec.fp8 or spec.mxfp4 or spec.key_style != "standard"
     if needs_rewrite:
-        _rewrite_shards(dest_dir, spec, quantized)
+        _rewrite_shards(dest_dir, spec, quantized, mxfp4)
 
     cache_file = os.path.join(dest_dir, "cache.json")
     return TinyCheckpoint(
@@ -124,8 +156,9 @@ def _rewrite_shards(
     dest_dir: str,
     spec: TinyModelSpec,
     quantized: Dict[str, Tuple[torch.Tensor, torch.Tensor]],
+    mxfp4: Dict[str, Tuple[torch.Tensor, torch.Tensor]],
 ) -> None:
-    """Rename keys and substitute fp8 weights + scales, in every shard file."""
+    """Rename keys and substitute fp8 / mxfp4 weights + scales, in every shard file."""
     shard_files = [f for f in os.listdir(dest_dir) if f.endswith(".safetensors")]
     for fname in shard_files:
         path = os.path.join(dest_dir, fname)
@@ -137,6 +170,12 @@ def _rewrite_shards(
                 nk = _rename_key(key, spec.key_style)
                 new[nk] = q
                 new[nk[: -len(".weight")] + ".weight_scale_inv"] = scale
+            elif key in mxfp4:
+                blocks, scales = mxfp4[key]
+                nk = _rename_key(key, spec.key_style)
+                # The dense key itself is absent from a real mxfp4 checkpoint.
+                new[nk + "_blocks"] = blocks
+                new[nk + "_scales"] = scales
             else:
                 new[_rename_key(key, spec.key_style)] = value
         save_file(new, path, metadata={"format": "pt"})
