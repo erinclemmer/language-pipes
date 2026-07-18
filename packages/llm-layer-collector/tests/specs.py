@@ -45,6 +45,10 @@ class TinyModelSpec:
     ple: bool = False                     # gemma4 per-layer-embedding ride-along
     mrope: bool = False                   # GLM-style multimodal rope (position_ids (3,1,seq))
     shards: int = 2                       # force multi-shard save to exercise iteration
+    # Distinguishes the generated test method name from model_type, for
+    # architectures that need more than one spec (e.g. two flag combinations
+    # dispatched through the same model_type). Defaults to model_type.
+    test_name: Optional[str] = None
 
     def build_config(self) -> PretrainedConfig:
         return self.config_cls(**self.config_kwargs)
@@ -124,6 +128,57 @@ TINY_MODEL_SPECS: List[TinyModelSpec] = [
         ple=True,
     ),
     TinyModelSpec(
+        # google/gemma-4-31B-it: dispatches through plain "gemma4_text" (same
+        # Gemma4TextDecoderLayer/Attention as E2B above), but shaped like the
+        # "unified" 12B config — attention_k_eq_v + global_head_dim +
+        # num_global_key_value_heads on full_attention layers — and with PLE
+        # disabled (hidden_size_per_layer_input=0). This combination isn't
+        # covered by the E2B (PLE, no global attn) or 12B (global attn, but a
+        # different model_type/module) specs above, so it gets its own entry.
+        model_type="gemma4_text",
+        test_name="gemma4_text_global_kv",
+        config_cls=Gemma4TextConfig,
+        config_kwargs=dict(_TINY) | dict(
+            num_hidden_layers=5,
+            num_key_value_heads=1,
+            sliding_window=16,
+            hidden_size_per_layer_input=0,
+            attention_k_eq_v=True,
+            global_head_dim=32,
+            num_global_key_value_heads=1,
+        ),
+        key_style=KEY_STYLE_GEMMA4_MM,
+        per_type_rope=True,
+        ple=False,
+    ),
+    TinyModelSpec(
+        # google/gemma-4-26B-A4B-it: MoE variant of the same "gemma4_text"
+        # model_type/module as E2B/31B above (Gemma4TextDecoderLayer internally
+        # branches on config.enable_moe_block to add the router + fused 3D expert
+        # tensors), shaped like the 31B's global-attention geometry (attention_k_eq_v
+        # + global_head_dim) with PLE disabled. Exercises the router/experts/
+        # layer_scalar state-dict keys that no other gemma4 spec touches.
+        model_type="gemma4_text",
+        test_name="gemma4_text_moe",
+        config_cls=Gemma4TextConfig,
+        config_kwargs=dict(_TINY) | dict(
+            num_hidden_layers=5,
+            num_key_value_heads=1,
+            sliding_window=16,
+            hidden_size_per_layer_input=0,
+            attention_k_eq_v=True,
+            global_head_dim=32,
+            num_global_key_value_heads=1,
+            enable_moe_block=True,
+            num_experts=4,
+            top_k_experts=2,
+            moe_intermediate_size=32,
+        ),
+        key_style=KEY_STYLE_GEMMA4_MM,
+        per_type_rope=True,
+        ple=False,
+    ),
+    TinyModelSpec(
         # Gemma4Unified is a separate architecture from Gemma4 (gemma-4-12B and up),
         # not a variant: same per-type RoPE/masks and `model.language_model.*` key
         # nesting, but no Per-Layer Embeddings.
@@ -179,6 +234,9 @@ class RealModelSpec:
     # Some GLM-4.1V checkpoints ship rope_scaling: null and crash at layer time;
     # inject a default before use (see skill §6).
     inject_rope_scaling: bool = False
+    # Distinguishes the generated test method name from model_type, for
+    # checkpoints that share a model_type with another entry. Defaults to model_type.
+    test_name: Optional[str] = None
 
 
 REAL_MODEL_SPECS: List[RealModelSpec] = [
@@ -190,5 +248,15 @@ REAL_MODEL_SPECS: List[RealModelSpec] = [
     RealModelSpec("gemma3_text", "google/gemma-3-1b-it", expected_next="Paris"),
     RealModelSpec("gemma4_text", "google/gemma-4-E2B-it", expected_next="Paris"),
     RealModelSpec("gemma4_unified_text", "google/gemma-4-12B-it", expected_next="Paris"),
+    # Same "gemma4_text" model_type as E2B above, but the 31B checkpoint is shaped
+    # like the "unified" 12B config (attention_k_eq_v + global_head_dim on
+    # full_attention layers) with PLE disabled — see the matching TinyModelSpec.
+    RealModelSpec("gemma4_text", "google/gemma-4-31B-it", expected_next="Paris",
+                  test_name="gemma4_text_31b"),
+    # MoE variant (26B total / 4B active) — same "gemma4_text" module as E2B/31B
+    # above, with enable_moe_block routing through Gemma4TextRouter/Experts
+    # internally (see matching gemma4_text_moe TinyModelSpec).
+    RealModelSpec("gemma4_text", "google/gemma-4-26B-A4B-it", expected_next="Paris",
+                  test_name="gemma4_text_26b_a4b"),
     RealModelSpec("ministral3", "mistralai/Ministral-3-3B-Instruct-2512", expected_next="Paris"),
 ]
