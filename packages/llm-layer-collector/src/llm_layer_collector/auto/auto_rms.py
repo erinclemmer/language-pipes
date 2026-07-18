@@ -7,6 +7,7 @@ from transformers.models.phi3.modeling_phi3 import Phi3RMSNorm
 from transformers.models.qwen3.modeling_qwen3 import Qwen3RMSNorm
 from transformers.models.gemma3.modeling_gemma3 import Gemma3RMSNorm
 from transformers.models.gemma4.modeling_gemma4 import Gemma4RMSNorm
+from transformers.models.gemma4_unified.modeling_gemma4_unified import Gemma4UnifiedRMSNorm
 from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeRMSNorm
 from transformers.models.ministral3.modeling_ministral3 import Ministral3RMSNorm
 
@@ -16,6 +17,7 @@ mapper = { # pyright: ignore[reportUnknownVariableType]
     "qwen3": Qwen3RMSNorm,
     "gemma3_text": Gemma3RMSNorm,
     "gemma4_text": Gemma4RMSNorm,
+    "gemma4_unified_text": Gemma4UnifiedRMSNorm,
     "qwen3_moe": Qwen3MoeRMSNorm,
     "ministral3": Ministral3RMSNorm
 }

@@ -8,6 +8,7 @@ import torch
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.gemma3.modeling_gemma3 import Gemma3TextScaledWordEmbedding
 from transformers.models.gemma4.modeling_gemma4 import Gemma4TextScaledWordEmbedding
+from transformers.models.gemma4_unified.modeling_gemma4_unified import Gemma4UnifiedTextScaledWordEmbedding
 
 from llm_layer_collector.helpers import get_config
 from llm_layer_collector.modeling.Gemma4Model import Gemma4PerLayerEmbedder
@@ -149,11 +150,16 @@ class LlmLayerCollector:
             embed.weight = torch.nn.Parameter(emb_weight)
             return embed.to(device=device, dtype=self.dtype)
 
-        if self.config.model_type == "gemma4_text":
+        if self.config.model_type in ("gemma4_text", "gemma4_unified_text"):
             padding_idx = (
                 0 if self.config.pad_token_id is None else self.config.pad_token_id
             )
-            embed = Gemma4TextScaledWordEmbedding(
+            embed_cls = (
+                Gemma4TextScaledWordEmbedding
+                if self.config.model_type == "gemma4_text"
+                else Gemma4UnifiedTextScaledWordEmbedding
+            )
+            embed = embed_cls(
                 self.config.vocab_size,
                 self.config.hidden_size,
                 padding_idx,

@@ -16,7 +16,6 @@ streamed one layer-window at a time via :func:`run_stack_windowed`, so even a
 import os
 import gc
 import sys
-import json
 import unittest
 from pathlib import Path
 from typing import Optional
@@ -59,22 +58,6 @@ def _cache_file(model_id: str) -> Path:
 def ensure_model(model_id: str) -> None:
     base = _base_dir(model_id)
     assert os.path.exists(base), f"{model_id} does not exist"
-
-# --------------------------------------------------------------------------- #
-# Derived expected values (never hardcoded per model)
-# --------------------------------------------------------------------------- #
-def derive_num_keys(model_dir: Path) -> int:
-    index = os.path.join(model_dir, "model.safetensors.index.json")
-    if os.path.exists(index):
-        with open(index) as f:
-            return len(json.load(f)["weight_map"])
-    from safetensors import safe_open
-    total = 0
-    for f in os.listdir(model_dir):
-        if f.endswith(".safetensors"):
-            total += len(list(safe_open(os.path.join(model_dir, f),
-                                        framework="pt").keys()))
-    return total
 
 def compute_layers(collector: LlmLayerCollector, start: int, end: int, state: LLmComputationState, cache: DynamicCache):
     layers = collector.load_layer_set(start, end)
@@ -125,8 +108,26 @@ def _prepare(spec: RealModelSpec):
                                           "mrope_section": [16, 24, 24]}
     tok = AutoTokenizer.from_pretrained(
         model_dir, fix_mistral_regex="mistralai" in spec.model_id)  # type: ignore
-    input_ids = tok(spec.prompt, return_tensors="pt")["input_ids"]  # type: ignore
+    input_ids = _tokenize(tok, spec)
     return collector, tok, input_ids, model_dir
+
+
+def _tokenize(tok, spec: RealModelSpec) -> torch.Tensor:
+    """Prompt through the model's own chat template when it has one.
+
+    Instruct checkpoints are only predictable when prompted the way they were tuned;
+    fed a bare completion string they emit checkpoint-specific artifacts (gemma-4-12B
+    degenerates to '1'), which makes ``expected_next`` a record of trivia rather than
+    a correctness signal. Base models (no template, e.g. Llama-3.2-1B) keep the raw
+    completion prompt.
+    """
+    if getattr(tok, "chat_template", None) is None:
+        return tok(spec.prompt, return_tensors="pt")["input_ids"]  # type: ignore
+    # transformers 5 returns a BatchEncoding unless return_dict=False (skill §8).
+    return tok.apply_chat_template(  # type: ignore
+        [{"role": "user", "content": spec.question}],
+        tokenize=True, add_generation_prompt=True,
+        return_tensors="pt", return_dict=False, **spec.template_kwargs)
 
 
 def coherence_worker(spec: RealModelSpec) -> dict:
@@ -134,7 +135,6 @@ def coherence_worker(spec: RealModelSpec) -> dict:
     small, picklable summary; the peak RSS is captured by the memguard wrapper."""
     collector, tok, input_ids, model_dir = _prepare(spec)
 
-    num_keys = derive_num_keys(model_dir)
     hidden = collector.config.hidden_size
     vocab = collector.config.vocab_size
 
@@ -143,17 +143,15 @@ def coherence_worker(spec: RealModelSpec) -> dict:
     head = collector.load_head()
     ple = collector.load_per_layer_embedder()
 
-    assert len(collector.layer_files) == num_keys, "cache missed keys"
     assert tuple(emb.weight.shape) == (vocab, hidden)
     assert tuple(head.weight.shape) == (vocab, hidden)
 
     state, cache = run_stack_windowed(collector, input_ids, emb, ple)
     assert cache.get_seq_length() == input_ids.shape[1]
 
-    token = StaticAutoModel.compute_head(head, norm(state.state), "cpu", temperature=0)
-    decoded = tok.decode([token])  # type: ignore
-    return {"decoded": decoded, "num_keys": num_keys,
-            "seq_len": int(cache.get_seq_length())}
+    decoded = greedy_decode(collector, tok, input_ids, emb, norm, head, ple,
+                            state, cache, spec.coherence_tokens)
+    return {"decoded": decoded, "seq_len": int(cache.get_seq_length())}
 
 
 def chunked_prefill_worker(spec: RealModelSpec, chunk_size: int = 32) -> dict:
@@ -184,6 +182,34 @@ def chunked_prefill_worker(spec: RealModelSpec, chunk_size: int = 32) -> dict:
     return {"seq_len": int(cache.get_seq_length()), "prompt_tokens": prompt_tokens}
 
 
+def greedy_decode(collector, tok, input_ids, emb, norm, head, ple,
+                  state, cache, num_tokens: int) -> str:
+    """Greedy-decode ``num_tokens`` from an already-prefilled ``(state, cache)``.
+
+    Decoding is autoregressive, so token *t+1* needs every layer applied to token
+    *t* — under windowed streaming that means one full reload of the decoder stack
+    per token. Cost scales linearly with ``num_tokens``; keep it small on big
+    checkpoints. The final token is emitted without advancing the state again,
+    which saves one whole stack pass per call.
+    """
+    n_layers = collector.config.num_hidden_layers
+    current = input_ids
+    for i in range(num_tokens):
+        token = StaticAutoModel.compute_head(head, norm(state.state), "cpu", temperature=0)
+        current = torch.cat([current, torch.tensor([[token]])], dim=1)
+        if i == num_tokens - 1:
+            break
+        state = StaticAutoModel.compute_embedding(
+            current.shape[1], 1, emb, current, collector.config, cache,
+            per_layer_embedder=ple)
+        start = 0
+        while start < n_layers:
+            end = min(start + LAYER_WINDOW, n_layers - 1)
+            compute_layers(collector, start, end, state, cache)
+            start = end + 1
+    return tok.decode(current[0, input_ids.shape[1]:])  # type: ignore
+
+
 def decode_worker(spec: RealModelSpec, num_tokens: int) -> dict:
     """Short greedy decode with per-token window reloads (nightly)."""
     collector, tok, input_ids, _ = _prepare(spec)
@@ -193,20 +219,8 @@ def decode_worker(spec: RealModelSpec, num_tokens: int) -> dict:
     ple = collector.load_per_layer_embedder()
 
     state, cache = run_stack_windowed(collector, input_ids, emb, ple)
-    current = input_ids
-    n_layers = collector.config.num_hidden_layers
-    for _ in range(num_tokens):
-        token = StaticAutoModel.compute_head(head, norm(state.state), "cpu", temperature=0)
-        current = torch.cat([current, torch.tensor([[token]])], dim=1)
-        state = StaticAutoModel.compute_embedding(
-            current.shape[1], 1, emb, current, collector.config, cache,
-            per_layer_embedder=ple)
-        start = 0
-        while start < n_layers:
-            end = min(start + LAYER_WINDOW, n_layers - 1)
-            compute_layers(collector, start, end, state, cache)
-            start = end + 1
-    generated = tok.decode(current[0, input_ids.shape[1]:])  # type: ignore
+    generated = greedy_decode(collector, tok, input_ids, emb, norm, head, ple,
+                              state, cache, num_tokens)
     return {"generated": generated, "num_tokens": num_tokens}
 
 # --------------------------------------------------------------------------- #

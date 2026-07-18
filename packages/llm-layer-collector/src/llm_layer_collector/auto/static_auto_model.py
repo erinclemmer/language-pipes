@@ -87,7 +87,7 @@ class StaticAutoModel:
             case "gemma3_text":
                 Gemma3Model.compute_embedding(state, config, mask_kwargs)
 
-            case "gemma4_text":
+            case "gemma4_text" | "gemma4_unified_text":
                 Gemma4Model.compute_embedding(state, config, mask_kwargs)
             
             case "ministral3":
@@ -118,7 +118,7 @@ class StaticAutoModel:
             case "gemma3_text":
                 return Gemma3Model.compute_layer(layer, state, cache)
 
-            case "gemma4_text":
+            case "gemma4_text" | "gemma4_unified_text":
                 return Gemma4Model.compute_layer(layer, state, cache)
             
             case "ministral3":

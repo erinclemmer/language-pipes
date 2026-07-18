@@ -102,13 +102,8 @@ class Gemma4Model:
         layer_idx: int = layer.cls.layer_idx # type: ignore
         layer_type: str = layer.cls.config.layer_types[layer_idx] # type: ignore
 
-        per_layer_input: Optional[torch.Tensor] = None
-        if state.per_layer_inputs is not None:
-            per_layer_input = state.per_layer_inputs[:, :, layer_idx, :]
-
         kwargs = { # pyright: ignore[reportUnknownVariableType]
             "hidden_states": state.state,
-            "per_layer_input": per_layer_input,
             # Cross-node KV sharing: producer layers (last of each layer_type) write
             # full-length (k, v) here; shared layers read it. Mutated in place, then
             # written back via compute_layers / Job.set_layer so it rides JobData to the
@@ -120,5 +115,14 @@ class Gemma4Model:
             "position_ids": state.position_ids,
             "past_key_values": cache,
         }
+
+        # Per-Layer Embeddings are a gemma4-only feature — Gemma4UnifiedTextDecoderLayer
+        # has no per_layer_input parameter, and an unexpected kwarg would be forwarded
+        # into the attention call.
+        if layer.cls.config.model_type == "gemma4_text": # type: ignore
+            per_layer_input: Optional[torch.Tensor] = None
+            if state.per_layer_inputs is not None:
+                per_layer_input = state.per_layer_inputs[:, :, layer_idx, :]
+            kwargs["per_layer_input"] = per_layer_input
 
         return layer.cls(**kwargs) # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
