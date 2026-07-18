@@ -39,7 +39,7 @@ from memguard import run_capped, MEMORY_BUDGET_BYTES
 
 RUN = os.environ.get("LP_RUN_MODEL_TESTS", "")
 NIGHTLY = RUN == "nightly"
-LAYER_WINDOW = 2
+LAYER_WINDOW = 10
 
 # --------------------------------------------------------------------------- #
 # Checkpoint location helpers (models live in the shared language_pipes cache)

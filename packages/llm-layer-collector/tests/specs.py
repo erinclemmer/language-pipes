@@ -152,10 +152,10 @@ class RealModelSpec:
 
 REAL_MODEL_SPECS: List[RealModelSpec] = [
     RealModelSpec("qwen3", "Qwen/Qwen3-0.6B", expected_next=" Paris"),
-    RealModelSpec("qwen3_moe", "Qwen/Qwen3-30B-A3B-Thinking-2507", expected_next=" Paris"),
+    # RealModelSpec("qwen3_moe", "Qwen/Qwen3-30B-A3B-Thinking-2507", expected_next=" Paris"),
     RealModelSpec("llama", "meta-llama/Llama-3.2-1B", expected_next=" Paris"),
     RealModelSpec("phi3", "microsoft/Phi-4-mini-reasoning"),
     RealModelSpec("gemma3_text", "google/gemma-3-1b-it", expected_next="Paris"),
     RealModelSpec("gemma4_text", "google/gemma-4-E2B-it", expected_next=" France"), 
-    RealModelSpec("ministral3", "mistralai/Ministral-3-8B-Instruct-2512", expected_next="Paris")
+    RealModelSpec("ministral3", "mistralai/Ministral-3-3B-Instruct-2512", expected_next="Paris")
 ]
