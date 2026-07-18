@@ -3,7 +3,7 @@ from pathlib import Path
 from threading import Thread
 from time import time
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional
 
 import torch
 
@@ -125,22 +125,6 @@ class JobProvider:
     def oai_server_running(self) -> bool:
         return self.oai_server is not None
     
-    def get_oai_logs(self) -> List[Tuple[float, str]]:
-        if self.oai_server is None:
-            return []
-        return self.oai_server.logs
-    
-    def reset_oai_logs(self):
-        if self.oai_server is None:
-            return
-        self.oai_server.logs = []
-        job_factory = self.get_job_factory()
-        if job_factory is not None:
-            job_factory.logs = []
-        job_receiver = self.get_job_receiver()
-        if job_receiver is not None:
-            job_receiver.logs = []
-
     def get_active_jobs(self) -> List[MetaJob]:
         job_tracker = self.get_job_tracker()
         if job_tracker is None:

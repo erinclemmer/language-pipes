@@ -1,13 +1,14 @@
 import json
+import logging
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import time
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional
 
 from language_pipes.util.oai import oai_chat_complete, oai_responses_create, get_models
 from language_pipes.util.http import _send_code
 
+logger = logging.getLogger(__name__)
+
 class T:
-    logs: List[Tuple[float, str]]
     complete: Callable
     get_models: Callable
     api_keys: List[str]
@@ -93,7 +94,7 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
 
     def log(self, path: str):
         ip_address = self.client_address[0]
-        self.server.logs.append((time.time(), f"{ip_address} {path}"))
+        logger.info(f"{ip_address} {path}")
 
     def do_GET(self):
         if self.path == '/v1/models':
@@ -108,4 +109,4 @@ class OAIHttpServer(ThreadingHTTPServer):
         self.api_keys = api_keys
         self.complete = complete
         self.get_models = get_models
-        self.logs = [(time.time(), f"Starting job server on port {port}")]
+        logger.info(f"Starting job server on port {port}")

@@ -1,5 +1,5 @@
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from ansinout import PressedKey
 
@@ -7,6 +7,7 @@ from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.content_provider.job_provider import DEFAULT_JOB_PORT
 from language_pipes.tui.components.page import PageState
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text
+from language_pipes.util.logging import get_ring_buffer
 
 
 class TopPageState(PageState):
@@ -114,11 +115,8 @@ class TopPageState(PageState):
         if self.server_running:
             lines.append(make_selectable_text("Stop Server", True))
 
-        logs: List[Tuple[float, str]] = self.provider.job_provider.get_oai_logs()
+        logs = get_ring_buffer().get(prefix="language_pipes.oai_server", limit=5)
         lines.extend(["", "Logs:"])
-
-        if len(logs) > 5:
-            logs = logs[-5:]
 
         for ts, log in logs:
             timestamp = time.strftime("%H:%M:%S", time.localtime(ts))

@@ -3,7 +3,7 @@ import random
 import logging
 import threading
 import requests
-from typing import Dict, List, Optional, Callable, Tuple
+from typing import Dict, List, Optional, Callable
 
 from distributed_state_network.objects.endpoint import Endpoint
 from distributed_state_network.objects.hello_packet import HelloPacket
@@ -37,13 +37,19 @@ MSG_TYPE_TO_PATH = {
     MSG_DATA: '/data'
 }
 
+LOG_LEVELS = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+}
+
 class DSNode:
     version: str
     config: DSNodeConfig
     address_book: Dict[str, Endpoint]
     node_states: Dict[str, StatePacket]
     shutting_down: bool
-    logs: List[Tuple[float, str]]
     create_alert: Callable[[str], None]
 
     def __init__(
@@ -59,7 +65,6 @@ class DSNode:
         self.version = version
         self.shutting_down = False
         self.create_alert = create_alert
-        self.logs = []
         
         self.cred_manager = CredentialManager(config.credential_dir, config.node_id)
         self.cred_manager.generate_keys()
@@ -84,18 +89,8 @@ class DSNode:
         threading.Thread(target=self.network_tick, daemon=True).start()
 
     def add_log(self, msg: str, level: str = "INFO"):
-        if level.upper() == "INFO":
-            self.logger.info(msg)
-        elif level.upper() == "ERROR":
-            self.logger.error(msg)
-        elif level.upper() == "DEBUG":
-            self.logger.debug(msg)
-        elif level.upper() == "WARNING":
-            self.logger.warning(msg)
-        else:
-            self.logger.info(msg)
-        
-        self.logs.append((time.time(), msg))
+        # Unknown names fall back to INFO rather than raising on a log call.
+        self.logger.log(LOG_LEVELS.get(level.upper(), logging.INFO), msg)
 
     def get_aes_key(self) -> Optional[bytes]:
         if self.config.aes_key is None:
@@ -307,7 +302,7 @@ class DSNode:
                 self.add_log(msg)
             elif "HTTP request to" in e.args[0]:
                 msg = f"Connection to {con.address}:{con.port} failed"
-                self.logs.append((time.time(), msg))
+                self.add_log(msg)
             if len(e.args) > 1:
                 code, msg = e.args
                 if msg == "Node ID not in whitelist":

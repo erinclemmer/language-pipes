@@ -98,6 +98,17 @@ language-pipes -c config.toml run
 language-pipes -c node4 run            # resolves <app_dir>/configs/node4.toml
 ```
 
+Output is written to stdout as it happens, in the form:
+
+```
+2026-01-01 12:00:00,000: Starting job server on port 8000
+```
+
+The same records are also written to a per-session log file under the log
+directory (`~/.cache/language_pipes/logs/language_pipes_<timestamp>.log`), with
+the log level and originating subsystem included. This applies to both `run` and
+the TUI.
+
 ---
 
 ### `config`

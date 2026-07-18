@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "distributed-state-network"
-version = "1.0.0"
+version = "1.1.0"
 authors = [{name="Erin Clemmer", email="erin.c.clemmer@gmail.com"}]
 description = "Peer-to-peer encrypted state-sharing network over HTTP"
 keywords = ["distributed", "networking", "peer-to-peer", "state", "encryption"]

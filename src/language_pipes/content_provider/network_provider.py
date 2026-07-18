@@ -26,7 +26,6 @@ class RouterStatus:
     running: bool
     node_id: str
     num_peers: int
-    logs: List[Tuple[float, str]]
     port: int
     encrypted: bool
 
@@ -140,7 +139,6 @@ class NetworkProvider:
                 state="starting",
                 running=False,
                 num_peers=0,
-                logs=[],
                 port=rtr.config.port,
                 encrypted=False
             )
@@ -151,7 +149,6 @@ class NetworkProvider:
                 state="stopping",
                 running=False,
                 num_peers=0 if rtr is None else len(rtr.node.node_states.keys()) - 1,
-                logs=[] if rtr is None else rtr.node.logs,
                 port=rtr.config.port,
                 encrypted=False
             )
@@ -161,17 +158,10 @@ class NetworkProvider:
             state="running",
             running=True,
             num_peers=len(rtr.node.node_states.keys()) - 1,
-            logs=rtr.node.logs,
             port=rtr.config.port,
             encrypted=rtr.config.aes_key is not None
         )
     
-    def reset_router_logs(self):
-        rtr = self.get_router()
-        if rtr is None:
-            return
-        rtr.node.logs = []
-
     # Network / Peers
     def get_peers(self) -> Dict[str, StatePacket]:
         rtr = self.get_router()

@@ -1,3 +1,4 @@
+import logging
 import random
 import threading
 from time import sleep
@@ -33,7 +34,7 @@ class JobReceiver:
     ):
         self.job_queue = { }
         self.queue_lock = threading.Lock()
-        self.logs = []
+        self.logger = logging.getLogger(__name__)
         self.job_tracker = job_tracker
         self.job_factory = job_factory
         self.model_manager = model_manager
@@ -93,11 +94,10 @@ class JobReceiver:
 
                 try:
                     fsm.run()
-                    self.logs.extend(fsm.logs)
-                except Exception as e:
-                    print(e)
-        except Exception as e:
-            self.logs.append(e)
+                except Exception:
+                    self.logger.exception("Job processing failed")
+        except Exception:
+            self.logger.exception("Job runner loop failed")
 
     def restart_token(self, network_job: NetworkJob):
         """Mark job for restart and send back to origin."""

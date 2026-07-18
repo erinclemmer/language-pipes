@@ -6,6 +6,7 @@ from typing import Optional
 from language_pipes.config_args import ConfigurationArgs
 from language_pipes.util.aes import save_new_aes_key
 from language_pipes.util.config import get_app_dir
+from language_pipes.util.logging import setup_logging
 
 VERSION = (
     resources.files("language_pipes")
@@ -62,7 +63,9 @@ def main(argv=None):
 
     if args.command is None:
         from language_pipes.tui import initialize_tui
-        
+
+        # No console handler: stdout would corrupt the ANSI frame.
+        setup_logging(console=False)
         config_args = ConfigurationArgs(args)
         initialize_tui(config_args.config_file, config_args.auto_start)
         
@@ -83,6 +86,7 @@ def main(argv=None):
                 print(f"ERROR: {config_file} not found")
                 return
         
+        setup_logging(console=True)
         from language_pipes.runner import LpRunner
         LpRunner(Path(config_file))
         
