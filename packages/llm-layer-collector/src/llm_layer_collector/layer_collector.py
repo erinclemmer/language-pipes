@@ -16,7 +16,7 @@ from llm_layer_collector.load_layer import load_layers
 from llm_layer_collector.cache import build_cache_data
 from llm_layer_collector.helpers import load_shard_tensor
 from llm_layer_collector.auto.auto_rms import AutoRMSNorm
-from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from llm_layer_collector.auto.auto_layer import AutoDecoderLayer, supports_sdpa
 
 
 class LlmLayerCollector:
@@ -59,7 +59,9 @@ class LlmLayerCollector:
         self.config = config
 
         if "_attn_implementation" not in self.config:
-            self.config._attn_implementation = "sdpa"  # pyright: ignore[reportPrivateUsage]
+            self.config._attn_implementation = (  # pyright: ignore[reportPrivateUsage]
+                "sdpa" if supports_sdpa(self.config) else "eager"
+            )
         self.num_layers = self.config.num_hidden_layers
 
         self.model_dir = model_dir

@@ -124,6 +124,34 @@ def dequantize_fp8_weights(shard_data: Dict[str, torch.Tensor]) -> None:
     for key in [k for k in shard_data if k.endswith('.activation_scale')]:
         del shard_data[key]
 
+def dequantize_mxfp4_weights(shard_data: Dict[str, torch.Tensor], dtype: torch.dtype) -> None:
+    """Unpack mxfp4 MoE expert weights into the dense tensors the module expects.
+
+    MXFP4 checkpoints (config.quantization_config.quant_method == "mxfp4", e.g.
+    openai/gpt-oss-*) ship each expert projection as a uint8 ``<proj>_blocks``
+    tensor holding two 4-bit values per byte plus a uint8 ``<proj>_scales``
+    tensor of per-block exponents. The in-memory ``GptOssExperts`` module has a
+    single dense ``<proj>`` parameter instead; ``from_pretrained`` performs this
+    conversion, so loading state dicts directly would silently drop both keys
+    (strict=False) and run the experts on uninitialized memory.
+
+    Blocks and scales must reach here as uint8 — see the cast skip in
+    ``get_shard_data``.
+    """
+    from transformers.integrations.mxfp4 import convert_moe_packed_tensors
+
+    for blocks_key in [k for k in shard_data if k.endswith('_blocks')]:
+        scales_key = f'{blocks_key[:-len("_blocks")]}_scales'
+        if scales_key not in shard_data:
+            continue
+        blocks = shard_data.pop(blocks_key)
+        scales = shard_data.pop(scales_key)
+        shard_data[blocks_key[:-len('_blocks')]] = convert_moe_packed_tensors(
+            blocks, scales, dtype=dtype
+        )
+        del blocks, scales
+        gc.collect()
+
 def files_to_load_for_layer(
         layer_prefix: str,
         layer_file_cache: Dict[str, str],
@@ -166,11 +194,17 @@ def get_shard_data(
         for key in get_shard_keys(shard):
             for prefix in prefixes:
                 if key.startswith(prefix):
-                    shard_data[key] = get_shard_tensor(shard, key).detach().to(dtype)
+                    tensor = get_shard_tensor(shard, key).detach()
+                    # mxfp4 blocks/scales are bit-packed uint8; casting them here
+                    # would both waste memory and break the unpacking shifts.
+                    if not (key.endswith('_blocks') or key.endswith('_scales')):
+                        tensor = tensor.to(dtype)
+                    shard_data[key] = tensor
         del shard
         gc.collect()
 
     dequantize_fp8_weights(shard_data)
+    dequantize_mxfp4_weights(shard_data, dtype)
 
     return shard_data
 

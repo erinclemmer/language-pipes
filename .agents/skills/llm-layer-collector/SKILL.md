@@ -39,6 +39,7 @@ llm_layer_collector/
 | `gemma4_text` | `Gemma4Model.py` | per-type masks+RoPE, PLE ride-along, `shared_kv_states` |
 | `gemma4_unified_text` | `Gemma4Model.py` (shared) | like gemma4 but **no** PLE (see §9) |
 | `ministral3` | `Ministral3Model.py` | fp8 checkpoints, multimodal key nesting (see §8) |
+| `gpt_oss` | `GptOssModel.py` | mxfp4 experts, attention sinks — **eager only** (see §10) |
 
 ---
 
@@ -86,6 +87,7 @@ Find the classes by grepping the installed transformers source (`env/lib/python3
 
 - `AutoRMSNorm` constructs its class as `cls(config.hidden_size, eps=config.rms_norm_eps)` — verify the norm's signature is compatible.
 - `AutoRotaryEmbedding(config)(x, position_ids, layer_type=None)` — pass the third arg only for per-type RoPE models (Gemma3/Gemma4).
+- Registering the layer class is also what makes `supports_sdpa(config)` work: it locates the `*PreTrainedModel` class in the layer class's module and reads `_supports_sdpa`, which the collector uses to pick the attention implementation. Nothing to add per model — but check §10 if the architecture passes extra tensors to attention.
 
 ### Step 2: Create `modeling/NewModel.py`
 
@@ -141,13 +143,14 @@ Import the class and add a `case "new_model_type":` to **both** `match` statemen
 
   The collector already auto-scans `layer_files` for any key ending in `lm_head.weight` when the default is absent, and falls back to tied embedding weights when there is no head key at all (correct for `tie_word_embeddings` models — see §9; a silent-fallback bug for untied ones — see §8).
 - **Scaled word embeddings**: `load_input_embedding` special-cases Gemma3/Gemma4/Gemma4Unified to use their `*ScaledWordEmbedding` classes; a new architecture with a non-plain embedding needs the same treatment.
-- **fp8 checkpoints**: handled generically — `get_shard_data` calls `dequantize_fp8_weights` (applies `weight_scale_inv`, drops scale keys). See §8.
+- **Quantized checkpoints**: handled generically in `get_shard_data`, which calls `dequantize_fp8_weights` (applies `weight_scale_inv`, drops scale keys — see §8) then `dequantize_mxfp4_weights` (unpacks `<proj>_blocks`/`<proj>_scales` into one dense `<proj>` — see §10). Both rewrite key names, so anything downstream that indexes the result by *checkpoint* key name will silently miss those tensors (see §10).
+- **Attention implementation**: the collector defaults to `sdpa` only when `supports_sdpa(config)` says the architecture allows it, else `eager`. Architectures that pass extra tensors into the attention interface must run eager — §10.
 
 ### Step 5: Test
 
 All test edits go in **one file**: `packages/llm-layer-collector/tests/specs.py`. Everything else (tiny-checkpoint building, HF parity, memory-capping) is driven off the spec tables — if a spec surfaces a gap, fix the spec table, not the test factory.
 
-**Add one `TinyModelSpec`** (copy the closest architecture; set tiny dims + flags: `per_type_rope`, `ple`, `fp8`, `key_style`, `mrope`, `shards`). Then run — no downloads, KBs of memory:
+**Add one `TinyModelSpec`** (copy the closest architecture; set tiny dims + flags: `per_type_rope`, `ple`, `fp8`, `mxfp4`, `key_style`, `mrope`, `shards`). Then run — no downloads, KBs of memory:
 
 ```bash
 cd packages/llm-layer-collector
@@ -155,7 +158,9 @@ python -m unittest tests.test_units tests.test_tiny_models
 python -m unittest tests.test_tiny_models -k <model_type>
 ```
 
-`test_tiny_models` builds a random tiny model from the HF config class, saves real safetensors shards, loads them back through `LlmLayerCollector`, and compares single-shot, chunked-prefill, and decode against the HF reference (`cosine ≥ 0.9999`, `max_abs_diff < 1e-4`). This is the primary CI gate; it catches the wiring bugs the playbook below documents. Tiny-config gotchas already encoded in specs: Phi3 needs `pad_token_id=None` (default exceeds tiny vocab); Gemma3 per-type RoPE needs `sliding_window_pattern` + `rope_local_base_freq`; Gemma4/Mistral3 specs use `key_style` to emit multimodal key nesting (`gemma4_multimodal` = `model.language_model.*`, `mistral3_multimodal` = `language_model.model.*`).
+`test_tiny_models` builds a random tiny model from the HF config class, saves real safetensors shards, loads them back through `LlmLayerCollector`, and compares single-shot, chunked-prefill, and decode against the HF reference (`cosine ≥ 0.9999`, `max_abs_diff < 1e-4`). This is the primary CI gate; it catches the wiring bugs the playbook below documents. Tiny-config gotchas already encoded in specs: Phi3 needs `pad_token_id=None` (default exceeds tiny vocab); Gemma3 per-type RoPE needs `sliding_window_pattern` + `rope_local_base_freq`; Gemma4/Mistral3 specs use `key_style` to emit multimodal key nesting (`gemma4_multimodal` = `model.language_model.*`, `mistral3_multimodal` = `language_model.model.*`); gpt_oss needs `hidden_size`/`intermediate_size` as multiples of 32 (the mxfp4 block width) and an explicit `rope_parameters` whose `original_max_position_embeddings` keeps the YaRN factor consistent with the tiny context.
+
+The `fp8` and `mxfp4` builders take opposite approaches, and the difference is the point: `fp8` quantizes real weights and mutates the reference model to the dequantized values (so rounding is applied on both sides), while `mxfp4` samples random *packed* blocks/scales and dequantizes them **into** the reference model. Sampling on the grid means the roundtrip is exact by construction, so the test measures the loader's unpacking rather than quantization error — and no quantizer has to be written or kept correct.
 
 **Optionally add a `RealModelSpec`** (smallest real checkpoint) for the opt-in Tier 2 smoke test. Expected values derive from `config.json`/the safetensors index — never hardcoded. Runs in a memory-capped subprocess (10 GB RSS, `memguard.py`) with the layer stack streamed windowed, so default CI never downloads:
 
@@ -317,3 +322,20 @@ Valid for `head_dim=128` because `sum([16,24,24]) * 2 == 128`. GLM also uses mro
 - **Set Tier 2 `expected_next` from observed output, never copied or guessed.** Raw completion prompts make the first token a checkpoint artifact (E2B continued `' France'`, 12B emitted `'1'` — both genuine, neither meaningful), which is why Tier 2 prompts through the chat template and decodes several tokens (`coherence_tokens`, default 8 — one token only asserts `"The"`; each extra token costs a full windowed reload of the stack). Quirks are model-specific and must be measured, not assumed: gemma-4-12B always opens a thought block but still answers "Paris" within 8 tokens; Qwen3 honors `enable_thinking=False` via `template_kwargs`. Sanity-check anything degenerate against `AutoModelForCausalLM` on the same tokenization — **if HF returns the same token you produce, the dispatch is right and the expectation is wrong.**
 
 **General lesson**: Tier 1 passing while Tier 2 fails does *not* imply a real-checkpoint-only bug. Run the nearest untouched architecture as a control first, and treat the assertion itself as a suspect until checked against HF ground truth — the cheap discriminators come before deep debugging.
+### 10) gpt_oss / attention sinks / mxfp4 gotchas
+
+- **`model_type` is `"gpt_oss"`**, standard Llama-style kwargs with per-layer-type masks keyed by `config.layer_types[layer_idx]` and a single (YaRN) rotary — `GptOssModel.py` is a near-copy of `Qwen3Model.py`.
+- **The sdpa kernel silently drops attention sinks.** `GptOssAttention.forward` passes its sinks to the attention interface as `s_aux`; the generic `sdpa_attention_forward` accepts that into `**kwargs` and ignores it. No error, no NaN — just wrong values everywhere (observed **cosine 0.33** against HF). The architecture advertises this via `GptOssPreTrainedModel._supports_sdpa = False`, which is why the collector now asks `supports_sdpa(config)` instead of defaulting everything to sdpa.
+
+  **Generalize the check, don't special-case the model.** `supports_sdpa` in `auto/auto_layer.py` finds the `*PreTrainedModel` class in the registered decoder layer's own module and reads the flag, so any future architecture with a sink-like extra tensor is handled at registration time with no new table. If a new model's cosine is low and the wiring looks right, **check the resolved attention implementation before anything else** — compare `collector.config._attn_implementation` against `hf.config._attn_implementation` from a real `from_pretrained`; a mismatch there explains the whole divergence.
+
+- **mxfp4 expert weights** (`config.quantization_config.quant_method == "mxfp4"`): each fused MoE projection ships as a uint8 `<proj>_blocks` (two 4-bit values per byte, 32 per block) plus a uint8 `<proj>_scales` of per-block exponents — the dense `<proj>` key is absent. `strict=False` would drop both and run the experts on **uninitialized memory** (garbage, no error). `dequantize_mxfp4_weights` in `load_layer.py` handles it via HF's own `convert_moe_packed_tensors`.
+  - A param of shape `[E, A, B]` is stored as blocks of shape `[E, B, A // 32, 16]`; the conversion transposes back at the end. Verify with the §3 clean-load check — a shape error here surfaces as `unexpected_keys`, not a crash.
+  - `get_shard_data` must **not** cast blocks/scales to the compute dtype before unpacking — the bit shifts need uint8. There is an explicit suffix skip for this.
+- **Dequantization renames keys, and callers outside the collector notice.** `get_avg_layer_size` (`src/language_pipes/modeling/llm_meta_data.py`) used to size a layer by looking up *checkpoint* key names in the post-dequant shard dict, inside a bare `except: pass` — so every mxfp4 expert tensor silently missed and a gpt-oss layer measured **0.054 GB instead of 1.65 GB** (30× under-count, which drives layer-to-node placement). Size from what `get_shard_data` actually returned. When adding any architecture whose weights are transformed at load time, grep for other consumers that key off checkpoint names.
+- **Harmony chat format** puts the answer well past the default `coherence_tokens=8`: the template opens an `<|channel|>analysis` reasoning turn, and greedy output reaches `"Paris"` only at token 19. The spec sets `coherence_tokens=20` — measured, per §9.
+- Reference parity for this model is exact (cosine 1.0000006, max_abs_diff 0.0), so treat any drift as a real regression rather than tolerance.
+
+**General lesson**: Tier 1 passing while Tier 2 fails does *not* imply a real-checkpoint-only bug. Run the nearest untouched architecture as a control first, and treat the assertion itself as a suspect until checked against HF ground truth — the cheap discriminators come before deep debugging.
+
+**General lesson (silent-wrong-answer class)**: the two hardest bugs here — an ignored `s_aux` and dropped mxfp4 keys — both ran cleanly and produced wrong numbers, because `**kwargs` absorption and `load_state_dict(strict=False)` are each designed to tolerate unknown keys. Neither is caught by "does it run." A **numeric parity check against `AutoModelForCausalLM` on the same tokenization is the only reliable gate**; run it before trusting any new architecture, and prefer reading a capability off the HF class (as `supports_sdpa` does) over assuming a default applies to every model.

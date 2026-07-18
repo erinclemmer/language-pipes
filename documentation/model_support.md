@@ -48,6 +48,8 @@ Below are the specific checkpoints that have been tested and are known to work.
 - google/gemma-4-E2B-it
 - google/gemma-4-E4B-it
 - google/gemma-4-12B-it
+- google/gemma-4-31B-it
+- google/gemma-4-26B-A4B-it
 
 **Ministral 3:**
 - mistralai/Ministral-3-3B-Reasoning-2512

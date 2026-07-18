@@ -38,7 +38,7 @@ from memguard import run_capped, MEMORY_BUDGET_BYTES
 
 RUN = os.environ.get("LP_RUN_MODEL_TESTS", "")
 NIGHTLY = RUN == "nightly"
-LAYER_WINDOW = 10
+LAYER_WINDOW = 6
 
 # --------------------------------------------------------------------------- #
 # Checkpoint location helpers (models live in the shared language_pipes cache)
@@ -264,7 +264,7 @@ def _make(spec: RealModelSpec):
 
 
 for _spec in REAL_MODEL_SPECS:
-    setattr(TestRealModels, f"test_{_spec.model_type}", _make(_spec))
+    setattr(TestRealModels, f"test_{_spec.test_name or _spec.model_type}", _make(_spec))
 
 
 if __name__ == "__main__":

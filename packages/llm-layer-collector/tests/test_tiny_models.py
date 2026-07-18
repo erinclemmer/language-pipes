@@ -286,7 +286,7 @@ def _make_test(spec: TinyModelSpec):
 
 
 for _spec in TINY_MODEL_SPECS:
-    setattr(TestTinyModels, f"test_{_spec.model_type}", _make_test(_spec))
+    setattr(TestTinyModels, f"test_{_spec.test_name or _spec.model_type}", _make_test(_spec))
 
 
 if __name__ == "__main__":
