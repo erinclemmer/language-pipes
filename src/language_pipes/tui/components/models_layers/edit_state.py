@@ -184,10 +184,10 @@ class EditPageState(PageState):
         max_idx = 0
         if self._valid_model_id():
             max_idx += 1
-        if self._valid_device():
-            max_idx += 1
-        if self._can_save():
-            max_idx += 1
+            if self._valid_device():
+                max_idx += 1
+            if self._can_save():
+                max_idx += 1
         return max_idx
     
     def _add_model(self) -> None:
