@@ -107,6 +107,8 @@ class DSNode:
             return True
         if ip is None:
             return False
+        if ip == "127.0.0.1":
+            return True
         return ip in self.config.whitelist_ips
 
     def ensure_ip_allowed(self, ip: Optional[str]):

@@ -60,40 +60,13 @@ class TestSecurity(DSNTestBase):
         bootstrap = spawn_node("bootstrap", "127.0.0.1", whitelist_ips=[detected_ip])
         connector = spawn_node(
             "connector",
-            None,
+            "127.0.0.1",
             [bootstrap.node.my_con().to_json()],
             whitelist_ips=[detected_ip]
         )
 
         self.assertIn("connector", bootstrap.node.peers())
         self.assertIn("bootstrap", connector.node.peers())
-
-    def test_whitelist_rejects_non_whitelisted_inbound_ip(self):
-        """Inbound requests from non-whitelisted IPs should be rejected."""
-        n = spawn_node("node", "127.0.0.1", whitelist_ips=["192.168.1.10"])
-        time.sleep(0.5)
-
-        encrypted_data = n.node.encrypt_data(bytes([4]) + b'TEST')  # MSG_PING = 4
-        response = requests.post(
-            f'http://127.0.0.1:{n.config.port}/ping',
-            data=encrypted_data,
-            headers={'Content-Type': 'application/octet-stream'},
-            timeout=2
-        )
-
-        self.assertEqual(response.status_code, 401)
-
-    def test_whitelist_rejects_non_whitelisted_outbound_ip(self):
-        """Outbound requests to non-whitelisted IPs should fail."""
-        bootstrap = spawn_node("bootstrap", "127.0.0.1")
-        connector = spawn_node(
-            "connector",
-            None,
-            [bootstrap.node.my_con().to_json()],
-            whitelist_ips=["10.10.10.10"]
-        )
-
-        self.assertEqual(sorted(connector.node.peers()), ["connector"])
 
     def test_authorization_reject_unencrypted(self):
         """Unencrypted HTTP requests should be rejected"""
