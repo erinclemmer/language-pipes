@@ -84,7 +84,7 @@ class DSNodeServer(StateNetworkNode):
         update_callback: Optional[Callable] = None,
         receive_callback: Optional[Callable] = None,
     ):
-        detected_ip = self._detect_local_ip() or config.network_ip
+        detected_ip = self._detect_local_ip() if config.network_ip is None else config.network_ip
         self.network_ip = detected_ip
         self.config = replace(config, network_ip=detected_ip) if config.network_ip != detected_ip else config
         self.running = False

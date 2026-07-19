@@ -16,8 +16,6 @@ class LpRunner:
         
         config = LpConfig.from_file(config_file)
 
-        # Headless has no alert popup, so surface alerts through the console
-        # handler the CLI installed.
         def create_alert(alert: str):
             logger.warning(alert)
 
@@ -62,11 +60,6 @@ class LpRunner:
                 downloaded_models.append(m)
 
     def _download_model(self, model_id: str, token: Optional[str]):
-        """Download one model, blocking until it finishes.
-
-        start_download runs in a thread and no-ops while another download is
-        active, so the thread must be joined before starting the next model.
-        """
         logger.info(f"Downloading {model_id}...")
         self.provider.model_provider.start_download(model_id, token)
 
