@@ -22,6 +22,10 @@ class LpRunner:
 
         self.provider = ContentProvider(config_file, create_alert)
 
+        generated_node_ids = self.provider.network_provider.get_my_node_ids()
+        if config.network_config.node_id not in generated_node_ids:
+            self.provider.network_provider.save_new_node_id(config.network_config.node_id)
+
         self.provider.network_provider.start_network(config.network_config)
 
         while self.provider.network_provider.router_starting:
