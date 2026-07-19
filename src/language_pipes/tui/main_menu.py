@@ -11,7 +11,8 @@ from language_pipes.tui.util.text import make_footer_text
 from language_pipes.util.config import (
     get_config_files,
     get_app_dir,
-    get_model_dir
+    get_model_dir,
+    initialize_folders
 )
 from language_pipes.cli import VERSION
 
@@ -107,22 +108,9 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
     if config_file is None:
         auto_start = False
 
-    app_dir = get_app_dir()
-    model_dir = get_model_dir()
+    initialize_folders()
 
-    if not os.path.exists(app_dir):
-        app_dir.mkdir(parents=True)
-
-    if not os.path.exists(model_dir):
-        model_dir.mkdir(parents=True)
-
-    config_dir = app_dir / "configs"
-    if not os.path.exists(config_dir):
-        config_dir.mkdir(parents=True)
-
-    cred_dir = app_dir / "credentials"
-    if not os.path.exists(cred_dir):
-        cred_dir.mkdir(parents=True)
+    config_dir = get_app_dir() / "configs"
 
     left_bound = int((termsize[0] / 2.0) - 40.0)
     window = TuiWindow((80, termsize[1]), (left_bound, 0))

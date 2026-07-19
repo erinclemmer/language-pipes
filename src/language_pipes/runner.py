@@ -5,11 +5,14 @@ from pathlib import Path
 
 from language_pipes.config import LpConfig
 from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.util.config import initialize_folders
 
 logger = logging.getLogger(__name__)
 
 class LpRunner:
     def __init__(self, config_file: Path):
+        initialize_folders()
+        
         config = LpConfig.from_file(config_file)
 
         # Headless has no alert popup, so surface alerts through the console
