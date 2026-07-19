@@ -175,7 +175,7 @@ class EditPageState(PageState):
         elif self.select_idx == 1:
             return make_footer_text(["Arrows U/D: Move", "Enter: Change Device", "Esc: Back"])
         elif self.select_idx == 2:
-            return make_footer_text(["Arrows U/D: Move", "[A-Z]: Type", "Esc: Back"])
+            return make_footer_text(["Arrows U/D: Move", "[0-9.]: Type", "Esc: Back"])
         elif self.select_idx == 3:
             return make_footer_text(["Arrows U/D: Move", "Enter: Save Layer Model", "Esc: Back"])
         return ""
