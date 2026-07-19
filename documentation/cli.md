@@ -12,6 +12,7 @@ language-pipes -c config.toml --start       # Launch TUI and start serving immed
 language-pipes -c config.toml run           # Run headless from a config file
 language-pipes -c config.toml run -t TOKEN  # Run headless with a HuggingFace token
 language-pipes -c config.toml config        # Print the configuration
+language-pipes keygen                       # Generate and print a new AES network key
 ```
 
 > **Argument order matters.** `-c`/`--config`, `--start`, `-v`, and `-h` are
@@ -171,6 +172,29 @@ End Models:
 
 > The output is a formatted report intended for inspection. It is **not** valid
 > TOML and is not designed to be piped back into a configuration file.
+
+---
+
+### `keygen`
+
+Generate a new AES key and print it to stdout, for use as the `network_key`
+value in a configuration (see [Configuration](./configuration.md)).
+
+**Format:**
+```bash
+language-pipes keygen
+```
+
+`keygen` takes no arguments or configuration and does not write to a file — it
+only prints the generated key. Copy it into a config's `network_key` field (or
+paste it into **Network > Configure** in the TUI) to enable encryption.
+
+**Example:**
+
+```bash
+$ language-pipes keygen
+✓ Network key generated: 5f3c1a9e2b7d4f6081c3a5e7d9f1b3c5
+```
 
 ---
 

@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Optional
 from language_pipes.config_args import ConfigurationArgs
-from language_pipes.util.aes import save_new_aes_key
+from language_pipes.util.aes import generate_aes_key
 from language_pipes.util.config import get_app_dir
 from language_pipes.util.logging import setup_logging
 
@@ -35,13 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("config", help="Verify configuration file and flags")
 
     # Keygen
-    keygen_parser = subparsers.add_parser("keygen", help="Generate AES encryption key")
-    keygen_parser.add_argument(
-        "output",
-        nargs="?",
-        help="Output file for AES key (default: network.key)",
-        default="network.key",
-    )
+    subparsers.add_parser("keygen", help="Generate and print a new AES network key")
 
     return parser
 
@@ -113,9 +107,8 @@ def main(argv=None):
         print(config.to_string())
         
     elif args.command == "keygen":
-        key = save_new_aes_key(args.output)
+        key = generate_aes_key().hex()
         print(f"✓ Network key generated: {key}")
-        print(f"✓ Network key saved to '{args.output}'")
-
+        
 if __name__ == "__main__":
     main()

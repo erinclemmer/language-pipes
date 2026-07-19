@@ -237,7 +237,7 @@ Hex-encoded AES-128 key used to encrypt peer-to-peer traffic. If null or omitted
 network_key = "9f86d081884c7d659a2feaa0c55ad015"
 ```
 
-Generate key from the TUI.
+Generate a key from the TUI (**Network > Configure**) or with the [`keygen`](./cli.md#keygen) command.
 
 #### `whitelist_ips`
 
