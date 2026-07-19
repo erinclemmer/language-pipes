@@ -28,7 +28,8 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
     
     # Run
-    subparsers.add_parser("run", help="Start Language Pipes as a stdout stream without the TUI")
+    run_parser = subparsers.add_parser("run", help="Start Language Pipes as a stdout stream without the TUI")
+    run_parser.add_argument("-t", "--token", help="HuggingFace token used to download gated models")
 
     # Config
     subparsers.add_parser("config", help="Verify configuration file and flags")
@@ -88,7 +89,7 @@ def main(argv=None):
         
         setup_logging(console=True)
         from language_pipes.runner import LpRunner
-        LpRunner(Path(config_file))
+        LpRunner(Path(config_file), args.token)
         
     elif args.command == "config":
         config_args = ConfigurationArgs(args)

@@ -10,13 +10,15 @@ language-pipes                              # Launch interactive TUI
 language-pipes -c config.toml               # Launch TUI with a config preloaded
 language-pipes -c config.toml --start       # Launch TUI and start serving immediately
 language-pipes -c config.toml run           # Run headless from a config file
+language-pipes -c config.toml run -t TOKEN  # Run headless with a HuggingFace token
 language-pipes -c config.toml config        # Print the configuration
 ```
 
 > **Argument order matters.** `-c`/`--config`, `--start`, `-v`, and `-h` are
 > options on the top-level command and must appear **before** the subcommand
 > (`run`, `config`, `keygen`). For example, `language-pipes run -c config.toml`
-> fails — use `language-pipes -c config.toml run`.
+> fails — use `language-pipes -c config.toml run`. Subcommand options such as
+> `run`'s `-t`/`--token` go **after** the subcommand.
 
 ## Global Options
 
@@ -77,8 +79,28 @@ Start a Language Pipes server node without the TUI, streaming output to stdout.
 
 **Format:**
 ```bash
-language-pipes -c FILE run
+language-pipes -c FILE run [-t TOKEN]
 ```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-t TOKEN`, `--token TOKEN` | HuggingFace token used to download gated models | Token from the global config |
+
+Any model listed in the configuration that is not already installed is
+downloaded on startup. Pass `-t`/`--token` when one of those models is gated and
+requires an authenticated HuggingFace account.
+
+```bash
+language-pipes -c config.toml run -t hf_xxxxxxxxxxxxxxxxxxxx
+```
+
+**The token is optional.** When `-t`/`--token` is omitted, the token is read
+from the `hf_token` field of the global config file at
+`<app_dir>/globals.toml`. This is the token saved by the TUI when you enter a
+HuggingFace API key while downloading a model and confirm the save prompt — so
+once it has been saved there, `run` picks it up automatically and the flag is
+only needed to override it for a single run. If neither is present, downloads
+proceed unauthenticated and gated models will fail.
 
 A configuration is required. If `-c`/`--config` is not provided, the command
 exits with:
