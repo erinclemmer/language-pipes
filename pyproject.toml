@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "language-pipes"
-version = "2.3.0"
+version = "2.4.0"
 authors = [{name="Erin Clemmer", email="erin.c.clemmer@gmail.com"}]
 description = "Peer-to-peer distributed inference for open-source language models"
 keywords = ["distributed", "networking", "AI", "Language Model", "pipe", "pipeline", "server"]
@@ -22,7 +22,7 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "llm-layer-collector==1.0.0",
+    "llm-layer-collector==1.1.0",
     "distributed-state-network==1.1.0",
     "torch",
     "transformers",

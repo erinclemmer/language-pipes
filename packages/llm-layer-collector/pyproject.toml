@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "llm-layer-collector"
-version = "1.0.0"
+version = "1.1.0"
 authors = [{name="Erin Clemmer", email="erin.c.clemmer@gmail.com"}]
 description = "Load and dispatch individual transformer layers from HuggingFace model checkpoints"
 keywords = ["transformers", "layer", "inference", "huggingface", "Language Model"]
