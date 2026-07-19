@@ -3,6 +3,47 @@ title: Release Notes
 description: Change log for Language Pipes releases.
 ---
 
+## Release 2.4.0
+
+### Model Support
+Newly added explicit support or tested these models:
+
+**Open AI:**
+- openai/gpt-oss-20b
+
+**Google:**
+- google/gemma-4-12B-it
+- google/gemma-4-31B-it
+- google/gemma-4-26B-A4B-it
+
+**Mistral AI:**
+- mistralai/Ministral-3-3B-Reasoning-2512
+- mistralai/Ministral-3-3B-Instruct-2512
+- mistralai/Ministral-3-14B-Instruct-2512
+
+**Meta:**
+- meta-llama/Llama-3.2-3B-Instruct
+- meta-llama/Llama-3.3-70B-Instruct
+
+**Microsoft:**
+- microsoft/Phi-4-mini-instruct
+
+### Unified Logging
+Unified logging across all parts of the application. Log file, "Home / Activity" page, and "language-pipes run" command should all show the same thing
+
+### language-pipes run command
+- Fixed folder initialization
+- Creates a new ECDSA key if the node ID doesn't already exist.
+- Now downloads model if the model in layer_models or end_models is not present on the machine.
+- Added `--token` argument to run command to specify a Huggingface API token, otherwise it tries to use the global configuration value, if neither are found it downloads unauthenticated.
+
+### Keygen command
+Changed behaviour of `language-pipes keygen` command to simply print the hex value of the AES key instead of saving it to a file. This lines up with the 2.0 style of supplying the key in the config file as opposed to the config file pointing to another file.
+
+### Bugs
+- Removed requirements for logging and uuid since they come with a standard Python installation.
+- Fixed selection bug in "models / layers" model editor.
+
 ## Release 2.3.0
 
 ### Standalone Packages
