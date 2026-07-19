@@ -116,6 +116,22 @@ class RunCommandTests(unittest.TestCase):
                 run_cli(["-c", cfg, "run"])
             runner.assert_called_once_with(Path(cfg), None)
 
+    def test_run_passes_token_argument_to_runner(self):
+        # Docs: `-t/--token` forwards a HuggingFace token to the runner.
+        with tempfile.TemporaryDirectory() as d:
+            cfg = write_config(d, job_port=8000)
+            with mock.patch("language_pipes.runner.LpRunner") as runner:
+                run_cli(["-c", cfg, "run", "--token", "hf_secret"])
+            runner.assert_called_once_with(Path(cfg), "hf_secret")
+
+    def test_run_short_token_flag(self):
+        # Docs: `-t` is the short form of `--token`.
+        with tempfile.TemporaryDirectory() as d:
+            cfg = write_config(d, job_port=8000)
+            with mock.patch("language_pipes.runner.LpRunner") as runner:
+                run_cli(["-c", cfg, "run", "-t", "hf_secret"])
+            runner.assert_called_once_with(Path(cfg), "hf_secret")
+
 
 class ConfigCommandTests(unittest.TestCase):
     def test_config_takes_no_positional_arguments(self):
