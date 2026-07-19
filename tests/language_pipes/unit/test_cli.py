@@ -7,6 +7,7 @@ a statement in that document.
 
 import io
 import os
+import re
 import sys
 import contextlib
 import tempfile
@@ -113,7 +114,7 @@ class RunCommandTests(unittest.TestCase):
             cfg = write_config(d, job_port=8000)
             with mock.patch("language_pipes.runner.LpRunner") as runner:
                 run_cli(["-c", cfg, "run"])
-            runner.assert_called_once_with(Path(cfg))
+            runner.assert_called_once_with(Path(cfg), None)
 
 
 class ConfigCommandTests(unittest.TestCase):
@@ -136,25 +137,17 @@ class ConfigCommandTests(unittest.TestCase):
 
 
 class KeygenCommandTests(unittest.TestCase):
-    def test_keygen_writes_to_named_output(self):
-        # Docs: `keygen [output]` writes the key to the given path.
-        with tempfile.TemporaryDirectory() as d:
-            out_path = os.path.join(d, "my.key")
-            out, _ = run_cli(["keygen", out_path])
-            self.assertTrue(os.path.exists(out_path))
-            self.assertIn("Network key saved", out)
-            self.assertIn(out_path, out)
+    def test_keygen_prints_generated_key(self):
+        # Docs: `keygen` prints a newly generated hex-encoded AES key.
+        out, code = run_cli(["keygen"])
+        self.assertEqual(code, _NoExit)
+        match = re.search(r"Network key generated: ([0-9a-f]{32})", out)
+        self.assertIsNotNone(match)
 
-    def test_keygen_defaults_to_network_key(self):
-        # Docs: the default output path is `network.key`.
-        cwd = os.getcwd()
-        with tempfile.TemporaryDirectory() as d:
-            try:
-                os.chdir(d)
-                run_cli(["keygen"])
-                self.assertTrue(os.path.exists(os.path.join(d, "network.key")))
-            finally:
-                os.chdir(cwd)
+    def test_keygen_takes_no_positional_arguments(self):
+        # Docs: `keygen` takes no arguments; extras are rejected.
+        _, code = run_cli(["keygen", "somefile"])
+        self.assertEqual(code, 2)
 
 
 if __name__ == "__main__":
