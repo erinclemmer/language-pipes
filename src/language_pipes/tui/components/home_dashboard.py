@@ -7,7 +7,7 @@ from ansinout import PressedKey
 from language_pipes.content_provider.network_provider import RouterStatus
 from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.tui.components.view_pipe import format_pipe_view
-from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus, ModelToLoad, ModelStatusInfo
+from language_pipes.content_provider.model_provider import ModelStatus, ModelToLoad, ModelStatusInfo
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text, make_window_text
 
 class Dashboard:
@@ -263,7 +263,7 @@ class Dashboard:
     
     def _get_pipe_status(self, pipe: MetaPipe, num_local_layers: int, local_end_model_ids: Set[str]) -> List[str]:
         entry = []
-        entry.extend(format_pipe_view(pipe))
+        entry.extend(format_pipe_view(pipe, num_local_layers))
         if pipe.is_complete(num_local_layers) and pipe.model_id in local_end_model_ids:
             entry.append("Ready to serve")
         entry.append("")
@@ -287,8 +287,8 @@ class Dashboard:
                 lines.extend(["None Connected", ""])
             else:
                 entries = []
-                num_local_layers = ModelProvider.get_num_local_layers()
                 for pipe in self.connected_pipes:
+                    num_local_layers = self.provider.model_provider.get_num_local_layers_for(pipe.model_id)
                     entries.append(self._get_pipe_status(pipe, num_local_layers, local_end_model_ids))
 
                 lines.extend(make_window_text(entries, self.pipe_idx, 7))

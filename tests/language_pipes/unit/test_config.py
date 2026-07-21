@@ -13,6 +13,7 @@ from language_pipes.util.config import (
     is_8_bit_mode,
     initialize_folders,
 )
+from language_pipes.config import LpConfig, EndModelConfig, DEFAULT_NUM_LOCAL_LAYERS
 
 
 class MaxNodeJobsTests(unittest.TestCase):
@@ -79,6 +80,86 @@ class InitializeFoldersTests(unittest.TestCase):
 
             self.assertTrue((Path(app_dir) / "configs").is_dir())
             self.assertTrue((Path(app_dir) / "credentials").is_dir())
+
+
+class EndModelConfigTests(unittest.TestCase):
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_string_form_defaults_num_local_layers(self):
+        cfg = EndModelConfig.from_config("org/model")
+        self.assertEqual(cfg.model_id, "org/model")
+        self.assertEqual(cfg.num_local_layers, DEFAULT_NUM_LOCAL_LAYERS)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_object_form_reads_num_local_layers(self):
+        cfg = EndModelConfig.from_config({"model_id": "org/model", "num_local_layers": 3})
+        self.assertEqual(cfg.model_id, "org/model")
+        self.assertEqual(cfg.num_local_layers, 3)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_object_form_without_num_local_layers_uses_default(self):
+        cfg = EndModelConfig.from_config({"model_id": "org/model"})
+        self.assertEqual(cfg.num_local_layers, DEFAULT_NUM_LOCAL_LAYERS)
+
+    def test_to_config_uses_string_when_default(self):
+        cfg = EndModelConfig(model_id="org/model")
+        self.assertEqual(cfg.to_config(), "org/model")
+
+    def test_to_config_uses_object_when_non_default(self):
+        cfg = EndModelConfig(model_id="org/model", num_local_layers=2)
+        self.assertEqual(
+            cfg.to_config(),
+            {"model_id": "org/model", "num_local_layers": 2},
+        )
+
+    @mock.patch.dict(os.environ, {"LP_NUM_LOCAL_LAYERS": "4"}, clear=True)
+    def test_deprecated_env_var_used_as_fallback_default(self):
+        cfg = EndModelConfig.from_config("org/model")
+        self.assertEqual(cfg.num_local_layers, 4)
+
+    @mock.patch.dict(os.environ, {"LP_NUM_LOCAL_LAYERS": "4"}, clear=True)
+    def test_explicit_num_local_layers_overrides_env_var(self):
+        cfg = EndModelConfig.from_config({"model_id": "org/model", "num_local_layers": 1})
+        self.assertEqual(cfg.num_local_layers, 1)
+
+    @mock.patch.dict(os.environ, {"LP_NUM_LOCAL_LAYERS": "not-an-int"}, clear=True)
+    def test_invalid_env_var_falls_back_to_default(self):
+        cfg = EndModelConfig.from_config("org/model")
+        self.assertEqual(cfg.num_local_layers, DEFAULT_NUM_LOCAL_LAYERS)
+
+
+class EndModelsRoundTripTests(unittest.TestCase):
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_mixed_forms_survive_save_and_reload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            cfg = LpConfig()
+            cfg._file_path = path
+            cfg.end_models = [
+                EndModelConfig(model_id="org/simple"),
+                EndModelConfig(model_id="org/multi", num_local_layers=3),
+            ]
+            cfg.save()
+
+            reloaded = LpConfig.from_file(path)
+
+            self.assertEqual(len(reloaded.end_models), 2)
+            self.assertEqual(reloaded.end_models[0].model_id, "org/simple")
+            self.assertEqual(reloaded.end_models[0].num_local_layers, DEFAULT_NUM_LOCAL_LAYERS)
+            self.assertEqual(reloaded.end_models[1].model_id, "org/multi")
+            self.assertEqual(reloaded.end_models[1].num_local_layers, 3)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_legacy_string_list_still_parses(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            import toml
+            with open(path, "w", encoding="utf-8") as f:
+                toml.dump({"end_models": ["org/a", "org/b"]}, f)
+
+            cfg = LpConfig.from_file(path)
+
+            self.assertEqual([m.model_id for m in cfg.end_models], ["org/a", "org/b"])
+            self.assertTrue(all(m.num_local_layers == DEFAULT_NUM_LOCAL_LAYERS for m in cfg.end_models))
 
 
 if __name__ == "__main__":

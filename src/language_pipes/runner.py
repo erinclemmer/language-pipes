@@ -35,7 +35,7 @@ class LpRunner:
             self.provider.model_provider.load_layer_model(model)
 
         for model in config.end_models:
-            self.provider.model_provider.load_end_model(model)
+            self.provider.model_provider.load_end_model(model.model_id)
 
         self.wait()
 
@@ -55,9 +55,9 @@ class LpRunner:
                 downloaded_models.append(m.model_id)
 
         for m in config.end_models:
-            if m not in downloaded_models:
-                self._download_model(m, token)
-                downloaded_models.append(m)
+            if m.model_id not in downloaded_models:
+                self._download_model(m.model_id, token)
+                downloaded_models.append(m.model_id)
 
     def _download_model(self, model_id: str, token: Optional[str]):
         logger.info(f"Downloading {model_id}...")
