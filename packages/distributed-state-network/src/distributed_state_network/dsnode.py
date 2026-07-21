@@ -102,19 +102,6 @@ class DSNode:
             )
         return key
     
-    def _is_ip_whitelisted(self, ip: Optional[str]) -> bool:
-        if len(self.config.whitelist_ips) == 0:
-            return True
-        if ip is None:
-            return False
-        if ip == "127.0.0.1":
-            return True
-        return ip in self.config.whitelist_ips
-
-    def ensure_ip_allowed(self, ip: Optional[str]):
-        if not self._is_ip_whitelisted(ip):
-            raise Exception(401, f"IP address '{ip}' is not in whitelist")
-
     def _is_node_id_whitelisted(self, node_id: Optional[str]) -> bool:
         if len(self.config.whitelist_node_ids) == 0:
             return True
@@ -128,13 +115,9 @@ class DSNode:
         if not self._is_node_id_whitelisted(node_id):
             raise Exception(401, f"{node_id} not in {self.config.node_id}'s whitelist")
 
-    def ensure_endpoint_allowed(self, endpoint: Endpoint):
-        self.ensure_ip_allowed(endpoint.address)
-
     def write_address_book(self, node_id: str, conn: Endpoint):
         if node_id != self.config.node_id:
             self.ensure_node_id_allowed(node_id)
-            self.ensure_endpoint_allowed(conn)
         self.address_book[node_id] = conn
 
     def network_tick(self):
@@ -179,7 +162,6 @@ class DSNode:
 
     def send_http_request(self, endpoint: Endpoint, msg_type: int, payload: bytes, retries: int = 0) -> bytes:
         """Send HTTP request and wait for response"""
-        self.ensure_endpoint_allowed(endpoint)
         try:
             # Prepend message type to payload
             data = bytes([msg_type]) + payload
@@ -339,7 +321,6 @@ class DSNode:
         self.node_states[node_id] = StatePacket(node_id, 0, b'', { })
 
     def handle_hello(self, data: bytes, detected_address: str) -> bytes:
-        self.ensure_ip_allowed(detected_address)
         pkt = HelloPacket.from_bytes(data)
         self.ensure_node_id_allowed(pkt.node_id)
         if pkt.version != self.version:
