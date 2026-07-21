@@ -4,12 +4,15 @@ import starlight from '@astrojs/starlight';
 import { SITE, GA_MEASUREMENT_ID } from './src/consts.ts';
 import { rehypeDocLinks } from './src/rehype-doc-links.mjs';
 
+// Only load analytics for real builds — never during `astro dev`, so local
+// testing doesn't skew the statistics. Astro's `defineConfig` takes a config
+// object (not a Vite-style function), so we detect the command from argv.
+const isDev = process.argv.includes('dev');
+
 // Inject Google Analytics into every Starlight page's <head>.
 // (The custom landing page injects the same snippet via its own layout.)
-// Only enabled for production builds — the dev server (`command === 'dev'`)
-// never loads analytics, so local testing doesn't skew the statistics.
-const gaHead = (command) =>
-  command !== 'dev' && GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX'
+const gaHead =
+  !isDev && GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX'
     ? [
         {
           tag: 'script',
@@ -23,7 +26,7 @@ const gaHead = (command) =>
     : [];
 
 // https://astro.build/config
-export default defineConfig(({ command }) => ({
+export default defineConfig({
   site: SITE.url,
   base: SITE.base,
   trailingSlash: 'ignore',
@@ -55,7 +58,7 @@ export default defineConfig(({ command }) => ({
         { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
         { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
         { tag: 'meta', attrs: { name: 'twitter:image', content: `${SITE.url}/og.png` } },
-        ...gaHead(command),
+        ...gaHead,
       ],
       components: {
         // Send the Starlight header's home link back to the custom landing page.
@@ -114,4 +117,4 @@ export default defineConfig(({ command }) => ({
       ],
     }),
   ],
-}));
+});
