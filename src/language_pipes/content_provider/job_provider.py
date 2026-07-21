@@ -11,7 +11,6 @@ from language_pipes.config import LpConfig
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
-from language_pipes.modeling.end_model import EndModel
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.oai_server import OAIHttpServer
 from language_pipes.pipes.pipe_manager import PipeManager
@@ -91,8 +90,16 @@ class JobProvider:
         def get_models():
             if router_pipes is None:
                 return
-            available_models = router_pipes.get_models(EndModel.get_num_local_layers())
-            return [m.model_id for m in model_manager.end_models if m.model_id in available_models]
+            # Each end model may host a different number of local layers, so the
+            # remaining pipe only needs to be complete from that layer onward.
+            available_models = []
+            for m in model_manager.end_models:
+                pipes = router_pipes.pipes_for_model(
+                    m.model_id, find_completed=True, start_layer=m.num_local_layers
+                )
+                if len(pipes) > 0 and m.model_id not in available_models:
+                    available_models.append(m.model_id)
+            return available_models
 
         if cfg is None:
             cfg = LpConfig.from_file(self.config_file)

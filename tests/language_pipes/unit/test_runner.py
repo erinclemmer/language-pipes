@@ -17,7 +17,7 @@ import torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
-from language_pipes.config import LpConfig, ModelToLoad
+from language_pipes.config import LpConfig, ModelToLoad, EndModelConfig
 from language_pipes.runner import LpRunner
 
 
@@ -29,7 +29,10 @@ def make_config(node_id="node-a", layer_models=None, end_models=None):
     cfg = LpConfig()
     cfg.network_config.node_id = node_id
     cfg.layer_models = layer_models or []
-    cfg.end_models = end_models or []
+    cfg.end_models = [
+        m if isinstance(m, EndModelConfig) else EndModelConfig(model_id=m)
+        for m in (end_models or [])
+    ]
     return cfg
 
 

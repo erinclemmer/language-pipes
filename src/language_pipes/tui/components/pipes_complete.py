@@ -36,7 +36,8 @@ class PipesComplete:
         
         lines = []
         for pipe in pipes_to_show:
-            lines.extend(format_pipe_view(pipe))
+            num_local_layers = self.provider.model_provider.get_num_local_layers_for(pipe.model_id)
+            lines.extend(format_pipe_view(pipe, num_local_layers))
 
         return lines
 

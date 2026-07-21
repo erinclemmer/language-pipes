@@ -1,10 +1,11 @@
 from typing import List
 
-from language_pipes.content_provider.model_provider import ModelProvider
+from language_pipes.config import DEFAULT_NUM_LOCAL_LAYERS
 from language_pipes.pipes.meta_pipe import MetaPipe
 
 def format_pipe_view(
-    pipe: MetaPipe
+    pipe: MetaPipe,
+    num_local_layers: int = DEFAULT_NUM_LOCAL_LAYERS
 ) -> List[str]:
     lines = [
         pipe.model_id
@@ -45,7 +46,7 @@ def format_pipe_view(
     
     norm_pipe = "".join(norm_pipe)
     node_id_string = ", ".join(node_ids)
-    completed_string = "(=)" if pipe.is_complete(ModelProvider.get_num_local_layers()) else "(X)"
+    completed_string = "(=)" if pipe.is_complete(num_local_layers) else "(X)"
     lines.extend([
         f"ID {pipe.pipe_id[:4]} >{norm_pipe}< {completed_string}",
         f"{len(node_ids)} Node(s): " + ((node_id_string[:20] + "...") if len(node_id_string) > 20 else node_id_string)

@@ -28,10 +28,12 @@ memory = 4
 ```
 
 > **Key ordering matters.** In TOML, key/value pairs that appear after an
-> array-of-tables header (`[[layer_models]]`, `[[bootstrap_nodes]]`) belong to
-> that table, not to the top-level document. Put all top-level scalar keys
-> (`node_id`, `job_port`, `end_models`, etc.) **before** any `[[layer_models]]`
-> or `[[bootstrap_nodes]]` blocks.
+> array-of-tables header (`[[layer_models]]`, `[[bootstrap_nodes]]`,
+> `[[end_models]]`) belong to that table, not to the top-level document. Put all
+> top-level scalar keys (`node_id`, `job_port`, string-form `end_models`, etc.)
+> **before** any array-of-tables blocks. When using the table form of
+> `end_models`, place those `[[end_models]]` blocks alongside your other
+> array-of-tables sections.
 
 ## Complete Example
 
@@ -125,15 +127,33 @@ memory = 8
 
 #### `end_models`
 
-Array of model IDs for which to load the End Model (embedding layer + output head). The node with a model in its `end_models` list is the **only node that can see your actual prompts and responses** for that model. Other nodes only process hidden state tensors and cannot read the conversation content.
+Array of end models to load (embedding layer + output head). The node with a model in its `end_models` list is the **only node that can see your actual prompts and responses** for that model. Other nodes only process hidden state tensors and cannot read the conversation content.
 
 | Type | Default |
 |------|---------|
-| array of strings | `[]` (empty) |
+| array of strings or tables | `[]` (empty) |
 
+Each entry is either a plain model ID string, or a table with a `model_id` and
+options. The only option today is `num_local_layers` — the number of initial
+model layers the end model executes locally before forwarding work to other
+nodes (defaults to `1`). Higher values improve prompt obfuscation by keeping
+more of the early pipeline on your machine. All nodes hosting the same end model
+should use the same value so that model layers are loaded correctly.
+
+Simple form (one local layer each):
 ```toml
 end_models = ["Qwen/Qwen3-1.7B"]
 ```
+
+Table form when you need per-model options:
+```toml
+[[end_models]]
+model_id = "Qwen/Qwen3-1.7B"
+num_local_layers = 2
+```
+
+> Because TOML arrays cannot mix strings and tables, use one form for the whole
+> `end_models` list. Any model that doesn't set `num_local_layers` defaults to `1`.
 
 Privacy-preserving setup:
 ```toml
@@ -297,7 +317,12 @@ Model cache directory. Stores downloaded model weights.
 export LP_MODEL_DIR=~/.cache/language_pipes/models
 ```
 
-#### `LP_NUM_LOCAL_LAYERS`
+#### `LP_NUM_LOCAL_LAYERS` (deprecated)
+
+> **Deprecated.** Set `num_local_layers` per end model in the [`end_models`](#end_models)
+> configuration instead. This environment variable is still honored as a
+> fallback default for end models that don't specify `num_local_layers`, but it
+> logs a deprecation warning and will be removed in a future release.
 
 Number of initial model layers an end model executes locally before
 forwarding work to other nodes. Higher values improve prompt obfuscation by

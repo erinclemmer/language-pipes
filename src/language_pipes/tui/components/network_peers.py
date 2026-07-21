@@ -53,7 +53,8 @@ class NetworkPeers:
             for pipe in pipes:
                 if len([s for s in pipe.segments if s.node_id == key]) == 0:
                     continue
-                peer_lines.extend(format_pipe_view(pipe))
+                num_local_layers = self.provider.model_provider.get_num_local_layers_for(pipe.model_id)
+                peer_lines.extend(format_pipe_view(pipe, num_local_layers))
             peer_lines.append("")
             peers.append(peer_lines)
 
