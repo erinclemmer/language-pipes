@@ -6,8 +6,10 @@ import { rehypeDocLinks } from './src/rehype-doc-links.mjs';
 
 // Inject Google Analytics into every Starlight page's <head>.
 // (The custom landing page injects the same snippet via its own layout.)
-const gaHead =
-  GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX'
+// Only enabled for production builds — the dev server (`command === 'dev'`)
+// never loads analytics, so local testing doesn't skew the statistics.
+const gaHead = (command) =>
+  command !== 'dev' && GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX'
     ? [
         {
           tag: 'script',
@@ -21,7 +23,7 @@ const gaHead =
     : [];
 
 // https://astro.build/config
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   site: SITE.url,
   base: SITE.base,
   trailingSlash: 'ignore',
@@ -53,7 +55,7 @@ export default defineConfig({
         { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
         { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
         { tag: 'meta', attrs: { name: 'twitter:image', content: `${SITE.url}/og.png` } },
-        ...gaHead,
+        ...gaHead(command),
       ],
       components: {
         // Send the Starlight header's home link back to the custom landing page.
@@ -112,4 +114,4 @@ export default defineConfig({
       ],
     }),
   ],
-});
+}));

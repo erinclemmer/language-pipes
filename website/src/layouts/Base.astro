@@ -13,7 +13,9 @@ const pageTitle = title ? `${title} · ${SITE.title}` : `${SITE.title} — ${SIT
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const canonical = new URL(Astro.url.pathname, Astro.site ?? SITE.url).href;
 const ogImage = new URL(`${base}/og.png`, Astro.site ?? SITE.url).href;
-const gaEnabled = GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX';
+// Only enable analytics in production builds — never during `npm run dev`,
+// so local testing doesn't pollute the Google Analytics statistics.
+const gaEnabled = import.meta.env.PROD && GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX';
 ---
 
 <!doctype html>
