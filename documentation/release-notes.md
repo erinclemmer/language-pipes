@@ -187,8 +187,9 @@ Added model support for GLM4.1v, Gemma3, and Phi4 model families. Below is a lis
 - google/gemma-3-1b-it
 
 ### Whitelists
-**--whitelist-ips** if set, only network IPs that are in this list are allowed to communicate with this node
 **--whitelist-node-ids** if set, only node IDs that are in the list are allowed to communicate with this node
+
+> **Note:** The `whitelist-ips` feature has been dropped in favor of `whitelist-node-ids`. IP addresses are not a stable, authenticated peer identity, so IP-based whitelisting has been removed; use node-ID whitelisting instead.
 
 **Note:** `--whitelist-node-ids` works by ECDSA signature. Public keys are stored in `~/.config/language_pipes/credentials` and returning nodes must match the same public signature to be allowed to use their node ID.
 

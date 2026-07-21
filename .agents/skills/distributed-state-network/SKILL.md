@@ -356,43 +356,53 @@ Create from dict via `DSNodeConfig.from_dict(data)`.
 | `HTTP_TIMEOUT` | `2` (seconds) | `dsnode.py` | Per-request timeout |
 | `AES_KEY_LENGTH` | `16` (bytes) | `util/aes.py` | AES-128 key size |
 | `AES_BLOCK_SIZE` | `16` (bytes) | `util/aes.py` | AES block/IV size |
-| `VERSION` | `"0.7.0"` | `handler.py` | Protocol version string |
+| `VERSION` | `"0.9.0"` | `handler.py` | Protocol version string |
 | Max retries | `3` (total attempts) | `dsnode.py` | `send_http_request` retry logic |
 | Retry delay | `0.5` (seconds) | `dsnode.py` | Between retry attempts |
 
 ---
 
-## Implementation Notes / Gotchas (learned during whitelist feature work)
+## Implementation Notes / Gotchas (network access control)
 
-1. **Whitelist enforcement should happen in both directions**
-   - **Inbound**: enforce in `DSNodeServer._handle_request(...)` using `remote_addr` *before* handler-specific parsing.
-   - **Outbound**: enforce in `DSNode.send_http_request(...)` using `endpoint.address`.
-   - Enforcing only in HELLO/update paths is not enough; all message types should be covered.
+Access control is by **node ID**, not IP. The `whitelist_node_ids` config field
+restricts which peers a node will communicate with, keyed on the peer's
+ECDSA-authenticated `node_id`. (The old IP-based `whitelist_ips` field has been
+removed — IPs are not a stable, authenticated peer identity. Don't reintroduce
+inbound/outbound IP gates.)
+
+1. **Node-ID whitelist enforcement lives at the message level**
+   - Enforce via `DSNode.ensure_node_id_allowed(...)`, which delegates to
+     `_is_node_id_whitelisted(...)` in `dsnode.py`.
+   - It is called from `write_address_book(...)` and the `handle_*` message
+     paths (hello/update/data/etc.), so every path that learns of a peer checks
+     it. Own `node_id` is always allowed; an empty list means "allow all".
 
 2. **`DSNodeConfig` constructor order matters in tests**
    - Dataclass positional order is:
-     `node_id, credential_dir, port, network_ip, aes_key, whitelist_ips, bootstrap_nodes`.
+     `node_id, logging_dir, credential_dir, port, network_ip, aes_key, bootstrap_nodes, whitelist_node_ids`.
    - Existing tests that instantiate `DSNodeConfig(...)` directly must be updated when new fields are added.
 
 3. **`from_dict` should normalize optional list fields**
-   - For `whitelist_ips`, use `[]` for missing or `None` values to avoid runtime `None` checks.
+   - For `whitelist_node_ids`, use `[]` for missing or `None` values to avoid runtime `None` checks.
 
 4. **Language Pipes wiring points for DSN config**
-   - DSN config is created in multiple places, not just one:
-     - `src/language_pipes/cli.py` (`serve` flow)
-     - `src/language_pipes/commands/start.py` (wizard start flow)
+   - DSN config is built and persisted in `src/language_pipes/config.py`
+     (`LpConfig.from_file` / `LpConfig.save`), which maps TOML keys to
+     `DSNodeConfig`.
+   - It is edited interactively through the TUI network form under
+     `src/language_pipes/tui/components/network_form/` (e.g. `whitelist_editor.py`).
    - Keep these in sync when adding DSN config fields.
 
-5. **Config/env/CLI integration details**
-   - Add CLI flag in `cli.py` (e.g. `--whitelist-ips`).
-   - Add env support in `config.py` (e.g. `LP_WHITELIST_IPS`), and parse comma-separated values into a list.
-   - Reflect new config in interactive UX (`initialize.py`, `edit.py`, `view.py`) and docs.
+5. **Config is TOML-driven (no CLI flags / env vars for these fields)**
+   - LP 2.x has no `serve` flags and no `LP_*` env vars for DSN config — add the
+     field to the TOML mapping in `config.py` instead.
+   - Reflect new config in the TUI (`network_form/` editors and `frame/tips.py`)
+     and in the docs (`documentation/configuration.md`, `ds-node-config.md`).
 
 6. **Good test targets for network access controls**
-   - Config parsing/default test (`whitelist_ips` present + missing default).
-   - Inbound rejection test (non-whitelisted request to `/ping` returns 401).
-   - End-to-end allow test (both nodes whitelist each other and connect).
-   - Outbound restriction behavior (node with non-matching whitelist cannot establish peer connectivity).
+   - Config parsing/default test (`whitelist_node_ids` present + missing default resolves to `[]`).
+   - End-to-end allow test (peer `node_id` whitelisted → nodes appear in each other's `peers()`).
+   - Rejection test (non-whitelisted `node_id` → peer not admitted / 401).
 
 ---
 

@@ -202,9 +202,11 @@ layer.
   relevant ports reachable. **NAT traversal is not provided:** there is no
   hole-punching or relay, so nodes behind NAT need port forwarding or a shared
   private network (e.g. WireGuard/Tailscale) to be reachable.
-- **Access control.** `whitelist_ips` and `whitelist_node_ids` restrict which
-  peers a node will talk to, and `network_key` enables AES encryption of
-  peer-to-peer traffic. See the [Configuration Reference](./configuration.md).
+- **Access control.** `whitelist_node_ids` restricts which peers a node will
+  talk to, and `network_key` enables AES encryption of peer-to-peer traffic.
+  (IP-based `whitelist_ips` has been dropped in favor of `whitelist_node_ids`,
+  which uses authenticated node identities.) See the
+  [Configuration Reference](./configuration.md).
 
 ## Network Agnostic Architecture
 Language Pipes is designed to be network agnostic except for a few assumptions. The network layer is expected to handle peer discovery, encryption, and data transfer.

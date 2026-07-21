@@ -50,7 +50,6 @@ api_keys = ["test_key"]
 peer_port = 5000
 network_ip = "192.168.0.1"
 network_key = "9f86d081884c7d659a2feaa0c55ad015"
-whitelist_ips = []
 whitelist_node_ids = []
 
 # === Layer Models ===
@@ -239,17 +238,13 @@ network_key = "9f86d081884c7d659a2feaa0c55ad015"
 
 Generate a key from the TUI (**Network > Configure**) or with the [`keygen`](./cli.md#keygen) command.
 
-#### `whitelist_ips`
+#### `whitelist_ips` (removed)
 
-IP addresses this node will allow for peer communication. If configured, the node only accepts inbound DSN requests from these IPs and only sends outbound requests to these IPs.
-
-| Type | Default |
-|------|---------|
-| array of strings | `[]` (allow all) |
-
-```toml
-whitelist_ips = ["192.168.1.100", "192.168.1.101"]
-```
+> **Dropped in favor of [`whitelist_node_ids`](#whitelist_node_ids).** IP-based
+> whitelisting has been removed. IPs are not a stable identity for a peer (they
+> can be shared, spoofed, or reassigned), whereas node IDs are authenticated.
+> Restrict peer communication with `whitelist_node_ids` instead. A `whitelist_ips`
+> key left in an existing config file is ignored.
 
 #### `whitelist_node_ids`
 

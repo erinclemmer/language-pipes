@@ -120,8 +120,6 @@ class DSNodeServer(StateNetworkNode):
         if not self.running:
             return 500, None
         try:
-            self.node.ensure_ip_allowed(remote_addr)
-
             # Decrypt the data
             if self.config.aes_key is not None:
                 try:

@@ -60,7 +60,6 @@ class LpConfig:
             "peer_port": self.network_config.port,
             "network_ip": self.network_config.network_ip,
             "network_key": self.network_config.aes_key,
-            "whitelist_ips": self.network_config.whitelist_ips,
             "whitelist_node_ids": self.network_config.whitelist_node_ids,
             "bootstrap_nodes": [{
                 "address": o.address,
@@ -136,7 +135,6 @@ class LpConfig:
             "network_ip": data.get("network_ip", None),
             "port": data.get("peer_port", 5000),
             "bootstrap_nodes": data.get("bootstrap_nodes", []),
-            "whitelist_ips": data.get("whitelist_ips", []),
             "whitelist_node_ids": data.get("whitelist_node_ids", [])
         })
         
