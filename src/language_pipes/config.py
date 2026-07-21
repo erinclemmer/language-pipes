@@ -15,12 +15,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_NUM_LOCAL_LAYERS = 1
 
 def _deprecated_env_num_local_layers() -> Optional[int]:
-    """Read the deprecated LP_NUM_LOCAL_LAYERS env var, if set.
-
-    Superseded by the per-model ``num_local_layers`` field in the end_models
-    configuration. Kept as a fallback default so existing setups keep working,
-    but emits a deprecation warning when present.
-    """
     raw = os.environ.get("LP_NUM_LOCAL_LAYERS")
     if raw is None:
         return None
