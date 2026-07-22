@@ -1,7 +1,6 @@
 import os
 import sys
 import unittest
-from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
@@ -23,7 +22,7 @@ def make_network_job(job_id: str) -> bytes:
     ).to_bytes()
 
 
-def make_receiver() -> JobReceiver:
+def make_receiver(max_node_jobs: int = 10) -> JobReceiver:
     # is_shutdown returns True so the background runner loop exits immediately
     # and never touches the (unused) managers.
     return JobReceiver(
@@ -32,11 +31,11 @@ def make_receiver() -> JobReceiver:
         pipe_manager=None,  # pyright: ignore[reportArgumentType]
         model_manager=None, # pyright: ignore[reportArgumentType]
         is_shutdown=lambda: True,
+        get_max_node_jobs=lambda: max_node_jobs,
     )
 
 
 class ReceiveDataTests(unittest.TestCase):
-    @mock.patch.dict(os.environ, {}, clear=True)
     def test_queues_job_under_node_id(self):
         receiver = make_receiver()
 
@@ -46,7 +45,6 @@ class ReceiveDataTests(unittest.TestCase):
         self.assertEqual(len(receiver.job_queue["node-b"]), 1)
         self.assertEqual(receiver.job_queue["node-b"][0].job_id, "job-1")
 
-    @mock.patch.dict(os.environ, {}, clear=True)
     def test_separate_nodes_get_separate_queues(self):
         receiver = make_receiver()
 
@@ -56,7 +54,6 @@ class ReceiveDataTests(unittest.TestCase):
         self.assertEqual(len(receiver.job_queue["node-b"]), 1)
         self.assertEqual(len(receiver.job_queue["node-c"]), 1)
 
-    @mock.patch.dict(os.environ, {}, clear=True)
     def test_ignores_duplicate_job_ids_from_same_node(self):
         receiver = make_receiver()
 
@@ -65,9 +62,8 @@ class ReceiveDataTests(unittest.TestCase):
 
         self.assertEqual(len(receiver.job_queue["node-b"]), 1)
 
-    @mock.patch.dict(os.environ, {"LP_MAX_NODE_JOBS": "2"}, clear=True)
     def test_rejects_jobs_beyond_node_limit(self):
-        receiver = make_receiver()
+        receiver = make_receiver(max_node_jobs=2)
 
         # Limit is 2; the guard rejects once the queue already holds more than
         # the limit, so jobs 0..2 are accepted and the next one raises.
@@ -78,9 +74,8 @@ class ReceiveDataTests(unittest.TestCase):
         with self.assertRaises(Exception):
             receiver.receive_data("node-b", make_network_job("job-3"))
 
-    @mock.patch.dict(os.environ, {"LP_MAX_NODE_JOBS": "2"}, clear=True)
     def test_limit_is_per_node(self):
-        receiver = make_receiver()
+        receiver = make_receiver(max_node_jobs=2)
 
         # Fill node-b to its limit, a different node is unaffected.
         receiver.receive_data("node-b", make_network_job("b-0"))

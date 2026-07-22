@@ -113,13 +113,14 @@ class ContentProvider:
             self.router_pipes = RouterPipes(router)
             self.pipe_manager = PipeManager(self.model_manager, self.router_pipes)
             self.job_tracker = JobTracker()
-            self.job_factory = JobFactory(self.job_tracker, self.pipe_manager)
+            self.job_factory = JobFactory(self.job_tracker, self.pipe_manager, self.job_provider.get_max_api_jobs)
             self.job_receiver = JobReceiver(
                 job_factory=self.job_factory,
                 job_tracker=self.job_tracker,
                 model_manager=self.model_manager,
                 pipe_manager=self.pipe_manager,
-                is_shutdown=self.router_pipes.router.is_shut_down
+                is_shutdown=self.router_pipes.router.is_shut_down,
+                get_max_node_jobs=self.job_provider.get_max_node_jobs
             )
 
             self.router_pipes.router.set_receive_cb(self._receive_data)

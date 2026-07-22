@@ -40,6 +40,9 @@ Unified logging across all parts of the application. Log file, "Home / Activity"
 ### Keygen command
 Changed behaviour of `language-pipes keygen` command to simply print the hex value of the AES key instead of saving it to a file. This lines up with the 2.0 style of supplying the key in the config file as opposed to the config file pointing to another file.
 
+### Job Limits Configuration
+`LP_MAX_NODE_JOBS` and `LP_MAX_API_JOBS` are deprecated. `max_node_jobs` (default `10`) and `max_api_jobs` (default `5`) are now configured from the "Jobs / Server" TUI page or the config file, and take effect immediately without a restart. The environment variables are still honored as a fallback default but log a deprecation warning. See the [Configuration Manual](./configuration.md#max_node_jobs) for details.
+
 ### Bugs
 - Removed requirements for logging and uuid since they come with a standard Python installation.
 - Fixed selection bug in "models / layers" model editor.
