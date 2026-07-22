@@ -1,7 +1,6 @@
 import os
 import sys
 import unittest
-from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
@@ -52,16 +51,15 @@ class FakePipeManager:
         return FakePipe()
 
 
-def make_factory():
+def make_factory(max_api_jobs: int = 5):
     tracker = JobTracker()
     tracker.shutdown = True  # stop the stale-job background thread
-    return JobFactory(tracker, FakePipeManager())  # pyright: ignore[reportArgumentType]
+    return JobFactory(tracker, FakePipeManager(), lambda: max_api_jobs)  # pyright: ignore[reportArgumentType]
 
 
 class MaxApiJobsTests(unittest.TestCase):
-    @mock.patch.dict(os.environ, {"LP_MAX_API_JOBS": "2"}, clear=True)
     def test_rejects_when_key_over_limit(self):
-        factory = make_factory()
+        factory = make_factory(max_api_jobs=2)
         # Pre-fill the key past the limit (limit is 2, guard trips at > 2).
         factory.job_tracker.jobs_pending["key-1"] = ["j0", "j1", "j2"] # pyright: ignore[reportArgumentType]
 
@@ -73,9 +71,8 @@ class MaxApiJobsTests(unittest.TestCase):
 
         self.assertEqual(resolved, ["MAX_JOBS"])
 
-    @mock.patch.dict(os.environ, {"LP_MAX_API_JOBS": "2"}, clear=True)
     def test_allows_when_under_limit(self):
-        factory = make_factory()
+        factory = make_factory(max_api_jobs=2)
 
         resolved = []
         job = factory.start_job(
@@ -87,9 +84,8 @@ class MaxApiJobsTests(unittest.TestCase):
         self.assertNotIn("MAX_JOBS", resolved)
         self.assertEqual(len(factory.job_tracker.jobs_pending["key-1"]), 1)
 
-    @mock.patch.dict(os.environ, {"LP_MAX_API_JOBS": "2"}, clear=True)
     def test_limit_is_per_api_key(self):
-        factory = make_factory()
+        factory = make_factory(max_api_jobs=2)
         factory.job_tracker.jobs_pending["key-1"] = ["j0", "j1", "j2"] # pyright: ignore[reportArgumentType]
 
         resolved = []

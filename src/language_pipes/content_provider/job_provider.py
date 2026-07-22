@@ -70,6 +70,24 @@ class JobProvider:
         cfg.job_port = port
         cfg.save()
         
+    def get_max_node_jobs(self) -> int:
+        cfg = LpConfig.from_file(self.config_file)
+        return cfg.max_node_jobs
+
+    def set_max_node_jobs(self, value: int):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.max_node_jobs = value
+        cfg.save()
+
+    def get_max_api_jobs(self) -> int:
+        cfg = LpConfig.from_file(self.config_file)
+        return cfg.max_api_jobs
+
+    def set_max_api_jobs(self, value: int):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.max_api_jobs = value
+        cfg.save()
+
     def get_api_keys(self) -> List[str]:
         cfg = LpConfig.from_file(self.config_file)
         return cfg.api_keys

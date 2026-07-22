@@ -197,6 +197,35 @@ List of accepted API keys for the OpenAI-compatible server.
 api_keys = ["test_key"]
 ```
 
+#### `max_node_jobs`
+
+Maximum number of jobs this node will queue for a single peer node. Incoming
+jobs from a node whose queue is already full are rejected. Configurable from
+the TUI's "Jobs / Server" page.
+
+| Type | Default |
+|------|---------|
+| int | `10` |
+
+```toml
+max_node_jobs = 10
+```
+
+#### `max_api_jobs`
+
+Maximum number of pending jobs allowed per API key on the
+[OpenAI-compatible API](./oai.md). Requests beyond this limit are rejected
+until earlier jobs for that key complete. Configurable from the TUI's
+"Jobs / Server" page.
+
+| Type | Default |
+|------|---------|
+| int | `5` |
+
+```toml
+max_api_jobs = 5
+```
+
 ---
 
 ### Network
@@ -341,7 +370,13 @@ end model should use the same value so that model layers are loaded correctly.
 export LP_NUM_LOCAL_LAYERS=1
 ```
 
-#### `LP_MAX_NODE_JOBS`
+#### `LP_MAX_NODE_JOBS` (deprecated)
+
+> **Deprecated.** Set [`max_node_jobs`](#max_node_jobs) in the config file, or
+> from the TUI's "Jobs / Server" page, instead. This environment variable is
+> still honored as a fallback default when `max_node_jobs` isn't set in the
+> config file, but it logs a deprecation warning and will be removed in a
+> future release.
 
 Maximum number of jobs this node will queue for a single peer node. Incoming
 jobs from a node whose queue is already full are rejected.
@@ -354,7 +389,13 @@ jobs from a node whose queue is already full are rejected.
 export LP_MAX_NODE_JOBS=10
 ```
 
-#### `LP_MAX_API_JOBS`
+#### `LP_MAX_API_JOBS` (deprecated)
+
+> **Deprecated.** Set [`max_api_jobs`](#max_api_jobs) in the config file, or
+> from the TUI's "Jobs / Server" page, instead. This environment variable is
+> still honored as a fallback default when `max_api_jobs` isn't set in the
+> config file, but it logs a deprecation warning and will be removed in a
+> future release.
 
 Maximum number of pending jobs allowed per API key on the
 [OpenAI-compatible API](./oai.md). Requests beyond this limit are rejected

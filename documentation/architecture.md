@@ -138,11 +138,14 @@ Multiple jobs can be **in flight at once** the pipeline is designed to be
 asynchronous, and each node processes jobs as they arrive. Two backpressure limits
 bound concurrency:
 
-- `LP_MAX_API_JOBS` (default `5`): maximum pending jobs **per API key** on the
+- `max_api_jobs` (default `5`): maximum pending jobs **per API key** on the
   OpenAI-compatible server. Requests beyond this are rejected until earlier jobs
-  for that key finish.
-- `LP_MAX_NODE_JOBS` (default `10`): maximum jobs a node will queue for any one
+  for that key finish. Configurable in the config file or the TUI's
+  "Jobs / Server" page (the `LP_MAX_API_JOBS` env var is deprecated).
+- `max_node_jobs` (default `10`): maximum jobs a node will queue for any one
   peer. Incoming jobs from a peer whose queue is already full are rejected.
+  Configurable in the config file or the TUI's "Jobs / Server" page (the
+  `LP_MAX_NODE_JOBS` env var is deprecated).
 
 **There is no batched inference.** Each request is its own `Job` carrying its own
 hidden-state tensor, and each layer segment runs a separate forward pass per job.

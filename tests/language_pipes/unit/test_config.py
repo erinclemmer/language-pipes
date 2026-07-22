@@ -8,32 +8,72 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
 from language_pipes.util.config import (
-    get_max_node_jobs,
-    get_max_api_jobs,
     is_8_bit_mode,
     initialize_folders,
 )
-from language_pipes.config import LpConfig, EndModelConfig, DEFAULT_NUM_LOCAL_LAYERS
+from language_pipes.config import (
+    LpConfig,
+    EndModelConfig,
+    DEFAULT_NUM_LOCAL_LAYERS,
+    DEFAULT_MAX_NODE_JOBS,
+    DEFAULT_MAX_API_JOBS,
+)
 
 
 class MaxNodeJobsTests(unittest.TestCase):
     @mock.patch.dict(os.environ, {}, clear=True)
     def test_defaults_to_ten(self):
-        self.assertEqual(get_max_node_jobs(), 10)
+        self.assertEqual(LpConfig().max_node_jobs, DEFAULT_MAX_NODE_JOBS)
 
     @mock.patch.dict(os.environ, {"LP_MAX_NODE_JOBS": "3"}, clear=True)
-    def test_reads_env_override(self):
-        self.assertEqual(get_max_node_jobs(), 3)
+    def test_deprecated_env_var_used_as_fallback_default(self):
+        self.assertEqual(LpConfig().max_node_jobs, 3)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_config_field_overrides_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            cfg = LpConfig()
+            cfg._file_path = path
+            cfg.max_node_jobs = 7
+            cfg.save()
+
+            reloaded = LpConfig.from_file(path)
+            self.assertEqual(reloaded.max_node_jobs, 7)
+
+    @mock.patch.dict(os.environ, {"LP_MAX_NODE_JOBS": "3"}, clear=True)
+    def test_explicit_config_field_overrides_env_var(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            cfg = LpConfig()
+            cfg._file_path = path
+            cfg.max_node_jobs = 7
+            cfg.save()
+
+            reloaded = LpConfig.from_file(path)
+            self.assertEqual(reloaded.max_node_jobs, 7)
 
 
 class MaxApiJobsTests(unittest.TestCase):
     @mock.patch.dict(os.environ, {}, clear=True)
     def test_defaults_to_five(self):
-        self.assertEqual(get_max_api_jobs(), 5)
+        self.assertEqual(LpConfig().max_api_jobs, DEFAULT_MAX_API_JOBS)
 
     @mock.patch.dict(os.environ, {"LP_MAX_API_JOBS": "1"}, clear=True)
-    def test_reads_env_override(self):
-        self.assertEqual(get_max_api_jobs(), 1)
+    def test_deprecated_env_var_used_as_fallback_default(self):
+        self.assertEqual(LpConfig().max_api_jobs, 1)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_config_field_overrides_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            cfg = LpConfig()
+            cfg._file_path = path
+            cfg.max_api_jobs = 2
+            cfg.save()
+
+            reloaded = LpConfig.from_file(path)
+            self.assertEqual(reloaded.max_api_jobs, 2)
 
 
 class EightBitModeTests(unittest.TestCase):
