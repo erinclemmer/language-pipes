@@ -28,6 +28,12 @@ Newly added explicit support or tested these models:
 **Microsoft:**
 - microsoft/Phi-4-mini-instruct
 
+### Per-End-Model Configuration
+End model options are now configured per model in the `end_models` list instead of globally:
+- `num_local_layers` can now be set per end model (the global `LP_NUM_LOCAL_LAYERS` / `--num-local-layers` setting is deprecated and now only acts as a fallback default).
+- Added a `device` option to choose the PyTorch device (`cpu`, `cuda:0`, …) used for both the local layers and the embedding/output head modules of an end model.
+- The "Models / End Models" editor now includes a device selector alongside the local-layers field. See [Configuration](./configuration.md#end_models).
+
 ### Unified Logging
 Unified logging across all parts of the application. Log file, "Home / Activity" page, and "language-pipes run" command should all show the same thing
 
