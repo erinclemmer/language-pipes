@@ -82,6 +82,13 @@ class TopPageState(PageState):
         self.exit_page()
 
     def _on_enter(self):
+        # The server can also be started/stopped from the Home dashboard, which
+        # doesn't touch focus_idx, so stopping is keyed off server_running
+        # rather than assuming focus landed on the start/stop row.
+        if self.server_running:
+            self.provider.job_provider.stop_oai_server()
+            return
+
         if self.focus_idx == 0:
             self.focus_idx = 1
         elif self.focus_idx == 1:
@@ -91,10 +98,7 @@ class TopPageState(PageState):
         elif self.focus_idx == 3:
             self.change_state('keys', { })
         elif self.focus_idx == 4:
-            if self.server_running:
-                self.provider.job_provider.stop_oai_server()
-            else:
-                self._save_and_run()
+            self._save_and_run()
 
     def _on_prev(self):
         if not self.server_running:
