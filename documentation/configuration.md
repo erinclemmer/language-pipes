@@ -134,13 +134,15 @@ Array of end models to load (embedding layer + output head). The node with a mod
 | array of strings or tables | `[]` (empty) |
 
 Each entry is either a plain model ID string, or a table with a `model_id` and
-options. The only option today is `num_local_layers` — the number of initial
-model layers the end model executes locally before forwarding work to other
-nodes (defaults to `1`). Higher values improve prompt obfuscation by keeping
-more of the early pipeline on your machine. All nodes hosting the same end model
-should use the same value so that model layers are loaded correctly.
+options:
 
-Simple form (one local layer each):
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `model_id` | string | ✓ | — | HuggingFace model ID or path in `/models` directory |
+| `num_local_layers` | int | | `1` | Number of initial model layers the end model executes locally before forwarding work to other nodes. Higher values improve prompt obfuscation by keeping more of the early pipeline on your machine. All nodes hosting the same end model should use the same value so that model layers are loaded correctly. |
+| `device` | string | | `cpu` | PyTorch device (`cpu`, `cuda:0`, `cuda:1`, …) used for **both** the local layers and the embedding/output head modules of this end model. |
+
+Simple form (one local CPU layer each):
 ```toml
 end_models = ["Qwen/Qwen3-1.7B"]
 ```
@@ -150,12 +152,14 @@ Table form when you need per-model options:
 [[end_models]]
 model_id = "Qwen/Qwen3-1.7B"
 num_local_layers = 2
+device = "cuda:0"
 ```
 
 > Because TOML arrays cannot mix strings and tables, use one form for the whole
-> `end_models` list. Any model that doesn't set `num_local_layers` defaults to `1`.
+> `end_models` list. Any model that doesn't set `num_local_layers` defaults to
+> `1`, and any that doesn't set `device` defaults to `cpu`.
 
-Privacy-preserving setup:
+Local end model setup:
 ```toml
 end_models = ["Qwen/Qwen3-1.7B"]  # Your prompts stay on this machine
 

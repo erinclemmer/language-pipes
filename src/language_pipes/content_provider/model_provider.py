@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Callable
 from huggingface_hub import snapshot_download, errors
 
-from language_pipes.config import LpConfig, ModelToLoad, EndModelConfig, DEFAULT_NUM_LOCAL_LAYERS
+from language_pipes.config import LpConfig, ModelToLoad, EndModelConfig
 from language_pipes.global_config import GlobalConfig
 from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.modeling.llm_model import LlmModel
@@ -261,17 +261,29 @@ class ModelProvider:
         Thread(target=restart_model, args=()).start()
 
     def load_end_model(self, model_id: str):
-        num_local_layers = self.get_num_local_layers_for(model_id)
+        config = self._get_end_model_config(model_id)
         def host_end_model():
-            self.get_model_manager().load_end_model(model_id, "cpu", num_local_layers)
+            self.get_model_manager().load_end_model(model_id, config.device, config.num_local_layers)
 
         Thread(target=host_end_model, args=()).start()
 
-    def get_num_local_layers_for(self, model_id: str) -> int:
+    def reload_end_model(self, model_id: str):
+        config = self._get_end_model_config(model_id)
+        def restart_end_model():
+            mm = self.get_model_manager()
+            mm.shutdown_end_model(model_id)
+            mm.load_end_model(model_id, config.device, config.num_local_layers)
+
+        Thread(target=restart_end_model, args=()).start()
+
+    def _get_end_model_config(self, model_id: str) -> EndModelConfig:
         for m in LpConfig.from_file(self.config_file).end_models:
             if m.model_id == model_id:
-                return m.num_local_layers
-        return DEFAULT_NUM_LOCAL_LAYERS
+                return m
+        return EndModelConfig(model_id=model_id)
+
+    def get_num_local_layers_for(self, model_id: str) -> int:
+        return self._get_end_model_config(model_id).num_local_layers
 
     def unload_layer_models(self, model_id: str, device: torch.device):
         rp = self.get_router_pipes()
@@ -324,6 +336,11 @@ class ModelProvider:
             existing.get(model_id, EndModelConfig(model_id=model_id))
             for model_id in model_ids
         ]
+        cfg.save()
+
+    def save_end_model_configs(self, configs: List[EndModelConfig]):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.end_models = configs
         cfg.save()
 
     @staticmethod

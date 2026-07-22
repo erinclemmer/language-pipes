@@ -108,8 +108,31 @@ class EndModelConfigTests(unittest.TestCase):
         cfg = EndModelConfig(model_id="org/model", num_local_layers=2)
         self.assertEqual(
             cfg.to_config(),
-            {"model_id": "org/model", "num_local_layers": 2},
+            {"model_id": "org/model", "num_local_layers": 2, "device": "cpu"},
         )
+
+    def test_to_config_uses_object_when_non_default_device(self):
+        cfg = EndModelConfig(model_id="org/model", device="cuda:0")
+        self.assertEqual(
+            cfg.to_config(),
+            {
+                "model_id": "org/model",
+                "num_local_layers": DEFAULT_NUM_LOCAL_LAYERS,
+                "device": "cuda:0",
+            },
+        )
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_object_form_reads_device(self):
+        cfg = EndModelConfig.from_config(
+            {"model_id": "org/model", "device": "cuda:1"}
+        )
+        self.assertEqual(cfg.device, "cuda:1")
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_object_form_without_device_uses_default(self):
+        cfg = EndModelConfig.from_config({"model_id": "org/model"})
+        self.assertEqual(cfg.device, "cpu")
 
     @mock.patch.dict(os.environ, {"LP_NUM_LOCAL_LAYERS": "4"}, clear=True)
     def test_deprecated_env_var_used_as_fallback_default(self):
