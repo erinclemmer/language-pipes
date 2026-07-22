@@ -161,7 +161,7 @@ device = "cuda:0"
 
 Local end model setup:
 ```toml
-end_models = ["Qwen/Qwen3-1.7B"]  # Your prompts stay on this machine
+end_models = ["Qwen/Qwen3-1.7B"]
 
 [[layer_models]]
 model_id = "Qwen/Qwen3-1.7B"
