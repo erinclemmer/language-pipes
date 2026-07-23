@@ -1,4 +1,3 @@
-import time
 from typing import Dict, List, Optional
 
 from ansinout import PressedKey
@@ -6,8 +5,8 @@ from ansinout import PressedKey
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.content_provider.job_provider import DEFAULT_JOB_PORT
 from language_pipes.tui.components.page import PageState
+from language_pipes.tui.frame.tips import TIPS
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text
-from language_pipes.util.logging import get_ring_buffer
 
 
 class TopPageState(PageState):
@@ -158,21 +157,31 @@ class TopPageState(PageState):
             lines.extend(["   INFO: Stop server to edit port, job limits, and API Keys", ""])
 
         if self.can_start_server():
-            lines.append(make_selectable_text("Start Server", self.focus_idx == 4))
+            lines.append(make_selectable_text("Save and Start Server", self.focus_idx == 4))
         elif not self.server_running and not ContentProvider.is_port_available(self._current_port()):
             lines.append(f"   Warning: Can't start server, port {self._current_port()} is not available")
 
         if self.server_running:
             lines.append(make_selectable_text("Stop Server", True))
 
-        logs = get_ring_buffer().get(prefix="language_pipes.oai_server", limit=5)
-        lines.extend(["", "Logs:"])
-
-        for ts, log in logs:
-            timestamp = time.strftime("%H:%M:%S", time.localtime(ts))
-            lines.append(f"{timestamp} {log}")
+        lines.extend(self._get_tip_lines())
 
         return lines
+
+    def _get_tip_lines(self) -> List[str]:
+        tip_key = None
+        if self.focus_idx == 0:
+            tip_key = "port"
+        elif self.focus_idx == 1:
+            tip_key = "max_node_jobs"
+        elif self.focus_idx == 2:
+            tip_key = "max_api_jobs"
+        elif self.focus_idx == 3:
+            tip_key = "api_keys"
+
+        if tip_key is not None:
+            return ["", "Tip:", TIPS["jobs_server"][tip_key]]
+        return []
 
     def get_footer(self) -> str:
         if self.server_running:
@@ -182,13 +191,13 @@ class TopPageState(PageState):
             return make_footer_text(["Arrows U/D: Move", "[0-9]: Type Port", "Backspace: Remove character", "Esc: Menu"])
 
         if self.focus_idx == 1:
-            return make_footer_text(["Arrows U/D: Move", "[0-9]: Type Max Node Jobs", "Backspace: Remove character", "Esc: Menu"])
+            return make_footer_text(["Arrows U/D: Move", "[0-9]: Type", "Backspace: Remove character", "Esc: Menu"])
 
         if self.focus_idx == 2:
-            return make_footer_text(["Arrows U/D: Move", "[0-9]: Type Max API Jobs", "Backspace: Remove character", "Esc: Menu"])
+            return make_footer_text(["Arrows U/D: Move", "[0-9]: Type", "Backspace: Remove character", "Esc: Menu"])
 
         if self.focus_idx == 3:
-            return make_footer_text(["Arrows U/D: Move", "Enter: Change API keys", "Esc: Menu"])
+            return make_footer_text(["Arrows U/D: Move", "Enter: Change", "Esc: Menu"])
 
         if self.focus_idx == 4:
             return make_footer_text(["Arrows U/D: Move", "Enter: Start Server", "Esc: Menu"])
