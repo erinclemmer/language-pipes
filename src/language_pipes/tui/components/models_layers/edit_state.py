@@ -1,7 +1,7 @@
-from typing import Dict, List, Optional
+import logging
 
-from ansinout import PressedKey
 import torch
+from ansinout import PressedKey
 
 from language_pipes.config import ModelToLoad
 from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus
@@ -12,13 +12,13 @@ from language_pipes.util.config import is_8_bit_mode
 
 
 class EditPageState(PageState):
-    editing_model: Optional[ModelToLoad]
-    editing_model_idx: Optional[int]
+    editing_model: ModelToLoad | None
+    editing_model_idx: int | None
 
     model_id: str
     device_name: str
     device_memory: str
-    num_layers_cache: Dict[str, Dict[str, str]]
+    num_layers_cache: dict[str, dict[str, str]]
 
     select_idx: int
 
@@ -32,7 +32,7 @@ class EditPageState(PageState):
         self.select_idx = 0
         self.num_layers_cache = { }
 
-    def on_change(self, args: Dict):
+    def on_change(self, args: dict):
         # Returning from the model selector keeps the rest of the form intact.
         if "model_id" in args:
             self.model_id = args["model_id"]
@@ -93,7 +93,7 @@ class EditPageState(PageState):
     def _on_prev(self):
         self.select_idx = (self.select_idx - 1) % (self._max_select_idx() + 1)
 
-    def _model_id_lines(self) -> List[str]:
+    def _model_id_lines(self) -> list[str]:
         lines = []
         model_id_label = (
             self.model_id if self._valid_model_id() else "Choose model..."
@@ -106,7 +106,7 @@ class EditPageState(PageState):
 
         return lines
 
-    def _device_lines(self) -> List[str]:
+    def _device_lines(self) -> list[str]:
         lines = []
         device_label = (
             self.device_name if self._valid_device() else "Choose device..."
@@ -117,20 +117,22 @@ class EditPageState(PageState):
         
         return lines
 
-    def _memory_lines(self) -> List[str]:
+    def _memory_lines(self) -> list[str]:
         lines = []
         memory_cursor = "|" if self.select_idx == 2 else ""
         max_memory_line = f"   Max Memory: {self.device_memory}{memory_cursor} GB "
         if not self._validate_memory():
             max_memory_line += "(Warning: Invalid memory amount)"
         elif len(self.device_memory) > 0 and self.model_id is not None:
-            max_memory_line += self._get_num_layers()
+            num_layers = self._get_num_layers()
+            if num_layers is not None:
+                max_memory_line += num_layers
         
         lines.append(max_memory_line)
         
         return lines
 
-    def _get_tip_lines(self) -> List[str]:
+    def _get_tip_lines(self) -> list[str]:
         tip_key = None
         if self.select_idx == 0:
             tip_key = "model_id"
@@ -143,7 +145,7 @@ class EditPageState(PageState):
             return ["", "Tip:", TIPS["layer_models"][tip_key]]
         return []
 
-    def get_view(self) -> List[str]:
+    def get_view(self) -> list[str]:
         header = "Choosing Model" if self.editing_model is not None else "Creating Layer Model Configuration"
         lines = [header, ""]
 
@@ -236,14 +238,20 @@ class EditPageState(PageState):
 
         self.change_state('list', { })
 
-    def _get_num_layers(self) -> str:
+    def _get_num_layers(self) -> str | None:
         if self.device_name not in self.num_layers_cache:
             self.num_layers_cache[self.device_name] = { }
         if str(self.device_memory) in self.num_layers_cache[self.device_name]:
             return self.num_layers_cache[self.device_name][str(self.device_memory)]
         
         assert self.model_id is not None
-        metadata = ModelProvider.get_model_metadata(self.model_id)
+        try:
+            metadata = ModelProvider.get_model_metadata(self.model_id)
+        except Exception as e:  # noqa: BLE001
+            logger = logging.getLogger(__name__)
+            logger.error(e)
+            return None
+
         layer_size = metadata.avg_layer_size / 1024**3
         if is_8_bit_mode():
             layer_size /= 2
@@ -254,7 +262,7 @@ class EditPageState(PageState):
         self.num_layers_cache[self.device_name][str(self.device_memory)] = s
         return s
     
-    def _has_model_already(self, model_id: Optional[str], device: str) -> bool:
+    def _has_model_already(self, model_id: str | None, device: str) -> bool:
         if model_id is None:
             return False
         
@@ -273,9 +281,7 @@ class EditPageState(PageState):
     def _validate_memory(self) -> bool:
         try:
             mem = float(self.device_memory)
-            if mem < 0:
-                return False
-            return True
+            return not mem < 0
         except ValueError:
             return False
         

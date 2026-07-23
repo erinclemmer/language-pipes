@@ -1,5 +1,3 @@
-from typing import Dict, List, Optional
-
 from ansinout import PressedKey
 
 from language_pipes.content_provider.content_provider import ContentProvider
@@ -12,12 +10,12 @@ from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 class TopPageState(PageState):
     focus_idx: int
     server_running: bool
-    job_port: Optional[int]
-    edit_job_port: Optional[str]
-    max_node_jobs: Optional[int]
-    edit_max_node_jobs: Optional[str]
-    max_api_jobs: Optional[int]
-    edit_max_api_jobs: Optional[str]
+    job_port: int | None
+    edit_job_port: str | None
+    max_node_jobs: int | None
+    edit_max_node_jobs: str | None
+    max_api_jobs: int | None
+    edit_max_api_jobs: str | None
 
     def __init__(self):
         super().__init__('top')
@@ -30,7 +28,7 @@ class TopPageState(PageState):
         self.max_api_jobs = None
         self.edit_max_api_jobs = None
 
-    def on_change(self, args: Dict):
+    def on_change(self, args: dict):
         self.focus_idx = 0
 
     def on_key(self, key: PressedKey, ch: str):
@@ -120,7 +118,7 @@ class TopPageState(PageState):
         self.provider.job_provider.set_api_keys(self.provider.job_provider.get_api_keys())
         self.provider.job_provider.start_oai_server()
 
-    def get_view(self) -> List[str]:
+    def get_view(self) -> list[str]:
         port_cursor = "|" if self.focus_idx == 0 else ""
         self.server_running = self.provider.job_provider.oai_server_running()
         port_str = self._port_str()
@@ -168,7 +166,7 @@ class TopPageState(PageState):
 
         return lines
 
-    def _get_tip_lines(self) -> List[str]:
+    def _get_tip_lines(self) -> list[str]:
         tip_key = None
         if self.focus_idx == 0:
             tip_key = "port"
@@ -204,7 +202,7 @@ class TopPageState(PageState):
 
         return ""
 
-    def _get_job_port(self) -> Optional[int]:
+    def _get_job_port(self) -> int | None:
         if self.job_port is None:
             self.job_port = self.provider.job_provider.get_job_port()
         return self.job_port
@@ -256,7 +254,7 @@ class TopPageState(PageState):
     def can_start_server(self) -> bool:
         return self.validate_job_port() and ContentProvider.is_port_available(self._current_port()) and self._network_running() and not self.server_running
 
-    def _current_port(self) -> Optional[int]:
+    def _current_port(self) -> int | None:
         """The port currently shown/typed in the edit field, not the last-saved config value."""
         try:
             return int(self._port_str())
