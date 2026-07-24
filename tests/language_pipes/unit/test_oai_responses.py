@@ -743,5 +743,55 @@ class DisconnectDetectionTests(unittest.TestCase):
             thread.join(timeout=1)
 
 
+class DisconnectWatchdogTests(unittest.TestCase):
+    """A dropped connection must be caught even mid prompt-processing, i.e.
+    while nothing has called update() yet — the watchdog started in start()
+    is the only thing that can observe that."""
+
+    def _post_and_drop(self, port: int, body: dict):
+        payload = json.dumps(body).encode("utf-8")
+        request = (
+            b"POST /v1/responses HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Content-Length: " + str(len(payload)).encode() + b"\r\n"
+            b"Connection: close\r\n\r\n"
+        ) + payload
+        sock = socket.create_connection(("127.0.0.1", port))
+        sock.sendall(request)
+        sock.close()
+
+    def test_watchdog_marks_job_stale_without_any_update_call(self):
+        client_gone = threading.Event()
+        result = {}
+
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+            job = DummyJob()
+            start(job)  # only this launches the watchdog; update() is never called below
+            client_gone.wait(timeout=5)
+            deadline = time.time() + 5
+            while time.time() < deadline and not getattr(job, "stale", False):
+                time.sleep(0.05)
+            result["stale"] = getattr(job, "stale", False)
+            resolve(job)
+
+        server = OAIHttpServer(5000, [], complete, lambda: ["model-1"])
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = server.server_address[1]
+            self._post_and_drop(port, {"model": "model-1", "input": "Hello"})
+            client_gone.set()
+            deadline = time.time() + 5
+            while "stale" not in result and time.time() < deadline:
+                time.sleep(0.05)
+            self.assertIn("stale", result)
+            self.assertTrue(result["stale"])
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=1)
+
+
 if __name__ == "__main__":
     unittest.main()

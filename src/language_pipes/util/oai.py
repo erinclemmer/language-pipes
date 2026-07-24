@@ -15,6 +15,11 @@ from language_pipes.util.oai_chunks import send_complete, send_initial_chunk, se
 # stream survives long time-to-first-token (e.g. slow 8-bit prefill) and slow
 # inter-token gaps. Kept well under common 30-60s client/proxy idle timeouts.
 SSE_KEEPALIVE_INTERVAL = 10.0
+
+# How often the disconnect watchdog polls the client socket. Prompt processing
+# (prefill) can run for a long time between update() calls, so this has to be
+# independent of per-token/per-chunk writes to catch a drop while it's happening.
+DISCONNECT_CHECK_INTERVAL = 1.0
 from language_pipes.util.oai_tool_calls import (
     ReasoningStreamSplitter,
     ResponsesTool,
@@ -306,36 +311,56 @@ def _write_response_event(handler: BaseHTTPRequestHandler, event_type: str, data
         return False
     return True
 
+def _start_disconnect_watchdog(
+    handler: BaseHTTPRequestHandler,
+    job: Job,
+    stream: bool,
+    write_lock: threading.Lock,
+    last_write: List[float],
+) -> threading.Event:
+    """Poll the client connection for the life of the job so a drop is caught
+    even mid prompt-processing, where no per-token/per-chunk update() call
+    happens to observe it. Doubles as the SSE keepalive heartbeat while
+    streaming, so slow prefill / inter-token gaps don't trip client or proxy
+    idle timeouts. Marks the job stale on detecting a drop; job_processor
+    halts at the next checkpoint once Job.send_update() sees that.
+    """
+    stop_event = threading.Event()
+
+    def _watch():
+        while not stop_event.wait(DISCONNECT_CHECK_INTERVAL):
+            if not _connection_alive(handler):
+                job.stale = True
+                return
+            if stream and time.time() - last_write[0] >= SSE_KEEPALIVE_INTERVAL:
+                with write_lock:
+                    if not send_keepalive(handler):
+                        job.stale = True
+                        return
+                    last_write[0] = time.time()
+
+    threading.Thread(target=_watch, daemon=True).start()
+    return stop_event
+
 def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict, api_key: str):
     req = ChatCompletionRequest.from_dict(data)
     created_at = time.time()
 
-    # Serialize every write to the SSE socket: the heartbeat thread and the
+    # Serialize every write to the SSE socket: the watchdog thread and the
     # token-update callbacks both write to handler.wfile concurrently.
     write_lock = threading.Lock()
-    stop_heartbeat = threading.Event()
     last_write = [time.time()]
-
-    def _heartbeat():
-        # Fill silent gaps (long prefill / slow tokens) so the idle stream is
-        # not dropped by the client before the first token arrives.
-        poll = min(1.0, SSE_KEEPALIVE_INTERVAL / 3)
-        while not stop_heartbeat.wait(poll):
-            with write_lock:
-                if time.time() - last_write[0] < SSE_KEEPALIVE_INTERVAL:
-                    continue
-                if not send_keepalive(handler):
-                    return
-                last_write[0] = time.time()
+    stop_watchdog = threading.Event()
 
     def start(job: Job):
+        nonlocal stop_watchdog
+        stop_watchdog = _start_disconnect_watchdog(handler, job, req.stream, write_lock, last_write)
         if not req.stream:
             return
         _send_sse_headers(handler)
         with write_lock:
             send_initial_chunk(job, created_at, handler)
             last_write[0] = time.time()
-        threading.Thread(target=_heartbeat, daemon=True).start()
 
     def update(job: Job):
         if not req.stream:
@@ -348,7 +373,7 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
         return ok
 
     def complete(job: Job):
-        stop_heartbeat.set()
+        stop_watchdog.set()
         if type(job) is type('') and job == 'NO_PIPE':
             _respond_json(handler, { "error": "no pipe available" })
         elif type(job) is type('') and job == 'NO_ENDS':
@@ -398,6 +423,11 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
     # is closed when the answer begins.
     buffering = len(req.tools) > 0
     splitter = ReasoningStreamSplitter()
+    # Serialize every write to the SSE socket: the watchdog thread and the
+    # token-update callbacks both write to handler.wfile concurrently.
+    write_lock = threading.Lock()
+    last_write = [time.time()]
+    stop_watchdog = threading.Event()
     # Live (non-buffered) streaming state, mutated across start/update/complete.
     sstate = {
         "reasoning_id": None,
@@ -478,37 +508,44 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
         })
 
     def start(job: Job):
+        nonlocal stop_watchdog
+        stop_watchdog = _start_disconnect_watchdog(handler, job, req.stream, write_lock, last_write)
         sstate["reasoning_id"] = f"rs-{job.job_id}"
         sstate["message_id"] = f"msg-{job.job_id}"
         if not req.stream:
             return
-        _send_sse_headers(handler)
-        response = {
-            "id": f"resp-{job.job_id}",
-            "object": "response",
-            "created_at": int(created_at),
-            "status": "in_progress",
-            "error": None,
-            "incomplete_details": None,
-            "instructions": req.instructions,
-            "max_output_tokens": req.max_output_tokens,
-            "model": job.model_id,
-            "output": [],
-            "output_text": ""
-        }
-        # output_item.added is deferred until the output type/ordering is known
-        # (a reasoning item may precede the message/function_call item).
-        return _write_response_event(handler, "response.created", {"response": response})
+        with write_lock:
+            _send_sse_headers(handler)
+            response = {
+                "id": f"resp-{job.job_id}",
+                "object": "response",
+                "created_at": int(created_at),
+                "status": "in_progress",
+                "error": None,
+                "incomplete_details": None,
+                "instructions": req.instructions,
+                "max_output_tokens": req.max_output_tokens,
+                "model": job.model_id,
+                "output": [],
+                "output_text": ""
+            }
+            # output_item.added is deferred until the output type/ordering is known
+            # (a reasoning item may precede the message/function_call item).
+            result = _write_response_event(handler, "response.created", {"response": response})
+            last_write[0] = time.time()
+            return result
 
     def update(job: Job):
         if not req.stream or buffering:
             return _connection_alive(handler)
-        reasoning_delta, content_delta = splitter.feed(job.delta)
-        ok = True
-        if reasoning_delta:
-            ok = _reasoning_delta(reasoning_delta) and ok
-        if content_delta:
-            ok = _content_delta(content_delta) and ok
+        with write_lock:
+            reasoning_delta, content_delta = splitter.feed(job.delta)
+            ok = True
+            if reasoning_delta:
+                ok = _reasoning_delta(reasoning_delta) and ok
+            if content_delta:
+                ok = _content_delta(content_delta) and ok
+            last_write[0] = time.time()
         return ok
 
     def _complete_buffered(response: dict):
@@ -599,18 +636,21 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
         })
 
     def complete_stream(job: Job, response: dict):
-        if buffering:
-            _complete_buffered(response)
-        else:
-            _complete_live(job, response)
-        _write_response_event(handler, "response.completed", {"response": response})
-        try:
-            handler.wfile.write(b"data: [DONE]\n\n")
-            handler.wfile.flush()
-        except Exception:
-            pass
+        with write_lock:
+            if buffering:
+                _complete_buffered(response)
+            else:
+                _complete_live(job, response)
+            _write_response_event(handler, "response.completed", {"response": response})
+            try:
+                handler.wfile.write(b"data: [DONE]\n\n")
+                handler.wfile.flush()
+            except Exception:
+                pass
+            last_write[0] = time.time()
 
     def complete(job: Job):
+        stop_watchdog.set()
         if type(job) is type('') and job == 'NO_PIPE':
             _respond_json(handler, { "error": "no pipe available" })
         elif type(job) is type('') and job == 'NO_ENDS':
