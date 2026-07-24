@@ -423,8 +423,11 @@ class RequestForModelHandler:
 
                 self.request_state.status = "Computing metadata..."
 
-            ModelProvider.get_model_metadata(model_id)
-            self.request_state.status = "SUCCESSFULLY Downloaded model"
+            m = ModelProvider.get_model_metadata(model_id)
+            if not m.loaded:
+                self.request_state.status = "[Error] Error computing metadata"
+            else:
+                self.request_state.status = "SUCCESSFULLY Downloaded model"
         except Exception as e:
             self.logger.error(f"Failed to finalize download: {e}")
             self.request_state.reset()

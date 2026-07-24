@@ -1,17 +1,19 @@
-from typing import Dict, List, Optional
-
 from ansinout import PressedKey
 
 from language_pipes.config import EndModelConfig
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus
 from language_pipes.tui.components.page import PageState
-from language_pipes.tui.util.text import make_footer_text, make_selectable_text, make_window_text
+from language_pipes.tui.util.text import (
+    make_footer_text,
+    make_selectable_text,
+    make_window_text,
+)
 
 
 class ListPageState(PageState):
-    end_models: List[EndModelConfig]
-    model_sizes: Dict[str, float]
+    end_models: list[EndModelConfig]
+    model_sizes: dict[str, float]
 
     def __init__(self):
         super().__init__('list')
@@ -19,7 +21,7 @@ class ListPageState(PageState):
         self.model_idx = 0
         self.model_sizes = { }
 
-    def on_change(self, args: Dict):
+    def on_change(self, args: dict):
         pass
 
     def on_key(self, key: PressedKey, ch: str):
@@ -68,12 +70,12 @@ class ListPageState(PageState):
     def _on_prev(self):
         self.model_idx = (self.model_idx - 1) % (len(self.end_models) + 1)
 
-    def get_view(self) -> List[str]:
+    def get_view(self) -> list[str]:
         lines = [ContentProvider.get_ram_usage(), "", "End Models:"]
 
         self.end_models = self.provider.model_provider.get_end_model_configs()
 
-        entries: List[List[str]] = []
+        entries: list[list[str]] = []
         for i, model in enumerate(self.end_models):
             loaded_text = ""
             if self._is_loaded(model.model_id):
@@ -82,7 +84,10 @@ class ListPageState(PageState):
                 loaded_text = "(Loading...)"
 
             size = self._get_model_size(model.model_id, model.num_local_layers)
-            line = f"{model.model_id} ({size:.2f} GB) {loaded_text}"
+            if size is None:
+                line = f"{model.model_id} [Error getting metadata]"
+            else:
+                line = f"{model.model_id} ({size:.2f} GB) {loaded_text}"
             entries.append([make_selectable_text(line, self.model_idx == i), ""])
 
         entries.append([make_selectable_text(
@@ -115,11 +120,13 @@ class ListPageState(PageState):
         self.model_idx = 0
         self.provider.model_provider.save_end_model_configs(self.end_models)
 
-    def _get_model_size(self, model_id: str, num_local_layers: int) -> float:
+    def _get_model_size(self, model_id: str, num_local_layers: int) -> float | None:
         cache_key = f"{model_id}:{num_local_layers}"
         if cache_key in self.model_sizes:
             return self.model_sizes[cache_key]
         metadata = ModelProvider.get_model_metadata(model_id)
+        if not metadata.loaded:
+            return None
         size = (metadata.head_size + metadata.embed_size + (metadata.avg_layer_size * num_local_layers)) / 1024**3
         self.model_sizes[cache_key] = size
         return size

@@ -202,8 +202,11 @@ class ModelProvider:
             else:
                 # Compile metadata
                 self.download_message = "Computing metadata..."
-                ModelProvider.get_model_metadata(model_id)
-                self.download_message = "[SUCCESS] Download complete"
+                metadata = ModelProvider.get_model_metadata(model_id)
+                if not metadata.loaded:
+                    self.download_message = "[ERROR] Error computing metadata"
+                else:
+                    self.download_message = "[SUCCESS] Download complete"
 
         self.download_model_thread = Thread(target=download_model, args=())
         self.download_model_thread.start()

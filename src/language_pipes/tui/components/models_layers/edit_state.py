@@ -245,13 +245,11 @@ class EditPageState(PageState):
             return self.num_layers_cache[self.device_name][str(self.device_memory)]
         
         assert self.model_id is not None
-        try:
-            metadata = ModelProvider.get_model_metadata(self.model_id)
-        except Exception as e:  # noqa: BLE001
-            logger = logging.getLogger(__name__)
-            logger.error(e)
+        
+        metadata = ModelProvider.get_model_metadata(self.model_id)
+        if not metadata.loaded:
             return None
-
+        
         layer_size = metadata.avg_layer_size / 1024**3
         if is_8_bit_mode():
             layer_size /= 2
