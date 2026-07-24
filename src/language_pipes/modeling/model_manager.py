@@ -1,5 +1,5 @@
 import gc
-import time
+import logging
 import torch
 from uuid import uuid4
 from typing import List, Optional, Tuple, Dict
@@ -18,17 +18,16 @@ from language_pipes.util.config import get_model_dir, is_8_bit_mode
 class ModelManager:
     layer_models: List[LlmModel]
     end_models: List[EndModel]
-    logs: List[Tuple[float, str]]
     pipes_hosted: Dict[str, List[str]]
 
     def __init__(self):
         self.layer_models = []
-        self.logs = []
+        self.logger = logging.getLogger(__name__)
         self.end_models = []
         self.pipes_hosted = { }
 
     def stop(self):
-        self.logs.append((time.time(), "Stopping models"))
+        self.logger.info("Stopping models")
         for m in self.layer_models:
             m.cleanup_tensors()
         for m in self.end_models:
@@ -88,9 +87,9 @@ class ModelManager:
     def load_end_model(self, model_id: str, device: str, num_local_layers: int):
         model = EndModel(num_local_layers, get_model_dir(), model_id, device)
         self.end_models.append(model)
-        self.logs.append((time.time(), f"Loading End Model for {model_id}"))
+        self.logger.info(f"Loading End Model for {model_id}")
         model.load()
-        self.logs.append((time.time(), f"End Model for {model_id} loaded successfully"))
+        self.logger.info(f"End Model for {model_id} loaded successfully")
 
     def host_model(self, router_pipes: RouterPipes, node_id: str, model_id: str, max_memory: float, device: torch.device, first_layer: int, max_pipes: int = 1):
         available_memory = max_memory * 1024**3
@@ -125,9 +124,9 @@ class ModelManager:
                 self.layer_models.append(model)
 
         for m in models_to_load:
-            self.logs.append((time.time(), f"Loading model {m.model_id} on {m.device}, Layers {m.start_layer}-{m.end_layer}"))
+            self.logger.info(f"Loading model {m.model_id} on {m.device}, Layers {m.start_layer}-{m.end_layer}")
             m.load()
-            self.logs.append((time.time(), f"Layers {m.start_layer}-{m.end_layer} for {m.model_id} successfully loaded on {m.device}"))
+            self.logger.info(f"Layers {m.start_layer}-{m.end_layer} for {m.model_id} successfully loaded on {m.device}")
             router_pipes.update_model(m.to_meta())
 
     def refresh_pipes_hosted(self):
@@ -145,7 +144,7 @@ class ModelManager:
                 model.cleanup_tensors()
                 router_pipes.remove_model(model.to_meta())
                 to_remove.append(model.process_id)
-                self.logs.append((time.time(), f"Stopping model {model.model_id} on {model.device}"))
+                self.logger.info(f"Stopping model {model.model_id} on {model.device}")
 
         for m_id in to_remove:
             self.layer_models = [m for m in self.layer_models if m.process_id != m_id]
@@ -159,7 +158,7 @@ class ModelManager:
             if model.model_id == model_id:
                 model.clean_up()
                 to_remove.append(model.process_id)
-                self.logs.append((time.time(), f"Stopping end model {model.model_id}"))
+                self.logger.info(f"Stopping end model {model.model_id}")
 
         for m_id in to_remove:
             self.end_models = [m for m in self.end_models if m.process_id != m_id]

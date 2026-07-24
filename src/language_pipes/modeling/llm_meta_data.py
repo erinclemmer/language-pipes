@@ -1,21 +1,20 @@
+import json
 import logging
 import os
-import json
 from pathlib import Path
+
 import torch
-from typing import Any, Dict, List, Tuple, Optional
-
-from llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from llm_layer_collector import LlmLayerCollector
-
-from llm_layer_collector.load_layer import get_shard_data
-from language_pipes.util.utils import size_of_tensor, tensor_hash
-from language_pipes.util.enums import ModelPartType
+from llm_layer_collector.auto.auto_rms import AutoRMSNorm
 from llm_layer_collector.helpers import get_config
+from llm_layer_collector.load_layer import get_shard_data
+
+from language_pipes.util.enums import ModelPartType
+from language_pipes.util.utils import size_of_tensor, tensor_hash
 
 META_VER = '1.0.0'
 
-def get_avg_layer_size(model_path: Path) -> Tuple[int, str]:
+def get_avg_layer_size(model_path: Path) -> tuple[int, str]:
     if not os.path.exists(model_path):
         return -1, ""
     collector = LlmLayerCollector(
@@ -26,13 +25,16 @@ def get_avg_layer_size(model_path: Path) -> Tuple[int, str]:
     )
 
     shard_data = get_shard_data(0, 0, torch.device('cpu'), collector.model_dir, collector.layer_prefix, collector.layer_files, torch.bfloat16)
-    total_size = 0
-    for key in collector.layer_files:
-        if (collector.layer_prefix + "0.") in key:
-            try:
-                total_size += size_of_tensor(shard_data[key])
-            except:  # noqa: E722
-                pass
+    # Size the layer from what get_shard_data actually produced, not from the
+    # checkpoint key list: dequantization rewrites keys (mxfp4 experts arrive as
+    # "<proj>_blocks"/"<proj>_scales" and leave as a single dense "<proj>"), so
+    # looking up checkpoint names would miss the expert weights entirely and
+    # under-report a gpt_oss layer by most of its mass.
+    total_size = sum(
+        size_of_tensor(tensor)
+        for key, tensor in shard_data.items()
+        if (collector.layer_prefix + "0.") in key
+    )
     lyrs = collector.load_layer_set(0, 0)
 
     hsh = ""
@@ -44,7 +46,7 @@ def get_avg_layer_size(model_path: Path) -> Tuple[int, str]:
     return total_size, hsh
 
 
-def data_of_type(typ: ModelPartType, model_path: Path) -> Tuple[float, str]:
+def data_of_type(typ: ModelPartType, model_path: Path) -> tuple[float, str]:
     config = get_config(model_path)
 
     size = 0
@@ -110,13 +112,15 @@ class LlmMetadata:
     head_size: int
     avg_layer_size: int
     num_hidden_layers: int
+    loaded: bool
     version: str
 
     embed_hash: str
     head_hash: str
     layer_hash: str
 
-    def __init__(self, model_dir: Optional[Path] = None):
+    def __init__(self, model_dir: Path | None = None):
+        self.loaded = False
         if model_dir is None:
             return
         try:
@@ -127,9 +131,8 @@ class LlmMetadata:
                 data = get_computed_data(model_dir)
             self._init_props(data)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logging.getLogger(__name__).error(e)
-            raise e
 
     def _delete_files(self, model_dir: Path):
         cache_file = model_dir / "cache.json"
@@ -140,7 +143,7 @@ class LlmMetadata:
         if os.path.exists(metadata_file):
             os.remove(metadata_file)
 
-    def _get_data(self, model_dir: Path) -> Dict[str, Any]:
+    def _get_data(self, model_dir: Path) -> dict[str, str]:
         try:
             data = get_computed_data(model_dir)
             self._init_props(data)
@@ -150,7 +153,7 @@ class LlmMetadata:
 
         return data
 
-    def _init_props(self, data: Dict[str, Any]):
+    def _init_props(self, data: dict):
         self.embed_size = data["embed_size"]
         self.head_size = data["head_size"]
         self.avg_layer_size = data["avg_layer_size"]
@@ -159,6 +162,7 @@ class LlmMetadata:
         self.layer_hash = data["layer_hash"]
         self.num_hidden_layers = data["num_hidden_layers"]
         self.version = data["version"]
+        self.loaded = True
 
     def to_json(self):
         return {

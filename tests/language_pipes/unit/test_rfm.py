@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from time import time
+from types import SimpleNamespace
 from typing import Type, TypeVar
 from unittest.mock import patch
 
@@ -324,7 +325,7 @@ class _ModelDirTestCase(unittest.TestCase):
         # Completing a download computes model metadata from real weight files;
         # stub it out so the protocol tests don't need a valid model on disk.
         metadata_patcher = patch.object(
-            rfm.ModelProvider, "get_model_metadata", return_value=None
+            rfm.ModelProvider, "get_model_metadata", return_value=SimpleNamespace(loaded=True)
         )
         metadata_patcher.start()
         self.addCleanup(metadata_patcher.stop)

@@ -4,8 +4,9 @@ import os
 from pathlib import Path
 from typing import Optional
 from language_pipes.config_args import ConfigurationArgs
-from language_pipes.util.aes import save_new_aes_key
+from language_pipes.util.aes import generate_aes_key
 from language_pipes.util.config import get_app_dir
+from language_pipes.util.logging import setup_logging
 
 VERSION = (
     resources.files("language_pipes")
@@ -27,19 +28,14 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
     
     # Run
-    subparsers.add_parser("run", help="Start Language Pipes as a stdout stream without the TUI")
+    run_parser = subparsers.add_parser("run", help="Start Language Pipes as a stdout stream without the TUI")
+    run_parser.add_argument("-t", "--token", help="HuggingFace token used to download gated models")
 
     # Config
     subparsers.add_parser("config", help="Verify configuration file and flags")
 
     # Keygen
-    keygen_parser = subparsers.add_parser("keygen", help="Generate AES encryption key")
-    keygen_parser.add_argument(
-        "output",
-        nargs="?",
-        help="Output file for AES key (default: network.key)",
-        default="network.key",
-    )
+    subparsers.add_parser("keygen", help="Generate and print a new AES network key")
 
     return parser
 
@@ -62,7 +58,9 @@ def main(argv=None):
 
     if args.command is None:
         from language_pipes.tui import initialize_tui
-        
+
+        # No console handler: stdout would corrupt the ANSI frame.
+        setup_logging(console=False)
         config_args = ConfigurationArgs(args)
         initialize_tui(config_args.config_file, config_args.auto_start)
         
@@ -83,8 +81,9 @@ def main(argv=None):
                 print(f"ERROR: {config_file} not found")
                 return
         
+        setup_logging(console=True)
         from language_pipes.runner import LpRunner
-        LpRunner(Path(config_file))
+        LpRunner(Path(config_file), args.token)
         
     elif args.command == "config":
         config_args = ConfigurationArgs(args)
@@ -108,9 +107,8 @@ def main(argv=None):
         print(config.to_string())
         
     elif args.command == "keygen":
-        key = save_new_aes_key(args.output)
+        key = generate_aes_key().hex()
         print(f"✓ Network key generated: {key}")
-        print(f"✓ Network key saved to '{args.output}'")
-
+        
 if __name__ == "__main__":
     main()

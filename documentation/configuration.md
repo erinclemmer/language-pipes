@@ -28,10 +28,12 @@ memory = 4
 ```
 
 > **Key ordering matters.** In TOML, key/value pairs that appear after an
-> array-of-tables header (`[[layer_models]]`, `[[bootstrap_nodes]]`) belong to
-> that table, not to the top-level document. Put all top-level scalar keys
-> (`node_id`, `job_port`, `end_models`, etc.) **before** any `[[layer_models]]`
-> or `[[bootstrap_nodes]]` blocks.
+> array-of-tables header (`[[layer_models]]`, `[[bootstrap_nodes]]`,
+> `[[end_models]]`) belong to that table, not to the top-level document. Put all
+> top-level scalar keys (`node_id`, `job_port`, string-form `end_models`, etc.)
+> **before** any array-of-tables blocks. When using the table form of
+> `end_models`, place those `[[end_models]]` blocks alongside your other
+> array-of-tables sections.
 
 ## Complete Example
 
@@ -50,7 +52,6 @@ api_keys = ["test_key"]
 peer_port = 5000
 network_ip = "192.168.0.1"
 network_key = "9f86d081884c7d659a2feaa0c55ad015"
-whitelist_ips = []
 whitelist_node_ids = []
 
 # === Layer Models ===
@@ -126,19 +127,41 @@ memory = 8
 
 #### `end_models`
 
-Array of model IDs for which to load the End Model (embedding layer + output head). The node with a model in its `end_models` list is the **only node that can see your actual prompts and responses** for that model. Other nodes only process hidden state tensors and cannot read the conversation content.
+Array of end models to load (embedding layer + output head). The node with a model in its `end_models` list is the **only node that can see your actual prompts and responses** for that model. Other nodes only process hidden state tensors and cannot read the conversation content.
 
 | Type | Default |
 |------|---------|
-| array of strings | `[]` (empty) |
+| array of strings or tables | `[]` (empty) |
 
+Each entry is either a plain model ID string, or a table with a `model_id` and
+options:
+
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `model_id` | string | ✓ | — | HuggingFace model ID or path in `/models` directory |
+| `num_local_layers` | int | | `1` | Number of initial model layers the end model executes locally before forwarding work to other nodes. Higher values improve prompt obfuscation by keeping more of the early pipeline on your machine. All nodes hosting the same end model should use the same value so that model layers are loaded correctly. |
+| `device` | string | | `cpu` | PyTorch device (`cpu`, `cuda:0`, `cuda:1`, …) used for **both** the local layers and the embedding/output head modules of this end model. |
+
+Simple form (one local CPU layer each):
 ```toml
 end_models = ["Qwen/Qwen3-1.7B"]
 ```
 
-Privacy-preserving setup:
+Table form when you need per-model options:
 ```toml
-end_models = ["Qwen/Qwen3-1.7B"]  # Your prompts stay on this machine
+[[end_models]]
+model_id = "Qwen/Qwen3-1.7B"
+num_local_layers = 2
+device = "cuda:0"
+```
+
+> Because TOML arrays cannot mix strings and tables, use one form for the whole
+> `end_models` list. Any model that doesn't set `num_local_layers` defaults to
+> `1`, and any that doesn't set `device` defaults to `cpu`.
+
+Local end model setup:
+```toml
+end_models = ["Qwen/Qwen3-1.7B"]
 
 [[layer_models]]
 model_id = "Qwen/Qwen3-1.7B"
@@ -172,6 +195,35 @@ List of accepted API keys for the OpenAI-compatible server.
 
 ```toml
 api_keys = ["test_key"]
+```
+
+#### `max_node_jobs`
+
+Maximum number of jobs this node will queue for a single peer node. Incoming
+jobs from a node whose queue is already full are rejected. Configurable from
+the TUI's "Jobs / Server" page.
+
+| Type | Default |
+|------|---------|
+| int | `10` |
+
+```toml
+max_node_jobs = 10
+```
+
+#### `max_api_jobs`
+
+Maximum number of pending jobs allowed per API key on the
+[OpenAI-compatible API](./oai.md). Requests beyond this limit are rejected
+until earlier jobs for that key complete. Configurable from the TUI's
+"Jobs / Server" page.
+
+| Type | Default |
+|------|---------|
+| int | `5` |
+
+```toml
+max_api_jobs = 5
 ```
 
 ---
@@ -237,19 +289,15 @@ Hex-encoded AES-128 key used to encrypt peer-to-peer traffic. If null or omitted
 network_key = "9f86d081884c7d659a2feaa0c55ad015"
 ```
 
-Generate key from the TUI.
+Generate a key from the TUI (**Network > Configure**) or with the [`keygen`](./cli.md#keygen) command.
 
-#### `whitelist_ips`
+#### `whitelist_ips` (removed)
 
-IP addresses this node will allow for peer communication. If configured, the node only accepts inbound DSN requests from these IPs and only sends outbound requests to these IPs.
-
-| Type | Default |
-|------|---------|
-| array of strings | `[]` (allow all) |
-
-```toml
-whitelist_ips = ["192.168.1.100", "192.168.1.101"]
-```
+> **Dropped in favor of [`whitelist_node_ids`](#whitelist_node_ids).** IP-based
+> whitelisting has been removed. IPs are not a stable identity for a peer (they
+> can be shared, spoofed, or reassigned), whereas node IDs are authenticated.
+> Restrict peer communication with `whitelist_node_ids` instead. A `whitelist_ips`
+> key left in an existing config file is ignored.
 
 #### `whitelist_node_ids`
 
@@ -302,7 +350,12 @@ Model cache directory. Stores downloaded model weights.
 export LP_MODEL_DIR=~/.cache/language_pipes/models
 ```
 
-#### `LP_NUM_LOCAL_LAYERS`
+#### `LP_NUM_LOCAL_LAYERS` (deprecated)
+
+> **Deprecated.** Set `num_local_layers` per end model in the [`end_models`](#end_models)
+> configuration instead. This environment variable is still honored as a
+> fallback default for end models that don't specify `num_local_layers`, but it
+> logs a deprecation warning and will be removed in a future release.
 
 Number of initial model layers an end model executes locally before
 forwarding work to other nodes. Higher values improve prompt obfuscation by
@@ -317,7 +370,13 @@ end model should use the same value so that model layers are loaded correctly.
 export LP_NUM_LOCAL_LAYERS=1
 ```
 
-#### `LP_MAX_NODE_JOBS`
+#### `LP_MAX_NODE_JOBS` (deprecated)
+
+> **Deprecated.** Set [`max_node_jobs`](#max_node_jobs) in the config file, or
+> from the TUI's "Jobs / Server" page, instead. This environment variable is
+> still honored as a fallback default when `max_node_jobs` isn't set in the
+> config file, but it logs a deprecation warning and will be removed in a
+> future release.
 
 Maximum number of jobs this node will queue for a single peer node. Incoming
 jobs from a node whose queue is already full are rejected.
@@ -330,7 +389,13 @@ jobs from a node whose queue is already full are rejected.
 export LP_MAX_NODE_JOBS=10
 ```
 
-#### `LP_MAX_API_JOBS`
+#### `LP_MAX_API_JOBS` (deprecated)
+
+> **Deprecated.** Set [`max_api_jobs`](#max_api_jobs) in the config file, or
+> from the TUI's "Jobs / Server" page, instead. This environment variable is
+> still honored as a fallback default when `max_api_jobs` isn't set in the
+> config file, but it logs a deprecation warning and will be removed in a
+> future release.
 
 Maximum number of pending jobs allowed per API key on the
 [OpenAI-compatible API](./oai.md). Requests beyond this limit are rejected

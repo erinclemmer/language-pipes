@@ -7,12 +7,11 @@ from tqdm.auto import tqdm
 from pathlib import Path
 from threading import Thread
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Callable, Tuple
+from typing import List, Optional, Dict, Callable
 from huggingface_hub import snapshot_download, errors
 
-from language_pipes.config import LpConfig, ModelToLoad
+from language_pipes.config import LpConfig, ModelToLoad, EndModelConfig
 from language_pipes.global_config import GlobalConfig
-from language_pipes.modeling.end_model import EndModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.model_manager import ModelManager
@@ -95,13 +94,6 @@ class ModelProvider:
         self.get_model_manager = get_model_manager
         self.get_router_pipes = get_router_pipes
         
-    def get_model_manager_logs(self) -> List[Tuple[float, str]]:
-        mm = self.get_model_manager()
-        return mm.logs
-
-    def reset_model_manager_logs(self):
-        self.get_model_manager().logs = []
-
     # Returns a mapping of model_id -> list of lifecycle statuses based on ModelManager state.
     def get_models_status(self) -> Dict[str, List[ModelStatusInfo]]:
         status_by_model: Dict[str, List[ModelStatusInfo]] = {}
@@ -210,8 +202,11 @@ class ModelProvider:
             else:
                 # Compile metadata
                 self.download_message = "Computing metadata..."
-                ModelProvider.get_model_metadata(model_id)
-                self.download_message = "[SUCCESS] Download complete"
+                metadata = ModelProvider.get_model_metadata(model_id)
+                if not metadata.loaded:
+                    self.download_message = "[ERROR] Error computing metadata"
+                else:
+                    self.download_message = "[SUCCESS] Download complete"
 
         self.download_model_thread = Thread(target=download_model, args=())
         self.download_model_thread.start()
@@ -269,14 +264,29 @@ class ModelProvider:
         Thread(target=restart_model, args=()).start()
 
     def load_end_model(self, model_id: str):
+        config = self._get_end_model_config(model_id)
         def host_end_model():
-            self.get_model_manager().load_end_model(model_id, "cpu", self.get_num_local_layers())
+            self.get_model_manager().load_end_model(model_id, config.device, config.num_local_layers)
 
         Thread(target=host_end_model, args=()).start()
 
-    @staticmethod
-    def get_num_local_layers():
-            return EndModel.get_num_local_layers()
+    def reload_end_model(self, model_id: str):
+        config = self._get_end_model_config(model_id)
+        def restart_end_model():
+            mm = self.get_model_manager()
+            mm.shutdown_end_model(model_id)
+            mm.load_end_model(model_id, config.device, config.num_local_layers)
+
+        Thread(target=restart_end_model, args=()).start()
+
+    def _get_end_model_config(self, model_id: str) -> EndModelConfig:
+        for m in LpConfig.from_file(self.config_file).end_models:
+            if m.model_id == model_id:
+                return m
+        return EndModelConfig(model_id=model_id)
+
+    def get_num_local_layers_for(self, model_id: str) -> int:
+        return self._get_end_model_config(model_id).num_local_layers
 
     def unload_layer_models(self, model_id: str, device: torch.device):
         rp = self.get_router_pipes()
@@ -309,11 +319,31 @@ class ModelProvider:
         cfg.save()
 
     def get_end_models(self) -> List[str]:
-        return sorted(LpConfig.from_file(self.config_file).end_models, key=lambda m:m.lower())
-        
-    def save_end_models(self, end_models: List[str]):
+        return sorted(
+            [m.model_id for m in LpConfig.from_file(self.config_file).end_models],
+            key=lambda m: m.lower()
+        )
+
+    def get_end_model_configs(self) -> List[EndModelConfig]:
+        return sorted(
+            LpConfig.from_file(self.config_file).end_models,
+            key=lambda m: m.model_id.lower()
+        )
+
+    def save_end_models(self, model_ids: List[str]):
         cfg = LpConfig.from_file(self.config_file)
-        cfg.end_models = end_models
+        # Preserve any per-model options (e.g. num_local_layers) for models that
+        # remain configured; new models fall back to the defaults.
+        existing = {m.model_id: m for m in cfg.end_models}
+        cfg.end_models = [
+            existing.get(model_id, EndModelConfig(model_id=model_id))
+            for model_id in model_ids
+        ]
+        cfg.save()
+
+    def save_end_model_configs(self, configs: List[EndModelConfig]):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.end_models = configs
         cfg.save()
 
     @staticmethod

@@ -201,6 +201,8 @@ class Job:
 
     def send_update(self):
         self.last_update_time = time()
+        if self.stale:
+            return False
         if self.update is not None:
             return self.update(self)
         return True

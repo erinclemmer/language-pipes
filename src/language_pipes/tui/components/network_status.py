@@ -5,6 +5,7 @@ from language_pipes.content_provider.content_provider import ContentProvider
 from distributed_state_network.objects.config import DSNodeConfig
 from ansinout import PressedKey
 from language_pipes.content_provider.network_provider import RouterStatus
+from language_pipes.util.logging import get_ring_buffer
 
 class NetworkStatus:
     provider: ContentProvider
@@ -52,10 +53,7 @@ class NetworkStatus:
                 "Logs:"
             ]
 
-            logs = self.status.logs
-            
-            if len(logs) > 5:
-                logs = logs[-5:]
+            logs = get_ring_buffer().get(prefix="distributed_state_network", limit=5)
 
             for ts, log in logs:
                 timestamp = time.strftime("%H:%M:%S", time.localtime(ts))

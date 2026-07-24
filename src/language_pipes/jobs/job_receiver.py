@@ -1,3 +1,4 @@
+import logging
 import random
 import threading
 from time import sleep
@@ -12,7 +13,6 @@ from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.jobs.job_processor import JobProcessor, JobContext
-from language_pipes.util.config import get_max_node_jobs
 
 class JobReceiver:
     job_factory: JobFactory
@@ -22,23 +22,26 @@ class JobReceiver:
     model_manager: ModelManager
     shutdown: bool
     is_shutdown: Callable[[], bool]
+    get_max_node_jobs: Callable[[], int]
 
     def __init__(
-            self, 
+            self,
             job_factory: JobFactory,
             job_tracker: JobTracker,
             pipe_manager: PipeManager,
             model_manager: ModelManager,
-            is_shutdown: Callable[[], bool]
+            is_shutdown: Callable[[], bool],
+            get_max_node_jobs: Callable[[], int]
     ):
         self.job_queue = { }
         self.queue_lock = threading.Lock()
-        self.logs = []
+        self.logger = logging.getLogger(__name__)
         self.job_tracker = job_tracker
         self.job_factory = job_factory
         self.model_manager = model_manager
         self.pipe_manager = pipe_manager
         self.is_shutdown = is_shutdown
+        self.get_max_node_jobs = get_max_node_jobs
         self.shutdown = False
         
         Thread(target=self._job_runner_loop, args=()).start()
@@ -93,11 +96,10 @@ class JobReceiver:
 
                 try:
                     fsm.run()
-                    self.logs.extend(fsm.logs)
-                except Exception as e:
-                    print(e)
-        except Exception as e:
-            self.logs.append(e)
+                except Exception:
+                    self.logger.exception("Job processing failed")
+        except Exception:
+            self.logger.exception("Job runner loop failed")
 
     def restart_token(self, network_job: NetworkJob):
         """Mark job for restart and send back to origin."""
@@ -129,6 +131,6 @@ class JobReceiver:
         with self.queue_lock:
             if node_id not in self.job_queue:
                 self.job_queue[node_id] = [ ]
-            if len(self.job_queue[node_id]) > get_max_node_jobs():
+            if len(self.job_queue[node_id]) > self.get_max_node_jobs():
                 raise Exception("Maximum number of jobs for node reached")
             self.job_queue[node_id].insert(0, job)

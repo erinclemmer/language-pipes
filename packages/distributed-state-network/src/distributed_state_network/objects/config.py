@@ -13,7 +13,6 @@ class DSNodeConfig:
     port: int
     network_ip: Optional[str]
     aes_key: Optional[str]
-    whitelist_ips: List[str]
     bootstrap_nodes: List[Endpoint]
     whitelist_node_ids: List[str]
 
@@ -25,8 +24,7 @@ class DSNodeConfig:
             Path(data["credential_dir"]) if "credential_dir" in data else Path("credentials"),
             data["port"] if "port" in data else 0,
             data["network_ip"] if "network_ip" in data else None, 
-            data["aes_key"] if "aes_key" in data else None, 
-            data["whitelist_ips"] if "whitelist_ips" in data and data["whitelist_ips"] is not None else [],
+            data["aes_key"] if "aes_key" in data else None,
             [Endpoint.from_json(e) for e in data["bootstrap_nodes"]] if "bootstrap_nodes" in data else [],
             data["whitelist_node_ids"] if "whitelist_node_ids" in data and data["whitelist_node_ids"] is not None else [],
         )
@@ -37,7 +35,6 @@ class DSNodeConfig:
             "port": self.port,
             "network_ip": self.network_ip,
             "aes_key": self.aes_key,
-            "whitelist_ips": self.whitelist_ips,
             "whitelist_node_ids": self.whitelist_node_ids
         }
 
@@ -76,11 +73,6 @@ class DSNodeConfig:
             lines.append(f"  {'AES Key:':<18} {display_key}")
         else:
             lines.append("  Network Encryption: Disabled")
-
-        if self.whitelist_ips:
-            lines.append(f"  {'Whitelist IPs:':<18} {', '.join(self.whitelist_ips)}")
-        else:
-            lines.append("  Whitelist IPs:      Disabled (all peers allowed)")
 
         if self.whitelist_node_ids:
             lines.append(f"  {'Whitelist Node IDs:':<18} {', '.join(self.whitelist_node_ids)}")

@@ -3,6 +3,58 @@ title: Release Notes
 description: Change log for Language Pipes releases.
 ---
 
+## Release 2.4.0
+
+### Model Support
+Newly added explicit support or tested these models:
+
+**Open AI:**
+- openai/gpt-oss-20b
+
+**Google:**
+- google/gemma-4-12B-it
+- google/gemma-4-31B-it
+- google/gemma-4-26B-A4B-it
+
+**Mistral AI:**
+- mistralai/Ministral-3-3B-Reasoning-2512
+- mistralai/Ministral-3-3B-Instruct-2512
+- mistralai/Ministral-3-14B-Instruct-2512
+
+**Meta:**
+- meta-llama/Llama-3.2-3B-Instruct
+- meta-llama/Llama-3.3-70B-Instruct
+
+**Microsoft:**
+- microsoft/Phi-4-mini-instruct
+
+### Per-End-Model Configuration
+End model options are now configured per model in the `end_models` list instead of globally:
+- `num_local_layers` can now be set per end model (the global `LP_NUM_LOCAL_LAYERS` / `--num-local-layers` setting is deprecated and now only acts as a fallback default).
+- Added a `device` option to choose the PyTorch device (`cpu`, `cuda:0`, …) used for both the local layers and the embedding/output head modules of an end model.
+- The "Models / End Models" editor now includes a device selector alongside the local-layers field. See [Configuration](./configuration.md#end_models).
+
+### Unified Logging
+Unified logging across all parts of the application. Log file, "Home / Activity" page, and "language-pipes run" command should all show the same thing
+
+### language-pipes run command
+- Fixed folder initialization
+- Creates a new ECDSA key if the node ID doesn't already exist.
+- Now downloads model if the model in layer_models or end_models is not present on the machine.
+- Added `--token` argument to run command to specify a Huggingface API token, otherwise it tries to use the global configuration value, if neither are found it downloads unauthenticated.
+
+### Keygen command
+Changed behaviour of `language-pipes keygen` command to simply print the hex value of the AES key instead of saving it to a file. This lines up with the 2.0 style of supplying the key in the config file as opposed to the config file pointing to another file.
+
+### Job Limits Configuration
+`LP_MAX_NODE_JOBS` and `LP_MAX_API_JOBS` are deprecated. `max_node_jobs` (default `10`) and `max_api_jobs` (default `5`) are now configured from the "Jobs / Server" TUI page or the config file, and take effect immediately without a restart. The environment variables are still honored as a fallback default but log a deprecation warning. See the [Configuration Manual](./configuration.md#max_node_jobs) for details.
+
+### Bugs
+- Removed requirements for logging and uuid since they come with a standard Python installation.
+- Fixed selection bug in "models / layers" model editor.
+- Fixed bug where job was not stopping if connection was dropped
+- Fixed bug where app would crash if a model saved in the configuration was deleted
+
 ## Release 2.3.0
 
 ### Standalone Packages
@@ -146,8 +198,9 @@ Added model support for GLM4.1v, Gemma3, and Phi4 model families. Below is a lis
 - google/gemma-3-1b-it
 
 ### Whitelists
-**--whitelist-ips** if set, only network IPs that are in this list are allowed to communicate with this node
 **--whitelist-node-ids** if set, only node IDs that are in the list are allowed to communicate with this node
+
+> **Note:** The `whitelist-ips` feature has been dropped in favor of `whitelist-node-ids`. IP addresses are not a stable, authenticated peer identity, so IP-based whitelisting has been removed; use node-ID whitelisting instead.
 
 **Note:** `--whitelist-node-ids` works by ECDSA signature. Public keys are stored in `~/.config/language_pipes/credentials` and returning nodes must match the same public signature to be allowed to use their node ID.
 

@@ -1,7 +1,8 @@
 import time
-from typing import Callable, List, Tuple
+from typing import Callable, List
 
 from language_pipes.content_provider.content_provider import ContentProvider
+from language_pipes.util.logging import get_ring_buffer
 from ansinout import PressedKey
 
 
@@ -24,19 +25,7 @@ class HomeActivity:
     def get_view(self) -> List[str]:
         lines = ["Activity:"]
 
-        logs: List[Tuple[float, str]] = []
-        network_status = self.provider.network_provider.get_network_status()
-        if network_status is not None:
-            logs.extend(network_status.logs)
-        
-        logs.extend(self.provider.job_provider.get_oai_logs())
-
-        logs.extend(self.provider.model_provider.get_model_manager_logs())
-        
-        logs.sort(key=lambda x: x[0])
-
-        if len(logs) > 10:
-            logs = logs[-10:]
+        logs = get_ring_buffer().get(limit=10)
 
         for ts, log in logs:
             timestamp = time.strftime("%H:%M:%S", time.localtime(ts))

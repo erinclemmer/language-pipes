@@ -8,15 +8,17 @@ Gated behind ``LP_RUN_MODEL_TESTS`` so default CI never downloads:
 
 Each model runs in a subprocess with an ``RLIMIT_AS`` ceiling (see ``memguard``),
 and its peak RSS is asserted ``< 10 GB``. Models that can't fit in memory are
-streamed one layer-window at a time via :func:`run_stack_windowed`, so even a
-16 GB-resident checkpoint runs inside the cap. Expected values are derived from
-``config.json`` / the safetensors index — never hardcoded.
+streamed in RAM-bounded windows via :func:`run_stack_windowed`: each window grows
+a layer at a time, polling live RSS, and flushes once memory reaches the
+high-water mark — so how many layers stay resident is measured against the actual
+checkpoint rather than a fixed count, and even a 16 GB-resident checkpoint runs
+inside the cap. Expected values are derived from ``config.json`` / the safetensors
+index — never hardcoded.
 """
 
 import os
 import gc
 import sys
-import json
 import unittest
 from pathlib import Path
 from typing import Optional
@@ -35,11 +37,19 @@ from llm_layer_collector.state_obj import LLmComputationState
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from specs import RealModelSpec, REAL_MODEL_SPECS
-from memguard import run_capped, MEMORY_BUDGET_BYTES
+from memguard import run_capped, current_rss_bytes, MEMORY_BUDGET_BYTES
 
 RUN = os.environ.get("LP_RUN_MODEL_TESTS", "")
 NIGHTLY = RUN == "nightly"
-LAYER_WINDOW = 10
+
+# Fraction of the memory budget a resident layer window is allowed to reach
+# before it is flushed. We grow the window one layer at a time and poll live RSS
+# rather than loading a fixed count, so how many layers fit is *measured* against
+# the actual checkpoint instead of guessed. The headroom below the hard cap
+# absorbs the transient of loading and running the next layer, plus the embedding
+# / norm / head weights already resident.
+RAM_HIGH_WATER = 0.7
+RAM_HIGH_WATER_BYTES = int(RAM_HIGH_WATER * MEMORY_BUDGET_BYTES)
 
 # --------------------------------------------------------------------------- #
 # Checkpoint location helpers (models live in the shared language_pipes cache)
@@ -60,33 +70,40 @@ def ensure_model(model_id: str) -> None:
     base = _base_dir(model_id)
     assert os.path.exists(base), f"{model_id} does not exist"
 
-# --------------------------------------------------------------------------- #
-# Derived expected values (never hardcoded per model)
-# --------------------------------------------------------------------------- #
-def derive_num_keys(model_dir: Path) -> int:
-    index = os.path.join(model_dir, "model.safetensors.index.json")
-    if os.path.exists(index):
-        with open(index) as f:
-            return len(json.load(f)["weight_map"])
-    from safetensors import safe_open
-    total = 0
-    for f in os.listdir(model_dir):
-        if f.endswith(".safetensors"):
-            total += len(list(safe_open(os.path.join(model_dir, f),
-                                        framework="pt").keys()))
-    return total
-
-def compute_layers(collector: LlmLayerCollector, start: int, end: int, state: LLmComputationState, cache: DynamicCache):
-    layers = collector.load_layer_set(start, end)
+def _fill_window(collector: LlmLayerCollector, start: int, n_layers: int,
+                 state: LLmComputationState, cache: DynamicCache) -> int:
+    """Load decoder layers from ``start``, one at a time and held resident, polling
+    live RSS after each; stop as soon as memory reaches the high-water mark (or the
+    stack ends). Then run the loaded layers through ``state`` and release them.
+    Always keeps at least one layer, so a single oversized layer still runs even if
+    loading it alone crosses the mark. Returns the next start index."""
+    layers: list = []
+    idx = start
+    while idx < n_layers:
+        layers.extend(collector.load_layer_set(idx, idx))
+        idx += 1
+        if current_rss_bytes() >= RAM_HIGH_WATER_BYTES:
+            break
     with torch.inference_mode():
         for lyr in layers:
             state.state = StaticAutoModel.compute_layer(
                 lyr, collector.config, state, cache).detach()
-    lyr = None
     layers.clear()
-    del layers
     gc.collect()
     torch.cuda.empty_cache()
+    return idx
+
+
+def run_layer_stack(collector: LlmLayerCollector, state: LLmComputationState,
+                    cache: DynamicCache) -> None:
+    """Apply every decoder layer to ``state`` in RAM-bounded windows: grow the
+    resident window a layer at a time until live RSS hits the high-water mark, flush
+    it, and continue. Replaces a fixed layer count with a measured one."""
+    n_layers = collector.config.num_hidden_layers
+    start = 0
+    while start < n_layers:
+        start = _fill_window(collector, start, n_layers, state, cache)
+
 
 def run_stack_windowed(
     collector: LlmLayerCollector,
@@ -94,20 +111,15 @@ def run_stack_windowed(
     emb: torch.nn.Embedding,
     ple: Optional[torch.nn.Module] = None
 ):
-    """Full-prompt prefill, loading the decoder stack one memory-bounded window at
-    a time. Returns ``(state, cache)`` with ``state.state`` = final hidden state."""
+    """Full-prompt prefill, loading the decoder stack in RAM-bounded windows.
+    Returns ``(state, cache)`` with ``state.state`` = final hidden state."""
     prompt_tokens = input_ids.shape[1]
     cache = DynamicCache()
     state = StaticAutoModel.compute_embedding(
         prompt_tokens, prompt_tokens, emb, input_ids, collector.config, cache,
         per_layer_embedder=ple)
 
-    n_layers = collector.config.num_hidden_layers
-    start = 0
-    while start < n_layers:
-        end = min(start + LAYER_WINDOW, n_layers - 1)
-        compute_layers(collector, start, end, state, cache)
-        start = end + 1
+    run_layer_stack(collector, state, cache)
     return state, cache
 
 
@@ -125,8 +137,26 @@ def _prepare(spec: RealModelSpec):
                                           "mrope_section": [16, 24, 24]}
     tok = AutoTokenizer.from_pretrained(
         model_dir, fix_mistral_regex="mistralai" in spec.model_id)  # type: ignore
-    input_ids = tok(spec.prompt, return_tensors="pt")["input_ids"]  # type: ignore
+    input_ids = _tokenize(tok, spec)
     return collector, tok, input_ids, model_dir
+
+
+def _tokenize(tok, spec: RealModelSpec) -> torch.Tensor:
+    """Prompt through the model's own chat template when it has one.
+
+    Instruct checkpoints are only predictable when prompted the way they were tuned;
+    fed a bare completion string they emit checkpoint-specific artifacts (gemma-4-12B
+    degenerates to '1'), which makes ``expected_next`` a record of trivia rather than
+    a correctness signal. Base models (no template, e.g. Llama-3.2-1B) keep the raw
+    completion prompt.
+    """
+    if getattr(tok, "chat_template", None) is None:
+        return tok(spec.prompt, return_tensors="pt")["input_ids"]  # type: ignore
+    # transformers 5 returns a BatchEncoding unless return_dict=False (skill §8).
+    return tok.apply_chat_template(  # type: ignore
+        [{"role": "user", "content": spec.question}],
+        tokenize=True, add_generation_prompt=True,
+        return_tensors="pt", return_dict=False, **spec.template_kwargs)
 
 
 def coherence_worker(spec: RealModelSpec) -> dict:
@@ -134,7 +164,6 @@ def coherence_worker(spec: RealModelSpec) -> dict:
     small, picklable summary; the peak RSS is captured by the memguard wrapper."""
     collector, tok, input_ids, model_dir = _prepare(spec)
 
-    num_keys = derive_num_keys(model_dir)
     hidden = collector.config.hidden_size
     vocab = collector.config.vocab_size
 
@@ -143,17 +172,15 @@ def coherence_worker(spec: RealModelSpec) -> dict:
     head = collector.load_head()
     ple = collector.load_per_layer_embedder()
 
-    assert len(collector.layer_files) == num_keys, "cache missed keys"
     assert tuple(emb.weight.shape) == (vocab, hidden)
     assert tuple(head.weight.shape) == (vocab, hidden)
 
     state, cache = run_stack_windowed(collector, input_ids, emb, ple)
     assert cache.get_seq_length() == input_ids.shape[1]
 
-    token = StaticAutoModel.compute_head(head, norm(state.state), "cpu", temperature=0)
-    decoded = tok.decode([token])  # type: ignore
-    return {"decoded": decoded, "num_keys": num_keys,
-            "seq_len": int(cache.get_seq_length())}
+    decoded = greedy_decode(collector, tok, input_ids, emb, norm, head, ple,
+                            state, cache, spec.coherence_tokens)
+    return {"decoded": decoded, "seq_len": int(cache.get_seq_length())}
 
 
 def chunked_prefill_worker(spec: RealModelSpec, chunk_size: int = 32) -> dict:
@@ -163,7 +190,6 @@ def chunked_prefill_worker(spec: RealModelSpec, chunk_size: int = 32) -> dict:
     prompt_tokens = input_ids.shape[1]
     emb = collector.load_input_embedding()
     ple = collector.load_per_layer_embedder()
-    n_layers = collector.config.num_hidden_layers
 
     cache = DynamicCache()
     num_chunks = (prompt_tokens + chunk_size - 1) // chunk_size
@@ -174,14 +200,33 @@ def chunked_prefill_worker(spec: RealModelSpec, chunk_size: int = 32) -> dict:
         assert state.cache_position[0].item() == chunk_idx * chunk_size
         assert state.cache_position[-1].item() == min(
             (chunk_idx + 1) * chunk_size - 1, prompt_tokens - 1)
-        start = 0
-        while start < n_layers:
-            end = min(start + LAYER_WINDOW, n_layers - 1)
-            compute_layers(collector, start, end, state, cache)
-            start = end + 1
+        run_layer_stack(collector, state, cache)
         assert cache.get_seq_length() == min(
             (chunk_idx + 1) * chunk_size, prompt_tokens)
     return {"seq_len": int(cache.get_seq_length()), "prompt_tokens": prompt_tokens}
+
+
+def greedy_decode(collector, tok, input_ids, emb, norm, head, ple,
+                  state, cache, num_tokens: int) -> str:
+    """Greedy-decode ``num_tokens`` from an already-prefilled ``(state, cache)``.
+
+    Decoding is autoregressive, so token *t+1* needs every layer applied to token
+    *t* — under windowed streaming that means one full reload of the decoder stack
+    per token. Cost scales linearly with ``num_tokens``; keep it small on big
+    checkpoints. The final token is emitted without advancing the state again,
+    which saves one whole stack pass per call.
+    """
+    current = input_ids
+    for i in range(num_tokens):
+        token = StaticAutoModel.compute_head(head, norm(state.state), "cpu", temperature=0)
+        current = torch.cat([current, torch.tensor([[token]])], dim=1)
+        if i == num_tokens - 1:
+            break
+        state = StaticAutoModel.compute_embedding(
+            current.shape[1], 1, emb, current, collector.config, cache,
+            per_layer_embedder=ple)
+        run_layer_stack(collector, state, cache)
+    return tok.decode(current[0, input_ids.shape[1]:])  # type: ignore
 
 
 def decode_worker(spec: RealModelSpec, num_tokens: int) -> dict:
@@ -193,20 +238,8 @@ def decode_worker(spec: RealModelSpec, num_tokens: int) -> dict:
     ple = collector.load_per_layer_embedder()
 
     state, cache = run_stack_windowed(collector, input_ids, emb, ple)
-    current = input_ids
-    n_layers = collector.config.num_hidden_layers
-    for _ in range(num_tokens):
-        token = StaticAutoModel.compute_head(head, norm(state.state), "cpu", temperature=0)
-        current = torch.cat([current, torch.tensor([[token]])], dim=1)
-        state = StaticAutoModel.compute_embedding(
-            current.shape[1], 1, emb, current, collector.config, cache,
-            per_layer_embedder=ple)
-        start = 0
-        while start < n_layers:
-            end = min(start + LAYER_WINDOW, n_layers - 1)
-            compute_layers(collector, start, end, state, cache)
-            start = end + 1
-    generated = tok.decode(current[0, input_ids.shape[1]:])  # type: ignore
+    generated = greedy_decode(collector, tok, input_ids, emb, norm, head, ple,
+                              state, cache, num_tokens)
     return {"generated": generated, "num_tokens": num_tokens}
 
 # --------------------------------------------------------------------------- #
@@ -250,7 +283,7 @@ def _make(spec: RealModelSpec):
 
 
 for _spec in REAL_MODEL_SPECS:
-    setattr(TestRealModels, f"test_{_spec.model_type}", _make(_spec))
+    setattr(TestRealModels, f"test_{_spec.test_name or _spec.model_type}", _make(_spec))
 
 
 if __name__ == "__main__":

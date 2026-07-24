@@ -46,5 +46,22 @@ class JobOutputTests(unittest.TestCase):
         self.assertEqual(job.status, JobStatus.IN_PROGRESS)
 
 
+class JobSendUpdateTests(unittest.TestCase):
+    def test_send_update_returns_false_without_calling_update_when_stale(self):
+        job = make_job()
+        job.stale = True
+        job.update = lambda j: self.fail("update() should not be called once stale")
+
+        self.assertFalse(job.send_update())
+
+    def test_send_update_calls_update_when_not_stale(self):
+        job = make_job()
+        calls = []
+        job.update = lambda j: calls.append(j) or True
+
+        self.assertTrue(job.send_update())
+        self.assertEqual(calls, [job])
+
+
 if __name__ == "__main__":
     unittest.main()

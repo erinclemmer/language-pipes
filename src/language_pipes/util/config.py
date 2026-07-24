@@ -21,11 +21,23 @@ def get_config_files(config_dir: Path):
         return []
     return [f.replace(".toml", "") for f in os.listdir(config_dir)]
 
-def get_max_node_jobs() -> int:
-    return int(os.environ.get("LP_MAX_NODE_JOBS", 10))
-
-def get_max_api_jobs() -> int:
-    return int(os.environ.get("LP_MAX_API_JOBS", 5))
-
 def is_8_bit_mode() -> bool:
     return os.environ.get("LP_8_BIT_MODE", "false").lower() in ("1", "true", "yes")
+
+def initialize_folders():
+    app_dir = get_app_dir()
+    model_dir = get_model_dir()
+
+    if not os.path.exists(app_dir):
+        app_dir.mkdir(parents=True)
+
+    if not os.path.exists(model_dir):
+        model_dir.mkdir(parents=True)
+
+    config_dir = app_dir / "configs"
+    if not os.path.exists(config_dir):
+        config_dir.mkdir(parents=True)
+
+    cred_dir = app_dir / "credentials"
+    if not os.path.exists(cred_dir):
+        cred_dir.mkdir(parents=True)

@@ -20,7 +20,6 @@ class DSNodeConfig:
     port: int
     network_ip: Optional[str]
     aes_key: Optional[str]
-    whitelist_ips: List[str]
     bootstrap_nodes: List[Endpoint]
     whitelist_node_ids: List[str]
 ```
@@ -31,8 +30,9 @@ class DSNodeConfig:
 - **credential_dir**: (`str`) directory to store ECDSA credentials (default: "[current_directory]/credentials")
 - **network_ip** (`str`): Network ip address (only required if other nodes will connect to you)
 - **aes_key** (`str`): Hexadecimal encoded AES-128 key for network encryption (16 bytes / 32 hex characters)
-- **whitelist_ips** (`List[str]`): Optional list of allowed peer IP addresses. If empty, all IPs are allowed.
 - **whitelist_node_ids** (`List[str]`): Optional list of allowed peer node IDs. If empty, all node IDs are allowed.
+
+> **Note:** `whitelist_ips` was removed and dropped in favor of `whitelist_node_ids`. Node IDs are authenticated (ECDSA), whereas IPs are not a stable peer identity. A `whitelist_ips` key in an existing config is ignored.
 - **bootstrap_nodes** (`List[Endpoint]`): List of initial nodes to connect to when joining the network
 
 **Note:** If `network_ip` is not supplied, the node's public IP address is automatically detected by the bootstrap server during the initial handshake.

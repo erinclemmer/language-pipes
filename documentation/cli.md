@@ -10,13 +10,16 @@ language-pipes                              # Launch interactive TUI
 language-pipes -c config.toml               # Launch TUI with a config preloaded
 language-pipes -c config.toml --start       # Launch TUI and start serving immediately
 language-pipes -c config.toml run           # Run headless from a config file
+language-pipes -c config.toml run -t TOKEN  # Run headless with a HuggingFace token
 language-pipes -c config.toml config        # Print the configuration
+language-pipes keygen                       # Generate and print a new AES network key
 ```
 
 > **Argument order matters.** `-c`/`--config`, `--start`, `-v`, and `-h` are
 > options on the top-level command and must appear **before** the subcommand
 > (`run`, `config`, `keygen`). For example, `language-pipes run -c config.toml`
-> fails — use `language-pipes -c config.toml run`.
+> fails — use `language-pipes -c config.toml run`. Subcommand options such as
+> `run`'s `-t`/`--token` go **after** the subcommand.
 
 ## Global Options
 
@@ -77,8 +80,28 @@ Start a Language Pipes server node without the TUI, streaming output to stdout.
 
 **Format:**
 ```bash
-language-pipes -c FILE run
+language-pipes -c FILE run [-t TOKEN]
 ```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-t TOKEN`, `--token TOKEN` | HuggingFace token used to download gated models | Token from the global config |
+
+Any model listed in the configuration that is not already installed is
+downloaded on startup. Pass `-t`/`--token` when one of those models is gated and
+requires an authenticated HuggingFace account.
+
+```bash
+language-pipes -c config.toml run -t hf_xxxxxxxxxxxxxxxxxxxx
+```
+
+**The token is optional.** When `-t`/`--token` is omitted, the token is read
+from the `hf_token` field of the global config file at
+`<app_dir>/globals.toml`. This is the token saved by the TUI when you enter a
+HuggingFace API key while downloading a model and confirm the save prompt — so
+once it has been saved there, `run` picks it up automatically and the flag is
+only needed to override it for a single run. If neither is present, downloads
+proceed unauthenticated and gated models will fail.
 
 A configuration is required. If `-c`/`--config` is not provided, the command
 exits with:
@@ -94,6 +117,17 @@ The configuration file is resolved the same way as the global `--config` option
 language-pipes -c config.toml run
 language-pipes -c node4 run            # resolves <app_dir>/configs/node4.toml
 ```
+
+Output is written to stdout as it happens, in the form:
+
+```
+2026-01-01 12:00:00,000: Starting job server on port 8000
+```
+
+The same records are also written to a per-session log file under the log
+directory (`~/.cache/language_pipes/logs/language_pipes_<timestamp>.log`), with
+the log level and originating subsystem included. This applies to both `run` and
+the TUI.
 
 ---
 
@@ -138,6 +172,29 @@ End Models:
 
 > The output is a formatted report intended for inspection. It is **not** valid
 > TOML and is not designed to be piped back into a configuration file.
+
+---
+
+### `keygen`
+
+Generate a new AES key and print it to stdout, for use as the `network_key`
+value in a configuration (see [Configuration](./configuration.md)).
+
+**Format:**
+```bash
+language-pipes keygen
+```
+
+`keygen` takes no arguments or configuration and does not write to a file — it
+only prints the generated key. Copy it into a config's `network_key` field (or
+paste it into **Network > Configure** in the TUI) to enable encryption.
+
+**Example:**
+
+```bash
+$ language-pipes keygen
+✓ Network key generated: 5f3c1a9e2b7d4f6081c3a5e7d9f1b3c5
+```
 
 ---
 

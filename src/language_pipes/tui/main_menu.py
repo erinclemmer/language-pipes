@@ -1,4 +1,3 @@
-from datetime import datetime
 import logging
 import os
 from time import sleep
@@ -10,10 +9,10 @@ from ansinout import TuiWindow, TermText
 from language_pipes.tui.util.prompt import prompt, select_option, prompt_bool
 from language_pipes.tui.util.text import make_footer_text
 from language_pipes.util.config import (
-    default_log_dir,
     get_config_files,
     get_app_dir,
-    get_model_dir
+    get_model_dir,
+    initialize_folders
 )
 from language_pipes.cli import VERSION
 
@@ -109,39 +108,9 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
     if config_file is None:
         auto_start = False
 
-    app_dir = get_app_dir()
-    model_dir = get_model_dir()
+    initialize_folders()
 
-    if not os.path.exists(app_dir):
-        app_dir.mkdir(parents=True)
-
-    if not os.path.exists(model_dir):
-        model_dir.mkdir(parents=True)
-
-    config_dir = app_dir / "configs"
-    if not os.path.exists(config_dir):
-        config_dir.mkdir(parents=True)
-
-    cred_dir = app_dir / "credentials"
-    if not os.path.exists(cred_dir):
-        cred_dir.mkdir(parents=True)
-
-    log_dir = default_log_dir()
-    if not os.path.exists(log_dir):
-        log_dir.mkdir(parents=True)
-
-    date_suffix = datetime.now().strftime("%d_%m_%Y_%H_%M")
-    log_filename = f"{log_dir}/language_pipes_{date_suffix}.log"
-    logging.basicConfig(filename=log_filename, level=logging.INFO)
-
-    rope_logger = logging.getLogger("transformers.modeling_rope_utils")
-    rope_logger.handlers.clear()
-    file_handler = logging.FileHandler(log_filename, encoding='utf-8')
-    file_handler.setFormatter(logging.Formatter(
-        "%(asctime)s %(levelname)s %(name)s: %(message)s")
-    )
-    rope_logger.addHandler(file_handler)
-    rope_logger.propagate = False
+    config_dir = get_app_dir() / "configs"
 
     left_bound = int((termsize[0] / 2.0) - 40.0)
     window = TuiWindow((80, termsize[1]), (left_bound, 0))

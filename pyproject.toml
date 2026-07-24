@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "language-pipes"
-version = "2.3.0"
+version = "2.4.0"
 authors = [{name="Erin Clemmer", email="erin.c.clemmer@gmail.com"}]
 description = "Peer-to-peer distributed inference for open-source language models"
 keywords = ["distributed", "networking", "AI", "Language Model", "pipe", "pipeline", "server"]
@@ -22,25 +22,24 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "llm-layer-collector==1.0.0",
-    "distributed-state-network==1.0.0",
+    "llm-layer-collector==1.1.0",
+    "distributed-state-network==1.1.0",
     "torch",
     "transformers",
     "huggingface_hub",
-    "uuid",
     "promise",
     "requests",
-    "logging",
     "toml",
-    "flask",
     "ecdsa",
     "psutil",
+    "pillow",
     "cryptography",
     "ansinout>=1.0.6"
 ]
 
 [project.optional-dependencies]
 quantization = ["bitsandbytes"]
+dev = ["ruff", "pytest"]
 
 [project.urls]
 Homepage = "https://languagepipes.com"
@@ -67,3 +66,24 @@ omit = [
     "src/language_pipes/commands/*",
     "src/language_pipes/util/user_prompts.py"
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = ["packages", "website", "documentation"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    # "I",   # isort
+    # "UP", # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501", # line length handled by formatter where practical, not strictly enforced
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["F401", "F811"]

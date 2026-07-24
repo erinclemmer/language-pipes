@@ -1,8 +1,6 @@
-
+import json
 from http.server import BaseHTTPRequestHandler
 from typing import Optional
-
-from flask import json
 
 from language_pipes.jobs.job import Job
 

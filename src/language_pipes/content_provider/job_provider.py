@@ -3,7 +3,7 @@ from pathlib import Path
 from threading import Thread
 from time import time
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional
 
 import torch
 
@@ -11,7 +11,6 @@ from language_pipes.config import LpConfig
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
-from language_pipes.modeling.end_model import EndModel
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.oai_server import OAIHttpServer
 from language_pipes.pipes.pipe_manager import PipeManager
@@ -71,6 +70,24 @@ class JobProvider:
         cfg.job_port = port
         cfg.save()
         
+    def get_max_node_jobs(self) -> int:
+        cfg = LpConfig.from_file(self.config_file)
+        return cfg.max_node_jobs
+
+    def set_max_node_jobs(self, value: int):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.max_node_jobs = value
+        cfg.save()
+
+    def get_max_api_jobs(self) -> int:
+        cfg = LpConfig.from_file(self.config_file)
+        return cfg.max_api_jobs
+
+    def set_max_api_jobs(self, value: int):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.max_api_jobs = value
+        cfg.save()
+
     def get_api_keys(self) -> List[str]:
         cfg = LpConfig.from_file(self.config_file)
         return cfg.api_keys
@@ -91,8 +108,16 @@ class JobProvider:
         def get_models():
             if router_pipes is None:
                 return
-            available_models = router_pipes.get_models(EndModel.get_num_local_layers())
-            return [m.model_id for m in model_manager.end_models if m.model_id in available_models]
+            # Each end model may host a different number of local layers, so the
+            # remaining pipe only needs to be complete from that layer onward.
+            available_models = []
+            for m in model_manager.end_models:
+                pipes = router_pipes.pipes_for_model(
+                    m.model_id, find_completed=True, start_layer=m.num_local_layers
+                )
+                if len(pipes) > 0 and m.model_id not in available_models:
+                    available_models.append(m.model_id)
+            return available_models
 
         if cfg is None:
             cfg = LpConfig.from_file(self.config_file)
@@ -125,22 +150,6 @@ class JobProvider:
     def oai_server_running(self) -> bool:
         return self.oai_server is not None
     
-    def get_oai_logs(self) -> List[Tuple[float, str]]:
-        if self.oai_server is None:
-            return []
-        return self.oai_server.logs
-    
-    def reset_oai_logs(self):
-        if self.oai_server is None:
-            return
-        self.oai_server.logs = []
-        job_factory = self.get_job_factory()
-        if job_factory is not None:
-            job_factory.logs = []
-        job_receiver = self.get_job_receiver()
-        if job_receiver is not None:
-            job_receiver.logs = []
-
     def get_active_jobs(self) -> List[MetaJob]:
         job_tracker = self.get_job_tracker()
         if job_tracker is None:

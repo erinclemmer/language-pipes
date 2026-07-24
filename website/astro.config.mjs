@@ -4,10 +4,15 @@ import starlight from '@astrojs/starlight';
 import { SITE, GA_MEASUREMENT_ID } from './src/consts.ts';
 import { rehypeDocLinks } from './src/rehype-doc-links.mjs';
 
+// Only load analytics for real builds — never during `astro dev`, so local
+// testing doesn't skew the statistics. Astro's `defineConfig` takes a config
+// object (not a Vite-style function), so we detect the command from argv.
+const isDev = process.argv.includes('dev');
+
 // Inject Google Analytics into every Starlight page's <head>.
 // (The custom landing page injects the same snippet via its own layout.)
 const gaHead =
-  GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX'
+  !isDev && GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX'
     ? [
         {
           tag: 'script',

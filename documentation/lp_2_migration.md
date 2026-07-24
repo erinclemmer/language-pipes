@@ -45,7 +45,7 @@ language-pipes -c node4 run           # resolves <app_dir>/configs/node4.toml
 
 All of the old `serve` flags — `--node-id`, `--openai-port`, `--layer-models`,
 `--end-models`, `--num-local-layers`, `--logging-level`/`-l`,
-`--bootstrap-address`, `--whitelist-ips`, `--whitelist-node-ids`,
+`--bootstrap-address`, `--whitelist-node-ids`,
 `--app-dir`, `--model-dir`, `--print-times` — are **removed**. Move these
 values into your TOML config (see below), or, for the handful of machine-local
 ones, into environment variables.
@@ -138,7 +138,8 @@ config is authoritative for everything else.
 
 | 1.x environment variable | 2.0.0 |
 |---|---|
-| `LP_NODE_ID`, `LP_LAYER_MODELS`, `LP_OAI_PORT`, `LP_API_KEYS`, `LP_PEER_PORT`, `LP_NETWORK_IP`, `LP_BOOTSTRAP_ADDRESS`, `LP_BOOTSTRAP_PORT`, `LP_NETWORK_KEY`, `LP_WHITELIST_IPS`, `LP_WHITELIST_NODE_IDS`, `LP_MAX_PIPES`, `LP_MODEL_VALIDATION`, `LP_PRINT_TIMES`, `LP_LOGGING_LEVEL` | **Removed.** Set these in the TOML config file instead. |
+| `LP_NODE_ID`, `LP_LAYER_MODELS`, `LP_OAI_PORT`, `LP_API_KEYS`, `LP_PEER_PORT`, `LP_NETWORK_IP`, `LP_BOOTSTRAP_ADDRESS`, `LP_BOOTSTRAP_PORT`, `LP_NETWORK_KEY`, `LP_WHITELIST_NODE_IDS`, `LP_MAX_PIPES`, `LP_MODEL_VALIDATION`, `LP_PRINT_TIMES`, `LP_LOGGING_LEVEL` | **Removed.** Set these in the TOML config file instead. |
+| `LP_WHITELIST_IPS` | **Removed.** The IP whitelist feature has been dropped in favor of `whitelist_node_ids`. |
 | `LP_APP_DIR` | Unchanged. |
 | `LP_MODEL_DIR` | Unchanged. |
 | (n/a) | `LP_NUM_LOCAL_LAYERS` — new home for the old `--num-local-layers` / `num_local_layers` setting. Default `1`. |

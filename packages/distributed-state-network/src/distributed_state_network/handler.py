@@ -84,7 +84,7 @@ class DSNodeServer(StateNetworkNode):
         update_callback: Optional[Callable] = None,
         receive_callback: Optional[Callable] = None,
     ):
-        detected_ip = self._detect_local_ip() or config.network_ip
+        detected_ip = self._detect_local_ip() if config.network_ip is None else config.network_ip
         self.network_ip = detected_ip
         self.config = replace(config, network_ip=detected_ip) if config.network_ip != detected_ip else config
         self.running = False
@@ -120,8 +120,6 @@ class DSNodeServer(StateNetworkNode):
         if not self.running:
             return 500, None
         try:
-            self.node.ensure_ip_allowed(remote_addr)
-
             # Decrypt the data
             if self.config.aes_key is not None:
                 try:
