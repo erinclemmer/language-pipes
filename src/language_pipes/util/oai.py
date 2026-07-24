@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler
 
 from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage, ChatRole
-from language_pipes.util.http import _respond_json, _send_code, _send_sse_headers
+from language_pipes.util.http import _connection_alive, _respond_json, _send_code, _send_sse_headers
 from language_pipes.util.oai_chunks import send_complete, send_initial_chunk, send_keepalive, send_update_chunk
 
 # Emit an SSE keepalive comment after this many seconds of write silence so the
@@ -339,7 +339,7 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
 
     def update(job: Job):
         if not req.stream:
-            return True
+            return _connection_alive(handler)
         with write_lock:
             ok = send_update_chunk(job, {
                 "content": job.delta
@@ -502,7 +502,7 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
 
     def update(job: Job):
         if not req.stream or buffering:
-            return True
+            return _connection_alive(handler)
         reasoning_delta, content_delta = splitter.feed(job.delta)
         ok = True
         if reasoning_delta:

@@ -1,5 +1,25 @@
 import json
+import select
+import socket
 from http.server import BaseHTTPRequestHandler
+
+def _connection_alive(handler: BaseHTTPRequestHandler) -> bool:
+    """Check whether the client socket is still connected without writing to it.
+
+    Used where a request has nothing to stream yet (non-streaming responses,
+    or buffered tool-call output) so a dropped connection would otherwise go
+    undetected until generation finishes on its own.
+    """
+    sock = getattr(handler, "connection", None)
+    if sock is None:
+        return True
+    try:
+        readable, _, errored = select.select([sock], [], [sock], 0)
+        if errored:
+            return False
+        return not (readable and sock.recv(1, socket.MSG_PEEK) == b"")
+    except OSError:
+        return False
 
 def _respond_json(handler: BaseHTTPRequestHandler, data):
     response = json.dumps(data).encode("utf-8")

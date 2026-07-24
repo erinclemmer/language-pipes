@@ -1,7 +1,9 @@
 import json
 import os
+import socket
 import sys
 import threading
+import time
 import unittest
 import requests
 
@@ -645,6 +647,96 @@ class ToolCallHttpTests(unittest.TestCase):
                 "tools": [{"type": "web_search"}],
             })
             self.assertEqual(res.status_code, 400)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=1)
+
+
+class DisconnectDetectionTests(unittest.TestCase):
+    """update() must be able to observe a dropped client connection even when
+    it has nothing to write yet (non-streaming, or buffering a tool call) —
+    otherwise the job never learns the client is gone and runs to completion."""
+
+    def _post_and_drop(self, port: int, body: dict):
+        payload = json.dumps(body).encode("utf-8")
+        request = (
+            b"POST /v1/responses HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Content-Length: " + str(len(payload)).encode() + b"\r\n"
+            b"Connection: close\r\n\r\n"
+        ) + payload
+        sock = socket.create_connection(("127.0.0.1", port))
+        sock.sendall(request)
+        sock.close()
+
+    def test_non_streaming_update_returns_false_after_client_disconnects(self):
+        client_gone = threading.Event()
+        result = {}
+
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+            job = DummyJob()
+            start(job)
+            client_gone.wait(timeout=5)
+            deadline = time.time() + 5
+            while time.time() < deadline:
+                result["alive"] = update(job)
+                if result["alive"] is False:
+                    break
+                time.sleep(0.02)
+            resolve(job)
+
+        server = OAIHttpServer(5000, [], complete, lambda: ["model-1"])
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = server.server_address[1]
+            self._post_and_drop(port, {"model": "model-1", "input": "Hello"})
+            client_gone.set()
+            deadline = time.time() + 5
+            while "alive" not in result and time.time() < deadline:
+                time.sleep(0.02)
+            self.assertIn("alive", result)
+            self.assertFalse(result["alive"])
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=1)
+
+    def test_buffered_tool_call_update_returns_false_after_client_disconnects(self):
+        client_gone = threading.Event()
+        result = {}
+
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+            job = ToolJob()
+            start(job)
+            client_gone.wait(timeout=5)
+            deadline = time.time() + 5
+            while time.time() < deadline:
+                result["alive"] = update(job)
+                if result["alive"] is False:
+                    break
+                time.sleep(0.02)
+            resolve(job)
+
+        server = OAIHttpServer(5000, [], complete, lambda: ["model-1"])
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = server.server_address[1]
+            self._post_and_drop(port, {
+                "model": "model-1",
+                "input": "What is the weather in Chicago?",
+                "tools": [WEATHER_TOOL],
+                "stream": True,
+            })
+            client_gone.set()
+            deadline = time.time() + 5
+            while "alive" not in result and time.time() < deadline:
+                time.sleep(0.02)
+            self.assertIn("alive", result)
+            self.assertFalse(result["alive"])
         finally:
             server.shutdown()
             server.server_close()
