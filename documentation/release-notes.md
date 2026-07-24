@@ -54,6 +54,7 @@ Changed behaviour of `language-pipes keygen` command to simply print the hex val
 - Fixed selection bug in "models / layers" model editor.
 - Fixed bug where job was not stopping if connection was dropped
 - Fixed bug where app would crash if a model saved in the configuration was deleted
+- Fixed crash on load error if pillow was not installed
 
 ## Release 2.3.0
 
