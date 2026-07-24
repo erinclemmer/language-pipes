@@ -284,7 +284,7 @@ class DSNode:
             if e.args[0] == 505 or e.args[0] == 401:
                 msg = f"Network Error: {e.args[1]}"
                 self.add_log(msg)
-            elif "HTTP request to" in e.args[0]:
+            elif isinstance(e.args[0], str) and "HTTP request to" in e.args[0]:
                 msg = f"Connection to {con.address}:{con.port} failed"
                 self.add_log(msg)
             if len(e.args) > 1:

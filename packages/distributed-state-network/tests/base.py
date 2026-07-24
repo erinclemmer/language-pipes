@@ -8,7 +8,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../src'))
 
 from distributed_state_network import DSNodeServer, DSNodeConfig
 
-current_port = 8000
+current_port = 20000
 nodes = []
 
 aes_key = DSNodeServer.generate_key()
