@@ -52,6 +52,8 @@ Changed behaviour of `language-pipes keygen` command to simply print the hex val
 ### Bugs
 - Removed requirements for logging and uuid since they come with a standard Python installation.
 - Fixed selection bug in "models / layers" model editor.
+- Fixed bug where job was not stopping if connection was dropped
+- Fixed bug where app would crash if a model saved in the configuration was deleted
 
 ## Release 2.3.0
 
