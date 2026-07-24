@@ -424,7 +424,7 @@ class RequestForModelHandler:
                 self.request_state.status = "Computing metadata..."
 
             m = ModelProvider.get_model_metadata(model_id)
-            if not m.loaded:
+            if m is None or not m.loaded:
                 self.request_state.status = "[Error] Error computing metadata"
             else:
                 self.request_state.status = "SUCCESSFULLY Downloaded model"
