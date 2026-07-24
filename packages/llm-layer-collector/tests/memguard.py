@@ -65,6 +65,16 @@ def _vmrss_bytes() -> int:
     return _maxrss_bytes()
 
 
+def current_rss_bytes() -> int:
+    """Live resident-set size (VmRSS) of the calling process, in bytes.
+
+    Reflects memory resident *right now* — unlike ``ru_maxrss``'s lifetime
+    high-water mark — so callers can poll it to decide how much more to load
+    before crossing the budget the watchdog enforces.
+    """
+    return _vmrss_bytes()
+
+
 def _child(func: Callable[..., Any], args: tuple, kwargs: dict,
            budget_bytes: int, conn) -> None:
     send_lock = threading.Lock()
