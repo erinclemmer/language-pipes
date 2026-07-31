@@ -1,218 +1,274 @@
 ---
 title: DSNodeServer
-description: HTTP server wrapper for DSNode that handles incoming Distributed State Network requests.
+description: The HTTP server of a DSNode. The server handles the incoming requests of the Distributed State Network.
 ---
 
 ## DSNodeServer
 
-HTTP server wrapper for DSNode that handles incoming network requests.
+`DSNodeServer` is the HTTP server of a DSNode. The server handles the incoming requests of the network.
 
 ```python
 from distributed_state_network import DSNodeServer
 ```
 
-### Class Definition
+### Class definition
+
 ```python
 class DSNodeServer:
     config: DSNodeConfig
-    node: DSNode
-    http_server: ThreadingHTTPServer
+    network_ip: Optional[str]
     running: bool
-    thread: threading.Thread
+    node: DSNode
+    thread: Optional[threading.Thread]
+    http_server: Optional[ThreadingHTTPServer]
 ```
 
 ### Constructor
 
 **Parameters:**
-- `config` (`DSNodeConfig`): Node configuration
-- `disconnect_callback` (`Optional[Callable]`): Callback for disconnect events
-- `update_callback` (`Optional[Callable]`): Callback for state update events
-- `receive_callback` (`Optional[Callable]`): Callback for data transfer from one node to another
 
-### Static Methods
+| Parameter | Type | Description |
+|---|---|---|
+| `config` | `DSNodeConfig` | The configuration of the node. |
+| `create_alert` | `Callable[[str], None]` | A function that shows an alert message to the operator. |
+| `disconnect_callback` | `Optional[Callable]` | A function that the node calls at a disconnect event. |
+| `update_callback` | `Optional[Callable]` | A function that the node calls at a state update event. |
+| `receive_callback` | `Optional[Callable]` | A function that the node calls when it receives data from a different node. |
 
-### `Start() -> DSNodeServer`
-Creates and starts a new DSNodeServer instance with a threaded HTTP server based on `BaseHTTPRequestHandler`
+**NOTE:** The constructor does not start the HTTP server. To make the instance and to start the server, use the static method `start()`.
+
+### Static methods
+
+#### `start() -> DSNodeServer`
+
+This method makes a new `DSNodeServer` instance and starts the threaded HTTP server. If the configuration has bootstrap nodes, the method connects to the first bootstrap node that responds. If no bootstrap node responds, the method calls `create_alert`.
 
 ```python
-server = DSNodeServer.start(config)
+server = DSNodeServer.start(config, alert)
 ```
 
 **Parameters:**
-- `config` (`DSNodeConfig`): Node configuration
-- `disconnect_callback` (`Optional[Callable]`): Callback for disconnect events (no parameters)
-- `update_callback` (`Optional[Callable]`): Callback for state update events (no parameters)
-- `receive_callback` (`Optional[Callable]`): Callback for data transfer between nodes
+
+The parameters are the same as the parameters of the constructor.
 
 **Returns:**
-- `DSNodeServer`: Running server instance
 
-**Example with bootstrap:**
+- `DSNodeServer`: The server instance that runs.
+
+**Example with a bootstrap node:**
+
 ```python
-# Bootstrap node (first node in network)
-bootstrap_config = DSNodeConfig(
-    node_id="bootstrap",
-    port=8000,
-    bootstrap_nodes=[]
-)
-bootstrap = DSNodeServer.start(bootstrap_config)
+def alert(message: str) -> None:
+    print(message)
 
-# Connector node (joins existing network)
-connector_config = DSNodeConfig(
-    node_id="connector",
-    port=8001,
-    bootstrap_nodes=[Endpoint("127.0.0.1", 8000)]
-)
-connector = DSNodeServer.start(connector_config)
+
+# Bootstrap node (the first node in the network)
+bootstrap_config = DSNodeConfig.from_dict({
+    "node_id": "bootstrap",
+    "port": 8000,
+    "bootstrap_nodes": []
+})
+bootstrap = DSNodeServer.start(bootstrap_config, alert)
+
+# Connector node (joins the existing network)
+connector_config = DSNodeConfig.from_dict({
+    "node_id": "connector",
+    "port": 8001,
+    "bootstrap_nodes": [{"address": "127.0.0.1", "port": 8000}]
+})
+connector = DSNodeServer.start(connector_config, alert)
 ```
 
-### `generate_key() -> str`
-Generates a new hexadecimal encoded AES-128 key for network encryption. All nodes in the same network must share the same AES key.
+#### `generate_key() -> str`
 
-- Output length: 32 hex characters (16 bytes)
+This method makes a new AES-128 key for the encryption of the network. The key has 32 hexadecimal characters (16 bytes).
+
+**CAUTION:** Give the same key to all the nodes in the network. A node that has a different key cannot communicate with the network.
 
 **Parameters:**
+
 - None
 
 **Example:**
+
 ```python
 DSNodeServer.generate_key()
 ```
 
-### Instance Methods
+### Instance methods
 
-### `stop() -> None`
-Gracefully shuts down the server and cleans up resources.
+#### `stop() -> None`
+
+This method stops the server and releases the resources of the server.
 
 **Example:**
+
 ```python
 server.stop()
 ```
 
-### `update_data() -> None`
-Updates a key-value pair in the node's state and broadcasts the update to all peers.
+#### `update_data(key: str, value: str) -> None`
+
+This method changes one key-value pair in the state of the node. Then the node sends the update to all its peers.
+
 ```python
-node.update_data("status", "active")
+server.update_data("status", "active")
 ```
 
 **Parameters:**
-- `key` (`str`): State key to update
-- `val` (`str`): New value for the key
 
-### `read_data() -> Optional[str]`
-Reads a value from a specific node's state.
+- `key` (`str`): The key in the state to change.
+- `value` (`str`): The new value of the key.
+
+#### `read_data(node_id: str, key: str) -> Optional[str]`
+
+This method reads one value from the state of a given node.
 
 **Parameters:**
-- `node_id` (`str`): ID of the node to read from
-- `key` (`str`): Key to retrieve
+
+- `node_id` (`str`): The identifier of the node to read from.
+- `key` (`str`): The key to read.
 
 **Returns:**
-- `Optional[str]`: Value if exists, None otherwise
 
-### `peers() -> List[str]`
-Returns a list of all connected peer node IDs.
+- `Optional[str]`: The value of the key. The method returns `None` if the key does not exist.
+
+#### `peers() -> List[str]`
+
+This method gives the identifiers of all the connected peers.
 
 **Parameters:**
+
 - None
 
 **Returns:**
-- `List[str]`: List of node IDs
 
-### `send_to_node() -> None`
-Sends data to another node
+- `List[str]`: The list of the node identifiers.
+
+#### `send_to_node(node_id: str, data: bytes) -> None`
+
+This method sends data to a different node.
+
 ```python
-node.send_to_node('node-1', b'foo bar')
+server.send_to_node('node-1', b'foo bar')
 ```
 
 **Parameters:**
-- `node_id` (`str`): id of node to send data to
-- `data` (`bytes`): data to send to node
+
+- `node_id` (`str`): The identifier of the node to send the data to.
+- `data` (`bytes`): The data to send to the node.
 
 **Returns:**
+
 - None
 
-### `is_shut_down() -> bool`
-Returns whether the server is currently shut down or not
+#### `is_shut_down() -> bool`
+
+This method gives the status of the server.
 
 ```python
-node.is_shut_down()
+server.is_shut_down()
 ```
 
 **Parameters:**
+
 - None
 
 **Returns:**
-- bool denoting that the server is shutdown if true
 
-### `node_id() -> str`
-Return the node_id of this node instance
+- `bool`: The value is `True` if the server is shut down.
+
+#### `node_id() -> str`
+
+This method gives the identifier of this node.
 
 ```python
-node.node_id()
+server.node_id()
 ```
 
 **Parameters:**
+
 - None
 
 **Returns:**
-- string denoting the node id of the current node
 
-### `set_receive_cb() -> None`
-Set the receive callback, this function will be called whenever the node receives a data packet.
+- `str`: The identifier of this node.
+
+#### `set_receive_cb(cb: Callable) -> None`
+
+This method sets the receive callback. The node calls this function each time that it receives a data packet.
+
 ```python
-def receive():
+def receive(node_id: str, data: bytes) -> None:
     pass
-node.set_receive_cb(receive)
+
+
+server.set_receive_cb(receive)
 ```
 
 **Parameters:**
-- `cb` (`Callable[[bytes], None]`) a function that will be given the bytes of the data packet
+
+- `cb` (`Callable[[str, bytes], None]`): A function that receives the identifier of the sender and the bytes of the data packet.
 
 **Returns:**
+
 - None
 
-### `set_update_cb() -> None`
-Set the update callback, this function will be called whenever a new update is made on the server.
+#### `set_update_cb(cb: Callable) -> None`
+
+This method sets the update callback. The node calls this function each time that a peer sends a state update.
+
 ```python
-def update_cb():
+def update_cb() -> None:
     pass
-node.set_update_cb(update_cb)
+
+
+server.set_update_cb(update_cb)
 ```
 
 **Parameters:**
-- `cb` (`Callable[[], None]`) a function that receives no arguments
+
+- `cb` (`Callable[[], None]`): A function that receives no arguments.
 
 **Returns:**
+
 - None
 
-### `set_disconnect_cb() -> None`
-Set the disconnect callback, this function will be run whenever a node is disconnected from the network.
+#### `set_disconnect_cb(cb: Callable) -> None`
+
+This method sets the disconnect callback. The node calls this function each time that a peer disconnects from the network.
+
 ```python
-def disconnect():
+def disconnect() -> None:
     pass
-node.set_disconnect_cb(disconnect)
+
+
+server.set_disconnect_cb(disconnect)
 ```
 
 **Parameters:**
-- `cb` (`Callable[[], None]`) a function that takes no arguments
+
+- `cb` (`Callable[[], None]`): A function that receives no arguments.
 
 **Returns:**
+
 - None
 
-## Network Protocol
+## Network protocol
 
-The server uses UDP sockets with the following characteristics:
+The server uses HTTP. The protocol has these properties:
 
-- **Encryption**: All packets can be encrypted with AES
-- **Authentication**: ECDSA signatures for message verification
+- **Encryption**: The nodes can encrypt all the packets with AES-128-CBC.
+- **Authentication**: The nodes sign the packets with ECDSA.
 
-## Message Types
+For more information, refer to [Protocol](./protocol.md).
 
-The server handles four types of messages:
+## Message types
 
-1. **HELLO (1)**: Node introduction and public key exchange
-2. **PEERS (2)**: Request/response for peer list
-3. **UPDATE (3)**: State synchronization
-4. **PING (4)**: Connection health check
-5. **DATA (5)**: Data transfer packet
+The server handles five types of messages:
 
+1. **HELLO (1)**: The node sends its information and its public key.
+2. **PEERS (2)**: The node asks for the list of peers, or sends the list.
+3. **UPDATE (3)**: The node sends a change of its state.
+4. **PING (4)**: The node does a check of the health of the connection.
+5. **DATA (5)**: The node sends a data packet.

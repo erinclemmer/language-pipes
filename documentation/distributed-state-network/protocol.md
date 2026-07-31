@@ -1,65 +1,82 @@
 ---
 title: DSN Network Protocol
-description: The Distributed State Network wire protocol — transport, packet formats, encryption, and signatures.
+description: The wire protocol of the Distributed State Network — the transport, the packet formats, the encryption, and the signatures.
 ---
 
-## Network Protocol
+## Network protocol
 
-### Transport Layer
-The network uses **HTTP** with a threaded server based on `BaseHTTPRequestHandler` for all communication.
+### Transport layer
 
-### Packet Structure
-Each HTTP request follows this structure:
-1. **HTTP POST request** to the appropriate endpoint
-2. **Request Body**: AES-CBC Encrypted Payload containing:
-   - Random IV (16 bytes, generated per message)
-   - Message type (1 byte) - for verification
-   - Message payload (variable length)
-3. **Response Body**: AES-CBC Encrypted Payload containing:
-   - Random IV (16 bytes, generated per message)
-   - Message type (1 byte) - matches request type
-   - Response payload (variable length)
+The network uses HTTP for all communication. Each node runs a threaded HTTP server. The server is based on `BaseHTTPRequestHandler`.
 
-### Message Types
-Internal message type constants (used for verification):
-- **Type 1 (HELLO)**: Exchange node information and credentials
-- **Type 2 (PEERS)**: Request/share peer list
-- **Type 3 (UPDATE)**: Send/receive state updates
-- **Type 4 (PING)**: Connectivity check
-- **Type 5 (DATA)**: Send data between nodes
+### Packet structure
+
+A node sends an HTTP POST request to the path of the message type. The body of the request has this structure:
+
+- A random IV of 16 bytes. The node makes a new IV for each message.
+- The message type in 1 byte. The receiver uses this byte for verification.
+- The payload of the message. The length of the payload is variable.
+
+The body of the response has the same structure. The message type in the response is the same as the message type in the request.
+
+**NOTE:** The node encrypts the body of the request and the body of the response only if the configuration has an AES key.
+
+### Message types
+
+| Type | Name | Path | Function |
+|---|---|---|---|
+| 1 | HELLO | `/hello` | The node sends its information and its credentials. |
+| 2 | PEERS | `/peers` | The node asks for the list of peers, or sends the list. |
+| 3 | UPDATE | `/update` | The node sends a change of its state. |
+| 4 | PING | `/ping` | The node does a check of the connection. |
+| 5 | DATA | `/data` | The node sends data to a different node. |
 
 ### Security
-- All communication is encrypted using AES-CBC with a shared AES-128 key
-- A fresh random IV is generated for every encrypted message and prepended to ciphertext
-- Messages are signed using ECDSA for authentication
-- HTTP request/response bodies are encrypted end-to-end
 
-### State Synchronization
-- Nodes maintain a copy of all peers' states
-- Updates are broadcast to all connected peers
-- Timestamps prevent older updates from overwriting newer ones
+- The nodes encrypt all communication with AES-CBC and a shared AES-128 key.
+- The node makes a new random IV for each message. The node puts the IV before the ciphertext.
+- The node signs each packet with ECDSA. The receiver uses the signature for authentication.
+- The encryption applies to the body of the request and to the body of the response.
 
-### HTTP Server Configuration
-- HTTP server runs on specified port with threading enabled
-- Default timeout is 5 seconds for requests
-- Maximum retry attempts: 3 with 0.5 second delay between retries
-- Server runs in a separate daemon thread
+**CAUTION:** Give the same AES-128 key to all the nodes in the network. A node that has a different key cannot communicate with the network.
 
-### HTTP Status Codes
-- **200 OK**: Successful request with response data
-- **204 No Content**: Successful request with no response data (e.g., some HELLO responses)
-- **400 Bad Request**: Malformed request or message type mismatch
-- **401 Unauthorized**: Signature verification failed
-- **406 Not Acceptable**: Invalid data, stale update, or other validation error
-- **500 Internal Server Error**: Unexpected server error
-- **505 HTTP Version Not Supported**: Used for version mismatch errors
+### State synchronization
 
-## Important Notes
+- Each node keeps a copy of the states of all its peers.
+- A node sends each update to all the connected peers.
+- Each update has a timestamp. A node ignores an update that is older than the data of the node.
 
-1. **Shared AES Key**: All nodes in the network must use the same AES-128 key (16 bytes / 32 hex chars)
-2. **Unique Node IDs**: Each node must have a unique node_id
-3. **Bootstrap Nodes**: At least one bootstrap node is required to join an existing network
-4. **Network Tick**: The network performs maintenance checks every 3 seconds
-5. **Credential Management**: ECDSA keys are automatically generated and stored in `credentials/` directory
-6. **HTTP Reliability**: The protocol implements retry logic (up to 3 attempts) for failed requests
+### Configuration of the HTTP server
 
+| Item | Value |
+|---|---|
+| Port | The value of the `port` parameter in the configuration |
+| Threads | The server starts one thread for each request |
+| Thread of the server | One daemon thread |
+| Timeout of a request | 2 seconds minimum |
+| Attempts | 3 maximum, with a delay of 0.5 seconds between the attempts |
+| Network tick | 3 seconds |
+
+For a large payload, the timeout increases. The rate of the increase is 1 second for each 1 MB.
+
+### HTTP status codes
+
+| Code | Name | Meaning |
+|---|---|---|
+| 200 | OK | The server accepted the request and sends response data. |
+| 204 | No Content | The server accepted the request, but there is no response data. |
+| 400 | Bad Request | The request is malformed, or the message type does not agree with the path. |
+| 401 | Unauthorized | The key is incorrect, the node is unknown, or the node is not in the whitelist. |
+| 404 | Not Found | The path is not a path of the protocol. |
+| 406 | Not Acceptable | The signature is not correct, the update is stale, or the data is invalid. |
+| 500 | Internal Server Error | An unexpected error occurred in the server. |
+| 505 | HTTP Version Not Supported | The version of the node is different from the version of the peer. |
+
+## Requirements
+
+1. **Shared AES key**: All the nodes in the network must use the same AES-128 key. The key has 16 bytes, or 32 hexadecimal characters.
+2. **Unique node IDs**: The `node_id` of each node must be different from the `node_id` of all the other nodes.
+3. **Bootstrap nodes**: A node that joins an existing network must have a minimum of one bootstrap node.
+4. **Network tick**: The network does maintenance checks every 3 seconds.
+5. **Credentials**: The node makes the ECDSA keys automatically. The node stores the keys in the `credentials/` directory.
+6. **Reliability**: A node makes a maximum of 3 attempts for each request that fails.
