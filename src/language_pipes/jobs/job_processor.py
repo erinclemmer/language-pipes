@@ -54,25 +54,31 @@ class JobProcessor:
     
     State Transitions:
     
-    VALIDATING -> DONE (missing job/context resources or pipe unavailable)
-    VALIDATING -> HEAD (job.done and prefill finished or decode)
-    VALIDATING -> EMBED (job.done and more prefill chunks)
-    VALIDATING -> PROCESS_LAYERS (job still needs local layer processing)
-    
-    HEAD -> DONE (job complete or failed to send update)
-    HEAD -> EMBED (more tokens to generate locally)
-    HEAD -> SEND (next layer is virtual/remote)
-    HEAD -> PROCESS_LAYERS (next layer is local)
+    VALIDATING -> DONE (missing job, or HEAD step off-origin/without end model,
+                        or no node hosts the current layer)
+    VALIDATING -> SEND (EMBED/TOKENIZE step off-origin, or current layer is virtual)
+    VALIDATING -> HEAD (HEAD step on origin and prefill finished)
+    VALIDATING -> EMBED (EMBED/TOKENIZE step on origin, or more prefill chunks)
+    VALIDATING -> PROCESS_LAYERS (current layer is local)
 
-    EMBED -> DONE (failed to send update or missing model)
+    HEAD -> DONE (missing end model, more prefill chunks, job complete,
+                  or failed to send update)
+    HEAD -> EMBED (more tokens to generate)
+    # HEAD only runs on the origin node, which holds the end model, so it never
+    # transitions to SEND or PROCESS_LAYERS.
+
+    EMBED -> DONE (missing end model, failed to send update, or no node hosts
+                   the next layer)
     EMBED -> SEND (next layer is virtual/remote)
     EMBED -> PROCESS_LAYERS (next layer is local)
-    
-    PROCESS_LAYERS -> DONE (missing local model)
-    PROCESS_LAYERS -> SEND (next layer set is not local)
+
+    PROCESS_LAYERS -> DONE (no node hosts the current layer)
+    PROCESS_LAYERS -> SEND (next layer set is not local, or all layers done off-origin)
     PROCESS_LAYERS -> PROCESS_LAYERS (next layer set is local)
-    
-    SEND -> DONE (handoff complete)
+    PROCESS_LAYERS -> HEAD (all layers done on origin and prefill finished)
+    PROCESS_LAYERS -> EMBED (all layers done on origin with more prefill chunks)
+
+    SEND -> DONE (handoff complete, or no node hosts the next layer)
     """
     
     state: JobState

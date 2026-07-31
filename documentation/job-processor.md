@@ -1,87 +1,95 @@
 ---
 title: Job Processor State Machine
-description: The finite state machine that orchestrates job execution across the distributed inference pipeline — states, transitions, and integration.
+description: The state machine that controls the execution of jobs in the distributed inference pipeline. It gives the states, the transitions, and the integration points.
 ---
 
-The `JobProcessor` class implements a finite state machine (FSM) that orchestrates job execution across the distributed inference pipeline. This document describes each state, the conditions for transitions, and how the FSM integrates with the broader Language Pipes architecture.
+The `JobProcessor` class is a finite state machine (FSM). The FSM controls the execution of jobs in the distributed inference pipeline. This document gives each state, the conditions for each transition, and the integration points with Language Pipes.
 
 
 ## Overview
 
-When a job arrives at a node (via `JobReceiver`), it is processed by a `JobProcessor` instance. The processor validates the job context, routes computation through local or remote model segments, and handles job completion or handoff.
+A job comes to a node through the `JobReceiver`. The `JobReceiver` gives the job to a `JobProcessor` instance. The processor makes sure that the job context is correct. Then the processor sends the computation to local or remote model segments. At the end, the processor completes the job or sends the job to a different node.
 
 
 ## States
 
 ### `VALIDATING`
 
-**Purpose:** Validate the job context before processing begins.
+**Purpose:** Make sure that the job context is correct before the processor starts the job.
 
-The FSM starts in this state for every job. It checks that all required resources are available:
+The FSM starts in this state for each job. The state makes sure that the job object exists. For a `HEAD` compute step, the state also makes sure that:
 
-- The job object exists
-- The pipe is available and complete (all layer segments are ready)
-- For `HEAD` compute steps: the origin node matches and the end model is loaded
+- The origin node is the local node. Only the origin node computes the head.
+- The end model is loaded.
+
+Then the state finds the next state. The compute step of the job and the location of the current layer give the next state.
 
 **Transitions:**
 
 | Condition | Next State |
 |-----------|------------|
-| Job is missing | `DONE` |
-| Pipe is unavailable or incomplete | `DONE` |
-| Origin node mismatch (for `HEAD` step) | `DONE` |
-| End model unavailable (for `HEAD` step) | `DONE` |
-| Job is at `HEAD` step and prefill is complete | `HEAD` |
-| Job is at `HEAD` step with more prefill chunks | `EMBED` |
-| Job needs layer processing | `PROCESS_LAYERS` |
+| The job is missing | `DONE` |
+| The step is `HEAD`, and the origin node is not the local node | `DONE` |
+| The step is `HEAD`, and the end model is not available | `DONE` |
+| No node in the pipe has the current layer | `DONE` |
+| The step is `EMBED` or `TOKENIZE`, and the origin node is not the local node | `SEND` |
+| The node for the current layer is remote | `SEND` |
+| The step is `HEAD`, and the prefill is complete | `HEAD` |
+| The step is `EMBED` or `TOKENIZE`, and the origin node is the local node | `EMBED` |
+| The step is `HEAD`, and more prefill chunks remain | `EMBED` |
+| The current layer is 0, and the end model has local layers | `PROCESS_LAYERS` |
+| The node for the current layer is local | `PROCESS_LAYERS` |
 
 ---
 
 ### `EMBED`
 
-**Purpose:** Embed the next token (or prefill chunk) to produce hidden states.
+**Purpose:** Embed the next token or the next prefill chunk to compute the hidden state.
 
-This state handles tokenization and embedding. For new jobs, it tokenizes the prompt and initializes chunking. For continuation, it embeds the most recently generated token.
+This state tokenizes and embeds. For a new job, the state tokenizes the prompt and initializes the chunking. For a job that continues, the state embeds the last token that the head computed.
 
 **Operations:**
 
-1. Tokenize prompt (if not already done)
-2. Initialize chunking for prefill (if applicable)
-3. Advance to the next chunk (if doing chunked prefill)
-4. Compute embedding via `EndModel.compute_embed()`
-5. Send prefill progress update (if chunking is active)
+1. The state tokenizes the prompt, if the prompt is not tokenized.
+2. The state initializes the chunking for the prefill, if the chunking is applicable.
+3. The state moves to the next chunk, if the prefill is chunked.
+4. The state computes the embedding with `EndModel.compute_embed()`.
+5. The state sends a prefill progress update, if the chunking is active.
 
 **Transitions:**
 
 | Condition | Next State |
 |-----------|------------|
-| Failed to send prefill update | `DONE` |
-| No model available for next layer | `DONE` |
-| Next layer is virtual/remote | `SEND` |
-| Next layer is local | `PROCESS_LAYERS` |
+| The end model is not available | `DONE` |
+| The state cannot send the prefill update | `DONE` |
+| No node in the pipe has the next layer | `DONE` |
+| The next layer is remote | `SEND` |
+| The next layer is local | `PROCESS_LAYERS` |
 
 ---
 
 ### `PROCESS_LAYERS`
 
-**Purpose:** Process the job through locally-hosted model layers.
+**Purpose:** Process the job through the model layers on the local node.
 
-This state runs the hidden state through one or more consecutive local layer segments. Each segment processes its layer range and updates the job's `current_layer`.
+This state sends the hidden state through one or more local layer segments. The segments are consecutive. Each segment computes its range of layers. Then the segment updates the `current_layer` field of the job.
 
 **Operations:**
 
-1. Get the local model segment for the current layer
-2. Call `LlmModel.process_job()` to run through the segment's layers
-3. Update the last update timestamp
+1. The state gets the local model segment for the current layer.
+2. The state calls `LlmModel.process_job()` to compute the layers of the segment.
+3. The state updates the timestamp of the last update.
 
 **Transitions:**
 
 | Condition | Next State |
 |-----------|------------|
-| No local model available | `DONE` |
-| Next layer segment is remote | `SEND` |
-| Next layer segment is local | `PROCESS_LAYERS` |
-| All layers complete (step becomes `HEAD`) | (determined by next iteration) |
+| No node in the pipe has the current layer | `DONE` |
+| The next layer segment is remote | `SEND` |
+| All layers are complete, and the origin node is not the local node | `SEND` |
+| The next layer segment is local | `PROCESS_LAYERS` |
+| All layers are complete, the origin node is the local node, and the prefill is complete | `HEAD` |
+| All layers are complete, the origin node is the local node, and more prefill chunks remain | `EMBED` |
 
 ---
 
@@ -89,88 +97,102 @@ This state runs the hidden state through one or more consecutive local layer seg
 
 **Purpose:** Compute the output head to generate the next token.
 
-This state handles the final projection and sampling step. It only runs on the **origin node** (the node that initiated the job and has the end model loaded).
+This state computes the final projection and samples the next token. The state operates only on the **origin node**. The origin node started the job and has the end model.
 
 **Operations:**
 
-1. Log prefill completion (if transitioning from prefill to decode)
-2. Compute RMS normalization via `EndModel.compute_norm()`
-3. Compute output head projection via `EndModel.compute_head()`
-4. Record timing statistics
-5. If job is complete: set result and mark done
-6. If more tokens needed: send update to client and continue
+1. The state writes a log entry when the prefill is complete and the decode starts.
+2. The state computes the RMS normalization with `EndModel.compute_norm()`.
+3. The state computes the output head projection with `EndModel.compute_head()`.
+4. The state records the timing statistics.
+5. If the job is complete, the state sets the result and marks the job as done.
+6. If more tokens are necessary, the state sends an update to the client. Then the processor continues.
 
 **Transitions:**
 
 | Condition | Next State |
 |-----------|------------|
-| Job completed (EOS token generated) | `DONE` |
-| Failed to send job update | `DONE` |
-| More tokens to generate, next layer is local | `EMBED` |
-| More tokens to generate, next layer is remote | `SEND` |
-| More tokens to generate, next layer needs processing | `PROCESS_LAYERS` |
+| The end model is not available | `DONE` |
+| More prefill chunks remain | `DONE` |
+| The job is complete | `DONE` |
+| The state cannot send the job update | `DONE` |
+| More tokens are necessary | `EMBED` |
+
+**NOTE:** This state always operates on the origin node, and the origin node has the end model. Thus the next state is `EMBED`, and never `SEND` or `PROCESS_LAYERS`.
+
+A job is complete when the model generates the EOS token, or when the token count comes to `max_completion_tokens`.
 
 ---
 
 ### `SEND`
 
-**Purpose:** Hand off the job to another node.
+**Purpose:** Send the job to a different node.
 
-This state serializes the job and sends it to the node hosting the next layer segment (or back to the origin for `HEAD` computation).
+This state converts the job to a network payload. Then the state sends the payload to the node that has the next layer segment. For a `HEAD` step, the state sends the payload to the origin node.
 
 **Operations:**
 
-1. Convert job to `NetworkJob` payload
-2. Determine destination:
-   - If `HEAD` step: send to origin node
-   - Otherwise: send to node hosting the next layer
-3. Send via `Pipe.send_job()`
+1. The state converts the job to a `NetworkJob` payload.
+2. The state finds the destination:
+   - For a `HEAD` step, the destination is the origin node.
+   - For all other steps, the destination is the node that has the next layer.
+3. The state sends the payload with `Pipe.send_job()`.
 
 **Transitions:**
 
 | Condition | Next State |
 |-----------|------------|
-| Handoff complete | `DONE` |
+| The state sent the job | `DONE` |
+| No node in the pipe has the next layer | `DONE` |
 
 ---
 
 ### `DONE`
 
-**Purpose:** Terminal state indicating this processing iteration is complete.
+**Purpose:** The terminal state. This state shows that the current iteration is complete.
 
-The job has either:
-- Completed successfully (all tokens generated)
-- Been handed off to another node
-- Encountered an error condition
+The job is in one of these three conditions:
+
+- The job is complete, and the model generated all tokens.
+- A different node received the job.
+- An error condition stopped the job.
 
 ## State Transition Diagram
 
 ```
 VALIDATING
     │
-    ├──(missing job/context/pipe)────────────────────────────► DONE
+    ├──(no job, or no node for the current layer)────────────► DONE
     │
-    ├──(HEAD step, prefill done)─────────────────────────────► HEAD
+    ├──(`HEAD` step, not the origin node)────────────────────► DONE
     │
-    ├──(HEAD step, more prefill chunks)──────────────────────► EMBED
+    ├──(`HEAD` step, no end model)───────────────────────────► DONE
     │
-    └──(needs layer processing)──────────────────────────────► PROCESS_LAYERS
+    ├──(`EMBED`/`TOKENIZE` step, not the origin node)────────► SEND
+    │
+    ├──(the node for the current layer is remote)────────────► SEND
+    │
+    ├──(`HEAD` step, prefill complete)───────────────────────► HEAD
+    │
+    ├──(`EMBED`/`TOKENIZE` step, or more prefill chunks)─────► EMBED
+    │
+    └──(the node for the current layer is local)─────────────► PROCESS_LAYERS
 
 
 HEAD
     │
-    ├──(job complete or update failed)───────────────────────► DONE
+    ├──(no end model, or more prefill chunks)────────────────► DONE
     │
-    ├──(more tokens, local embedding)────────────────────────► EMBED
+    ├──(job complete, or update failed)──────────────────────► DONE
     │
-    ├──(more tokens, remote layer)───────────────────────────► SEND
-    │
-    └──(more tokens, local layer)────────────────────────────► PROCESS_LAYERS
+    └──(more tokens)─────────────────────────────────────────► EMBED
 
 
 EMBED
     │
-    ├──(update failed or missing model)──────────────────────► DONE
+    ├──(no end model, or update failed)──────────────────────► DONE
+    │
+    ├──(no node for the next layer)──────────────────────────► DONE
     │
     ├──(next layer is remote)────────────────────────────────► SEND
     │
@@ -179,44 +201,52 @@ EMBED
 
 PROCESS_LAYERS
     │
-    ├──(missing local model)─────────────────────────────────► DONE
+    ├──(no node for the current layer)───────────────────────► DONE
     │
     ├──(next layer is remote)────────────────────────────────► SEND
     │
-    └──(next layer is local)─────────────────────────────────► PROCESS_LAYERS
+    ├──(all layers complete, not the origin node)────────────► SEND
+    │
+    ├──(next layer is local)─────────────────────────────────► PROCESS_LAYERS
+    │
+    ├──(all layers complete, prefill complete)───────────────► HEAD
+    │
+    └──(all layers complete, more prefill chunks)────────────► EMBED
 
 
 SEND
     │
-    └──(handoff complete)────────────────────────────────────► DONE
+    └──(job sent, or no node for the next layer)─────────────► DONE
 ```
 
 ## Compute Steps
 
-The job's `compute_step` field determines what operation is needed next:
+The `compute_step` field of the job gives the next necessary operation:
 
-| ComputeStep | Description | Processed By |
-|-------------|-------------|--------------|
-| `TOKENIZE` | Convert messages to token IDs | End model (origin node) |
-| `EMBED` | Embed tokens to hidden state | End model (origin node) |
-| `LAYER` | Process through transformer layers | Layer segments (any node) |
-| `NORM` | Apply final RMS normalization | End model (origin node) |
-| `HEAD` | Project to vocabulary and sample | End model (origin node) |
+| ComputeStep | Description | Computed by |
+|-------------|-------------|-------------|
+| `TOKENIZE` | Converts the messages to token IDs | The end model (origin node) |
+| `EMBED` | Embeds the tokens to give the hidden state | The end model (origin node) |
+| `LAYER` | Computes the transformer layers | The layer segments (any node) |
+| `NORM` | Applies the final RMS normalization | The end model (origin node) |
+| `HEAD` | Projects to the vocabulary and samples the next token | The end model (origin node) |
 
 
 ## Integration Points
 
 ### Entry Point
 
-Jobs enter the processor via `JobReceiver`, which:
-1. Deserializes the `NetworkJob` payload
-2. Validates the job hash
-3. Creates a `JobContext`
-4. Instantiates `JobProcessor` and calls `run()`
+Jobs come to the processor through the `JobReceiver`. The `JobReceiver` does these operations:
+
+1. It deserializes the `NetworkJob` payload.
+2. It makes sure that the job hash is correct.
+3. It creates a `JobContext`.
+4. It creates a `JobProcessor` instance and calls `run()`.
 
 ### Exit Points
 
-Jobs exit in three ways:
-1. **Completion:** Job reaches `HEAD`, generates EOS, result returned to client
-2. **Handoff:** Job sent to another node via `Pipe.send_job()`
-3. **Error:** Processing stops, job marked as failed
+A job exits the processor in one of three ways:
+
+1. **Completion:** The job comes to the `HEAD` state. The model generates the EOS token. The processor sends the result to the client.
+2. **Send:** The processor sends the job to a different node with `Pipe.send_job()`.
+3. **Error:** The processor stops, and the processor marks the job as failed.
