@@ -2,6 +2,8 @@ from typing import List
 
 
 def make_footer_text(items: List[str]) -> str:
+    if len(items) == 1:
+        return items[0]
     total_len = 0
     for item in items:
         total_len += len(item)

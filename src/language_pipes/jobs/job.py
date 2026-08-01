@@ -151,10 +151,7 @@ class Job:
         if eos_token is None:
             return
 
-        if isinstance(eos_token, int):
-            stop_tokens = {eos_token}
-        else:
-            stop_tokens = set(eos_token)
+        stop_tokens = {eos_token} if isinstance(eos_token, int) else set(eos_token)
 
         if token in stop_tokens:
             self.status = JobStatus.COMPLETED

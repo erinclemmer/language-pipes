@@ -63,7 +63,7 @@ class EndModel:
             num_hidden_layers=self.collector.config.num_hidden_layers,
             shared_kv_states=shared_kv_states
         )
-
+        
     def size(self):
         return self.meta_data.embed_size + self.meta_data.head_size + (self.meta_data.avg_layer_size * self.num_local_layers)
 

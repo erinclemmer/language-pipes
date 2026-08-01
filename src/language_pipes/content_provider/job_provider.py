@@ -11,10 +11,12 @@ from language_pipes.config import LpConfig
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
+from language_pipes.jobs.timing_stats import TimingStats
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.oai_server import OAIHttpServer
 from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
+from language_pipes.util.chunk_state import ChunkState
 from language_pipes.util.utils import stop_thread
 
 DEFAULT_JOB_PORT = 8000
@@ -29,6 +31,8 @@ class MetaJob:
     prompt_processed: float
     last_update: float
     ram: float
+    timing_stats: TimingStats
+    chunking: ChunkState
 
 class JobProvider:
     oai_server: Optional[OAIHttpServer]
@@ -156,7 +160,7 @@ class JobProvider:
             return []
         
         meta_jobs = []
-        for key in job_tracker.jobs_pending.keys():
+        for key in job_tracker.jobs_pending:
             for job in job_tracker.jobs_pending[key]:
                 meta_jobs.append(MetaJob(
                     job_id=job.job_id,
@@ -166,7 +170,9 @@ class JobProvider:
                     origin_node_id=job.origin_node_id,
                     prompt_processed=(job.chunking.current_chunk / job.chunking.total_chunks) if job.chunking.total_chunks > 0 else 1,
                     last_update=time() - job.last_update,
-                    ram=job.get_job_ram()
+                    ram=job.get_job_ram(),
+                    timing_stats=job.timing_stats,
+                    chunking=job.chunking
                ))
         
         return meta_jobs

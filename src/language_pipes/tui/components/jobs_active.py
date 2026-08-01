@@ -3,6 +3,7 @@ from typing import Callable, List
 from ansinout import PressedKey
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.util.text import make_footer_text, make_window_text
+from language_pipes.util.utils import CHUNK_SIZE
 
 class JobsActive:
     provider: ContentProvider
@@ -22,27 +23,45 @@ class JobsActive:
             self.exit_page()
 
     def on_next(self):
+        if self.num_jobs == 0:
+            return
         self.selected_job_idx = (self.selected_job_idx + 1) % self.num_jobs
 
     def on_prev(self):
+        if self.num_jobs == 0:
+            return
         self.selected_job_idx = (self.selected_job_idx - 1) % self.num_jobs
     
     def get_view(self) -> List[str]:
         lines = ["Active Jobs:", ""]
 
         jobs = self.provider.job_provider.get_active_jobs()
-        self.num_jobs = max(len(jobs), 1)
+        self.num_jobs = len(jobs)
         entries = []
         for job in jobs:
-            entries.append([
+            entry = [
                 f"Model ID:      {job.model_id}",
                 f"Origin Node:   {job.origin_node_id}", 
                 f"Job ID:        {job.job_id[:8]}",
                 f"Pipe ID:       {job.pipe_id[:8]}",
                 f"Last active:   {job.last_update:.0f} seconds ago",
-                f"Current Token: {job.current_token}",
-                "", ""
-            ])
+                f"Decode Token:  {job.current_token}" if not job.chunking.is_active() else f"Prefill Token: {job.chunking.current_chunk * CHUNK_SIZE} of {job.chunking.total_chunks * CHUNK_SIZE}"
+            ]
+
+            prefill_speed = job.timing_stats.prefill_times.get_avg_total_time()
+            if prefill_speed > 0:
+                entry.extend(["", f"Prefill speed: {(1.0 / (prefill_speed / 1000.0)) * CHUNK_SIZE:.2f} Tok/s", ""])
+
+            decode_speed = job.timing_stats.output_times.get_avg_total_time()
+            if not job.chunking.is_active() and decode_speed > 0:
+                entry.extend([
+                    "Decoding:",
+                    f"Embed time: {job.timing_stats.prefill_times.get_avg_embed_time():.2f} ms",
+                    f"Per layer time: {job.timing_stats.prefill_times.get_avg_layer_time():.2f} ms",
+                    f"Decode speed: {(1.0 / (decode_speed / 1000.0)):.2f} Tok/s"
+                ])
+
+            entries.append(entry)
 
         lines.extend(make_window_text(entries, self.selected_job_idx, 20))
         

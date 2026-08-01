@@ -205,7 +205,9 @@ class JobProcessor:
         job = self.ctx.job
 
         if job.current_layer == 0 and self.ctx.end_model is not None and len(self.ctx.end_model.layers) > 0:
+            job.timing_stats.add_layer_time(self.ctx.node_id, 0, len(self.ctx.end_model.layers))
             self.ctx.end_model.compute_layers(job)
+            job.timing_stats.set_send_time()
 
         model = pipe.get_layer(job.current_layer, False)
         if model is None:
@@ -213,8 +215,10 @@ class JobProcessor:
         
         if model.virtual:
             return JobState.SEND
-        
+
+        job.timing_stats.add_layer_time(self.ctx.node_id, job.current_layer, model.end_layer)
         model.process_job(job)
+        job.timing_stats.set_send_time()
         job.set_last_update()
         
         return get_next_state(self.ctx)

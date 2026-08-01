@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 from language_pipes.util.byte_helper import ByteHelper
 from language_pipes.util.enums import ComputeStep
 from language_pipes.jobs.job_data import JobData
@@ -11,9 +9,9 @@ class NetworkJob:
     origin_node_id: str
     current_layer: int
     compute_step: ComputeStep
-    data: Optional[JobData]
+    data: JobData | None
     data_hash: bytes
-    times: List[JobTime]
+    times: list[JobTime]
     prefill_chunk_size: int
 
     def __init__(
@@ -22,10 +20,10 @@ class NetworkJob:
         pipe_id: str,
         origin_node_id: str,
         current_layer: int,
-        data: Optional[JobData],
+        data: JobData | None,
         data_hash: bytes,
         compute_step: ComputeStep,
-        times: List[JobTime] = []
+        times: list[JobTime]
     ):
         self.job_id = job_id
         self.pipe_id = pipe_id
