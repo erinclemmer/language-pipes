@@ -79,11 +79,11 @@ class JobReceiver:
 
                 # Validate network job
                 if not job.receive_network_job(network_job):
-                    return
+                    continue
 
                 pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
                 if pipe is None:
-                    return
+                    continue
 
                 end_model = self.model_manager.get_end_model(pipe.model_id)
                 
@@ -96,10 +96,11 @@ class JobReceiver:
 
                 try:
                     fsm.run()
-                except Exception:
-                    self.logger.exception("Job processing failed")
-        except Exception:
-            self.logger.exception("Job runner loop failed")
+                except Exception as e:
+                    self.logger.exception(f"Job processing failed: {e}")
+        except Exception as e:
+            self.logger.exception(f"Job runner loop failed: {e}")
+            Thread(target=self._job_runner_loop, args=()).start()
 
     def restart_token(self, network_job: NetworkJob):
         """Mark job for restart and send back to origin."""
