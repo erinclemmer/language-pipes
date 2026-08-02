@@ -1,10 +1,10 @@
 from typing import Dict, List
 
 from ansinout import PressedKey
-import torch
 
 from language_pipes.tui.components.page import PageState
-from language_pipes.tui.util.text import make_footer_text, make_selectable_text, make_window_text
+from language_pipes.tui.frame.tips import TIPS
+from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 
 DATA_TYPES = ["bf16", "int8", "int4"]
 
@@ -54,6 +54,13 @@ class ChooseDataTypePageState(PageState):
 
         for i, dtype in enumerate(DATA_TYPES):
             lines.extend([make_selectable_text(dtype, self.select_idx == i), ""])
+
+        tip = TIPS["layer_models"][DATA_TYPES[self.select_idx]]
+        lines.extend([
+            "",
+            "Tip:",
+            tip
+        ])
 
         return lines
 
