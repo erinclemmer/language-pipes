@@ -15,7 +15,7 @@ def compute_layers(start_layer: int, job_data: JobData, device: torch.device, co
     comp_state = jobDataToComputationState(job_data, device, local_dtype)
     comp_state = detachCompState(comp_state)
 
-    first_layer_idx: int = layers[0].cls.self_attn.layer_idx # pyright: ignore[reportAssignmentType, reportAttributeAccessIssue]
+    first_layer_idx: int = layers[0].cls.layer_idx # pyright: ignore[reportAssignmentType, reportAttributeAccessIssue]
     start_layer -= first_layer_idx
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", FutureWarning)

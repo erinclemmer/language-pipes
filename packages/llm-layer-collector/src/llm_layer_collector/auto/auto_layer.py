@@ -14,6 +14,7 @@ from transformers.models.gemma4_unified.modeling_gemma4_unified import Gemma4Uni
 from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeDecoderLayer
 from transformers.models.ministral3.modeling_ministral3 import Ministral3DecoderLayer
 from transformers.models.gpt_oss.modeling_gpt_oss import GptOssDecoderLayer
+from transformers.models.qwen3_5.modeling_qwen3_5 import Qwen3_5DecoderLayer
 
 mapper = { # type: ignore
     "llama": LlamaDecoderLayer,
@@ -23,6 +24,7 @@ mapper = { # type: ignore
     "gemma4_text": Gemma4TextDecoderLayer,
     "gemma4_unified_text": Gemma4UnifiedTextDecoderLayer,
     "qwen3_moe": Qwen3MoeDecoderLayer,
+    "qwen3_5_text": Qwen3_5DecoderLayer,
     "ministral3": Ministral3DecoderLayer,
     "gpt_oss": GptOssDecoderLayer,
 }
@@ -58,6 +60,7 @@ class AutoDecoderLayer:
         if self.config._attn_implementation_internal is None: # type: ignore
             self.config._attn_implementation = "eager" # type: ignore
         self.cls = getClass(self.config)(self.config, layer_index)
+        self.cls.layer_idx = layer_index # type: ignore
 
     def to_empty(self, device: Optional[torch.device]) -> 'AutoDecoderLayer':
         self.cls = self.cls.to_empty(device=device)

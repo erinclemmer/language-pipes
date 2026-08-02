@@ -4,16 +4,18 @@ from typing import Optional
 from transformers.cache_utils import DynamicCache
 from transformers.configuration_utils import PretrainedConfig
 
+from llm_layer_collector.state_obj import LLmComputationState
 from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
-from llm_layer_collector.modeling.Ministral3Model import Ministral3Model
-from llm_layer_collector.modeling.Qwen3MoeModel import Qwen3MoeModel
+
+from llm_layer_collector.modeling.Phi3Model import Phi3Model
 from llm_layer_collector.modeling.Qwen3Model import Qwen3Model
 from llm_layer_collector.modeling.LlamaModel import LlamaModel
 from llm_layer_collector.modeling.Gemma3Model import Gemma3Model
 from llm_layer_collector.modeling.Gemma4Model import Gemma4Model
-from llm_layer_collector.modeling.Phi3Model import Phi3Model
 from llm_layer_collector.modeling.GptOssModel import GptOssModel
-from llm_layer_collector.state_obj import LLmComputationState
+from llm_layer_collector.modeling.Qwen3_5Model import Qwen3_5Model
+from llm_layer_collector.modeling.Qwen3MoeModel import Qwen3MoeModel
+from llm_layer_collector.modeling.Ministral3Model import Ministral3Model
 
 class StaticAutoModel:
     @staticmethod
@@ -82,6 +84,9 @@ class StaticAutoModel:
             case "qwen3_moe":
                 Qwen3MoeModel.compute_embedding(state, config, mask_kwargs)
 
+            case "qwen3_5_text":
+                Qwen3_5Model.compute_embedding(state, config, mask_kwargs)
+            
             case "llama":
                 LlamaModel.compute_embedding(state, config, mask_kwargs)
             
@@ -115,7 +120,10 @@ class StaticAutoModel:
             
             case "qwen3_moe":
                 return Qwen3MoeModel.compute_layer(layer, config, state, cache)
-            
+
+            case "qwen3_5_text":
+                return Qwen3_5Model.compute_layer(layer, config, state, cache)
+
             case "llama":
                 return LlamaModel.compute_layer(layer, state, cache)
 
