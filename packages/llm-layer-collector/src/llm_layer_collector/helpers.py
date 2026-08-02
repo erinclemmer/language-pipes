@@ -1,4 +1,5 @@
 import os
+import warnings
 from pathlib import Path
 from typing import Dict, List
 
@@ -41,3 +42,14 @@ def get_config(model_dir: Path) -> PretrainedConfig:
         meta_model = AutoModelForCausalLM.from_config(config)
 
     return meta_model.config
+
+def safe_load_bnb():
+    try:
+        with warnings.catch_warnings():
+            # bitsandbytes imports trigger a torch.jit.script_method
+            # DeprecationWarning on Python 3.14+; it's not actionable here.
+            warnings.simplefilter("ignore", DeprecationWarning)
+            import bitsandbytes as bnb  # noqa: F401
+            return bnb
+    except:  # noqa: E722
+        return None

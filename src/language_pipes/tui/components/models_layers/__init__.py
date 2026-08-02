@@ -2,6 +2,7 @@ from typing import Callable
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.components.confirm import Confirm
+from language_pipes.tui.components.models_layers.choose_data_type import ChooseDataTypePageState
 from language_pipes.tui.components.models_layers.choose_device_state import ChooseDevicePageState
 from language_pipes.tui.components.models_layers.choose_model_state import ChooseModelPageState
 from language_pipes.tui.components.models_layers.edit_state import EditPageState
@@ -24,6 +25,7 @@ class ModelsLayers(Page):
                 OptionsPageState(),
                 ChooseModelPageState(),
                 ChooseDevicePageState(),
+                ChooseDataTypePageState()
             ],
             provider,
             confirm,

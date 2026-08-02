@@ -1,15 +1,12 @@
-import logging
-
 import torch
 from ansinout import PressedKey
+from llm_layer_collector.helpers import safe_load_bnb
 
 from language_pipes.config import ModelToLoad
-from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus
-from language_pipes.tui.components.page import PageState
 from language_pipes.tui.frame.tips import TIPS
+from language_pipes.tui.components.page import PageState
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text
-from language_pipes.util.config import is_8_bit_mode
-
+from language_pipes.content_provider.model_provider import ModelProvider, ModelStatus
 
 class EditPageState(PageState):
     editing_model: ModelToLoad | None
@@ -18,7 +15,8 @@ class EditPageState(PageState):
     model_id: str
     device_name: str
     device_memory: str
-    num_layers_cache: dict[str, dict[str, str]]
+    data_type: int
+    num_layers_cache: dict[str, dict[str, dict[str, str]]]
 
     select_idx: int
 
@@ -28,9 +26,11 @@ class EditPageState(PageState):
         self.editing_model_idx = None
         self.model_id = ""
         self.device_name = "cpu"
+        self.data_type = 16
         self.device_memory = ""
         self.select_idx = 0
         self.num_layers_cache = { }
+        self.has_bnb = safe_load_bnb() is not None
 
     def on_change(self, args: dict):
         # Returning from the model selector keeps the rest of the form intact.
@@ -41,6 +41,8 @@ class EditPageState(PageState):
         if "device" in args:
             self.device_name = args["device"]
             return
+        if "data_type" in args:
+            self.data_type = args["data_type"]
         # Cancelling out of a selector returns here with no args; keep the form.
         if "model" not in args:
             return
@@ -51,6 +53,7 @@ class EditPageState(PageState):
         self.model_id = self.editing_model.model_id if self.editing_model is not None else ""
         self.device_name = str(self.editing_model.device) if self.editing_model is not None else "cpu"
         self.device_memory = str(self.editing_model.memory) if self.editing_model is not None else ""
+        self.data_type = self.editing_model.data_type if self.editing_model is not None else 16
         self.select_idx = 0
         self.num_layers_cache = { }
 
@@ -69,11 +72,11 @@ class EditPageState(PageState):
             self._on_backspace()
 
     def _on_backspace(self):
-        if self.select_idx == 2:
+        if self.select_idx == 3:
             self.device_memory = self.device_memory[:-1]
 
     def _on_char(self, ch: str):
-        if self.select_idx == 2:
+        if self.select_idx == 3:
             self.device_memory += ch
 
     def _on_escape(self):
@@ -84,7 +87,9 @@ class EditPageState(PageState):
             self.change_state('choose_model', { })
         elif self.select_idx == 1:
             self.change_state('choose_device', { "device": self.device_name })
-        elif self.select_idx == 3:
+        elif self.select_idx == 2:
+            self.change_state('choose_data_type', { "data_type": self.data_type })
+        elif self.select_idx == 4:
             self._add_model()
     
     def _on_next(self):
@@ -117,9 +122,21 @@ class EditPageState(PageState):
         
         return lines
 
+    def data_type_lines(self) -> list[str]:
+        if not self.has_bnb:
+            return [make_selectable_text("   Data Type: bf16", self.select_idx == 2), "    !Info: Install bitsandbytes to change data type"]
+
+        type_label = "bf16"
+        if self.data_type == 8:
+            type_label = "int8"
+        if self.data_type == 4:
+            type_label = "int4"
+            
+        return [make_selectable_text(f"Data Type: {type_label}", self.select_idx == 2)]
+
     def _memory_lines(self) -> list[str]:
         lines = []
-        memory_cursor = "|" if self.select_idx == 2 else ""
+        memory_cursor = "|" if self.select_idx == 3 else ""
         max_memory_line = f"   Max Memory: {self.device_memory}{memory_cursor} GB "
         if not self._validate_memory():
             max_memory_line += "(Warning: Invalid memory amount)"
@@ -139,6 +156,8 @@ class EditPageState(PageState):
         elif self.select_idx == 1:
             tip_key = "device"
         elif self.select_idx == 2:
+            tip_key = "data_type"
+        elif self.select_idx == 3:
             tip_key = "max_memory"
 
         if tip_key is not None:            
@@ -157,6 +176,8 @@ class EditPageState(PageState):
         if self._valid_model_id():
             lines.extend(self._device_lines())
 
+        lines.extend(self.data_type_lines())
+
         if self._valid_model_id() and self._valid_device():
             lines.extend(self._memory_lines())
 
@@ -165,7 +186,7 @@ class EditPageState(PageState):
 
         if self._can_save():
             lines.append("")
-            lines.append(make_selectable_text("Save Model", self.select_idx == 3))
+            lines.append(make_selectable_text("Save Model", self.select_idx == 4))
 
         lines.extend(self._get_tip_lines())
 
@@ -177,8 +198,10 @@ class EditPageState(PageState):
         elif self.select_idx == 1:
             return make_footer_text(["Arrows U/D: Move", "Enter: Change Device", "Esc: Back"])
         elif self.select_idx == 2:
-            return make_footer_text(["Arrows U/D: Move", "[0-9.]: Type", "Esc: Back"])
+            return make_footer_text(["Arrows U/D: Move", "Enter: Change data type" if self.has_bnb else "", "Esc: Back"])
         elif self.select_idx == 3:
+            return make_footer_text(["Arrows U/D: Move", "[0-9.]: Type", "Esc: Back"])
+        elif self.select_idx == 4:
             return make_footer_text(["Arrows U/D: Move", "Enter: Save Layer Model", "Esc: Back"])
         return ""
 
@@ -187,7 +210,7 @@ class EditPageState(PageState):
         if self._valid_model_id():
             max_idx += 1
             if self._valid_device():
-                max_idx += 1
+                max_idx += 2
             if self._can_save():
                 max_idx += 1
         return max_idx
@@ -200,6 +223,7 @@ class EditPageState(PageState):
             model_id=self.model_id,
             device=torch.device(self.device_name),
             memory=float(self.device_memory),
+            data_type=self.data_type
         )
 
         should_restart = (
@@ -241,8 +265,12 @@ class EditPageState(PageState):
     def _get_num_layers(self) -> str | None:
         if self.device_name not in self.num_layers_cache:
             self.num_layers_cache[self.device_name] = { }
-        if str(self.device_memory) in self.num_layers_cache[self.device_name]:
-            return self.num_layers_cache[self.device_name][str(self.device_memory)]
+
+        if str(self.device_memory) not in self.num_layers_cache[self.device_name]:
+            self.num_layers_cache[self.device_name][str(self.device_memory)] = { }
+        
+        if str(self.device_memory) in self.num_layers_cache[self.device_name] and str(self.data_type) in self.num_layers_cache[self.device_name][str(self.device_memory)]:
+            return self.num_layers_cache[self.device_name][str(self.device_memory)][str(self.data_type)]
         
         assert self.model_id is not None
         
@@ -251,13 +279,16 @@ class EditPageState(PageState):
             return None
         
         layer_size = metadata.avg_layer_size / 1024**3
-        if is_8_bit_mode():
-            layer_size /= 2
+        if self.data_type == 8:
+            layer_size /= 2.0
+
+        if self.data_type == 4:
+            layer_size /= 4.0
 
         num_layers = min(int(float(self.device_memory) / layer_size), metadata.num_hidden_layers)
         total_size = layer_size * metadata.num_hidden_layers
         s = f"/ {total_size:.1f}GB ({num_layers} of {metadata.num_hidden_layers} layers)"
-        self.num_layers_cache[self.device_name][str(self.device_memory)] = s
+        self.num_layers_cache[self.device_name][str(self.device_memory)][str(self.data_type)] = s
         return s
     
     def _has_model_already(self, model_id: str | None, device: str) -> bool:

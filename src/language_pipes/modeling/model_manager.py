@@ -50,21 +50,34 @@ class ModelManager:
         )
         return collector.config
 
-    def _get_model_for_pipe(self, node_id: str, model_id: str, pipe: MetaPipe, device: torch.device, available_memory: int | float, first_layer: int) -> Tuple[int | float, Optional[LlmModel]]:
+    def _get_model_for_pipe(
+        self, 
+        node_id: str, 
+        model_id: str,
+        pipe: MetaPipe, 
+        device: torch.device, 
+        available_memory: int | float, 
+        first_layer: int,
+        data_type: int
+    ) -> Tuple[int | float, Optional[LlmModel]]:
         new_model: Optional[LlmModel] = LlmModel.from_id(
             node_id=node_id,
             model_dir=get_model_dir(),
             model_id=model_id,
             pipe_id=pipe.pipe_id,
             device=device,
+            data_type=data_type
         )
         if new_model is None:
             return None
         meta_data = new_model.meta_data
         
         data_type_divisor = 1
-        if is_8_bit_mode():
-            data_type_divisor = 2
+        if data_type == 8:
+            data_type_divisor = 2.0
+
+        if data_type == 4:
+            data_type_divisor = 4.0
 
         num_layers_to_load = int(available_memory / (meta_data.avg_layer_size / data_type_divisor)) - 1
         total_layers = new_model.collector.config.num_hidden_layers
@@ -91,7 +104,17 @@ class ModelManager:
         model.load()
         self.logger.info(f"End Model for {model_id} loaded successfully")
 
-    def host_model(self, router_pipes: RouterPipes, node_id: str, model_id: str, max_memory: float, device: torch.device, first_layer: int, max_pipes: int = 1):
+    def host_model(
+        self, 
+        router_pipes: RouterPipes, 
+        node_id: str, 
+        model_id: str, 
+        max_memory: float, 
+        device: torch.device, 
+        first_layer: int, 
+        data_type: int,
+        max_pipes: int = 1
+    ):
         available_memory = max_memory * 1024**3
         models_to_load: List[LlmModel] = []
         
@@ -106,7 +129,7 @@ class ModelManager:
                 pipe = router_pipes.get_pipe_by_pipe_id(pipe_id)
                 if pipe is None: 
                     break
-                available_memory, model = self._get_model_for_pipe(node_id, model_id, pipe, device, available_memory, first_layer)
+                available_memory, model = self._get_model_for_pipe(node_id, model_id, pipe, device, available_memory, first_layer, data_type)
                 loaded = model is not None
                 if model is not None:
                     self.pipes_hosted[model_id].append(model.pipe_id)
@@ -117,7 +140,7 @@ class ModelManager:
         if len(self.pipes_hosted[model_id]) < max_pipes:
             new_pipe = MetaPipe(str(uuid4()), model_id, [])
             self.pipes_hosted[model_id].append(new_pipe.pipe_id)
-            _, model = self._get_model_for_pipe(node_id, model_id, new_pipe, device, available_memory, first_layer)
+            _, model = self._get_model_for_pipe(node_id, model_id, new_pipe, device, available_memory, first_layer, data_type)
             if model is not None:
                 router_pipes.add_model_to_network(model.to_meta())
                 models_to_load.append(model)

@@ -8,7 +8,7 @@ import toml
 import torch
 
 from distributed_state_network.objects.config import DSNodeConfig
-from language_pipes.util.config import get_app_dir
+from language_pipes.util.config import get_app_dir, is_8_bit_mode
 
 logger = logging.getLogger(__name__)
 
@@ -128,12 +128,14 @@ class ModelToLoad:
     model_id: str
     device: torch.device
     memory: float
+    data_type: int
 
     def to_dict(self):
         return {
             "model_id": self.model_id,
             "device": str(self.device),
-            "memory": self.memory
+            "memory": self.memory,
+            "data_type": self.data_type
         }
 
     @staticmethod
@@ -141,7 +143,8 @@ class ModelToLoad:
         return ModelToLoad(
             model_id=data.get("model_id", ""),
             device=torch.device(data.get("device", "cpu")),
-            memory=data.get("memory", 0)
+            memory=data.get("memory", 0),
+            data_type=data.get("data_type", 8 if is_8_bit_mode() else 16)
         )
 
 class LpConfig:

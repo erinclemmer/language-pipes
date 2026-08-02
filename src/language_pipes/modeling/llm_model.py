@@ -9,7 +9,6 @@ from llm_layer_collector import LlmLayerCollector
 from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
 
 from language_pipes.util.utils import clone_model
-from language_pipes.util.config import is_8_bit_mode
 
 from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata
@@ -37,6 +36,7 @@ class LlmModel:
     loaded: bool
     num_hidden_layers: int
     ram_used: int
+    data_type: int
 
     def __init__(
             self,
@@ -48,7 +48,8 @@ class LlmModel:
             process_id: Optional[str] = None,
             virtual: bool = False,
             huggingface_token: Optional[str] = None,
-            num_hidden_layers: Optional[int] = None
+            num_hidden_layers: Optional[int] = None,
+            data_type: int = 16
     ):
         self.node_id = node_id
         self.ram_used = 0
@@ -61,6 +62,7 @@ class LlmModel:
         self.end_layer = -1
         self.device = device
         self.model_dir = model_dir
+        self.data_type = data_type
 
         if virtual and num_hidden_layers is not None:
             self.num_hidden_layers = num_hidden_layers
@@ -73,7 +75,8 @@ class LlmModel:
                     cache_file=model_path / 'cache.json',
                     device=device,
                     dtype=torch.bfloat16,
-                    load_in_8bit=is_8_bit_mode()
+                    load_in_8bit=data_type == 8,
+                    load_in_4bit=data_type == 4
             )
             self.num_hidden_layers = self.collector.config.num_hidden_layers
             self.meta_data = LlmMetadata(model_path)
@@ -158,14 +161,23 @@ class LlmModel:
         return model
     
     @staticmethod
-    def from_id(model_dir: Path, node_id: str, model_id: str, pipe_id: str, device: torch.device, huggingface_token: Optional[str] = None) -> 'LlmModel':
+    def from_id(
+        model_dir: Path, 
+        node_id: str, 
+        model_id: str, 
+        pipe_id: str, 
+        device: torch.device, 
+        data_type: int,
+        huggingface_token: Optional[str] = None
+    ) -> 'LlmModel':
         model = LlmModel(
             model_id=model_id,
             node_id=node_id,
             pipe_id=pipe_id, 
             device=device, 
             model_dir=model_dir,
-            huggingface_token=huggingface_token
+            huggingface_token=huggingface_token,
+            data_type=data_type
         )
 
         model_path = model_dir / model_id

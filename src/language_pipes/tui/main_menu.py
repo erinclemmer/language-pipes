@@ -11,7 +11,6 @@ from language_pipes.tui.util.text import make_footer_text
 from language_pipes.util.config import (
     get_config_files,
     get_app_dir,
-    get_model_dir,
     initialize_folders
 )
 from language_pipes.cli import VERSION
@@ -54,6 +53,12 @@ def load_libraries(window: TuiWindow):
     import language_pipes.content_provider.network_provider
     import language_pipes.content_provider.model_provider
     import language_pipes.tui.frame.main_frame  # noqa: F401
+
+    paint_loader(35)
+    window.update_text(loading_id, TermText("Loading: bitsandbytes"))
+    window.paint()
+    from llm_layer_collector.helpers import safe_load_bnb
+    safe_load_bnb()
 
     paint_loader(40)
     window.update_text(loading_id, TermText("Loading Complete"))
@@ -129,10 +134,7 @@ def main_menu(termsize: Tuple[int, int], config_file: Optional[str], auto_start:
     if config_file is not None:
         # Because the window has been initialized we need to assume that the config file is a valid path
         config_path: Optional[Path] = None
-        if ".toml" in config_file:
-            config_path = Path(config_file)
-        else:
-            config_path = config_dir / (config_file + ".toml")
+        config_path = Path(config_file) if ".toml" in config_file else config_dir / (config_file + ".toml")
         
         res = handle_file_load(window, left_bound, termsize, config_path, auto_start)
         if res == "exit":

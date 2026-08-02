@@ -102,6 +102,7 @@ Array of models to host. Each model is defined as a TOML table.
 model_id = "Qwen/Qwen3-1.7B"
 device = "cpu"
 memory = 4
+data_type = 16
 ```
 
 Each entry has the following fields:
@@ -111,6 +112,9 @@ Each entry has the following fields:
 | `model_id` | string | ✓ | HuggingFace model ID or path in `/models` directory |
 | `device` | string | ✓ | PyTorch device: `cpu`, `cuda:0`, `cuda:1`, etc. |
 | `memory` | number | ✓ | Maximum memory allocation in GB |
+| `data_type` | string | x | Set to 16, 8, or 4 to set quantization level |
+
+**Note:** Setting the `data_type` property to 8 or 4 requires the bitsandbytes library to be installed. Install it with `pip install language-pipes[quantization]` or `pip install bitsandbytes`.
 
 Multiple models:
 ```toml
@@ -409,7 +413,12 @@ until earlier jobs for that key complete.
 export LP_MAX_API_JOBS=5
 ```
 
-#### `LP_8_BIT_MODE`
+#### `LP_8_BIT_MODE` (deprecated)
+
+> **Deprecated.** Set [`data_type`](#layer_models) in the config file for each model,
+> or from the TUI's "Models / Layers" page when editing a model.  
+> This variable is still honored as a fallback default for if a model
+> does not have a `data_type` property in its configuration object. 
 
 Load model layers in 8-bit precision using the
 [bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes) library
