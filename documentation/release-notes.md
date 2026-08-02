@@ -3,6 +3,18 @@ title: Release Notes
 description: Change log for Language Pipes releases.
 ---
 
+## Release 2.5.0
+
+### 4 Bit Support
+Added support for the int4 datatype through bitsandbytes. Configure through the new interface in the "Models / Layers" page.
+
+### Per Model Quantization Configuration
+Added a new menu in the layer model editor to set the datatype of used to load the model's weights. Can be bf16, int4, or int8. Depends on installation of bitsandbytes package.
+
+### Job Stats
+Added prefill and decode statistics including prefill tokens/s, decode token/s, average layer time, prefill status, and more.
+
+
 ## Release 2.4.0
 
 ### Model Support

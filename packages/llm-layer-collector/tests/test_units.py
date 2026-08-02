@@ -9,6 +9,7 @@ constructed collector, which the synthetic checkpoint provides.
 
 import os
 import json
+from pathlib import Path
 import tempfile
 import unittest
 
@@ -46,7 +47,7 @@ class TestCache(unittest.TestCase):
             open(os.path.join(d, "model.safetensors"), "w").close()
             # a decoy sharded file must be ignored when the single file exists
             open(os.path.join(d, "model-00001-of-00002.safetensors"), "w").close()
-            self.assertEqual(get_shard_files(r"model-(\d+)-of-(\d+).safetensors", d),
+            self.assertEqual(get_shard_files(r"model-(\d+)-of-(\d+).safetensors", Path(d)),
                              ["model.safetensors"])
 
     def test_get_shard_files_multi_sorted(self):
@@ -57,7 +58,7 @@ class TestCache(unittest.TestCase):
                          "not-a-shard.txt"):
                 open(os.path.join(d, name), "w").close()
             self.assertEqual(
-                get_shard_files(r"model-(\d+)-of-(\d+).safetensors", d),
+                get_shard_files(r"model-(\d+)-of-(\d+).safetensors", Path(d)),
                 ["model-00001-of-00003.safetensors",
                  "model-00002-of-00003.safetensors",
                  "model-00003-of-00003.safetensors"])
@@ -65,7 +66,7 @@ class TestCache(unittest.TestCase):
     def test_get_shard_files_empty_raises(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(Exception):
-                get_shard_files(r"model-(\d+)-of-(\d+).safetensors", d)
+                get_shard_files(r"model-(\d+)-of-(\d+).safetensors", Path(d))
 
     def test_build_cache_data_key_to_file(self):
         with tempfile.TemporaryDirectory() as d:
@@ -73,7 +74,7 @@ class TestCache(unittest.TestCase):
                       os.path.join(d, "model-00001-of-00002.safetensors"))
             save_file({"c.weight": torch.zeros(2)},
                       os.path.join(d, "model-00002-of-00002.safetensors"))
-            mapping = build_cache_data(d, r"model-(\d+)-of-(\d+).safetensors",
+            mapping = build_cache_data(Path(d), r"model-(\d+)-of-(\d+).safetensors",
                                        torch.device("cpu"))
             self.assertEqual(mapping, {
                 "a.weight": "model-00001-of-00002.safetensors",
@@ -194,7 +195,7 @@ class TestHelpers(unittest.TestCase):
                               num_key_value_heads=2, head_dim=8)
         with tempfile.TemporaryDirectory() as d:
             Mistral3Config(text_config=tc).save_pretrained(d)
-            self.assertEqual(get_config(d).model_type, "ministral3")
+            self.assertEqual(get_config(Path(d)).model_type, "ministral3")
 
     def test_get_config_unwraps_gemma4(self):
         from transformers.models.gemma4.configuration_gemma4 import (
@@ -205,7 +206,7 @@ class TestHelpers(unittest.TestCase):
                               hidden_size_per_layer_input=8, vocab_size_per_layer_input=64)
         with tempfile.TemporaryDirectory() as d:
             Gemma4Config(text_config=tc).save_pretrained(d)
-            self.assertEqual(get_config(d).model_type, "gemma4_text")
+            self.assertEqual(get_config(Path(d)).model_type, "gemma4_text")
 
     def test_get_config_unwraps_gemma3(self):
         from transformers.models.gemma3.configuration_gemma3 import (
@@ -217,7 +218,7 @@ class TestHelpers(unittest.TestCase):
             # real gemma3 wrappers carry a top-level eos_token_id, which get_config
             # copies down into the text config.
             Gemma3Config(text_config=tc, eos_token_id=[1, 2]).save_pretrained(d)
-            cfg = get_config(d)
+            cfg = get_config(Path(d))
             self.assertEqual(cfg.model_type, "gemma3_text")
             self.assertEqual(cfg.eos_token_id, [1, 2])
 
@@ -237,12 +238,12 @@ class TestCollectorInit(unittest.TestCase):
     def test_missing_config_raises(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(FileNotFoundError):
-                LlmLayerCollector(d, os.path.join(d, "cache.json"))
+                LlmLayerCollector(Path(d), Path(d) / "cache.json")
 
     def test_cache_rebuild_and_roundtrip(self):
         spec = TinyModelSpec("llama", LlamaConfig, _llama_kwargs())
         with tempfile.TemporaryDirectory() as d:
-            ck = build_tiny_checkpoint(spec, d)
+            ck = build_tiny_checkpoint(spec, Path(d))
             self.assertFalse(os.path.exists(ck.cache_file))
             col = LlmLayerCollector(ck.model_dir, ck.cache_file, dtype=torch.float32)
             self.assertTrue(os.path.exists(ck.cache_file))
@@ -270,7 +271,7 @@ class TestCollectorInit(unittest.TestCase):
                 "model.language_model.embed_tokens.weight": torch.zeros(2),
                 "model.language_model.norm.weight": torch.zeros(2),
             }, os.path.join(d, "model.safetensors"))
-            col = LlmLayerCollector(d, os.path.join(d, "cache.json"),
+            col = LlmLayerCollector(Path(d), Path(d) / "cache.json",
                                     dtype=torch.float32)
             self.assertEqual(col.layer_prefix, "model.language_model.layers.")
             self.assertEqual(col.input_embedding_layer_name,
@@ -288,7 +289,7 @@ class TestCollectorInit(unittest.TestCase):
                                   tie_word_embeddings=False),
                              key_style=KEY_STYLE_MISTRAL3_MM, fp8=True)
         with tempfile.TemporaryDirectory() as d:
-            ck = build_tiny_checkpoint(spec, d)
+            ck = build_tiny_checkpoint(spec, Path(d))
             col = LlmLayerCollector(ck.model_dir, ck.cache_file, dtype=torch.float32)
             self.assertEqual(col.lm_head_name, "language_model.lm_head.weight")
             self.assertIn(col.lm_head_name, col.layer_files)
@@ -297,7 +298,7 @@ class TestCollectorInit(unittest.TestCase):
         spec = TinyModelSpec("llama", LlamaConfig,
                              _llama_kwargs(tie_word_embeddings=True))
         with tempfile.TemporaryDirectory() as d:
-            ck = build_tiny_checkpoint(spec, d)
+            ck = build_tiny_checkpoint(spec, Path(d))
             col = LlmLayerCollector(ck.model_dir, ck.cache_file, dtype=torch.float32)
             self.assertNotIn(col.lm_head_name, col.layer_files)
             head = col.load_head()
@@ -307,11 +308,18 @@ class TestCollectorInit(unittest.TestCase):
     def test_load_in_8bit_forces_float16(self):
         spec = TinyModelSpec("llama", LlamaConfig, _llama_kwargs())
         with tempfile.TemporaryDirectory() as d:
-            ck = build_tiny_checkpoint(spec, d)
+            ck = build_tiny_checkpoint(spec, Path(d))
             col = LlmLayerCollector(ck.model_dir, ck.cache_file,
                                     dtype=torch.bfloat16, load_in_8bit=True)
             self.assertEqual(col.dtype, torch.float16)
 
+    def test_load_in_4bit_forces_float16(self):
+        spec = TinyModelSpec("llama", LlamaConfig, _llama_kwargs())
+        with tempfile.TemporaryDirectory() as d:
+            ck = build_tiny_checkpoint(spec, Path(d))
+            col = LlmLayerCollector(ck.model_dir, ck.cache_file,
+                                    dtype=torch.bfloat16, load_in_4bit=True)
+            self.assertEqual(col.dtype, torch.float16)
 
 # --------------------------------------------------------------------------- #
 # static_auto_model.compute_head sampling
@@ -369,7 +377,7 @@ class TestComputeEmbeddingChunking(unittest.TestCase):
     def setUpClass(cls):
         cls._dir = tempfile.TemporaryDirectory()
         spec = TinyModelSpec("llama", LlamaConfig, _llama_kwargs())
-        ck = build_tiny_checkpoint(spec, cls._dir.name)
+        ck = build_tiny_checkpoint(spec, Path(cls._dir.name))
         cls.collector = LlmLayerCollector(ck.model_dir, ck.cache_file,
                                           dtype=torch.float32)
         cls.embedder = cls.collector.load_input_embedding()

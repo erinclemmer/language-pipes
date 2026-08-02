@@ -145,15 +145,6 @@ See the [OpenAI-compatible API documentation](./documentation/oai.md) for the fu
 ### Supported Models
 Language Pipes supports Qwen3 (dense and MoE), Phi, Meta Llama 2/3, Gemma 3, Gemma 4, and Ministral 3. See the [supported-models list](./documentation/model_support.md) for a more complete list.
 
-### Roadmap
-- Additional model architectures
-- 4 bit quantization
-- KV Cache quantization
-- GGUF format support (currently requires safetensors)
-- Failover/rerouting when a layer node drops, and integrity guarantees for layer computation
-
-See the [full roadmap](./documentation/roadmap.md) for details and open research directions.
-
 ### Contributing
 Contributions are welcome! Bug reports, documentation fixes, and especially new model architectures. See [CONTRIBUTING.md](./CONTRIBUTING.md) for dev setup, how to run the tests, and PR expectations, and the [Code of Conduct](./CODE_OF_CONDUCT.md). Questions and ideas are welcome in [GitHub Discussions](https://github.com/erinclemmer/language-pipes/discussions).
 
