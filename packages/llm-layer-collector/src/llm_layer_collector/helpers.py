@@ -35,7 +35,7 @@ def get_config(model_dir: Path) -> PretrainedConfig:
         config = config.text_config
         config.eos_token_id = eos_token_ids
 
-    if config.model_type in ("gemma4", "gemma4_unified", "mistral3"):
+    if config.model_type in ("gemma4", "gemma4_unified", "mistral3", "qwen3_5"):
         config = config.text_config
 
     with torch.device('meta'):

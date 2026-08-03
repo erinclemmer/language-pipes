@@ -73,6 +73,8 @@ class LlmLayerCollector:
         self.norm_layer_name = norm_layer_name
         self.input_embedding_layer_name = input_embedding_layer_name
         self.shard_pattern = shard_pattern
+        if self.config.model_type == "qwen3_5_text":
+            self.shard_pattern = r'model.safetensors-(\d+)-of-(\d+).safetensors'
 
         self.load_in_8bit = load_in_8bit
         self.load_in_4bit = load_in_4bit
@@ -112,10 +114,14 @@ class LlmLayerCollector:
         )
 
         for key in self.layer_files.keys():
-            if "layers.0" in key and "vision_tower" not in key:
+            if "layers.0" in key and "vision_tower" not in key and "visual" not in key:
                 self.layer_prefix = key.split("layers.0")[0] + "layers."
+                break
+
+        for key in self.layer_files.keys():
             if key.endswith("embed_tokens.weight"):
                 self.input_embedding_layer_name = key
+                break
 
         derived_norm = self.input_embedding_layer_name.replace(
             "embed_tokens.weight", "norm.weight"

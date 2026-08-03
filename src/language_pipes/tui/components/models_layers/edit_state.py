@@ -19,6 +19,7 @@ class EditPageState(PageState):
     num_layers_cache: dict[str, dict[str, dict[str, str]]]
 
     select_idx: int
+    computing_metadata: bool
 
     def __init__(self):
         super().__init__('edit')
@@ -30,6 +31,7 @@ class EditPageState(PageState):
         self.device_memory = ""
         self.select_idx = 0
         self.num_layers_cache = { }
+        self.computing_metadata = False
         self.has_bnb = safe_load_bnb() is not None
 
     def on_change(self, args: dict):
@@ -87,7 +89,7 @@ class EditPageState(PageState):
             self.change_state('choose_model', { })
         elif self.select_idx == 1:
             self.change_state('choose_device', { "device": self.device_name })
-        elif self.select_idx == 2:
+        elif self.select_idx == 2 and self.has_bnb:
             self.change_state('choose_data_type', { "data_type": self.data_type })
         elif self.select_idx == 4:
             self._add_model()
@@ -124,7 +126,7 @@ class EditPageState(PageState):
 
     def data_type_lines(self) -> list[str]:
         if not self.has_bnb:
-            return [make_selectable_text("   Data Type: bf16", self.select_idx == 2), "    !Info: Install bitsandbytes to change data type"]
+            return [make_selectable_text("Data Type: bf16", self.select_idx == 2), "    !Info: Install bitsandbytes to change data type"]
 
         type_label = "bf16"
         if self.data_type == 8:
@@ -175,8 +177,7 @@ class EditPageState(PageState):
 
         if self._valid_model_id():
             lines.extend(self._device_lines())
-
-        lines.extend(self.data_type_lines())
+            lines.extend(self.data_type_lines())
 
         if self._valid_model_id() and self._valid_device():
             lines.extend(self._memory_lines())
@@ -263,6 +264,9 @@ class EditPageState(PageState):
         self.change_state('list', { })
 
     def _get_num_layers(self) -> str | None:
+        if self.computing_metadata:
+            return None
+        
         if self.device_name not in self.num_layers_cache:
             self.num_layers_cache[self.device_name] = { }
 
@@ -273,7 +277,7 @@ class EditPageState(PageState):
             return self.num_layers_cache[self.device_name][str(self.device_memory)][str(self.data_type)]
         
         assert self.model_id is not None
-        
+        self.computing_metadata = True
         metadata = ModelProvider.get_model_metadata(self.model_id)
         if not metadata.loaded:
             return None
@@ -289,6 +293,7 @@ class EditPageState(PageState):
         total_size = layer_size * metadata.num_hidden_layers
         s = f"/ {total_size:.1f}GB ({num_layers} of {metadata.num_hidden_layers} layers)"
         self.num_layers_cache[self.device_name][str(self.device_memory)][str(self.data_type)] = s
+        self.computing_metadata = False
         return s
     
     def _has_model_already(self, model_id: str | None, device: str) -> bool:
