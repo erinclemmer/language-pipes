@@ -38,7 +38,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-quantization = ["bitsandbytes"]
+quantization = ["bitsandbytes==0.50.0"]
 linear-attention-cuda = ["linear-attention[cuda]"]
 linear-attention-cpu = ["linear-attention[cpu]"]
 dev = ["ruff", "pytest"]

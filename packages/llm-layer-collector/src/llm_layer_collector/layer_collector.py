@@ -114,7 +114,7 @@ class LlmLayerCollector:
         )
 
         for key in self.layer_files.keys():
-            if "layers.0" in key and "vision_tower" not in key and "visual" not in key:
+            if "layers.0" in key and "vision_tower" not in key and "visual" not in key and "mtp." not in key:
                 self.layer_prefix = key.split("layers.0")[0] + "layers."
                 break
 
