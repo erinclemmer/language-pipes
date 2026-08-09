@@ -37,7 +37,7 @@ class TimingData:
             elif entry.is_head:
                 self.head_ms.append(duration_ms)
             else:
-                self.layer_ms.append(duration_ms / (entry.end_layer - entry.start_layer))
+                self.layer_ms.append(duration_ms / (entry.end_layer - entry.start_layer + 1))
 
         for i in range(1, len(ordered)):
             prev = ordered[i - 1]
