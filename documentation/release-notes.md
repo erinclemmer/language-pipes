@@ -14,6 +14,22 @@ Added a new menu in the layer model editor to set the datatype of used to load t
 ### Job Stats
 Added prefill and decode statistics including prefill tokens/s, decode token/s, average layer time, prefill status, and more.
 
+### Model Support: Qwen 3.5
+Added support for Qwen 3.5 architecture models, models tested are:
+- Qwen/Qwen3.5-0.8B
+- Qwen/Qwen3.5-2B
+- Qwen/Qwen3.5-4B
+- Qwen/Qwen3.5-9B
+- Qwen/Qwen3.5-27B 
+
+**Note:** Qwen3.5 requires the flash-linear-attention package to run properly. Ensure you install it for your architecture and load it accordingly (I.E. flash-linear-attention[cuda] for running on the cuda:0 device)
+
+### Bugs
+- Jobs on layer nodes will now cancel properly if the client connection stops
+- Fixed bug causing job runner to hang
+- Added scrolling to active jobs list
+- Fixed issue with node discoverability
+
 
 ## Release 2.4.0
 
