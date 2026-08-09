@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Callable, Optional
 from enum import Enum, auto
 from dataclasses import dataclass
 
@@ -22,6 +22,9 @@ class JobContext:
     job: Job
     pipe: Pipe
     end_model: Optional[EndModel]
+    # Called when the job cannot go any further (a segment it needs left the
+    # network). Cancels the job here and tells the origin node to stop waiting.
+    on_fail: Optional[Callable[[Job, str], None]] = None
 
 def should_prefill_chunk(job: Job) -> bool:
     return job.current_token == 0 and job.chunking.has_more()
@@ -54,6 +57,10 @@ class JobProcessor:
     
     State Transitions:
     
+    Transitions that end because a piece of the pipe is gone (no node hosts a
+    layer, or the local end model was unloaded) cancel the job on the way to
+    DONE rather than dropping it silently - see _fail.
+
     VALIDATING -> DONE (missing job, or HEAD step off-origin/without end model,
                         or no node hosts the current layer)
     VALIDATING -> SEND (EMBED/TOKENIZE step off-origin, or current layer is virtual)
@@ -91,8 +98,27 @@ class JobProcessor:
     
     def run(self):
         while self.state != JobState.DONE:
+            # A cancel (model unloaded here or upstream) can land mid-run; stop
+            # at the state boundary instead of computing against freed tensors.
+            if self.ctx.job.cancel_reason is not None:
+                self.state = JobState.DONE
+                return
             self.state = self._transition()
-    
+
+    def _fail(self, reason: str) -> JobState:
+        """End the job because the pipe can no longer carry it."""
+        self.logger.info(f"Job {self.ctx.job.job_id[:4]} stopped: {reason}")
+        if self.ctx.on_fail is not None:
+            self.ctx.on_fail(self.ctx.job, reason)
+        return JobState.DONE
+
+    def _next_state(self) -> JobState:
+        """get_next_state, treating a missing layer host as a failure."""
+        state = get_next_state(self.ctx)
+        if state == JobState.DONE:
+            return self._fail(f"no node hosts layer {self.ctx.job.current_layer}")
+        return state
+
     def _transition(self) -> JobState:
         """Execute current state and transition to next."""
         match self.state:
@@ -119,22 +145,22 @@ class JobProcessor:
             if self.ctx.job.origin_node_id != self.ctx.node_id:
                 return JobState.DONE
             
-            # Ensure we have the end model ready            
+            # Ensure we have the end model ready
             if self.ctx.end_model is None:
-                return JobState.DONE
-            
+                return self._fail("end model unloaded")
+
             # Job returned from network - check pending job
             if self.ctx.job is None:
                 return JobState.DONE
 
-        return get_next_state(self.ctx)
+        return self._next_state()
 
     def _state_head(self) -> JobState:
         """Handle norm/head computation and prepare to embed the next token."""
         job = self.ctx.job
         end_model = self.ctx.end_model
         if end_model is None:
-            return JobState.DONE
+            return self._fail("end model unloaded")
 
         # Log prefill completion when transitioning from prefill to decode
         is_prefill = job.current_token == 0
@@ -185,7 +211,7 @@ class JobProcessor:
         end_model = self.ctx.end_model
 
         if end_model is None:
-            return JobState.DONE
+            return self._fail("end model unloaded")
 
         if job.prompt_tokens == 0:
             end_model.tokenize(job)
@@ -206,8 +232,8 @@ class JobProcessor:
         job.timing_stats.add_embed_time(self.ctx.node_id)
         end_model.compute_embed(job)
         job.timing_stats.set_send_time()
-        
-        return get_next_state(self.ctx)
+
+        return self._next_state()
 
     def _state_process_layers(self) -> JobState:
         """Process job through local layers."""
@@ -221,8 +247,8 @@ class JobProcessor:
 
         model = pipe.get_layer(job.current_layer, False)
         if model is None:
-            return JobState.DONE
-        
+            return self._fail(f"no node hosts layer {job.current_layer}")
+
         if model.virtual:
             return JobState.SEND
 
@@ -230,9 +256,9 @@ class JobProcessor:
         model.process_job(job)
         job.timing_stats.set_send_time()
         job.set_last_update()
-        
-        return get_next_state(self.ctx)
-    
+
+        return self._next_state()
+
     def _state_send(self) -> JobState:
         """Send job to next destination."""
         job = self.ctx.job
@@ -244,7 +270,7 @@ class JobProcessor:
         else:
             next_model = pipe.get_layer(network_job.current_layer, False)
             if next_model is None:
-                return JobState.DONE
+                return self._fail(f"no node hosts layer {network_job.current_layer}")
             pipe.send_job(network_job, next_model.node_id)
         
         return JobState.DONE

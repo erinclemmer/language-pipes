@@ -39,6 +39,7 @@ class Job:
     last_update: float
     timing_stats: TimingStats
     stale: bool
+    cancel_reason: Optional[str]
     
     # API params
     top_k: int
@@ -91,6 +92,7 @@ class Job:
         self.prompt_tokens = 0
         self.current_token = 0
         self.stale = False
+        self.cancel_reason = None
         self.messages = messages
 
         self.temperature = temperature
