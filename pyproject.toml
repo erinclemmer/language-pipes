@@ -23,7 +23,7 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "llm-layer-collector==1.2.0",
-    "distributed-state-network==1.1.0",
+    "distributed-state-network==1.2.0",
     "torch",
     "transformers==5.14.1",
     "huggingface_hub",
