@@ -44,7 +44,7 @@ class JobsActive:
                 f"Job ID:        {job.job_id[:8]}",
                 f"Pipe ID:       {job.pipe_id[:8]}",
                 f"Last active:   {job.last_update:.0f} seconds ago",
-                f"Decode Token:  {job.current_token}" if not job.chunking.is_active() else f"Prefill Token: {job.chunking.get_tokens_processed()} of {job.chunking.prompt_length}"
+                f"Decode Token:  {job.current_token}" if not job.progress.prefilling else f"Prefill Token: {job.progress.prefill_tokens} of {job.progress.prompt_tokens}"
             ]
 
             prefill_speed = job.timing_stats.prefill_times.get_tokens_per_second()
@@ -52,7 +52,7 @@ class JobsActive:
                 entry.extend(["", f"Prefill speed: {prefill_speed:.2f} Tok/s", ""])
 
             decode_speed = job.timing_stats.output_times.get_tokens_per_second()
-            if not job.chunking.is_active() and decode_speed > 0:
+            if not job.progress.prefilling and decode_speed > 0:
                 entry.extend([
                     "Decoding:",
                     f"Embed time: {job.timing_stats.output_times.get_avg_embed_time():.2f} ms",

@@ -21,6 +21,15 @@ def make_job():
     )
 
 
+def make_relay(origin: Job) -> Job:
+    """The same job as tracked by a node that hosts layers but no end model."""
+    relay = make_job()
+    relay.job_id = origin.job_id
+    relay.pipe_id = origin.pipe_id
+    relay.origin_node_id = origin.origin_node_id
+    return relay
+
+
 class JobOutputTests(unittest.TestCase):
     def test_set_output_completes_when_token_matches_int_eos(self):
         job = make_job()
@@ -62,6 +71,104 @@ class JobSendUpdateTests(unittest.TestCase):
 
         self.assertTrue(job.send_update())
         self.assertEqual(calls, [job])
+
+
+class JobCompletedPassTests(unittest.TestCase):
+    """The finished pass rides along on the next network job so downstream nodes
+    can report speeds without ever running the head themselves."""
+
+    def test_outgoing_job_carries_the_last_finished_pass(self):
+        job = make_job()
+        job.timing_stats.add_embed_time("node-a")
+        job.timing_stats.set_send_time()
+        job.timing_stats.finalize_token()
+
+        network_job = job.to_network_job()
+
+        self.assertIsNotNone(network_job.completed)
+        assert network_job.completed is not None
+        self.assertEqual(network_job.completed.token_count, 1)
+        self.assertFalse(network_job.completed.is_prefill)
+
+    def test_incoming_job_records_the_pass_on_this_node(self):
+        origin = make_job()
+        origin.timing_stats.add_embed_time("node-a")
+        origin.timing_stats.set_send_time()
+        origin.timing_stats.finalize_token()
+
+        relay = make_relay(origin)
+
+        self.assertTrue(relay.receive_network_job(origin.to_network_job(), "node-b"))
+        self.assertEqual(len(relay.timing_stats.output_times.token_ms), 1)
+
+
+class JobProgressTests(unittest.TestCase):
+    """A node hosting only layers never runs the tokenizer or the head, so its own
+    `current_token` and `chunking` stay at zero for the life of the job."""
+
+    def test_relay_reports_the_decode_token_the_origin_reached(self):
+        origin = make_job()
+        origin.current_token = 7
+        origin.prompt_tokens = 40
+        relay = make_relay(origin)
+
+        relay.receive_network_job(origin.to_network_job(), "node-b")
+
+        self.assertEqual(relay.display_progress().current_token, 7)
+        self.assertEqual(relay.display_progress().prompt_tokens, 40)
+        self.assertFalse(relay.display_progress().prefilling)
+
+    def test_relay_reports_prefill_position(self):
+        origin = make_job()
+        origin.prompt_tokens = CHUNK_SIZE * 4
+        origin.init_chunking()
+        origin.chunking.advance()
+        relay = make_relay(origin)
+
+        relay.receive_network_job(origin.to_network_job(), "node-b")
+
+        progress = relay.display_progress()
+        self.assertTrue(progress.prefilling)
+        self.assertEqual(progress.prefill_tokens, CHUNK_SIZE)
+        self.assertEqual(progress.prompt_tokens, CHUNK_SIZE * 4)
+
+    def test_relay_routing_state_is_left_untouched(self):
+        # `set_layer` asks `chunking.has_more()` whether a finished layer pass goes
+        # back to the origin, so a mirrored chunk state would misroute it
+        origin = make_job()
+        origin.prompt_tokens = CHUNK_SIZE * 4
+        origin.init_chunking()
+        relay = make_relay(origin)
+
+        relay.receive_network_job(origin.to_network_job(), "node-b")
+
+        self.assertEqual(relay.current_token, 0)
+        self.assertFalse(relay.chunking.is_active())
+        self.assertFalse(relay.chunking.has_more())
+
+    def test_origin_reports_its_own_live_state(self):
+        origin = make_job()
+        origin.current_token = 3
+        # The last node on the pipe hands the job back carrying the origin's own
+        # report from when it was sent, one token behind where the origin now is
+        sent = origin.to_network_job()
+        origin.current_token = 4
+
+        origin.receive_network_job(sent, origin.origin_node_id)
+
+        self.assertEqual(origin.display_progress().current_token, 4)
+
+    def test_older_peer_leaves_the_last_reading_in_place(self):
+        origin = make_job()
+        origin.current_token = 2
+        relay = make_relay(origin)
+        relay.receive_network_job(origin.to_network_job(), "node-b")
+
+        stale = origin.to_network_job()
+        stale.progress = None
+        relay.receive_network_job(stale, "node-b")
+
+        self.assertEqual(relay.display_progress().current_token, 2)
 
 
 class JobPastSeenTokensTests(unittest.TestCase):
