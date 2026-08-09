@@ -1,4 +1,7 @@
+from typing import Optional
+
 from language_pipes.jobs.job_time import JobTime
+from language_pipes.jobs.completed_pass import CompletedPass
 
 class TimingData:
     job_id: str
@@ -34,7 +37,7 @@ class TimingData:
             elif entry.is_head:
                 self.head_ms.append(duration_ms)
             else:
-                self.layer_ms.append(duration_ms / (entry.end_layer - entry.start_layer))
+                self.layer_ms.append(duration_ms / (entry.end_layer - entry.start_layer + 1))
 
         for i in range(1, len(ordered)):
             prev = ordered[i - 1]
@@ -81,13 +84,21 @@ class TimingData:
 class TimingStats:
     output_times: TimingData
     prefill_times: TimingData
-    
+
     current_times: list[JobTime]
+
+    # Most recently closed pass, either finalized here or handed to us by the
+    # origin. Carried onto the next network job so it reaches the whole pipe.
+    completed_pass: Optional[CompletedPass]
+    # Index of that pass; passes at or below it have already been recorded.
+    pass_index: int
 
     def __init__(self, job_id: str):
         self.output_times = TimingData(job_id)
         self.prefill_times = TimingData(job_id)
         self.current_times = []
+        self.completed_pass = None
+        self.pass_index = -1
 
     def add_timing(self, time: JobTime) -> None:
         self.current_times.append(time)
@@ -107,13 +118,40 @@ class TimingStats:
         last_time = self.current_times[-1]
         last_time.set_send_time()
         
-    def receive_network_job(self, times: list[JobTime]) -> None:
+    def receive_network_job(self, times: list[JobTime], completed: Optional[CompletedPass] = None) -> None:
         self.current_times = times
+        self.record_completed_pass(completed)
+
+    def record_completed_pass(self, completed: Optional[CompletedPass]) -> None:
+        """Fold a pass finalized by the origin into this node's stats.
+
+        Skips passes we already have: the origin sees the pass it just closed
+        come back on the return trip, and a node hosting two layer ranges is
+        handed the same pass twice.
+        """
+        if completed is None or completed.index <= self.pass_index:
+            return
+        self.pass_index = completed.index
+        self.completed_pass = completed
+        times = self.prefill_times if completed.is_prefill else self.output_times
+        times.add_times(completed.times, completed.token_count)
 
     def finalize_token(self) -> None:
-        self.output_times.add_times(self.current_times)
-        self.current_times = []
+        self._finalize(self.output_times, 1, is_prefill=False)
 
     def finalize_prefill_chunk(self, token_count: int) -> None:
-        self.prefill_times.add_times(self.current_times, token_count)
+        self._finalize(self.prefill_times, token_count, is_prefill=True)
+
+    def _finalize(self, times: TimingData, token_count: int, is_prefill: bool) -> None:
+        pass_times = self.current_times
         self.current_times = []
+        times.add_times(pass_times, token_count)
+        if len(pass_times) == 0:
+            return
+        self.pass_index += 1
+        self.completed_pass = CompletedPass(
+            index=self.pass_index,
+            token_count=token_count,
+            is_prefill=is_prefill,
+            times=pass_times
+        )

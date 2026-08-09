@@ -89,8 +89,10 @@ class JobReceiver:
                     )
                     assert job is not None
 
+                node_id = self.pipe_manager.router_pipes.router.node_id()
+
                 # Validate network job
-                if not job.receive_network_job(network_job):
+                if not job.receive_network_job(network_job, node_id):
                     continue
 
                 pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
@@ -100,7 +102,7 @@ class JobReceiver:
                 end_model = self.model_manager.get_end_model(pipe.model_id)
                 
                 fsm = JobProcessor(JobContext(
-                    node_id=self.pipe_manager.router_pipes.router.node_id(),
+                    node_id=node_id,
                     pipe=pipe,
                     end_model=end_model,
                     job=job,
