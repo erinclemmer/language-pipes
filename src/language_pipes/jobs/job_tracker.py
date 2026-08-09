@@ -109,8 +109,10 @@ class JobTracker:
 
         if network_job.data.state is None:
             raise Exception("job should be embedded before adding a pending job")
-        
-        job.prompt_tokens = network_job.data.state.size()[1]
+
+        # prompt_tokens is left at 0: only the origin tokenizes, and the state in
+        # flight is one pass wide, not the prompt. The UI reads the origin's own
+        # count out of Job.display_progress() instead.
         job.last_update = time()
         if 'network' not in self.jobs_pending:
             self.jobs_pending['network'] = []

@@ -9,6 +9,7 @@ from transformers import PretrainedConfig
 from transformers.cache_utils import DynamicCache
 
 from language_pipes.jobs.job_data import JobData
+from language_pipes.jobs.job_progress import JobProgress
 from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.jobs.timing_stats import TimingStats
 
@@ -39,6 +40,8 @@ class Job:
     last_update: float
     timing_stats: TimingStats
     stale: bool
+    # Origin's progress report, kept only on the nodes that can't derive it
+    reported_progress: Optional[JobProgress]
     
     # API params
     top_k: int
@@ -91,6 +94,7 @@ class Job:
         self.prompt_tokens = 0
         self.current_token = 0
         self.stale = False
+        self.reported_progress = None
         self.messages = messages
 
         self.temperature = temperature
@@ -195,7 +199,7 @@ class Job:
         else:
             self.status = JobStatus.COMPLETED
 
-    def receive_network_job(self, network_job: NetworkJob) -> bool:
+    def receive_network_job(self, network_job: NetworkJob, node_id: str) -> bool:
         if network_job.job_id != self.job_id or network_job.pipe_id != self.pipe_id:
             return False
         if network_job.origin_node_id != self.origin_node_id:
@@ -209,9 +213,36 @@ class Job:
             self.current_layer = network_job.current_layer
             
         self.data = network_job.data
-        self.timing_stats.receive_network_job(network_job.times)
-        
+        self.timing_stats.receive_network_job(network_job.times, network_job.completed)
+        # Origin keeps its own live state; a peer too old to report leaves the
+        # last good reading in place
+        if node_id != self.origin_node_id and network_job.progress is not None:
+            self.reported_progress = network_job.progress
+
         return True
+
+    def get_progress(self) -> JobProgress:
+        """This node's own view of how far the job has got - only meaningful on
+        the origin, which is the only node that tokenizes, chunks and decodes."""
+        return JobProgress(
+            current_token=self.current_token,
+            prompt_tokens=self.prompt_tokens,
+            prefilling=self.chunking.is_active(),
+            prefill_tokens=self.chunking.get_tokens_processed()
+        )
+
+    def display_progress(self) -> JobProgress:
+        """Progress to report in the UI.
+
+        Nodes hosting only layers never advance the token counter or the chunk
+        state, so they show what the origin last told them. Their own
+        `current_token`/`chunking` are deliberately left alone: `set_layer` reads
+        `chunking.has_more()` to decide whether a finished layer pass goes back to
+        the origin, and a mirrored chunk state would misroute it.
+        """
+        if self.reported_progress is not None:
+            return self.reported_progress
+        return self.get_progress()
 
     def send_update(self):
         self.last_update_time = time()
@@ -230,8 +261,10 @@ class Job:
             current_layer=self.current_layer, 
             data=self.data, 
             data_hash=data_hash, 
-            compute_step=self.compute_step, 
-            times=list(self.timing_stats.current_times)
+            compute_step=self.compute_step,
+            times=list(self.timing_stats.current_times),
+            completed=self.timing_stats.completed_pass,
+            progress=self.get_progress()
         )
 
     def set_last_update(self):
