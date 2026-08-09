@@ -1,6 +1,6 @@
 import torch
 from ansinout import PressedKey
-from llm_layer_collector.helpers import safe_load_bnb
+from llm_layer_collector.helpers import safe_load_bnb, safe_load_linear_attn
 
 from language_pipes.config import ModelToLoad
 from language_pipes.tui.frame.tips import TIPS
@@ -174,6 +174,9 @@ class EditPageState(PageState):
             lines.extend(["[WARNING] Network is not started.\nModels cannot be loaded until the network is started.", ""])
 
         lines.extend(self._model_id_lines())
+
+        if self.model_id is not None and "Qwen/Qwen3.5" in self.model_id and not safe_load_linear_attn():
+            lines.append("   !Warning install flash-linear-attention for best performance") 
 
         if self._valid_model_id():
             lines.extend(self._device_lines())

@@ -53,3 +53,10 @@ def safe_load_bnb():
             return bnb
     except:  # noqa: E722
         return None
+
+def safe_load_linear_attn() -> bool:
+    try:
+        import fla # pyright: ignore[reportMissingImports]
+        return True
+    except:
+        return False
