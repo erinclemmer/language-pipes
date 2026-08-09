@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'tests', 'language_pipes', 'unit'))
 
-from language_pipes.config import LpConfig, ModelToLoad
+from language_pipes.config import EndModelConfig, LpConfig, ModelToLoad
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.modeling.meta_model import MetaModel
 from language_pipes.modeling.llm_meta_data import LlmMetadata
@@ -36,7 +36,7 @@ def make_metadata():
 def make_config(
     node_id="node-a",
     layer_models: Optional[List[ModelToLoad]] = None,
-    end_models: Optional[List[str]] = None,
+    end_models: Optional[List[EndModelConfig]] = None,
     num_local_layers: int = 0,
     max_pipes=2,
     model_validation=False
@@ -210,10 +210,10 @@ class ModelManagerTests(unittest.TestCase):
 
         node = FakeStateNetworkNode("node-a")
         node.add_peer("node-a", [])
-        router = RouterPipes(node)
+        router = RouterPipes(node) # type: ignore
 
         manager = ModelManager()
-        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, max_pipes=1)
+        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, data_type=16, max_pipes=1)
 
         self.assertEqual(len(manager.layer_models), 1)
         self.assertEqual(manager.layer_models[0].start_layer, 0)
@@ -228,11 +228,11 @@ class ModelManagerTests(unittest.TestCase):
 
         node = FakeStateNetworkNode("node-a")
         node.add_peer("node-a", [])
-        router = RouterPipes(node)
+        router = RouterPipes(node) # pyright: ignore[reportArgumentType]
 
         manager = ModelManager()
         manager.load_end_model("model-1", "cpu", 1)
-        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=1, max_pipes=1)
+        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=1, data_type=16, max_pipes=1)
 
         self.assertEqual(len(manager.layer_models), 1)
         self.assertEqual(manager.layer_models[0].start_layer, 1)
@@ -250,10 +250,10 @@ class ModelManagerTests(unittest.TestCase):
 
         node = FakeStateNetworkNode("node-a")
         node.add_peer("node-a", [])
-        router = RouterPipes(node)
+        router = RouterPipes(node) # type: ignore
 
         manager = ModelManager()
-        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, max_pipes=1)
+        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, data_type=16, max_pipes=1)
 
         # Should have created at least one pipe
         self.assertGreater(len(manager.pipes_hosted), 0)
@@ -275,10 +275,10 @@ class ModelManagerTests(unittest.TestCase):
 
         node = FakeStateNetworkNode("node-a")
         node.add_peer("node-a", [])
-        router = RouterPipes(node)
+        router = RouterPipes(node) # type: ignore
 
         manager = ModelManager()
-        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, max_pipes=1)
+        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), data_type=16, first_layer=0, max_pipes=1)
 
         self.assertEqual(len(manager.pipes_hosted), 1)
 
@@ -300,11 +300,11 @@ class ModelManagerTests(unittest.TestCase):
 
         node = FakeStateNetworkNode("node-a")
         node.add_peer("node-a", [])
-        router = RouterPipes(node)
+        router = RouterPipes(node) # type: ignore
 
         manager = ModelManager()
-        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, max_pipes=1)
-        manager.host_model(router, "node-a", "model-2", 10.0, torch.device("cpu"), first_layer=0, max_pipes=1)
+        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, data_type=16, max_pipes=1)
+        manager.host_model(router, "node-a", "model-2", 10.0, torch.device("cpu"), first_layer=0, data_type=16, max_pipes=1)
 
         self.assertEqual(len(manager.pipes_hosted), 2)
 
@@ -335,10 +335,10 @@ class ModelManagerTests(unittest.TestCase):
         node = FakeStateNetworkNode("node-a")
         node.add_peer("node-a", [])
         node.add_peer("node-b", [existing_model])
-        router = RouterPipes(node)
+        router = RouterPipes(node) # type: ignore
 
         manager = ModelManager()
-        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, max_pipes=2)
+        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, data_type=16, max_pipes=2)
 
         self.assertIn("existing-pipe", manager.pipes_hosted["model-1"])
 
@@ -355,7 +355,7 @@ class ModelManagerTests(unittest.TestCase):
         
         # Very small available memory
         available_memory = 10  # 10 bytes - not enough
-        remaining_memory, model = manager._get_model_for_pipe("node-a", "model-1", pipe, torch.device("cpu"), available_memory, 0)
+        remaining_memory, model = manager._get_model_for_pipe("node-a", "model-1", pipe, torch.device("cpu"), available_memory, 0, data_type=16)
 
         self.assertIsNone(model)
 
@@ -372,7 +372,7 @@ class ModelManagerTests(unittest.TestCase):
         
         # Enough memory for ~5 layers (500MB available, 100MB per layer, -1 for buffer)
         available_memory = 500 * 10**6
-        remaining_memory, model = manager._get_model_for_pipe("node-a", "model-1", pipe, torch.device("cpu"), available_memory, 0)
+        remaining_memory, model = manager._get_model_for_pipe("node-a", "model-1", pipe, torch.device("cpu"), available_memory, 0, data_type=16)
 
         self.assertIsNotNone(model)
         assert model is not None
@@ -404,7 +404,7 @@ class ModelManagerTests(unittest.TestCase):
         pipe = MetaPipe("pipe-1", "model-1", [existing_segment])
         
         available_memory = 1000 * 10**6
-        remaining_memory, model = manager._get_model_for_pipe("node-a", "model-1", pipe, torch.device("cpu"), available_memory, 0)
+        remaining_memory, model = manager._get_model_for_pipe("node-a", "model-1", pipe, torch.device("cpu"), available_memory, 0, data_type=16)
 
         # With enough memory and matching metadata, model should be returned
         # (validate_model is no longer called inside _get_model_for_pipe)
@@ -421,10 +421,10 @@ class ModelManagerTests(unittest.TestCase):
 
         node = FakeStateNetworkNode("node-a")
         node.add_peer("node-a", [])
-        router = RouterPipes(node)
+        router = RouterPipes(node) # type: ignore
 
         manager = ModelManager()
-        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, max_pipes=1)
+        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, data_type=16, max_pipes=1)
 
         # All models in the manager should be loaded
         for model in manager.layer_models:
@@ -441,10 +441,10 @@ class ModelManagerTests(unittest.TestCase):
 
         node = FakeStateNetworkNode("node-a")
         node.add_peer("node-a", [])
-        router = RouterPipes(node)
+        router = RouterPipes(node) # type: ignore
 
         manager = ModelManager()
-        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, max_pipes=1)
+        manager.host_model(router, "node-a", "model-1", 10.0, torch.device("cpu"), first_layer=0, data_type=16, max_pipes=1)
 
         # Check that the model was added to the network
         models_data = node.read_data("node-a", "models")

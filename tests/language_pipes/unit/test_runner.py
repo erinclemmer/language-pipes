@@ -22,7 +22,7 @@ from language_pipes.runner import LpRunner
 
 
 def make_model(model_id: str) -> ModelToLoad:
-    return ModelToLoad(model_id=model_id, device=torch.device("cpu"), memory=1.0)
+    return ModelToLoad(model_id=model_id, device=torch.device("cpu"), memory=1.0, data_type=16)
 
 
 def make_config(node_id="node-a", layer_models=None, end_models=None):
