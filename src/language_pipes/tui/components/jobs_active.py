@@ -20,6 +20,10 @@ class JobsActive:
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.Escape:
             self.exit_page()
+        if key == PressedKey.ArrowUp:
+            self.on_prev()
+        if key == PressedKey.ArrowDown:
+            self.on_next()
 
     def on_next(self):
         if self.num_jobs == 0:
