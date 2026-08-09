@@ -38,6 +38,7 @@ class DummyJob:
     result = "Hello from Language Pipes"
     prompt_tokens = 4
     current_token = 3
+    cancel_reason = None
 
 
 class ToolJob(DummyJob):

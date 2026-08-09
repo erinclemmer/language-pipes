@@ -453,5 +453,77 @@ class ModelManagerTests(unittest.TestCase):
         models = json.loads(models_data)
         self.assertGreater(len(models), 0)
 
+
+class ShutdownCancelsJobsTests(unittest.TestCase):
+    """Unloading a model has to stop the jobs that were relying on it, or they
+    hang around until the stale timeout fires."""
+
+    def _manager_with_hooks(self):
+        manager = ModelManager()
+        pipe_calls = []
+        model_calls = []
+        manager.set_job_hooks(
+            lambda pipe_ids, reason: pipe_calls.append((pipe_ids, reason)),
+            lambda model_id, reason: model_calls.append((model_id, reason))
+        )
+        return manager, pipe_calls, model_calls
+
+    def test_unloading_layers_cancels_jobs_on_those_pipes(self):
+        manager, pipe_calls, _ = self._manager_with_hooks()
+        manager.layer_models.append(  # type: ignore[arg-type]
+            FakeLlmModel("model-1", "node-a", "pipe-1", torch.device("cpu"))
+        )
+        manager.layer_models.append(  # type: ignore[arg-type]
+            FakeLlmModel("model-1", "node-a", "pipe-2", torch.device("cpu"))
+        )
+        router = RouterPipes(FakeStateNetworkNode("node-a"))
+
+        manager.shutdown_layer_models(router, "model-1", torch.device("cpu"))
+
+        self.assertEqual(len(pipe_calls), 1)
+        pipe_ids, reason = pipe_calls[0]
+        self.assertEqual(sorted(pipe_ids), ["pipe-1", "pipe-2"])
+        self.assertIn("model-1", reason)
+
+    def test_unloading_layers_ignores_models_on_other_devices(self):
+        manager, pipe_calls, _ = self._manager_with_hooks()
+        manager.layer_models.append(  # type: ignore[arg-type]
+            FakeLlmModel("model-1", "node-a", "pipe-1", torch.device("cpu"))
+        )
+        manager.layer_models.append(  # type: ignore[arg-type]
+            FakeLlmModel("model-1", "node-a", "pipe-2", torch.device("cuda:0"))
+        )
+        router = RouterPipes(FakeStateNetworkNode("node-a"))
+
+        manager.shutdown_layer_models(router, "model-1", torch.device("cpu"))
+
+        self.assertEqual(pipe_calls[0][0], ["pipe-1"])
+
+    def test_unloading_end_model_cancels_its_jobs(self):
+        manager, _, model_calls = self._manager_with_hooks()
+        manager.end_models.append(  # type: ignore[arg-type]
+            FakeEndModel(0, Path("./models"), "model-1", "cpu")
+        )
+
+        manager.shutdown_end_model("model-1")
+
+        self.assertEqual(len(model_calls), 1)
+        model_id, reason = model_calls[0]
+        self.assertEqual(model_id, "model-1")
+        self.assertIn("model-1", reason)
+
+    def test_shutdown_works_without_hooks_wired_up(self):
+        # The hooks only exist once the network is running; unloading before
+        # that must not blow up.
+        manager = ModelManager()
+        manager.end_models.append(  # type: ignore[arg-type]
+            FakeEndModel(0, Path("./models"), "model-1", "cpu")
+        )
+
+        manager.shutdown_end_model("model-1")
+
+        self.assertEqual(len(manager.end_models), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

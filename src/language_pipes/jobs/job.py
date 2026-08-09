@@ -40,6 +40,7 @@ class Job:
     last_update: float
     timing_stats: TimingStats
     stale: bool
+    cancel_reason: Optional[str]
     # Origin's progress report, kept only on the nodes that can't derive it
     reported_progress: Optional[JobProgress]
     
@@ -94,6 +95,7 @@ class Job:
         self.prompt_tokens = 0
         self.current_token = 0
         self.stale = False
+        self.cancel_reason = None
         self.reported_progress = None
         self.messages = messages
 

@@ -113,7 +113,7 @@ class ProcessorWrapper(JobProcessor):
         self.states.append(self.state)
         return super()._transition()
 
-def make_processor(job, pipe, end_model):
+def make_processor(job, pipe, end_model, on_fail=None):
     """Helper to create a JobProcessor with sensible defaults."""
     return ProcessorWrapper(
         JobContext(
@@ -121,6 +121,7 @@ def make_processor(job, pipe, end_model):
             job=job,
             pipe=pipe,
             end_model=end_model,
+            on_fail=on_fail,
         )
     )
 

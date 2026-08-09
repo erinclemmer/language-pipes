@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler
 from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage, ChatRole
 from language_pipes.util.http import _connection_alive, _respond_json, _send_code, _send_sse_headers
-from language_pipes.util.oai_chunks import send_complete, send_initial_chunk, send_keepalive, send_update_chunk
+from language_pipes.util.oai_chunks import send_complete, send_error, send_initial_chunk, send_keepalive, send_update_chunk
 
 # Emit an SSE keepalive comment after this many seconds of write silence so the
 # stream survives long time-to-first-token (e.g. slow 8-bit prefill) and slow
@@ -378,6 +378,16 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
             _respond_json(handler, { "error": "no pipe available" })
         elif type(job) is type('') and job == 'NO_ENDS':
             _respond_json(handler, { "error": "no model ends available" })
+        elif type(job) is type('') and job == 'MAX_JOBS':
+            _respond_json(handler, { "error": "maximum number of jobs reached" })
+        elif job.cancel_reason is not None:
+            # The pipe stopped being able to run this job (e.g. a model was
+            # unloaded). Report it now rather than letting the caller wait.
+            if req.stream:
+                with write_lock:
+                    send_error(job, job.cancel_reason, created_at, handler)
+            else:
+                _respond_json(handler, { "error": job.cancel_reason })
         else:
             if req.stream:
                 with write_lock:
@@ -635,6 +645,26 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
             "output_index": sstate["message_index"], "item": message_item
         })
 
+    def complete_stream_failed(job: Job):
+        with write_lock:
+            _write_response_event(handler, "response.failed", {
+                "response": {
+                    "id": f"resp-{job.job_id}",
+                    "object": "response",
+                    "created_at": int(created_at),
+                    "status": "failed",
+                    "model": job.model_id,
+                    "error": {"code": "job_canceled", "message": job.cancel_reason},
+                    "output": []
+                }
+            })
+            try:
+                handler.wfile.write(b"data: [DONE]\n\n")
+                handler.wfile.flush()
+            except Exception:
+                pass
+            last_write[0] = time.time()
+
     def complete_stream(job: Job, response: dict):
         with write_lock:
             if buffering:
@@ -655,6 +685,15 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
             _respond_json(handler, { "error": "no pipe available" })
         elif type(job) is type('') and job == 'NO_ENDS':
             _respond_json(handler, { "error": "no model ends available" })
+        elif type(job) is type('') and job == 'MAX_JOBS':
+            _respond_json(handler, { "error": "maximum number of jobs reached" })
+        elif job.cancel_reason is not None:
+            # The pipe stopped being able to run this job (e.g. a model was
+            # unloaded). Report it now rather than letting the caller wait.
+            if req.stream:
+                complete_stream_failed(job)
+            else:
+                _respond_json(handler, { "error": job.cancel_reason })
         else:
             response = _response_json(job, req, created_at)
             if req.stream:

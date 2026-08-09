@@ -387,6 +387,26 @@ Unlike frequency penalty, presence penalty applies equally to all tokens that ha
 }
 ```
 
+### Errors
+
+A request that cannot run returns a `200` with an `error` field instead of a completion:
+
+```json
+{ "error": "no pipe available" }
+```
+
+| Error | Cause |
+|-------|-------|
+| `no model ends available` | No end model for the requested model is loaded on this node |
+| `no pipe available` | No complete pipe for the model exists on the network |
+| `maximum number of jobs reached` | The API key is at its `max_api_jobs` limit |
+| `layers for <model> unloaded`, `end model for <model> unloaded`, `no node hosts layer <n>` | A model the job was running on was unloaded, or the node hosting a segment left the network. The job is canceled instead of running until it times out |
+
+A stream that has already started cannot use that shape, because the response
+headers are sent. Chat completions send a final chunk that carries an `error`
+object and `"finish_reason": "error"`, then `data: [DONE]`. The Responses API
+sends a `response.failed` event, then `data: [DONE]`.
+
 ---
 
 ## Notes
