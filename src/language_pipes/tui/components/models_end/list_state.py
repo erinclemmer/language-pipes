@@ -87,7 +87,7 @@ class ListPageState(PageState):
             if size is None:
                 line = f"{model.model_id} [Error getting metadata]"
             else:
-                line = f"{model.model_id} ({size:.2f} GB) {loaded_text}"
+                line = f"{model.model_id} on {model.device} ({size:.2f} GB) {loaded_text}"
             entries.append([make_selectable_text(line, self.model_idx == i), ""])
 
         entries.append([make_selectable_text(

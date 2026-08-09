@@ -2,7 +2,7 @@ import gc
 import logging
 import torch
 from uuid import uuid4
-from typing import List, Optional, Tuple, Dict
+from typing import Callable, List, Optional, Tuple, Dict
 
 from transformers import PretrainedConfig
 
@@ -20,11 +20,29 @@ class ModelManager:
     end_models: List[EndModel]
     pipes_hosted: Dict[str, List[str]]
 
+    # Set once the job runtime exists (see ContentProvider.set_router) so
+    # unloading a model can stop the jobs that were relying on it.
+    cancel_pipe_jobs: Callable[[List[str], str], None]
+    cancel_model_jobs: Callable[[str, str], None]
+
     def __init__(self):
         self.layer_models = []
         self.logger = logging.getLogger(__name__)
         self.end_models = []
         self.pipes_hosted = { }
+        self.clear_job_hooks()
+
+    def set_job_hooks(
+        self,
+        cancel_pipe_jobs: Callable[[List[str], str], None],
+        cancel_model_jobs: Callable[[str, str], None]
+    ):
+        self.cancel_pipe_jobs = cancel_pipe_jobs
+        self.cancel_model_jobs = cancel_model_jobs
+
+    def clear_job_hooks(self):
+        self.cancel_pipe_jobs = lambda pipe_ids, reason: None
+        self.cancel_model_jobs = lambda model_id, reason: None
 
     def stop(self):
         self.logger.info("Stopping models")
@@ -50,21 +68,34 @@ class ModelManager:
         )
         return collector.config
 
-    def _get_model_for_pipe(self, node_id: str, model_id: str, pipe: MetaPipe, device: torch.device, available_memory: int | float, first_layer: int) -> Tuple[int | float, Optional[LlmModel]]:
+    def _get_model_for_pipe(
+        self, 
+        node_id: str, 
+        model_id: str,
+        pipe: MetaPipe, 
+        device: torch.device, 
+        available_memory: int | float, 
+        first_layer: int,
+        data_type: int
+    ) -> Tuple[int | float, Optional[LlmModel]]:
         new_model: Optional[LlmModel] = LlmModel.from_id(
             node_id=node_id,
             model_dir=get_model_dir(),
             model_id=model_id,
             pipe_id=pipe.pipe_id,
             device=device,
+            data_type=data_type
         )
         if new_model is None:
             return None
         meta_data = new_model.meta_data
         
         data_type_divisor = 1
-        if is_8_bit_mode():
-            data_type_divisor = 2
+        if data_type == 8:
+            data_type_divisor = 2.0
+
+        if data_type == 4:
+            data_type_divisor = 4.0
 
         num_layers_to_load = int(available_memory / (meta_data.avg_layer_size / data_type_divisor)) - 1
         total_layers = new_model.collector.config.num_hidden_layers
@@ -91,7 +122,17 @@ class ModelManager:
         model.load()
         self.logger.info(f"End Model for {model_id} loaded successfully")
 
-    def host_model(self, router_pipes: RouterPipes, node_id: str, model_id: str, max_memory: float, device: torch.device, first_layer: int, max_pipes: int = 1):
+    def host_model(
+        self, 
+        router_pipes: RouterPipes, 
+        node_id: str, 
+        model_id: str, 
+        max_memory: float, 
+        device: torch.device, 
+        first_layer: int, 
+        data_type: int,
+        max_pipes: int = 1
+    ):
         available_memory = max_memory * 1024**3
         models_to_load: List[LlmModel] = []
         
@@ -106,7 +147,7 @@ class ModelManager:
                 pipe = router_pipes.get_pipe_by_pipe_id(pipe_id)
                 if pipe is None: 
                     break
-                available_memory, model = self._get_model_for_pipe(node_id, model_id, pipe, device, available_memory, first_layer)
+                available_memory, model = self._get_model_for_pipe(node_id, model_id, pipe, device, available_memory, first_layer, data_type)
                 loaded = model is not None
                 if model is not None:
                     self.pipes_hosted[model_id].append(model.pipe_id)
@@ -117,7 +158,7 @@ class ModelManager:
         if len(self.pipes_hosted[model_id]) < max_pipes:
             new_pipe = MetaPipe(str(uuid4()), model_id, [])
             self.pipes_hosted[model_id].append(new_pipe.pipe_id)
-            _, model = self._get_model_for_pipe(node_id, model_id, new_pipe, device, available_memory, first_layer)
+            _, model = self._get_model_for_pipe(node_id, model_id, new_pipe, device, available_memory, first_layer, data_type)
             if model is not None:
                 router_pipes.add_model_to_network(model.to_meta())
                 models_to_load.append(model)
@@ -139,6 +180,15 @@ class ModelManager:
 
     def shutdown_layer_models(self, router_pipes: RouterPipes, model_id: str, device: torch.device):
         to_remove = []
+        pipe_ids = [
+            m.pipe_id for m in self.layer_models
+            if m.model_id == model_id and m.device == device
+        ]
+        # Cancel first: the pipes lose layers here, so any job still running on
+        # them is dead either way, and stopping it now keeps the job from
+        # computing against tensors that are about to be freed.
+        self.cancel_pipe_jobs(pipe_ids, f"layers for {model_id} unloaded")
+
         for model in self.layer_models:
             if model.model_id == model_id and model.device == device:
                 model.cleanup_tensors()
@@ -154,6 +204,8 @@ class ModelManager:
 
     def shutdown_end_model(self, model_id: str):
         to_remove = []
+        self.cancel_model_jobs(model_id, f"end model for {model_id} unloaded")
+
         for model in self.end_models:
             if model.model_id == model_id:
                 model.clean_up()

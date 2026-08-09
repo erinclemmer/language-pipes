@@ -128,15 +128,32 @@ class DSNode:
                 return
             self.test_connections()
             self.gossip()
-        
+
+    def random_peer(self) -> Optional[str]:
+        candidates = [n for n in self.address_book.keys() if n != self.config.node_id]
+        if len(candidates) == 0:
+            return None
+        return random.choice(candidates)
+
     def gossip(self):
-        if len(self.address_book.keys()) == 0:
+        node_id = self.random_peer()
+        if node_id is None:
             return
-        node_id = random.choice(list(self.address_book.keys()))
-        if node_id == self.config.node_id:
-            return
-        
-        self.send_update(node_id)
+
+        # Push our state and ingest whatever the peer sends back in the same round trip.
+        content = self.send_update(node_id)
+        if len(content) > 0:
+            try:
+                self.handle_update(content)
+            except Exception as e:
+                self.add_log(f"Could not apply update from {node_id}: {e}", "WARNING")
+
+        # Peer discovery is epidemic too: bootstrap only ever sees the address book of
+        # whichever node it happened to reach, so keep merging peer lists over time.
+        try:
+            self.request_peers(node_id)
+        except Exception as e:
+            self.add_log(f"Could not request peers from {node_id}: {e}", "WARNING")
 
     def test_connections(self):
         def remove(node_id: str):
@@ -244,17 +261,33 @@ class DSNode:
         if not pkt.verify_signature(self.cred_manager.read_public(node_id)):
             raise Exception("Could not verify peers packet")
 
-        for key in pkt.connections.keys():
-            if key == self.config.node_id:
+        self.merge_peers(pkt.connections)
+
+    def merge_peers(self, connections: Dict[str, Endpoint]):
+        """Connect to every peer we don't already know about.
+
+        Each peer is handled independently: one unreachable or misbehaving entry
+        must not abort discovery of the peers listed after it.
+        """
+        for key in list(connections.keys()):
+            if key == self.config.node_id or key in self.node_states:
                 continue
-            
-            self.write_address_book(key, pkt.connections[key])
-            
-            if key not in self.node_states:
+
+            known = key in self.address_book
+            try:
+                self.write_address_book(key, connections[key])
                 self.send_hello(self.address_book[key])
-                
-            node_state = self.send_update(key)
-            self.handle_update(node_state)
+                node_state = self.send_update(key)
+                # A peer replies with an empty body when it rejects our update as
+                # stale or duplicate, which is not an error and carries no state.
+                if len(node_state) > 0:
+                    self.handle_update(node_state)
+            except Exception as e:
+                if not known:
+                    # Don't leave a peer we never reached in the address book;
+                    # test_connections only ever cleans up nodes in node_states.
+                    self.address_book.pop(key, None)
+                self.add_log(f"Could not connect to discovered peer {key}: {e}", "WARNING")
 
     def handle_peers(self, data: bytes):
         pkt = PeersPacket.from_bytes(data)
@@ -411,7 +444,8 @@ class DSNode:
     def bootstrap(self, con: Endpoint):
         bootstrap_id = self.send_hello(con)
         content = self.send_update(bootstrap_id)
-        self.handle_update(content)
+        if len(content) > 0:
+            self.handle_update(content)
         self.request_peers(bootstrap_id)
 
     def connection_from_node(self, node_id: str) -> Endpoint:

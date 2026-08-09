@@ -12,7 +12,11 @@ TIPS = {
     "layer_models": {
         "model_id": "Model ID: A HuggingFace model ID (e.g. Qwen/Qwen3-1.7B).\nThe model must be installed before it can be hosted.",
         "device": "Device: The PyTorch device to load layers onto.\nPress Enter to choose between cpu and any available cuda devices.",
-        "max_memory": "Max Memory: The maximum amount of memory (in GB) to allocate for\nthis model's layers on the chosen device. Higher values\nallow more layers to be loaded on this node."
+        "max_memory": "Max Memory: The maximum amount of memory (in GB) to allocate for\nthis model's layers on the chosen device. Higher values\nallow more layers to be loaded on this node.",
+        "data_type": "Data Type: The data type to load the model in.\nRequires the bitsandbytes package to change.",
+        "bf16": "BF16: Loads model in 16 bit precision data type.",
+        "int8": "int8: 8 bit integer data type used with bitsandbytes' LLM.int8() GPU kernels.\nLimited CPU support, requires AVX512F or AVX512BF16 CPU architecture\nto be efficient.",
+        "int4": "int4: 4 bit integer data type used with bitsandbytes' QLORA GPU kernels.\nLimited CPU support, requires AVX512F or AVX512BF16 CPU architecture\nto be efficient."
     },
     "end_models": {
         "model_id": "Model ID: A HuggingFace model ID (e.g. Qwen/Qwen3-1.7B).\nThe model must be installed before it can be hosted.",

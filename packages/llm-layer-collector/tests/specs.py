@@ -25,6 +25,7 @@ from transformers.models.gemma4.configuration_gemma4 import Gemma4TextConfig
 from transformers.models.gemma4_unified.configuration_gemma4_unified import Gemma4UnifiedTextConfig
 from transformers.models.ministral3.configuration_ministral3 import Ministral3Config
 from transformers.models.gpt_oss.configuration_gpt_oss import GptOssConfig
+from transformers.models.qwen3_5.configuration_qwen3_5 import Qwen3_5TextConfig
 
 
 # Multimodal weight-naming conventions. Real checkpoints for some architectures
@@ -228,6 +229,31 @@ TINY_MODEL_SPECS: List[TinyModelSpec] = [
             ),
         ),
         mxfp4=True,
+    ),
+    TinyModelSpec(
+        model_type="qwen3_5_text",
+        config_cls=Qwen3_5TextConfig,
+        # Hybrid stack: gated-delta-net "linear_attention" layers with one
+        # "full_attention" layer every fourth position. layer_types is explicit so
+        # the first attention layer lands at index 3, exactly like the real
+        # checkpoints — that is what makes a one-layer node slice contain no
+        # attention layer at all (see the distributed phase in test_tiny_models).
+        config_kwargs=dict(_TINY) | dict(
+            layer_types=[
+                "linear_attention", "linear_attention",
+                "linear_attention", "full_attention",
+            ],
+            linear_conv_kernel_dim=4,
+            linear_key_head_dim=16,
+            linear_value_head_dim=16,
+            linear_num_key_heads=2,
+            linear_num_value_heads=4,
+            rope_parameters=dict(
+                rope_type="default", rope_theta=10_000_000.0,
+                mrope_interleaved=True, mrope_section=[3, 3, 2],
+                partial_rotary_factor=0.25,
+            ),
+        ),
     ),
 ]
 

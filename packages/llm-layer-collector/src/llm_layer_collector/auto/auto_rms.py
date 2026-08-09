@@ -11,6 +11,7 @@ from transformers.models.gemma4_unified.modeling_gemma4_unified import Gemma4Uni
 from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeRMSNorm
 from transformers.models.ministral3.modeling_ministral3 import Ministral3RMSNorm
 from transformers.models.gpt_oss.modeling_gpt_oss import GptOssRMSNorm
+from transformers.models.qwen3_5.modeling_qwen3_5 import Qwen3_5RMSNorm
 
 mapper = { # pyright: ignore[reportUnknownVariableType]
     "llama": LlamaRMSNorm,
@@ -20,6 +21,7 @@ mapper = { # pyright: ignore[reportUnknownVariableType]
     "gemma4_text": Gemma4RMSNorm,
     "gemma4_unified_text": Gemma4UnifiedRMSNorm,
     "qwen3_moe": Qwen3MoeRMSNorm,
+    "qwen3_5_text": Qwen3_5RMSNorm,
     "ministral3": Ministral3RMSNorm,
     "gpt_oss": GptOssRMSNorm
 }

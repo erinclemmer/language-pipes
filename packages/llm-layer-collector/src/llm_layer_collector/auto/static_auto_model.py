@@ -4,16 +4,19 @@ from typing import Optional
 from transformers.cache_utils import DynamicCache
 from transformers.configuration_utils import PretrainedConfig
 
+from llm_layer_collector.state_obj import LLmComputationState
 from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
-from llm_layer_collector.modeling.Ministral3Model import Ministral3Model
-from llm_layer_collector.modeling.Qwen3MoeModel import Qwen3MoeModel
+from llm_layer_collector.auto.cache_view import PartialCacheMaskView
+
+from llm_layer_collector.modeling.Phi3Model import Phi3Model
 from llm_layer_collector.modeling.Qwen3Model import Qwen3Model
 from llm_layer_collector.modeling.LlamaModel import LlamaModel
 from llm_layer_collector.modeling.Gemma3Model import Gemma3Model
 from llm_layer_collector.modeling.Gemma4Model import Gemma4Model
-from llm_layer_collector.modeling.Phi3Model import Phi3Model
 from llm_layer_collector.modeling.GptOssModel import GptOssModel
-from llm_layer_collector.state_obj import LLmComputationState
+from llm_layer_collector.modeling.Qwen3_5Model import Qwen3_5Model
+from llm_layer_collector.modeling.Qwen3MoeModel import Qwen3MoeModel
+from llm_layer_collector.modeling.Ministral3Model import Ministral3Model
 
 class StaticAutoModel:
     @staticmethod
@@ -25,13 +28,16 @@ class StaticAutoModel:
         config: PretrainedConfig,
         cache: DynamicCache,
         per_layer_embedder: Optional[torch.nn.Module] = None,
+        past_seen_tokens: Optional[int] = None,
     ) -> LLmComputationState:
         device = input_embedder.weight.device
 
         input_seq = input_ids.clone()
 
-        
-        past_seen_tokens = cache.get_seq_length()
+        # Callers that only host part of the layer stack must pass the count
+        # themselves - the local cache cannot report it (see PartialCacheMaskView).
+        if past_seen_tokens is None:
+            past_seen_tokens = cache.get_seq_length()
 
         remaining = prompt_tokens - past_seen_tokens
         if remaining > 0:
@@ -55,7 +61,7 @@ class StaticAutoModel:
             "inputs_embeds": hidden_state.detach(),
             # Let transformers build the default causal/sliding masks.
             "attention_mask": None,
-            "past_key_values": cache,
+            "past_key_values": PartialCacheMaskView(cache, past_seen_tokens),
             "position_ids": position_ids
         }
 
@@ -82,6 +88,9 @@ class StaticAutoModel:
             case "qwen3_moe":
                 Qwen3MoeModel.compute_embedding(state, config, mask_kwargs)
 
+            case "qwen3_5_text":
+                Qwen3_5Model.compute_embedding(state, config, mask_kwargs)
+            
             case "llama":
                 LlamaModel.compute_embedding(state, config, mask_kwargs)
             
@@ -115,7 +124,10 @@ class StaticAutoModel:
             
             case "qwen3_moe":
                 return Qwen3MoeModel.compute_layer(layer, config, state, cache)
-            
+
+            case "qwen3_5_text":
+                return Qwen3_5Model.compute_layer(layer, config, state, cache)
+
             case "llama":
                 return LlamaModel.compute_layer(layer, state, cache)
 

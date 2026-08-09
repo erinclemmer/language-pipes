@@ -40,6 +40,8 @@ def get_avg_layer_size(model_path: Path) -> tuple[int, str]:
     hsh = ""
     if collector.config.model_type == "phi3":
         hsh = tensor_hash(lyrs[0].cls.self_attn.o_proj.weight)  # type: ignore
+    elif collector.config.model_type == "qwen3_5_text":
+        hsh = tensor_hash(lyrs[0].cls.mlp.up_proj.weight) # type: ignore
     else:
         hsh = tensor_hash(lyrs[0].cls.self_attn.q_proj.weight)  # type: ignore
 

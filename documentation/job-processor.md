@@ -157,6 +157,45 @@ The job is in one of these three conditions:
 - A different node received the job.
 - An error condition stopped the job.
 
+---
+
+## Cancellation
+
+A pipe can lose a piece while a job runs on it. An operator unloads a model from
+the TUI, or a node that hosts a segment leaves the network. The job cannot
+finish after that.
+
+Every transition to `DONE` that comes from a missing piece cancels the job:
+
+- No node in the pipe has the current or the next layer.
+- The end model of the origin node is not available.
+
+Cancellation does these operations:
+
+1. The processor marks the job with a reason. `run()` checks the reason before
+   each state, so a job that a different thread cancels stops at the next state
+   boundary.
+2. The `JobTracker` removes the job from the pending jobs and resolves the
+   promise of the caller. An API client gets an error instead of an open
+   request.
+3. The node sends a `JobCancel` packet to the origin node of the job, if the
+   origin node is a different node. The origin node holds the API request, so
+   the origin node must know. A node that gets a `JobCancel` for a job that
+   started on a different node sends the packet on toward the origin node.
+
+The `ModelManager` cancels jobs before it frees the tensors of a model:
+
+| Operation | Canceled jobs |
+|-----------|---------------|
+| `shutdown_layer_models` | Every job on a pipe that the unloaded segments belong to |
+| `shutdown_end_model` | Every job that this node started for that model |
+
+Jobs that a different node started do not use the end model of this node, so
+`shutdown_end_model` does not cancel them.
+
+Without cancellation, a job stays in the pending jobs until `EXPIRED_JOB_TIME`
+(60 seconds) passes, and the API client waits for the whole time.
+
 ## State Transition Diagram
 
 ```
@@ -249,4 +288,6 @@ A job exits the processor in one of three ways:
 
 1. **Completion:** The job comes to the `HEAD` state. The model generates the EOS token. The processor sends the result to the client.
 2. **Send:** The processor sends the job to a different node with `Pipe.send_job()`.
-3. **Error:** The processor stops, and the processor marks the job as failed.
+3. **Error:** The processor stops, and the processor marks the job as failed. If
+   the pipe lost a piece that the job needs, the processor also cancels the job.
+   See [Cancellation](#cancellation).

@@ -1,9 +1,9 @@
-from typing import List, Optional
-
 from language_pipes.util.byte_helper import ByteHelper
 from language_pipes.util.enums import ComputeStep
 from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_time import JobTime
+from language_pipes.jobs.completed_pass import CompletedPass
+from language_pipes.jobs.job_progress import JobProgress
 
 class NetworkJob:
     job_id: str
@@ -11,21 +11,25 @@ class NetworkJob:
     origin_node_id: str
     current_layer: int
     compute_step: ComputeStep
-    data: Optional[JobData]
+    data: JobData | None
     data_hash: bytes
-    times: List[JobTime]
+    times: list[JobTime]
+    completed: CompletedPass | None
+    progress: JobProgress | None
     prefill_chunk_size: int
 
     def __init__(
-        self, 
-        job_id: str, 
+        self,
+        job_id: str,
         pipe_id: str,
         origin_node_id: str,
         current_layer: int,
-        data: Optional[JobData],
+        data: JobData | None,
         data_hash: bytes,
         compute_step: ComputeStep,
-        times: List[JobTime] = []
+        times: list[JobTime],
+        completed: CompletedPass | None = None,
+        progress: JobProgress | None = None
     ):
         self.job_id = job_id
         self.pipe_id = pipe_id
@@ -35,6 +39,8 @@ class NetworkJob:
         self.data_hash = data_hash
         self.compute_step = compute_step
         self.times = times
+        self.completed = completed
+        self.progress = progress
 
     def to_bytes(self):
         bts = ByteHelper()
@@ -49,6 +55,9 @@ class NetworkJob:
         bts.write_int(len(self.times))
         for time in self.times:
             bts.write_bytes(time.to_bytes())
+
+        bts.write_bytes(self.completed.to_bytes() if self.completed is not None else b'')
+        bts.write_bytes(self.progress.to_bytes() if self.progress is not None else b'')
 
         return bts.get_bytes()
 
@@ -73,13 +82,22 @@ class NetworkJob:
         for _ in range(0, bts.read_int()):
             times.append(JobTime.from_bytes(bts.read_bytes()))
 
+        # Both absent when the peer runs a build that does not report them
+        completed_bytes = bts.read_bytes()
+        completed = CompletedPass.from_bytes(completed_bytes) if completed_bytes != b'' else None
+
+        progress_bytes = bts.read_bytes()
+        progress = JobProgress.from_bytes(progress_bytes) if progress_bytes != b'' else None
+
         return NetworkJob(
-            job_id=job_id, 
-            pipe_id=pipe_id, 
-            origin_node_id=origin_node_id, 
-            current_layer=current_layer, 
-            data=job_data, 
+            job_id=job_id,
+            pipe_id=pipe_id,
+            origin_node_id=origin_node_id,
+            current_layer=current_layer,
+            data=job_data,
             data_hash=data_hash,
             compute_step=step,
-            times=times
+            times=times,
+            completed=completed,
+            progress=progress
         ), valid

@@ -7,7 +7,7 @@ from typing import Callable, List, Optional, Dict
 
 from language_pipes.request_for_model.rfm import RequestForModelHandler
 from language_pipes.jobs.job_factory import JobFactory
-from language_pipes.jobs.job_receiver import JobReceiver
+from language_pipes.jobs.job_receiver import CANCEL_PROTOCOL, JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.util.byte_helper import ByteHelper
 from language_pipes.util.utils import is_port_available
@@ -122,6 +122,10 @@ class ContentProvider:
                 is_shutdown=self.router_pipes.router.is_shut_down,
                 get_max_node_jobs=self.job_provider.get_max_node_jobs
             )
+            self.model_manager.set_job_hooks(
+                self.job_receiver.cancel_pipe_jobs,
+                self.job_receiver.cancel_model_jobs
+            )
 
             self.router_pipes.router.set_receive_cb(self._receive_data)
             self.request_for_model = RequestForModelHandler(
@@ -134,6 +138,7 @@ class ContentProvider:
         else:
             self.router_pipes = None
             self.pipe_manager = None
+            self.model_manager.clear_job_hooks()
 
     def request_model(self, model_id: str, token: Optional[str] = None):
         if self.request_for_model is None:
@@ -149,6 +154,8 @@ class ContentProvider:
             self.job_receiver.receive_data(node_id, bts.read_bytes())
         if protocol == 1:
             self.request_for_model.receive_data(node_id, data)
+        if protocol == CANCEL_PROTOCOL and self.job_receiver is not None:
+            self.job_receiver.receive_cancel(node_id, bts.read_bytes())
 
     def stop_network(self):
         if self.router is None:

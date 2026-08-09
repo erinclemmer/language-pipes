@@ -183,7 +183,7 @@ Because caches are pinned to specific nodes:
 | **Python** | 3.10 or newer |
 | **PyTorch** | CPU or CUDA build; install the build matching your CUDA version for GPU support |
 | **GPU** | Optional. Each layer model sets `device = "cpu"` or `device = "cuda:N"`; you can run entirely on CPU |
-| **Memory per node** | Enough to hold the layers that node hosts plus their KV cache. Inference runs in `fp16`; `LP_8_BIT_MODE` roughly halves layer memory via int8 quantization |
+| **Memory per node** | Enough to hold the layers that node hosts plus their KV cache. Inference runs in `bf16`, int8, and int4  |
 | **Weights format** | `safetensors` (GGUF is not supported yet) |
 | **Platform** | OS-independent (Linux, macOS, Windows) |
 

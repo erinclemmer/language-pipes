@@ -9,8 +9,10 @@ import torch
 
 from language_pipes.config import LpConfig
 from language_pipes.jobs.job_factory import JobFactory
+from language_pipes.jobs.job_progress import JobProgress
 from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
+from language_pipes.jobs.timing_stats import TimingStats
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.oai_server import OAIHttpServer
 from language_pipes.pipes.pipe_manager import PipeManager
@@ -29,6 +31,8 @@ class MetaJob:
     prompt_processed: float
     last_update: float
     ram: float
+    timing_stats: TimingStats
+    progress: JobProgress
 
 class JobProvider:
     oai_server: Optional[OAIHttpServer]
@@ -156,17 +160,21 @@ class JobProvider:
             return []
         
         meta_jobs = []
-        for key in job_tracker.jobs_pending.keys():
+        for key in job_tracker.jobs_pending:
             for job in job_tracker.jobs_pending[key]:
+                # Nodes without the end model can only report what the origin sent
+                progress = job.display_progress()
                 meta_jobs.append(MetaJob(
                     job_id=job.job_id,
                     pipe_id=job.pipe_id,
                     model_id=job.model_id,
-                    current_token=job.current_token,
+                    current_token=progress.current_token,
                     origin_node_id=job.origin_node_id,
-                    prompt_processed=(job.chunking.current_chunk / job.chunking.total_chunks) if job.chunking.total_chunks > 0 else 1,
+                    prompt_processed=(progress.prefill_tokens / progress.prompt_tokens) if progress.prefilling and progress.prompt_tokens > 0 else 1,
                     last_update=time() - job.last_update,
-                    ram=job.get_job_ram()
+                    ram=job.get_job_ram(),
+                    timing_stats=job.timing_stats,
+                    progress=progress
                ))
         
         return meta_jobs

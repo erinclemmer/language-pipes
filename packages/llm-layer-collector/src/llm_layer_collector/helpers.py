@@ -1,4 +1,5 @@
 import os
+import warnings
 from pathlib import Path
 from typing import Dict, List
 
@@ -34,10 +35,28 @@ def get_config(model_dir: Path) -> PretrainedConfig:
         config = config.text_config
         config.eos_token_id = eos_token_ids
 
-    if config.model_type in ("gemma4", "gemma4_unified", "mistral3"):
+    if config.model_type in ("gemma4", "gemma4_unified", "mistral3", "qwen3_5"):
         config = config.text_config
 
     with torch.device('meta'):
         meta_model = AutoModelForCausalLM.from_config(config)
 
     return meta_model.config
+
+def safe_load_bnb():
+    try:
+        with warnings.catch_warnings():
+            # bitsandbytes imports trigger a torch.jit.script_method
+            # DeprecationWarning on Python 3.14+; it's not actionable here.
+            warnings.simplefilter("ignore", DeprecationWarning)
+            import bitsandbytes as bnb  # noqa: F401
+            return bnb
+    except:  # noqa: E722
+        return None
+
+def safe_load_linear_attn() -> bool:
+    try:
+        import fla # pyright: ignore[reportMissingImports]
+        return True
+    except:
+        return False

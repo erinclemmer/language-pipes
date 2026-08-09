@@ -102,7 +102,6 @@ export default defineConfig({
           label: 'Reference',
           items: [
             { label: 'Supported Models', slug: 'model_support' },
-            { label: 'Roadmap', slug: 'roadmap' },
             { label: 'Release Notes', slug: 'release-notes' },
           ],
         },

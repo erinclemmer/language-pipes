@@ -1,7 +1,10 @@
 import os
 import sys
+import time
 sys.path.insert(0, os.path.dirname(__file__))
 from base import DSNTestBase, spawn_node
+
+from distributed_state_network.objects.endpoint import Endpoint
 
 class TestConnectivity(DSNTestBase):
     def test_single_node(self):
@@ -57,6 +60,60 @@ class TestConnectivity(DSNTestBase):
                 self.assertIn(bj.config.node_id, peers)
             for c in connectors:
                 self.assertIn(c.config.node_id, peers)
+
+    def test_unreachable_peer_does_not_block_discovery(self):
+        """An unreachable entry in the bootstrap node's address book must not hide the peers listed after it"""
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+
+        # A peer the bootstrap node still lists but can no longer be reached.
+        # It is deliberately inserted before "reachable" so discovery hits it first.
+        bootstrap.node.address_book["dead"] = Endpoint("127.0.0.1", 1)
+        reachable = spawn_node("reachable", "127.0.0.1", [bootstrap.node.my_con().to_json()])
+
+        self.assertEqual(
+            ["bootstrap", "dead", "reachable"],
+            list(bootstrap.node.address_book.keys())
+        )
+
+        connector = spawn_node("connector", "127.0.0.1", [bootstrap.node.my_con().to_json()])
+
+        self.assertIn("bootstrap", list(connector.node.peers()))
+        self.assertIn("reachable", list(connector.node.peers()))
+        self.assertIn("connector", list(reachable.node.peers()))
+        # The peer we never reached must not be left behind in the address book
+        self.assertNotIn("dead", connector.node.address_book)
+
+    def test_rediscovery_with_already_known_state(self):
+        """Discovery must survive peers that reject our update as a duplicate"""
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        other = spawn_node("other", "127.0.0.1", [bootstrap.node.my_con().to_json()])
+        connector = spawn_node("connector", "127.0.0.1", [bootstrap.node.my_con().to_json()])
+
+        connector.update_data("role", "worker")
+        self.assertEqual({"role": "worker"}, other.node.node_states["connector"].state_data)
+
+        # "other" now holds an identical copy of our state and answers the UPDATE
+        # with an empty body, which must not abort the peer walk.
+        connector.node.request_peers("bootstrap")
+
+        self.assertIn("other", list(connector.node.peers()))
+
+    def test_missed_peer_is_rediscovered(self):
+        """A node that missed a peer during bootstrap heals on a later tick"""
+        bootstrap = spawn_node("bootstrap", "127.0.0.1")
+        other = spawn_node("other", "127.0.0.1", [bootstrap.node.my_con().to_json()])
+        connector = spawn_node("connector", "127.0.0.1", [bootstrap.node.my_con().to_json()])
+
+        # Simulate a bootstrap that never learned about "other"
+        connector.node.node_states.pop("other", None)
+        connector.node.address_book.pop("other", None)
+
+        deadline = time.time() + 15
+        while time.time() < deadline and "other" not in connector.node.address_book:
+            time.sleep(0.25)
+
+        self.assertIn("other", connector.node.address_book)
+        self.assertIn("other", list(connector.node.peers()))
 
     def test_connection_from_node(self):
         """Should be able to look up connection info by node ID"""

@@ -42,6 +42,19 @@ def _base_model(hf_model: torch.nn.Module) -> torch.nn.Module:
     return hf_model.model if hasattr(hf_model, "model") else hf_model
 
 
+def _new_cache(config) -> DynamicCache:
+    """A cache shaped for ``config``'s layer types.
+
+    Hybrid linear-attention stacks (qwen3_5) need the config so their
+    ``linear_attention`` layers get a ``LinearAttentionLayer`` holding conv and
+    recurrent state instead of a lazily created key/value layer. The application
+    always constructs its caches this way; plain attention stacks are unaffected.
+    """
+    if "linear_attention" in (getattr(config, "layer_types", None) or []):
+        return DynamicCache(config=config)
+    return DynamicCache()
+
+
 def _hf_last_hidden(base, input_ids: torch.Tensor, cache=None) -> torch.Tensor:
     with torch.no_grad():
         out = base(
@@ -50,6 +63,25 @@ def _hf_last_hidden(base, input_ids: torch.Tensor, cache=None) -> torch.Tensor:
             past_key_values=cache,
         )
     return out.last_hidden_state
+
+
+def _split_forward(collector, input_ids, prompt_tokens, caches, split,
+                   past_seen_tokens, chunk_size, layers, emb, norm, ple):
+    """Run one forward with the layer stack split across two nodes.
+
+    ``caches[0]`` belongs to the embedding node, which owns ``layers[:split]``;
+    ``caches[1]`` belongs to the node owning the rest. Neither cache ever sees the
+    other's layers, and masks are built once on the embedding node — exactly the
+    application's topology.
+    """
+    state = StaticAutoModel.compute_embedding(
+        prompt_tokens, chunk_size, emb, input_ids, collector.config, caches[0],
+        per_layer_embedder=ple, past_seen_tokens=past_seen_tokens,
+    )
+    for idx, lyr in enumerate(layers):
+        cache = caches[0] if idx < split else caches[1]
+        state.state = StaticAutoModel.compute_layer(lyr, collector.config, state, cache)
+    return state, norm(state.state)
 
 
 def _our_forward(collector, input_ids, cache, chunk_size,
@@ -151,7 +183,7 @@ class _SpecRunner:
         base = _base_model(self.ck.model)
         ref = _hf_last_hidden(base, self.input_ids)
 
-        cache = DynamicCache()
+        cache = _new_cache(self.config)
         state, ours = _our_forward(
             self.collector, self.input_ids, cache, SEQ_LEN + 4,
             layers, emb, norm, ple)
@@ -165,7 +197,7 @@ class _SpecRunner:
         ple = self.collector.load_per_layer_embedder() if self.spec.ple else None
         t = self.t
         prompt_tokens = self.input_ids.shape[1]
-        cache = DynamicCache()
+        cache = _new_cache(self.config)
         num_chunks = (prompt_tokens + CHUNK - 1) // CHUNK
         last_normed = None
         for chunk_idx in range(num_chunks):
@@ -190,14 +222,14 @@ class _SpecRunner:
         base = _base_model(self.ck.model)
 
         # HF: prefill the prompt, then one decode step for a fixed next token.
-        hf_cache = DynamicCache()
+        hf_cache = _new_cache(self.config)
         _hf_last_hidden(base, self.input_ids, hf_cache)
         next_tok = torch.randint(0, self.vocab, (1, 1))
         ref_decode = _hf_last_hidden(base, next_tok, hf_cache)
 
         # Ours: prefill (single chunk), then the remaining<=0 decode slice.
         prompt_tokens = self.input_ids.shape[1]
-        cache = DynamicCache()
+        cache = _new_cache(self.config)
         _our_forward(self.collector, self.input_ids, cache,
                      prompt_tokens, layers, emb, norm, ple)
         full_ids = torch.cat([self.input_ids, next_tok], dim=1)
@@ -207,6 +239,49 @@ class _SpecRunner:
         t.assertEqual(tuple(state.state.shape),
                       (1, 1, self.config.hidden_size))
         self._assert_match(ref_decode, ours, "decode")
+
+    # ---- Phase 5: distributed-split parity ----
+    def phase_distributed(self, emb, norm, layers):
+        """Prefill + two decode steps with the stack split across two nodes.
+
+        The embedding node owns a single layer (the application's default), so for a
+        hybrid stack whose leading layers are all ``linear_attention`` its cache holds
+        no attention layer at all and cannot report how many tokens have been seen.
+        Position ids and the causal mask both come from that count, so getting it from
+        the cache silently re-embeds position 0 on every decode step and ships a
+        1-token mask to the layers that do the attending.
+        """
+        ple = self.collector.load_per_layer_embedder() if self.spec.ple else None
+        t = self.t
+        base = _base_model(self.ck.model)
+        prompt_tokens = self.input_ids.shape[1]
+
+        # HF reference: prefill, then two decode steps.
+        hf_cache = _new_cache(self.config)
+        _hf_last_hidden(base, self.input_ids, hf_cache)
+        next_toks = torch.randint(0, self.vocab, (1, 2))
+        refs = [_hf_last_hidden(base, next_toks[:, i:i + 1], hf_cache)
+                for i in range(2)]
+
+        # Ours: one layer on the embedding node, the rest on the second node.
+        split = 1
+        caches = (_new_cache(self.config), _new_cache(self.config))
+        _split_forward(self.collector, self.input_ids, prompt_tokens, caches, split,
+                       0, prompt_tokens, layers, emb, norm, ple)
+
+        ids = self.input_ids
+        for i in range(2):
+            ids = torch.cat([ids, next_toks[:, i:i + 1]], dim=1)
+            # What the application tracks on the job rather than reading back from
+            # a cache that only holds this node's layers.
+            past_seen = ids.shape[1] - 1
+            state, ours = _split_forward(
+                self.collector, ids, prompt_tokens, caches, split,
+                past_seen, prompt_tokens, layers, emb, norm, ple)
+            t.assertEqual(state.cache_position.tolist(), [past_seen],
+                          f"{self.spec.model_type} distributed decode {i}: "
+                          "wrong cache position")
+            self._assert_match(refs[i], ours, f"distributed decode {i}")
 
     # ---- shared assertions ----
     def _assert_match(self, ref: torch.Tensor, ours: torch.Tensor, label: str):
@@ -273,6 +348,7 @@ def _run_spec(test: unittest.TestCase, spec: TinyModelSpec):
         ref_single = runner.phase_single_shot(emb, norm, layers)
         runner.phase_chunked(emb, norm, layers, ref_single)
         runner.phase_decode(emb, norm, layers)
+        runner.phase_distributed(emb, norm, layers)
 
 
 class TestTinyModels(unittest.TestCase):

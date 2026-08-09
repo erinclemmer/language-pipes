@@ -113,7 +113,7 @@ class ProcessorWrapper(JobProcessor):
         self.states.append(self.state)
         return super()._transition()
 
-def make_processor(job, pipe, end_model):
+def make_processor(job, pipe, end_model, on_fail=None):
     """Helper to create a JobProcessor with sensible defaults."""
     return ProcessorWrapper(
         JobContext(
@@ -121,6 +121,7 @@ def make_processor(job, pipe, end_model):
             job=job,
             pipe=pipe,
             end_model=end_model,
+            on_fail=on_fail,
         )
     )
 
@@ -201,16 +202,18 @@ class PipeWrapper(Pipe):
         router = FakeStateNetworkNode(node_id)
         super().__init__(router, None, model_id, Path(""))
         self.calls = []
+        self.sent_jobs = []
         self.segments = segments # type: ignore
-    
+
     def tokenizer(self):
         self.calls.append("tokenizer")
         def t(x):
             return "res"
         return t
-    
+
     def send_job(self, job, node_id):
         self.calls.append("send job")
+        self.sent_jobs.append(job)
 
     def empty(self):
         pass

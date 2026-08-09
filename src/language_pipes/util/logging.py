@@ -12,8 +12,46 @@ RING_BUFFER_SIZE = 500
 CONSOLE_FORMAT = "%(asctime)s: %(message)s"
 FILE_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
-# Third-party loggers that write to the root handlers unless redirected.
-NOISY_LOGGERS = ("transformers.modeling_rope_utils",)
+# Third-party libraries that attach their own console handler. Name the
+# library's root logger: its children own no handlers and propagate up to it.
+NOISY_LIBRARIES = ("transformers", )
+
+
+class QuietLogger(logging.Logger):
+    """A logger that refuses handlers and always propagates.
+
+    ``setup_logging`` runs before ``transformers`` is imported -- both entry
+    points load it lazily -- and transformers attaches a stderr handler to its
+    root logger at import time, with propagation off. Clearing the handlers up
+    front would simply be undone, so make the additions no-ops instead: records
+    then reach our handlers on the root logger and nothing else.
+
+    ``propagate`` is a data descriptor here, so it wins over the instance
+    attribute the library assigns.
+    """
+
+    def addHandler(self, hdlr: logging.Handler) -> None:
+        pass
+
+    @property
+    def propagate(self) -> bool:  # type: ignore[reportIncompatibleVariableOverride]
+        return True
+
+    @propagate.setter
+    def propagate(self, value: bool) -> None:  # type: ignore[reportIncompatibleVariableOverride]
+        pass
+
+
+def quiet_noisy_libraries():
+    """Redirect third-party library output into our handlers.
+
+    Idempotent, and safe to call before the libraries are imported.
+    """
+    for name in NOISY_LIBRARIES:
+        library = logging.getLogger(name)
+        for handler in list(library.handlers):
+            library.removeHandler(handler)
+        library.__class__ = QuietLogger
 
 
 class RingBufferHandler(logging.Handler):
@@ -100,11 +138,6 @@ def setup_logging(log_dir: Optional[Path] = None, console: bool = False) -> Path
         console_handler.setFormatter(logging.Formatter(CONSOLE_FORMAT))
         root.addHandler(console_handler)
 
-    # These libraries install their own handlers; clear them so their output
-    # lands in our log file instead of on stdout.
-    for name in NOISY_LOGGERS:
-        noisy = logging.getLogger(name)
-        noisy.handlers.clear()
-        noisy.propagate = True
+    quiet_noisy_libraries()
 
     return log_file

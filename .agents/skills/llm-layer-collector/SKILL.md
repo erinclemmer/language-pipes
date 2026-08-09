@@ -40,6 +40,7 @@ llm_layer_collector/
 | `gemma4_unified_text` | `Gemma4Model.py` (shared) | like gemma4 but **no** PLE (see §9) |
 | `ministral3` | `Ministral3Model.py` | fp8 checkpoints, multimodal key nesting (see §8) |
 | `gpt_oss` | `GptOssModel.py` | mxfp4 experts, attention sinks — **eager only** (see §10) |
+| `qwen3_5_text` | `Qwen3_5Model.py` | hybrid gated-delta-net; leading layers are `linear_attention` (see §11) |
 
 ---
 
@@ -139,7 +140,7 @@ Import the class and add a `case "new_model_type":` to **both** `match` statemen
 | `input_embedding_layer_name` | `"model.embed_tokens.weight"` |
 | `norm_layer_name` | `"model.norm.weight"` |
 | `lm_head_name` | `"lm_head.weight"` |
-| `shard_pattern` | `r'model-(\d+)-of-(\d+).safetensors'` |
+| `shard_pattern` | `r'model(\.safetensors)?-(\d+)-of-(\d+).safetensors'` (matches both shard stems) |
 
   The collector already auto-scans `layer_files` for any key ending in `lm_head.weight` when the default is absent, and falls back to tied embedding weights when there is no head key at all (correct for `tie_word_embeddings` models — see §9; a silent-fallback bug for untied ones — see §8).
 - **Scaled word embeddings**: `load_input_embedding` special-cases Gemma3/Gemma4/Gemma4Unified to use their `*ScaledWordEmbedding` classes; a new architecture with a non-plain embedding needs the same treatment.
@@ -339,3 +340,14 @@ Valid for `head_dim=128` because `sum([16,24,24]) * 2 == 128`. GLM also uses mro
 **General lesson**: Tier 1 passing while Tier 2 fails does *not* imply a real-checkpoint-only bug. Run the nearest untouched architecture as a control first, and treat the assertion itself as a suspect until checked against HF ground truth — the cheap discriminators come before deep debugging.
 
 **General lesson (silent-wrong-answer class)**: the two hardest bugs here — an ignored `s_aux` and dropped mxfp4 keys — both ran cleanly and produced wrong numbers, because `**kwargs` absorption and `load_state_dict(strict=False)` are each designed to tolerate unknown keys. Neither is caught by "does it run." A **numeric parity check against `AutoModelForCausalLM` on the same tokenization is the only reliable gate**; run it before trusting any new architecture, and prefer reading a capability off the HF class (as `supports_sdpa` does) over assuming a default applies to every model.
+
+### 11) qwen3_5 / hybrid linear attention gotchas
+
+- **`model_type` is `qwen3_5_text`** (text config inside a top-level `qwen3_5` multimodal wrapper — already in `helpers.get_config`'s allowlist). Standard Llama-style kwargs, but the mask is keyed by `config.layer_types[layer_idx]` across **two** keys: `create_causal_mask` under `"full_attention"` and `create_recurrent_attention_mask` under `"linear_attention"`. The recurrent mask is a *padding* mask, so it is `None` for the un-padded single-sequence case the collector builds — that is correct, not a missing mask.
+- **`AutoDecoderLayer` must stamp `cls.layer_idx`.** `Qwen3_5DecoderLayer.__init__` sets `block_type` but no `layer_idx` on the layer itself, and `compute_layer` needs the index to pick the mask.
+- **The cache must be built with the config** (`DynamicCache(config=config)`). Without it every layer lazily becomes a key/value `DynamicLayer`, and the gated-delta-net's `update_conv_state` walks off the end of `cache.layers`. Tests that construct a bare `DynamicCache()` need `_new_cache(config)`.
+- **`Cache.get_seq_length()` / `get_mask_sizes()` report through the first *attention* layer, which is index 3.** This is the trap for a distributed layer stack: a node only ever populates the cache layers it computes, so a node whose slice holds only `linear_attention` layers reads length **0 forever**. With the app's `DEFAULT_NUM_LOCAL_LAYERS = 1` the embedding node owns exactly layer 0, so it re-embeds position 0 on every decode step and ships a 1-token causal mask to the nodes that do the attending. Symptom is a single repeated token (`"ThinkingThinkingThinking…"`), cosine ≈ 0.13 against HF — **multi-node only**, since a single node owns layer 3 and advances it locally. Qwen3 and every other registered architecture happen to open with `full_attention`, which is the only reason they survive this.
+
+  The fix is two-sided and neither half is optional: `StaticAutoModel.compute_embedding` takes an explicit `past_seen_tokens` (the app supplies it from `Job.past_seen_tokens()`, which tracks chunk state during prefill and `len(input_ids) - 1` during decode), and mask sizing goes through `PartialCacheMaskView` (`auto/cache_view.py`), which keeps the real cache for layer-type/sliding-window metadata but answers every size question from that count. Masks are built once on the embedding node and ride along to every layer node, so they have to describe the whole sequence, not the slice of cache that happens to be local.
+
+**General lesson (partial-cache class)**: any node-local `Cache` is a *partial* cache, and every `Cache` accessor that resolves "through layer 0" or "through the first attention layer" is therefore unreliable on it. `test_tiny_models.phase_distributed` runs every spec with a one-layer embedding node against HF ground truth — when adding an architecture, that phase, not single-node parity, is what proves it survives a layer split.

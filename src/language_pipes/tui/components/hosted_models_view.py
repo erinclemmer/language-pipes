@@ -1,10 +1,8 @@
-from typing import List, Dict
-from language_pipes.content_provider.model_provider import ModelStatusInfo, ModelToLoad, ModelStatus
 from language_pipes.tui.util.text import make_selectable_text
-from language_pipes.util.config import is_8_bit_mode
+from language_pipes.content_provider.model_provider import ModelStatusInfo, ModelToLoad, ModelStatus
 
-def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
-    pipes: Dict[str, List[ModelStatusInfo]] = { }
+def format_pipe_strings(running: list[ModelStatusInfo]) -> list[str]:
+    pipes: dict[str, list[ModelStatusInfo]] = { }
 
     for mi in running:
         if mi.pipe_id == '':
@@ -14,7 +12,7 @@ def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
         pipes[mi.pipe_id].append(mi)
 
     pipe_strings = { }
-    for key in pipes.keys():
+    for key in pipes:
         pipe = pipes[key]
         pipe_string = ["X" for _ in range(pipe[0].num_layers - 1)]
         for mi in pipe:
@@ -28,7 +26,7 @@ def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
         pipe_strings[key] = ''.join(pipe_string)
 
     norm_pipe_strings = { }
-    for key in pipes.keys():
+    for key in pipes:
         pipe = pipes[key]
         pipe_string = ["X" for _ in range(0, 28)]
         layers_per_char =  pipe[0].num_layers / 28.0
@@ -52,11 +50,18 @@ def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
         norm_pipe_strings[key] = "".join(pipe_string)
     
     lines = []
-    for key in pipe_strings.keys():
+    for key in pipe_strings:
         pipe = pipes[key]
-        ram_used = sum([m.ram_used for m in pipe]) / 1024**3
-        if is_8_bit_mode():
-            ram_used /= 2.0
+        ram_used = 0
+        for m in pipe:
+            model_ram = m.ram_used / 1024**3
+            if m.data_type == 8:
+                model_ram /= 2.0
+            if m.data_type == 4:
+                model_ram /= 4.0
+
+            ram_used += model_ram
+
         lines.append(f"Pipe {key[:4]} >{norm_pipe_strings[key]}< ({ram_used:.2f}GB)")
 
     return lines
@@ -64,16 +69,17 @@ def format_pipe_strings(running: List[ModelStatusInfo]) -> List[str]:
 def format_model_line(
     model: ModelToLoad,
     selected: bool = False,
-    running: List[ModelStatusInfo] = []
-) -> List[str]:
+    running: list[ModelStatusInfo] | None = None
+) -> list[str]:
     line = make_selectable_text(f"{model.model_id} on {model.device}", selected)
     lines = [
         line,
         f"       Max Memory: {model.memory}GB"
     ]
-    if len(running) == 0:
+    if running is None or len(running) == 0:
         lines.append("       Not Running")
-    
+
+    assert running is not None
     pipe_strings = format_pipe_strings(running)
 
     for pipe in pipe_strings:

@@ -24,6 +24,13 @@ Below are the specific checkpoints that have been tested and are known to work.
 - Qwen/Qwen3-1.7B
 - Qwen/Qwen3-14B
 
+**Qwen/3.5:**
+- Qwen/Qwen3.5-0.8B
+- Qwen/Qwen3.5-2B
+- Qwen/Qwen3.5-4B
+- Qwen/Qwen3.5-9B
+- Qwen/Qwen3.5-27B
+
 **Qwen3-MoE:**
 - Qwen/Qwen3-30B-A3B-Thinking-2507
 

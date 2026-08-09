@@ -11,6 +11,7 @@ from transformers.models.gemma4_unified.modeling_gemma4_unified import Gemma4Uni
 from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeRotaryEmbedding
 from transformers.models.ministral3.modeling_ministral3 import Ministral3RotaryEmbedding
 from transformers.models.gpt_oss.modeling_gpt_oss import GptOssRotaryEmbedding
+from transformers.models.qwen3_5.modeling_qwen3_5 import Qwen3_5TextRotaryEmbedding
 
 mapper = { # pyright: ignore[reportUnknownVariableType]
     "llama": LlamaRotaryEmbedding,
@@ -21,7 +22,8 @@ mapper = { # pyright: ignore[reportUnknownVariableType]
     "gemma4_unified_text": Gemma4UnifiedTextRotaryEmbedding,
     "qwen3_moe": Qwen3MoeRotaryEmbedding,
     "ministral3": Ministral3RotaryEmbedding,
-    "gpt_oss": GptOssRotaryEmbedding
+    "gpt_oss": GptOssRotaryEmbedding,
+    "qwen3_5_text": Qwen3_5TextRotaryEmbedding
 }
 
 def getClass(config: PretrainedConfig) -> torch.nn.Module:

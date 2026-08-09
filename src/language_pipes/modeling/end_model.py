@@ -17,7 +17,6 @@ from language_pipes.jobs.job_data import computationStateToJobData
 from language_pipes.modeling.llm_meta_data import LlmMetadata
 from language_pipes.modeling.compute import compute_layers
 from language_pipes.util.utils import CHUNK_SIZE
-from language_pipes.util.config import is_8_bit_mode
 
 class EndModel:
     model_id: str
@@ -44,8 +43,7 @@ class EndModel:
             model_dir=model_path / "data",
             cache_file=model_path / 'cache.json',
             device=torch.device(device),
-            dtype=torch.bfloat16,
-            load_in_8bit=is_8_bit_mode()
+            dtype=torch.bfloat16
         )
         self.layers = []
         self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, 'data'), fix_mistral_regex="mistralai" in model_id)
@@ -63,7 +61,7 @@ class EndModel:
             num_hidden_layers=self.collector.config.num_hidden_layers,
             shared_kv_states=shared_kv_states
         )
-
+        
     def size(self):
         return self.meta_data.embed_size + self.meta_data.head_size + (self.meta_data.avg_layer_size * self.num_local_layers)
 
@@ -96,7 +94,8 @@ class EndModel:
             input_ids=torch.tensor([job.input_ids]),
             config=self.collector.config,
             cache=job.cache,
-            per_layer_embedder=self.per_layer_embedder
+            per_layer_embedder=self.per_layer_embedder,
+            past_seen_tokens=job.past_seen_tokens()
         )
         
         job.data = computationStateToJobData(comp_state)

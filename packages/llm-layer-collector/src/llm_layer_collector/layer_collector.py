@@ -36,13 +36,16 @@ class LlmLayerCollector:
     dtype: torch.dtype
     device: torch.device
     load_in_8bit: bool
+    load_in_4bit: bool
     layer_files: Dict[str, str]
 
     def __init__(
         self,
         model_dir: Path,
         cache_file: Optional[Path] = None,
-        shard_pattern: str = r"model-(\d+)-of-(\d+).safetensors",
+        # Some checkpoints shard as "model-00001-of-00002.safetensors", others keep
+        # the full ".safetensors" stem ("model.safetensors-00001-of-00002.safetensors").
+        shard_pattern: str = r"model(\.safetensors)?-(\d+)-of-(\d+).safetensors",
         layer_prefix: str = "model.layers.",
         input_embedding_layer_name: str = "model.embed_tokens.weight",
         norm_layer_name: str = "model.norm.weight",
@@ -50,6 +53,7 @@ class LlmLayerCollector:
         dtype: torch.dtype = torch.bfloat16,
         device: torch.device = torch.device("cpu"),
         load_in_8bit: bool = False,
+        load_in_4bit: bool = False
     ):
         config_file_path = os.path.join(model_dir, "config.json")
         if not os.path.exists(config_file_path):
@@ -73,9 +77,10 @@ class LlmLayerCollector:
         self.shard_pattern = shard_pattern
 
         self.load_in_8bit = load_in_8bit
+        self.load_in_4bit = load_in_4bit
         # bitsandbytes LLM.int8 kernels compute in fp16, so the unquantized
         # pieces (embedding, norms, head) must match.
-        self.dtype = torch.float16 if load_in_8bit else dtype
+        self.dtype = torch.float16 if load_in_8bit or load_in_4bit else dtype
         self.device = device
         self.layer_files = {}
         if cache_file is None:
@@ -109,10 +114,14 @@ class LlmLayerCollector:
         )
 
         for key in self.layer_files.keys():
-            if "layers.0" in key and "vision_tower" not in key:
+            if "layers.0" in key and "vision_tower" not in key and "visual" not in key and "mtp." not in key:
                 self.layer_prefix = key.split("layers.0")[0] + "layers."
+                break
+
+        for key in self.layer_files.keys():
             if key.endswith("embed_tokens.weight"):
                 self.input_embedding_layer_name = key
+                break
 
         derived_norm = self.input_embedding_layer_name.replace(
             "embed_tokens.weight", "norm.weight"
@@ -246,6 +255,7 @@ class LlmLayerCollector:
                     device,
                     self.dtype,
                     self.load_in_8bit,
+                    self.load_in_4bit
                 )
             )
         gc.collect()

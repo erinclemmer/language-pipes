@@ -69,6 +69,30 @@ def send_keepalive(handler: BaseHTTPRequestHandler) -> bool:
         return False
     return True
 
+def send_error(job: Job, message: str, created: float, handler: BaseHTTPRequestHandler):
+    # The stream is already open, so the failure has to be reported in-band:
+    # an error payload followed by the usual terminator.
+    error = {
+        "id": f"chatcmpl-{job.job_id}",
+        "object": "chat.completion.chunk",
+        "created": int(created),
+        "model": job.model_id,
+        "choices": [
+            {
+                "index": 0,
+                "delta": {},
+                "finish_reason": "error"
+            }
+        ],
+        "error": {"message": message, "type": "job_canceled"}
+    }
+    try:
+        handler.wfile.write(b'data: ' + json.dumps(error).encode('utf-8') + b'\n\n')
+        handler.wfile.write(b'data: [DONE]\n\n')
+        handler.wfile.flush()
+    except Exception:
+        pass
+
 def send_complete(job: Job, created: float, handler: BaseHTTPRequestHandler):
     final = {
         "id": f"chatcmpl-{job.job_id}",

@@ -16,6 +16,7 @@ optionally post-processes the shards:
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, Tuple
 
 import torch
@@ -43,8 +44,8 @@ _FP8_PROJ_SUFFIXES = (
 class TinyCheckpoint:
     model: torch.nn.Module          # the HF *ForCausalLM reference (post-quantization)
     config: PretrainedConfig        # unwrapped text config (what the collector sees)
-    model_dir: str
-    cache_file: str
+    model_dir: Path
+    cache_file: Path
 
 
 def _is_fp8_proj(key: str) -> bool:
@@ -119,7 +120,8 @@ def _max_shard_size(model: torch.nn.Module, shards: int) -> str:
     return f"{per_kb}KB"
 
 
-def build_tiny_checkpoint(spec: TinyModelSpec, dest_dir: str, seed: int = 0) -> TinyCheckpoint:
+def build_tiny_checkpoint(spec: TinyModelSpec, dest_dir: Path, seed: int = 0) -> TinyCheckpoint:
+    dest_dir = Path(dest_dir)
     torch.manual_seed(seed)
     config = spec.build_config()
     # AutoModelForCausalLM.from_config resolves the correct *ForCausalLM class for
@@ -143,7 +145,7 @@ def build_tiny_checkpoint(spec: TinyModelSpec, dest_dir: str, seed: int = 0) -> 
     if needs_rewrite:
         _rewrite_shards(dest_dir, spec, quantized, mxfp4)
 
-    cache_file = os.path.join(dest_dir, "cache.json")
+    cache_file = dest_dir / "cache.json"
     return TinyCheckpoint(
         model=model,
         config=model.config.get_text_config(),
@@ -153,7 +155,7 @@ def build_tiny_checkpoint(spec: TinyModelSpec, dest_dir: str, seed: int = 0) -> 
 
 
 def _rewrite_shards(
-    dest_dir: str,
+    dest_dir: Path,
     spec: TinyModelSpec,
     quantized: Dict[str, Tuple[torch.Tensor, torch.Tensor]],
     mxfp4: Dict[str, Tuple[torch.Tensor, torch.Tensor]],

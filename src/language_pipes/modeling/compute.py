@@ -1,3 +1,5 @@
+import warnings
+
 import torch
 from typing import List
 from transformers import PretrainedConfig
@@ -13,11 +15,12 @@ def compute_layers(start_layer: int, job_data: JobData, device: torch.device, co
     comp_state = jobDataToComputationState(job_data, device, local_dtype)
     comp_state = detachCompState(comp_state)
 
-    first_layer_idx: int = layers[0].cls.self_attn.layer_idx # pyright: ignore[reportAssignmentType, reportAttributeAccessIssue]
+    first_layer_idx: int = layers[0].cls.layer_idx # pyright: ignore[reportAssignmentType, reportAttributeAccessIssue]
     start_layer -= first_layer_idx
-    
-    with torch.inference_mode():
-        for lyr in layers[start_layer:]:
-            comp_state.state = StaticAutoModel.compute_layer(lyr, config, comp_state, cache).detach()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+        with torch.inference_mode():
+            for lyr in layers[start_layer:]:
+                comp_state.state = StaticAutoModel.compute_layer(lyr, config, comp_state, cache).detach()
 
     return comp_state.state.detach(), comp_state.shared_kv_states

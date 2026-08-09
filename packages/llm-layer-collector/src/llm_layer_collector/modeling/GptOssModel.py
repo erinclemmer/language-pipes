@@ -33,7 +33,7 @@ class GptOssModel:
         state: LLmComputationState,
         cache: DynamicCache
     ) -> torch.Tensor:
-        layer_type = config.layer_types[layer.cls.self_attn.layer_idx] # type: ignore
+        layer_type = config.layer_types[layer.cls.layer_idx] # type: ignore
         kwargs = { # pyright: ignore[reportUnknownVariableType]
             "hidden_states": state.state,
             "attention_mask": state.causal_mask[layer_type], # type: ignore
