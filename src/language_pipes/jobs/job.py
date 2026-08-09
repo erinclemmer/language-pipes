@@ -120,6 +120,23 @@ class Job:
     def init_chunking(self):
         self.chunking.init(self.prompt_tokens)
 
+    def past_seen_tokens(self) -> int:
+        """Tokens already consumed by the cache, tracked here rather than read back
+        from `self.cache`.
+
+        Only the layers this node hosts ever land in `self.cache`, and
+        `DynamicCache.get_seq_length` reports through the first *attention* layer,
+        which for a hybrid linear-attention stack can live on another node and read
+        as 0 forever - Qwen3.5 opens with three `linear_attention` layers, so the
+        default single local layer never advances it.
+        """
+        if self.current_token == 0:
+            # Still prefilling: chunks that have already finished.
+            return self.chunking.get_tokens_processed()
+
+        # Decoding: every token but the one about to be embedded.
+        return len(self.input_ids) - 1
+
     def set_layer(self, state: torch.Tensor, layer: int, num_hidden_layers: int, shared_kv_states: Optional[dict] = None):
         if self.compute_step != ComputeStep.LAYER:
             raise Exception('Invalid step for layer')

@@ -121,6 +121,7 @@ def _max_shard_size(model: torch.nn.Module, shards: int) -> str:
 
 
 def build_tiny_checkpoint(spec: TinyModelSpec, dest_dir: Path, seed: int = 0) -> TinyCheckpoint:
+    dest_dir = Path(dest_dir)
     torch.manual_seed(seed)
     config = spec.build_config()
     # AutoModelForCausalLM.from_config resolves the correct *ForCausalLM class for

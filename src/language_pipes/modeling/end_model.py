@@ -94,7 +94,8 @@ class EndModel:
             input_ids=torch.tensor([job.input_ids]),
             config=self.collector.config,
             cache=job.cache,
-            per_layer_embedder=self.per_layer_embedder
+            per_layer_embedder=self.per_layer_embedder,
+            past_seen_tokens=job.past_seen_tokens()
         )
         
         job.data = computationStateToJobData(comp_state)

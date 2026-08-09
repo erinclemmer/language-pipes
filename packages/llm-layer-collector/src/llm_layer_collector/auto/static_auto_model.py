@@ -6,6 +6,7 @@ from transformers.configuration_utils import PretrainedConfig
 
 from llm_layer_collector.state_obj import LLmComputationState
 from llm_layer_collector.auto.auto_layer import AutoDecoderLayer
+from llm_layer_collector.auto.cache_view import PartialCacheMaskView
 
 from llm_layer_collector.modeling.Phi3Model import Phi3Model
 from llm_layer_collector.modeling.Qwen3Model import Qwen3Model
@@ -27,13 +28,16 @@ class StaticAutoModel:
         config: PretrainedConfig,
         cache: DynamicCache,
         per_layer_embedder: Optional[torch.nn.Module] = None,
+        past_seen_tokens: Optional[int] = None,
     ) -> LLmComputationState:
         device = input_embedder.weight.device
 
         input_seq = input_ids.clone()
 
-        
-        past_seen_tokens = cache.get_seq_length()
+        # Callers that only host part of the layer stack must pass the count
+        # themselves - the local cache cannot report it (see PartialCacheMaskView).
+        if past_seen_tokens is None:
+            past_seen_tokens = cache.get_seq_length()
 
         remaining = prompt_tokens - past_seen_tokens
         if remaining > 0:
@@ -57,7 +61,7 @@ class StaticAutoModel:
             "inputs_embeds": hidden_state.detach(),
             # Let transformers build the default causal/sliding masks.
             "attention_mask": None,
-            "past_key_values": cache,
+            "past_key_values": PartialCacheMaskView(cache, past_seen_tokens),
             "position_ids": position_ids
         }
 

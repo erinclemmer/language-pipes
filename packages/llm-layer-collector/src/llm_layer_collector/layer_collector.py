@@ -43,7 +43,9 @@ class LlmLayerCollector:
         self,
         model_dir: Path,
         cache_file: Optional[Path] = None,
-        shard_pattern: str = r"model-(\d+)-of-(\d+).safetensors",
+        # Some checkpoints shard as "model-00001-of-00002.safetensors", others keep
+        # the full ".safetensors" stem ("model.safetensors-00001-of-00002.safetensors").
+        shard_pattern: str = r"model(\.safetensors)?-(\d+)-of-(\d+).safetensors",
         layer_prefix: str = "model.layers.",
         input_embedding_layer_name: str = "model.embed_tokens.weight",
         norm_layer_name: str = "model.norm.weight",
@@ -73,8 +75,6 @@ class LlmLayerCollector:
         self.norm_layer_name = norm_layer_name
         self.input_embedding_layer_name = input_embedding_layer_name
         self.shard_pattern = shard_pattern
-        if self.config.model_type == "qwen3_5_text":
-            self.shard_pattern = r'model.safetensors-(\d+)-of-(\d+).safetensors'
 
         self.load_in_8bit = load_in_8bit
         self.load_in_4bit = load_in_4bit
