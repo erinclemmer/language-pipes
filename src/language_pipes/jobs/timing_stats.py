@@ -8,6 +8,7 @@ class TimingData:
     head_ms: list[float]
     layer_ms: list[float]
     token_ms: list[float]
+    token_counts: list[int]
     all_times: list[list[JobTime]]
 
     def __init__(self, job_id: str):
@@ -19,8 +20,9 @@ class TimingData:
         self.head_ms = []
         self.layer_ms = []
         self.token_ms = []
+        self.token_counts = []
 
-    def add_times(self, new_times: list[JobTime]) -> None:
+    def add_times(self, new_times: list[JobTime], token_count: int = 1) -> None:
         if len(new_times) == 0:
             return
         self.all_times.append(new_times)
@@ -48,6 +50,7 @@ class TimingData:
         token_duration_ms = (ordered[-1].send_time - ordered[0].receive_time) * 1000.0
         if token_duration_ms >= 0:
             self.token_ms.append(token_duration_ms)
+            self.token_counts.append(token_count)
 
     def get_avg_embed_time(self) -> float:
         if len(self.embed_ms) == 0:
@@ -68,6 +71,12 @@ class TimingData:
         if len(self.token_ms) == 0:
             return 0.0
         return sum(self.token_ms) / len(self.token_ms)
+
+    def get_tokens_per_second(self) -> float:
+        total_ms = sum(self.token_ms)
+        if total_ms <= 0:
+            return 0.0
+        return sum(self.token_counts) / (total_ms / 1000.0)
 
 class TimingStats:
     output_times: TimingData
@@ -97,17 +106,6 @@ class TimingStats:
             return
         last_time = self.current_times[-1]
         last_time.set_send_time()
-        type_str = "LAYER"
-        
-        if last_time.is_embed:
-            type_str = "EMBED"
-        
-        if last_time.is_head:
-            type_str = "HEAD"
-        
-        elapsed = last_time.send_time - last_time.receive_time
-        if type_str == "LAYER":
-            elapsed /= last_time.end_layer - last_time.start_layer
         
     def receive_network_job(self, times: list[JobTime]) -> None:
         self.current_times = times
@@ -116,6 +114,6 @@ class TimingStats:
         self.output_times.add_times(self.current_times)
         self.current_times = []
 
-    def finalize_prefill_chunk(self) -> None:
-        self.prefill_times.add_times(self.current_times)
+    def finalize_prefill_chunk(self, token_count: int) -> None:
+        self.prefill_times.add_times(self.current_times, token_count)
         self.current_times = []

@@ -20,6 +20,7 @@ class ChunkState:
         if prompt_length > CHUNK_SIZE:
             self.total_chunks = (prompt_length + CHUNK_SIZE - 1) // CHUNK_SIZE
             self.current_chunk = 0
+            self.chunk_size = CHUNK_SIZE
         else:
             self.total_chunks = 0
             self.current_chunk = 0
@@ -40,6 +41,15 @@ class ChunkState:
         start = self.current_chunk * self.chunk_size
         end = min(start + self.chunk_size, self.prompt_length)
         return (start, end)
+
+    def get_tokens_processed(self) -> int:
+        """Number of prompt tokens covered by chunks that have already finished."""
+        return self.get_range()[0]
+
+    def get_chunk_length(self) -> int:
+        """Number of prompt tokens covered by the chunk currently being processed."""
+        start, end = self.get_range()
+        return end - start
 
     def advance(self):
         self.current_chunk += 1

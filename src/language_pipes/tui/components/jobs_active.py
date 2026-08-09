@@ -3,7 +3,6 @@ from typing import Callable, List
 from ansinout import PressedKey
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.tui.util.text import make_footer_text, make_window_text
-from language_pipes.util.utils import CHUNK_SIZE
 
 class JobsActive:
     provider: ContentProvider
@@ -45,20 +44,20 @@ class JobsActive:
                 f"Job ID:        {job.job_id[:8]}",
                 f"Pipe ID:       {job.pipe_id[:8]}",
                 f"Last active:   {job.last_update:.0f} seconds ago",
-                f"Decode Token:  {job.current_token}" if not job.chunking.is_active() else f"Prefill Token: {job.chunking.current_chunk * CHUNK_SIZE} of {job.chunking.total_chunks * CHUNK_SIZE}"
+                f"Decode Token:  {job.current_token}" if not job.chunking.is_active() else f"Prefill Token: {job.chunking.get_tokens_processed()} of {job.chunking.prompt_length}"
             ]
 
-            prefill_speed = job.timing_stats.prefill_times.get_avg_total_time()
+            prefill_speed = job.timing_stats.prefill_times.get_tokens_per_second()
             if prefill_speed > 0:
-                entry.extend(["", f"Prefill speed: {(1.0 / (prefill_speed / 1000.0)) * CHUNK_SIZE:.2f} Tok/s", ""])
+                entry.extend(["", f"Prefill speed: {prefill_speed:.2f} Tok/s", ""])
 
-            decode_speed = job.timing_stats.output_times.get_avg_total_time()
+            decode_speed = job.timing_stats.output_times.get_tokens_per_second()
             if not job.chunking.is_active() and decode_speed > 0:
                 entry.extend([
                     "Decoding:",
-                    f"Embed time: {job.timing_stats.prefill_times.get_avg_embed_time():.2f} ms",
-                    f"Per layer time: {job.timing_stats.prefill_times.get_avg_layer_time():.2f} ms",
-                    f"Decode speed: {(1.0 / (decode_speed / 1000.0)):.2f} Tok/s"
+                    f"Embed time: {job.timing_stats.output_times.get_avg_embed_time():.2f} ms",
+                    f"Per layer time: {job.timing_stats.output_times.get_avg_layer_time():.2f} ms",
+                    f"Decode speed: {decode_speed:.2f} Tok/s"
                 ])
 
             entries.append(entry)

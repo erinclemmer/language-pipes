@@ -137,12 +137,16 @@ class JobProcessor:
             return JobState.DONE
 
         # Log prefill completion when transitioning from prefill to decode
-        if job.current_token == 0:
+        is_prefill = job.current_token == 0
+        prefill_chunk_tokens = 0
+        if is_prefill:
             if job.chunking.has_more():
                 return JobState.DONE
 
+            # Capture the final chunk's length before disable() clears chunk state
+            prefill_chunk_tokens = job.chunking.get_chunk_length()
             job.chunking.disable()
-        
+
         job.compute_step = ComputeStep.NORM
         job.current_layer = 0
 
@@ -150,7 +154,12 @@ class JobProcessor:
         end_model.compute_norm(job)
         end_model.compute_head(job)
         job.timing_stats.set_send_time()
-        job.timing_stats.finalize_token()
+        # The pass that produces the first token is still prefill work, so it
+        # belongs to the prefill stats rather than the decode averages
+        if is_prefill:
+            job.timing_stats.finalize_prefill_chunk(prefill_chunk_tokens)
+        else:
+            job.timing_stats.finalize_token()
 
         # Job completed
         if job.status == JobStatus.COMPLETED:
@@ -182,8 +191,9 @@ class JobProcessor:
             end_model.tokenize(job)
             job.init_chunking()
         elif job.chunking.is_active():
+            chunk_tokens = job.chunking.get_chunk_length()
             job.chunking.advance()
-            job.timing_stats.finalize_prefill_chunk()
+            job.timing_stats.finalize_prefill_chunk(chunk_tokens)
             job.delta = ""
             if not job.send_update():
                 job.stale = True
