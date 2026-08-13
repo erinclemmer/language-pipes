@@ -7,6 +7,13 @@ from language_pipes.tui.frame.tips import TIPS
 from language_pipes.tui.util.text import make_footer_text, make_selectable_text
 
 
+PORT_IDX = 0
+MAX_NODE_JOBS_IDX = 1
+MAX_API_JOBS_IDX = 2
+MAX_NODE_MEMORY_IDX =3
+API_KEYS_IDX = 4
+SAVE_IDX = 5
+
 class TopPageState(PageState):
     focus_idx: int
     server_running: bool
@@ -16,6 +23,8 @@ class TopPageState(PageState):
     edit_max_node_jobs: str | None
     max_api_jobs: int | None
     edit_max_api_jobs: str | None
+    max_node_memory: float | None
+    edit_max_node_memory: str | None
 
     def __init__(self):
         super().__init__('top')
@@ -27,9 +36,11 @@ class TopPageState(PageState):
         self.edit_max_node_jobs = None
         self.max_api_jobs = None
         self.edit_max_api_jobs = None
+        self.max_node_memory = None
+        self.edit_max_node_memory = None
 
     def on_change(self, args: dict):
-        self.focus_idx = 0
+        self.focus_idx = PORT_IDX
 
     def on_key(self, key: PressedKey, ch: str):
         if key == PressedKey.ArrowUp:
@@ -46,24 +57,31 @@ class TopPageState(PageState):
             self._on_backspace()
 
     def _on_char(self, ch: str):
-        if self.focus_idx == 0:
+        if self.focus_idx == PORT_IDX:
             self.edit_job_port = self._port_str() + ch
-        elif self.focus_idx == 1:
+        elif self.focus_idx == MAX_NODE_JOBS_IDX:
             self.edit_max_node_jobs = self._max_node_jobs_str() + ch
             self._save_max_node_jobs()
-        elif self.focus_idx == 2:
+        elif self.focus_idx == MAX_API_JOBS_IDX:
             self.edit_max_api_jobs = self._max_api_jobs_str() + ch
             self._save_max_api_jobs()
+        elif self.focus_idx == MAX_NODE_MEMORY_IDX:
+            self.edit_max_node_memory = self.edit_max_node_memory + ch if self.edit_max_node_memory is not None else ch
+            self._save_max_node_memory()
 
     def _on_backspace(self):
-        if self.focus_idx == 0:
+        if self.focus_idx == PORT_IDX:
             self.edit_job_port = self._port_str()[:-1]
-        elif self.focus_idx == 1:
+        elif self.focus_idx == MAX_API_JOBS_IDX:
             self.edit_max_node_jobs = self._max_node_jobs_str()[:-1]
             self._save_max_node_jobs()
-        elif self.focus_idx == 2:
+        elif self.focus_idx == MAX_API_JOBS_IDX:
             self.edit_max_api_jobs = self._max_api_jobs_str()[:-1]
             self._save_max_api_jobs()
+        elif self.focus_idx == MAX_NODE_MEMORY_IDX and self.edit_max_node_memory is not None:
+            self.edit_max_node_memory = self.edit_max_node_memory[:-1]
+            if len(self.edit_max_node_memory) == 0:
+                self.edit_max_node_memory = None
 
     def _save_max_node_jobs(self):
         if self._valid_max_node_jobs():
@@ -74,6 +92,11 @@ class TopPageState(PageState):
         if self._valid_max_api_jobs():
             self.max_api_jobs = int(self.edit_max_api_jobs) # pyright: ignore[reportArgumentType]
             self.provider.job_provider.set_max_api_jobs(self.max_api_jobs)
+
+    def _save_max_node_memory(self):
+        if self._valid_max_node_memory():
+            self.max_node_memory = float(self.max_node_memory) if self.max_node_memory is not None else None
+            self.provider.job_provider.set_max_node_memory(self.max_node_memory)
 
     def _on_escape(self):
         self.exit_page()
@@ -86,29 +109,31 @@ class TopPageState(PageState):
             self.provider.job_provider.stop_oai_server()
             return
 
-        if self.focus_idx == 0:
-            self.focus_idx = 1
-        elif self.focus_idx == 1:
-            self.focus_idx = 2
-        elif self.focus_idx == 2:
-            self.focus_idx = 3
-        elif self.focus_idx == 3:
+        if self.focus_idx == PORT_IDX:
+            self.focus_idx = MAX_NODE_JOBS_IDX
+        elif self.focus_idx == MAX_NODE_JOBS_IDX:
+            self.focus_idx = MAX_API_JOBS_IDX
+        elif self.focus_idx == MAX_API_JOBS_IDX:
+            self.focus_idx = MAX_NODE_MEMORY_IDX
+        elif self.focus_idx == MAX_NODE_MEMORY_IDX:
+            self.focus_idx = API_KEYS_IDX
+        elif self.focus_idx == API_KEYS_IDX:
             self.change_state('keys', { })
-        elif self.focus_idx == 4:
+        elif self.focus_idx == SAVE_IDX:
             self._save_and_run()
 
     def _on_prev(self):
         if not self.server_running:
             self.focus_idx -= 1
             if self.focus_idx < 0:
-                self.focus_idx = 4 if self.can_start_server() else 3
+                self.focus_idx = SAVE_IDX if self.can_start_server() else API_KEYS_IDX
 
     def _on_next(self):
         if not self.server_running:
             self.focus_idx += 1
-            max_idx = 4 if self.can_start_server() else 3
+            max_idx = SAVE_IDX if self.can_start_server() else API_KEYS_IDX
             if self.focus_idx > max_idx:
-                self.focus_idx = 0
+                self.focus_idx = PORT_IDX
 
     def _save_and_run(self):
         if not self.validate_job_port():
@@ -119,13 +144,14 @@ class TopPageState(PageState):
         self.provider.job_provider.start_oai_server()
 
     def get_view(self) -> list[str]:
-        port_cursor = "|" if self.focus_idx == 0 else ""
+        port_cursor = "|" if self.focus_idx == PORT_IDX else ""
         self.server_running = self.provider.job_provider.oai_server_running()
         port_str = self._port_str()
         port_string = f"   Port: {port_str}{port_cursor}" if not self.server_running else f"   Running Server on port {port_str}"
 
-        node_jobs_cursor = "|" if self.focus_idx == 1 else ""
-        api_jobs_cursor = "|" if self.focus_idx == 2 else ""
+        node_jobs_cursor = "|" if self.focus_idx == MAX_NODE_JOBS_IDX else ""
+        api_jobs_cursor = "|" if self.focus_idx == MAX_API_JOBS_IDX else ""
+        node_memory_cursor = "|" if self.focus_idx == MAX_NODE_MEMORY_IDX else ""
 
         lines = [
             "Jobs Server:", "",
@@ -143,8 +169,12 @@ class TopPageState(PageState):
         if not self._valid_max_api_jobs():
             lines.append("   Error: Invalid max api jobs value")
 
+        lines.append(f"   Max Node Memory: {self._max_node_memory_str()}{node_memory_cursor} GB")
+        if not self._valid_max_node_memory():
+            lines.append("   Error: Invalid max node memory value")
+
         api_keys = self.provider.job_provider.get_api_keys()
-        lines.append(make_selectable_text(f"{len(api_keys)} api key(s)", self.focus_idx == 3))
+        lines.append(make_selectable_text(f"{len(api_keys)} api key(s)", self.focus_idx == API_KEYS_IDX))
         if len(api_keys) == 0:
             lines.extend(["   INFO: No API keys set, authentication not required", ""])
 
@@ -155,7 +185,7 @@ class TopPageState(PageState):
             lines.extend(["   INFO: Stop server to edit port, job limits, and API Keys", ""])
 
         if self.can_start_server():
-            lines.append(make_selectable_text("Save and Start Server", self.focus_idx == 4))
+            lines.append(make_selectable_text("Save and Start Server", self.focus_idx == SAVE_IDX))
         elif not self.server_running and not ContentProvider.is_port_available(self._current_port()):
             lines.append(f"   Warning: Can't start server, port {self._current_port()} is not available")
 
@@ -168,13 +198,15 @@ class TopPageState(PageState):
 
     def _get_tip_lines(self) -> list[str]:
         tip_key = None
-        if self.focus_idx == 0:
+        if self.focus_idx == PORT_IDX:
             tip_key = "port"
-        elif self.focus_idx == 1:
+        elif self.focus_idx == MAX_NODE_JOBS_IDX:
             tip_key = "max_node_jobs"
-        elif self.focus_idx == 2:
+        elif self.focus_idx == MAX_API_JOBS_IDX:
             tip_key = "max_api_jobs"
-        elif self.focus_idx == 3:
+        elif self.focus_idx == MAX_NODE_MEMORY_IDX:
+            tip_key = "max_node_memory"
+        elif self.focus_idx == API_KEYS_IDX:
             tip_key = "api_keys"
 
         if tip_key is not None:
@@ -220,10 +252,21 @@ class TopPageState(PageState):
             self.max_node_jobs = self.provider.job_provider.get_max_node_jobs()
         return self.max_node_jobs
 
+    def _get_max_node_memory(self) -> float | None:
+        if self.max_node_memory is None:
+            self.max_node_memory = self.provider.job_provider.get_max_node_memory()
+        return self.max_node_memory
+
     def _max_node_jobs_str(self) -> str:
         if self.edit_max_node_jobs is None:
             self.edit_max_node_jobs = str(self._get_max_node_jobs())
         return self.edit_max_node_jobs
+
+    def _max_node_memory_str(self) -> str:
+        if self.edit_max_node_memory is None:
+            mnm = self._get_max_node_memory()
+            self.edit_max_node_memory = str(mnm) if mnm is not None else None
+        return self.edit_max_node_memory if self.edit_max_node_memory is not None else ""
 
     def _valid_max_node_jobs(self) -> bool:
         try:
@@ -247,6 +290,14 @@ class TopPageState(PageState):
         except ValueError:
             return False
 
+    def _valid_max_node_memory(self) -> bool:
+        if self.edit_max_node_memory is None:
+            return True
+        try:
+            return float(self.edit_max_node_memory) > 0
+        except Exception:
+            return False
+    
     def _network_running(self) -> bool:
         network_status = self.provider.network_provider.get_network_status()
         return network_status is not None and network_status.running

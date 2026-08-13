@@ -87,9 +87,18 @@ class JobProvider:
         cfg = LpConfig.from_file(self.config_file)
         return cfg.max_api_jobs
 
+    def get_max_node_memory(self) -> float | None:
+        cfg = LpConfig.from_file(self.config_file)
+        return cfg.max_node_memory
+
     def set_max_api_jobs(self, value: int):
         cfg = LpConfig.from_file(self.config_file)
         cfg.max_api_jobs = value
+        cfg.save()
+
+    def set_max_node_memory(self, value: float | None):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.max_node_memory = value
         cfg.save()
 
     def get_api_keys(self) -> List[str]:

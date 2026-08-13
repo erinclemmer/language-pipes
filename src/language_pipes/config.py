@@ -2,7 +2,7 @@ import os
 import logging
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import toml
 import torch
@@ -17,7 +17,7 @@ DEFAULT_END_MODEL_DEVICE = "cpu"
 DEFAULT_MAX_NODE_JOBS = 10
 DEFAULT_MAX_API_JOBS = 5
 
-def _deprecated_env_num_local_layers() -> Optional[int]:
+def _deprecated_env_num_local_layers() -> int | None:
     raw = os.environ.get("LP_NUM_LOCAL_LAYERS")
     if raw is None:
         return None
@@ -30,7 +30,7 @@ def _deprecated_env_num_local_layers() -> Optional[int]:
     except (TypeError, ValueError):
         return None
 
-def _deprecated_env_max_node_jobs() -> Optional[int]:
+def _deprecated_env_max_node_jobs() -> int | None:
     raw = os.environ.get("LP_MAX_NODE_JOBS")
     if raw is None:
         return None
@@ -43,7 +43,7 @@ def _deprecated_env_max_node_jobs() -> Optional[int]:
     except (TypeError, ValueError):
         return None
 
-def _deprecated_env_max_api_jobs() -> Optional[int]:
+def _deprecated_env_max_api_jobs() -> int | None:
     raw = os.environ.get("LP_MAX_API_JOBS")
     if raw is None:
         return None
@@ -104,8 +104,8 @@ class EndModelConfig:
         )
 
 def _serialize_end_models(
-    end_models: List["EndModelConfig"],
-) -> Union[List[str], List[Dict[str, Any]]]:
+    end_models: list["EndModelConfig"],
+) -> Union[list[str], list[Dict[str, Any]]]:
     """Serialize end models to a TOML-friendly, homogeneous list.
 
     TOML arrays cannot mix scalars and tables, so the whole list is written in
@@ -148,16 +148,17 @@ class ModelToLoad:
         )
 
 class LpConfig:
-    job_port: Optional[int]
-    api_keys: List[str]
-    layer_models: List[ModelToLoad]
-    end_models: List[EndModelConfig]
+    job_port: int | None
+    api_keys: list[str]
+    layer_models: list[ModelToLoad]
+    end_models: list[EndModelConfig]
     max_node_jobs: int
     max_api_jobs: int
+    max_node_memory: float | None
 
     network_config: DSNodeConfig
 
-    _file_path: Optional[Path]
+    _file_path: Path | None
 
     def __init__(self):
         self.job_port = None
@@ -166,6 +167,7 @@ class LpConfig:
         self.end_models = []
         self.max_node_jobs = _default_max_node_jobs()
         self.max_api_jobs = _default_max_api_jobs()
+        self.max_node_memory = None
         self._file_path = None
         self.network_config = DSNodeConfig.from_dict({ })
 
@@ -181,6 +183,7 @@ class LpConfig:
             "max_api_jobs": self.max_api_jobs,
             "node_id": self.network_config.node_id,
             "peer_port": self.network_config.port,
+            "max_node_memory": self.max_node_memory,
             "network_ip": self.network_config.network_ip,
             "network_key": self.network_config.aes_key,
             "whitelist_node_ids": self.network_config.whitelist_node_ids,
@@ -204,6 +207,7 @@ class LpConfig:
             f"Job Port: {self.job_port if self.job_port is not None else 'Disabled'}",
             f"Max Node Jobs: {self.max_node_jobs}",
             f"Max API Jobs: {self.max_api_jobs}",
+            f"Max Node Memory: {self.max_node_memory}"
         ]
 
         lines.append("API Keys:")
@@ -254,6 +258,7 @@ class LpConfig:
         cfg.end_models = [EndModelConfig.from_config(o) for o in data.get("end_models", [])]
         cfg.max_node_jobs = data.get("max_node_jobs", cfg.max_node_jobs)
         cfg.max_api_jobs = data.get("max_api_jobs", cfg.max_api_jobs)
+        cfg.max_node_memory = data.get("max_node_memory", cfg.max_node_memory)
         cfg.network_config = DSNodeConfig.from_dict({
             "credential_dir": str(get_app_dir() / "credentials"),
             "logging_dir": str(get_app_dir() / "logs"),
