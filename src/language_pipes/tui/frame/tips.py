@@ -27,7 +27,8 @@ TIPS = {
         "port": "Port: The network port the OpenAI-compatible server listens on.\nClients send inference requests to this port.",
         "max_node_jobs": "Max Node Jobs: The maximum number of jobs this node will process\nconcurrently per node on the network.",
         "max_api_jobs": "Max API Jobs: The maximum number of inference requests the server\nwill handle concurrently per API key.If no API keys are set\nthis is a global limit.",
-        "max_node_memory": "Max Node Memory: The maximum amount of memory to deticate to the\nKV cache over all jobs for each node. If left empty there is no limit.\nIf no api keys are set it is the limit for all jobs combined",
+        "max_node_memory": "Max Node Memory: The maximum amount of memory to deticate to the\nKV cache over all jobs for each node. There is no limit if this is empty.\nIf no api keys are set it is the limit for all jobs combined.",
+        "max_cache_time": "Max Cache Time: The maximum amount of time to hold a job's KV cache\nin minutes after the job is completed. Turns cache retention off completely\nif this is left empty.",
         "api_keys": "API Keys: Keys that clients must provide to authenticate with the\nserver. Leave the list empty to allow unauthenticated access."
     }
 }

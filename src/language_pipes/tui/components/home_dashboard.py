@@ -48,7 +48,7 @@ class Dashboard:
         return len(self._get_options())
 
     def _has_active_model(self) -> bool:
-        for key in self.models_status.keys():
+        for key in self.models_status:
             for status in self.models_status[key]:
                 if status.status == ModelStatus.Running:
                     return True
@@ -196,7 +196,7 @@ class Dashboard:
         return f"{state_label}{peer_text}{encryption_text}{warning_text}"
 
     def _models_are_starting(self) -> bool:
-        for key in self.models_status.keys():
+        for key in self.models_status:
             pipe = self.models_status[key]
             for model in pipe:
                 if model.status == ModelStatus.Starting:
