@@ -2,7 +2,7 @@ import os
 import logging
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Union
 
 import toml
 import torch
@@ -56,11 +56,11 @@ def _deprecated_env_max_api_jobs() -> int | None:
     except (TypeError, ValueError):
         return None
 
-def _default_max_node_jobs() -> int:
+def default_max_node_jobs() -> int:
     env_value = _deprecated_env_max_node_jobs()
     return env_value if env_value is not None else DEFAULT_MAX_NODE_JOBS
 
-def _default_max_api_jobs() -> int:
+def default_max_api_jobs() -> int:
     env_value = _deprecated_env_max_api_jobs()
     return env_value if env_value is not None else DEFAULT_MAX_API_JOBS
 
@@ -152,9 +152,10 @@ class LpConfig:
     api_keys: list[str]
     layer_models: list[ModelToLoad]
     end_models: list[EndModelConfig]
-    max_node_jobs: int
-    max_api_jobs: int
+    max_node_jobs: int | None
+    max_api_jobs: int | None
     max_node_memory: float | None
+    max_cache_time: int | None
 
     network_config: DSNodeConfig
 
@@ -165,9 +166,10 @@ class LpConfig:
         self.api_keys = []
         self.layer_models = []
         self.end_models = []
-        self.max_node_jobs = _default_max_node_jobs()
-        self.max_api_jobs = _default_max_api_jobs()
+        self.max_node_jobs = None
+        self.max_api_jobs = None
         self.max_node_memory = None
+        self.max_cache_time = None
         self._file_path = None
         self.network_config = DSNodeConfig.from_dict({ })
 
@@ -183,7 +185,6 @@ class LpConfig:
             "max_api_jobs": self.max_api_jobs,
             "node_id": self.network_config.node_id,
             "peer_port": self.network_config.port,
-            "max_node_memory": self.max_node_memory,
             "network_ip": self.network_config.network_ip,
             "network_key": self.network_config.aes_key,
             "whitelist_node_ids": self.network_config.whitelist_node_ids,
@@ -192,8 +193,17 @@ class LpConfig:
                 "port": o.port
             } for o in self.network_config.bootstrap_nodes]
         }
+
         if self.job_port is not None:
             data["job_port"] = self.job_port
+        if self.max_api_jobs is not None:
+            data["max_api_jobs"] = self.max_api_jobs
+        if self.max_node_jobs is not None:
+            data["max_node_jobs"] = self.max_node_jobs
+        if self.max_node_memory is not None:
+            data["max_node_memory"] = self.max_node_memory
+        if self.max_cache_time is not None:
+            data["max_cache_time"] = self.max_cache_time
 
         with open(self._file_path, 'w', encoding='utf-8') as f:
             toml.dump(data, f)
@@ -252,13 +262,14 @@ class LpConfig:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = toml.load(f)
 
-        cfg.job_port = data.get("job_port")
+        cfg.job_port = data.get("job_port", None)
         cfg.api_keys = data.get("api_keys", [])
         cfg.layer_models = [ModelToLoad.from_dict(o) for o in data.get("layer_models", [])]
         cfg.end_models = [EndModelConfig.from_config(o) for o in data.get("end_models", [])]
-        cfg.max_node_jobs = data.get("max_node_jobs", cfg.max_node_jobs)
-        cfg.max_api_jobs = data.get("max_api_jobs", cfg.max_api_jobs)
-        cfg.max_node_memory = data.get("max_node_memory", cfg.max_node_memory)
+        cfg.max_node_jobs = data.get("max_node_jobs", None)
+        cfg.max_api_jobs = data.get("max_api_jobs", None)
+        cfg.max_node_memory = data.get("max_node_memory", None)
+        cfg.max_cache_time = data.get("max_cache_time", None)
         cfg.network_config = DSNodeConfig.from_dict({
             "credential_dir": str(get_app_dir() / "credentials"),
             "logging_dir": str(get_app_dir() / "logs"),

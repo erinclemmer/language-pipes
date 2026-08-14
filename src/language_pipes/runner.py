@@ -29,7 +29,8 @@ class LpRunner:
         while self.provider.network_provider.router_starting:
             sleep(0.1)
 
-        self.provider.job_provider.start_oai_server(config)
+        if config.job_port is not None:
+            self.provider.job_provider.start_oai_server(config)
 
         for model in config.layer_models:
             self.provider.model_provider.load_layer_model(model)

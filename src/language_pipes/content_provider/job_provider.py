@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional
 
 import torch
-
 from language_pipes.config import LpConfig
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_progress import JobProgress
@@ -18,6 +17,7 @@ from language_pipes.oai_server import OAIHttpServer
 from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.util.utils import stop_thread
+from language_pipes.content_provider.job_provider import DEFAULT_JOB_PORT
 
 DEFAULT_JOB_PORT = 8000
 
@@ -65,25 +65,15 @@ class JobProvider:
         self.oai_server = None
         self.oai_thread = None
 
-    def get_job_port(self) -> Optional[int]:
+    def get_job_port(self) -> int | None:
         cfg = LpConfig.from_file(self.config_file)
         return cfg.job_port
-
-    def set_job_port(self, port: Optional[int]):
-        cfg = LpConfig.from_file(self.config_file)
-        cfg.job_port = port
-        cfg.save()
         
-    def get_max_node_jobs(self) -> int:
+    def get_max_node_jobs(self) -> int | None:
         cfg = LpConfig.from_file(self.config_file)
         return cfg.max_node_jobs
 
-    def set_max_node_jobs(self, value: int):
-        cfg = LpConfig.from_file(self.config_file)
-        cfg.max_node_jobs = value
-        cfg.save()
-
-    def get_max_api_jobs(self) -> int:
+    def get_max_api_jobs(self) -> int | None:
         cfg = LpConfig.from_file(self.config_file)
         return cfg.max_api_jobs
 
@@ -91,7 +81,21 @@ class JobProvider:
         cfg = LpConfig.from_file(self.config_file)
         return cfg.max_node_memory
 
-    def set_max_api_jobs(self, value: int):
+    def get_max_cache_time(self) -> int | None:
+        cfg = LpConfig.from_file(self.config_file)
+        return cfg.max_cache_time
+
+    def set_job_port(self, port: int | None):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.job_port = port
+        cfg.save()
+
+    def set_max_node_jobs(self, value: int | None):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.max_node_jobs = value
+        cfg.save()
+
+    def set_max_api_jobs(self, value: int | None):
         cfg = LpConfig.from_file(self.config_file)
         cfg.max_api_jobs = value
         cfg.save()
@@ -99,6 +103,11 @@ class JobProvider:
     def set_max_node_memory(self, value: float | None):
         cfg = LpConfig.from_file(self.config_file)
         cfg.max_node_memory = value
+        cfg.save()
+
+    def set_max_cache_time(self, value: int | None):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.max_cache_time = value
         cfg.save()
 
     def get_api_keys(self) -> List[str]:
@@ -136,7 +145,7 @@ class JobProvider:
             cfg = LpConfig.from_file(self.config_file)
 
         if cfg.job_port is None:
-            return
+            cfg.job_port = DEFAULT_JOB_PORT
 
         self.oai_server = OAIHttpServer(
             api_keys=cfg.api_keys,

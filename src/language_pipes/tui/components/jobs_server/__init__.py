@@ -19,7 +19,7 @@ class JobsServer(Page):
     ):
         super().__init__(
             [
-                TopPageState(),
+                TopPageState(provider),
                 KeysPageState(),
                 AddKeyTypePageState(),
                 KeyGenPageState(),
