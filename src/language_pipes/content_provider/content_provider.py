@@ -5,6 +5,7 @@ import psutil
 import torch
 from typing import Callable, List, Optional, Dict
 
+from language_pipes.config import LpConfig
 from language_pipes.request_for_model.rfm import RequestForModelHandler
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import CANCEL_PROTOCOL, JobReceiver
@@ -120,7 +121,7 @@ class ContentProvider:
                 model_manager=self.model_manager,
                 pipe_manager=self.pipe_manager,
                 is_shutdown=self.router_pipes.router.is_shut_down,
-                get_max_node_jobs=self.job_provider.get_max_node_jobs
+                get_config=lambda: LpConfig.from_file(self.config_file)
             )
             self.model_manager.set_job_hooks(
                 self.job_receiver.cancel_pipe_jobs,

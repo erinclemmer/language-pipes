@@ -3,6 +3,7 @@ import logging
 from promise import Promise
 from typing import List, Optional, Callable
 
+from language_pipes.config import default_max_api_jobs
 from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage
 from language_pipes.jobs.job_tracker import JobTracker
@@ -11,13 +12,13 @@ from language_pipes.pipes.pipe_manager import PipeManager
 class JobFactory:
     job_tracker: JobTracker
     pipe_manager: PipeManager
-    get_max_api_jobs: Callable[[], int]
+    get_max_api_jobs: Callable[[], int | None]
 
     def __init__(
         self,
         job_tracker: JobTracker,
         pipe_manager: PipeManager,
-        get_max_api_jobs: Callable[[], int]
+        get_max_api_jobs: Callable[[], int | None]
     ):
         self.job_tracker = job_tracker
         self.pipe_manager = pipe_manager
@@ -51,7 +52,10 @@ class JobFactory:
                 resolve('NO_PIPE') # pyright: ignore[reportCallIssue]
             return
 
-        if api_key in self.job_tracker.jobs_pending and len(self.job_tracker.jobs_pending[api_key]) > self.get_max_api_jobs():
+        max_api_jobs = self.get_max_api_jobs()
+        if max_api_jobs is None:
+            max_api_jobs = default_max_api_jobs()
+        if api_key in self.job_tracker.jobs_pending and len(self.job_tracker.jobs_pending[api_key]) > max_api_jobs:
             if resolve is not None:
                 resolve('MAX_JOBS') # pyright: ignore[reportCallIssue]
             return

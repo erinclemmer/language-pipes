@@ -64,7 +64,7 @@ class JobTracker:
             sleep(CHECK_JOB_INTERVAL)
 
     def get_job(self, job_id: str) -> Optional[Job]:
-        for key in self.jobs_pending.keys():
+        for key in self.jobs_pending:
             for j in self.jobs_pending[key]:
                 if j.job_id == job_id:
                     return j
@@ -72,7 +72,7 @@ class JobTracker:
 
     def get_jobs(self) -> List[Job]:
         jobs = []
-        for key in list(self.jobs_pending.keys()):
+        for key in self.jobs_pending:
             jobs.extend(self.jobs_pending[key])
         return jobs
 

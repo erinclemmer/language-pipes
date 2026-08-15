@@ -5,6 +5,7 @@ from time import sleep
 from threading import Thread
 from typing import Callable, Dict, Optional, List
 
+from language_pipes.config import LpConfig, default_max_node_jobs
 from language_pipes.pipes.pipe_manager import PipeManager
 
 from language_pipes.jobs.job import ComputeStep, Job
@@ -26,7 +27,7 @@ class JobReceiver:
     model_manager: ModelManager
     shutdown: bool
     is_shutdown: Callable[[], bool]
-    get_max_node_jobs: Callable[[], int]
+    get_config: Callable[[], LpConfig]
 
     def __init__(
             self,
@@ -35,7 +36,7 @@ class JobReceiver:
             pipe_manager: PipeManager,
             model_manager: ModelManager,
             is_shutdown: Callable[[], bool],
-            get_max_node_jobs: Callable[[], int]
+            get_config: Callable[[], LpConfig]
     ):
         self.job_queue = { }
         self.queue_lock = threading.Lock()
@@ -45,7 +46,7 @@ class JobReceiver:
         self.model_manager = model_manager
         self.pipe_manager = pipe_manager
         self.is_shutdown = is_shutdown
-        self.get_max_node_jobs = get_max_node_jobs
+        self.get_config = get_config
         self.shutdown = False
         
         Thread(target=self._job_runner_loop, args=()).start()
@@ -193,25 +194,48 @@ class JobReceiver:
             return
         pipe.send_job(network_job, network_job.origin_node_id)
 
+    def _get_node_ram_usage(self, node_id: str) -> float:
+        if node_id not in self.job_tracker.jobs_pending:
+            return 0
+        node_jobs = self.job_tracker.jobs_pending[node_id]
+        return sum([j.get_job_ram() for j in node_jobs])
+
     def receive_data(self, node_id: str, data: bytes):
         """Receive and validate incoming job data."""
         try:
-            job, valid = NetworkJob.from_bytes(data)
+            network_job, valid = NetworkJob.from_bytes(data)
         except Exception:
             return
         if not valid:
-            self.restart_token(job)
+            self.restart_token(network_job)
             return
         
         # Ignore duplicate jobs
         if node_id in self.job_queue:
             for j in self.job_queue[node_id]:
-                if j.job_id == job.job_id:
+                if j.job_id == network_job.job_id:
                     return
 
         with self.queue_lock:
             if node_id not in self.job_queue:
                 self.job_queue[node_id] = [ ]
-            if len(self.job_queue[node_id]) > self.get_max_node_jobs():
+            config = self.get_config()
+            max_node_jobs = config.max_node_jobs if config.max_node_jobs is not None else default_max_node_jobs()
+            if len(self.job_queue[node_id]) > max_node_jobs:
                 raise Exception("Maximum number of jobs for node reached")
-            self.job_queue[node_id].insert(0, job)
+
+            max_node_ram = config.max_node_memory
+            local_job = self.job_tracker.get_job(network_job.job_id)
+            if max_node_ram is not None and local_job is not None:
+                should_check = False
+                if local_job.chunking.is_active():
+                    should_check = local_job.chunking.current_chunk % 4 == 0        
+                else:
+                    should_check = local_job.current_token % 10 == 0
+                
+                if should_check:
+                    node_total_ram = self._get_node_ram_usage(node_id)
+                    if node_total_ram > max_node_ram:
+                        raise Exception(f"Total RAM for {node_id} exceeds maximum of {max_node_ram}")
+
+            self.job_queue[node_id].insert(0, network_job)
