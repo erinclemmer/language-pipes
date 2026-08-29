@@ -480,37 +480,148 @@ Points worth being explicit about:
 
 ---
 
-## 5. Wire protocol changes
+## 5. The cache protocol
 
-`NetworkJob` (`src/language_pipes/jobs/network_job.py`) gains five fields, appended
-at the end of the serialization:
+Everything in §4 assumes the origin can get one fact it cannot compute locally:
+**does every other node on the pipe still hold its slice of this prefix?** The origin
+only sees its own store. That question, and the recovery when the answer is no, is
+what the protocol is for.
+
+It is deliberately small: five tag fields riding on the packet that already flows
+through every node, plus one back-channel packet for the answers that have nowhere
+to ride.
+
+### 5.1 Tags on `NetworkJob`
+
+`src/language_pipes/jobs/network_job.py` gains seven fields, appended at the end of
+the serialization:
 
 ```
-cache_use_id         bytes   (b'' when unused)
-cache_use_tokens     int
-cache_write_id       bytes   (b'' when unused)
-cache_write_tokens   int
-cache_reserve_tokens int     (the job's budget estimate; 0 when caching is off)
+attempt                int     bumped when the origin restarts this job_id
+cache_use_id           bytes   prefix the receiver should adopt (b'' = none)
+cache_use_tokens       int     how many tokens that prefix covers
+cache_tokens_expected  int     tokens the sender believes the receiver's cache holds
+cache_write_id         bytes   snapshot this pass under this id (b'' = don't)
+cache_write_tokens     int     token count that snapshot covers
+cache_reserve_tokens   int     the job's budget estimate (0 = caching off)
 ```
 
-Appending is backward compatible: `ByteHelper.read_bytes` at EOF reads a zero
-length and returns `b''`, and `read_int` returns `0`, which is exactly how the
-existing `completed` / `progress` fields already handle older peers. A node
-running an older build ignores the tags: it will never store an entry, so the
-origin's next attempt to reuse one simply misses.
+These are enough for the **write** path on their own. The origin knows where the
+boundaries are; the nodes do not (they never see tokens), so the boundary has to be
+told to them — but it can ride the packet that already visits every node in the pass.
+Each node stores after computing, exactly once, with no agreement needed between
+them. There is no "write protocol" because the packet *is* the coordination.
 
-New protocol number `CACHE_PROTOCOL = 3`, dispatched in
-`ContentProvider._receive_data` (`src/language_pipes/content_provider/content_provider.py:150`)
-alongside the existing `0` (job), `1` (RFM), `2` (cancel). One small packet type
-modeled on `JobCancel`, carrying a reason:
+The **read** path is a tag too (`cache_use_id`), and on a hit that is the whole
+story: every node adopts and the job proceeds with no extra messages.
 
-- `CacheStatus(job_id, pipe_id, MISS)` — node → origin: "I could not adopt the
-  prefix." Origin aborts and restarts with reuse disabled.
-- `CacheStatus(job_id, pipe_id, NO_STORE)` — node → origin: "the prefix is fine but
-  I have no budget for this job." Origin stops tagging write points; the job runs
-  normally and stores nothing anywhere.
-- `CacheStatus(job_id, pipe_id, ABORT)` — origin → nodes: "drop this job, I am
-  restarting it."
+### 5.2 The `CacheStatus` packet
+
+`CACHE_PROTOCOL = 3`, dispatched in `ContentProvider._receive_data`
+(`src/language_pipes/content_provider/content_provider.py:150`) next to `0` (job),
+`1` (RFM), `2` (cancel). One packet type, modeled on `jobs/job_cancel.py`:
+
+```
+CacheStatus(job_id, pipe_id, attempt, reason)
+reason ∈ { MISS, NO_STORE, ABORT }
+```
+
+| Reason | Direction | Meaning | Origin's response |
+|---|---|---|---|
+| `MISS` | node → origin | "I do not hold `cache_use_id`; I did not compute this pass." | Abort the attempt and restart with reuse off. |
+| `NO_STORE` | node → origin | "I computed fine, but I have no cache budget for this job." | Stop tagging write points for this job. |
+| `ABORT` | origin → nodes | "Drop this job; attempt `n` is dead." | — |
+
+The negatives need their own channel because a job packet only ever flows *forward*
+(to the node hosting the next layers) or, at `HEAD`, back to the origin. A node that
+cannot compute has nothing to forward, and a node that computed fine but cannot store
+has no field in the outgoing packet to say so. `JobReceiver.restart_token` is the one
+existing exception — it bounces a `NetworkJob` back to the origin — and it works
+precisely because the node in question also cannot proceed. `MISS` could be expressed
+that way; it is a separate packet because `NO_STORE` and `ABORT` cannot be, and one
+small packet type is easier to reason about than two mechanisms.
+
+### 5.3 The three exchanges
+
+**Hit (the common case, zero extra messages).**
+
+```
+origin  tokenize → chain → local hit at 3968 → adopt → embed [3968:4000] → local layers
+        └─ send NetworkJob{attempt:0, use_id:h[31], use_tokens:3968, expected:3968, reserve:E}
+node1   add_job: lookup h[31] → hit → adopt → compute → forward (tags carried through)
+node2   same → forward
+origin  HEAD → sample → next pass, untagged unless it lands on a write point
+```
+
+**Miss on one node.**
+
+```
+node2   add_job: lookup h[31] → not held → does NOT compute
+        └─ CacheStatus(job_id, pipe_id, attempt=0, MISS) → origin
+origin  attempt := 1; drop adopted cache; cached_prefix_len := 0; reuse disabled
+        └─ CacheStatus(..., attempt=0, ABORT) → every segment node
+        └─ re-dispatch from EMBED with a fresh cache, past_seen_tokens = 0
+node1   ABORT → remove_job + drop queued packets for the job
+```
+
+`ABORT` matters because node1 **already computed** the first chunk against the
+adopted prefix: its cache holds 4000 tokens while the origin is about to start again
+from 0. Without dropping that job, the next packet arrives with masks and
+`cache_position` describing a 32-token sequence at offset 0 while the local cache has
+4000 entries — a shape mismatch at best, silently wrong attention at worst.
+
+**No budget on one node.**
+
+```
+node2   add_job: reserve(E) fails after eviction → adopt/compute normally
+        └─ CacheStatus(job_id, pipe_id, attempt, NO_STORE) → origin
+origin  clears this job's write points; no node stores anything for it
+```
+
+Without it, nodes 1 and 3 would store a prefix node 2 is missing: memory spent on an
+entry set that is guaranteed to miss, plus a wasted attempt and restart on the next
+request that tries it.
+
+### 5.4 Races, and why `attempt` carries the correctness
+
+Messages between two nodes are reliable (the router is HTTP), but nothing orders
+messages sent over *different* connections. So the origin's `ABORT` to node1 can lose
+the race against its own attempt-1 job packet to node1. If `ABORT` were the only
+mechanism, node1 would apply attempt 1 to the polluted attempt-0 cache.
+
+`attempt` closes that on the data path, which makes it the load-bearing part:
+
+- `Job.attempt` starts at 0 and is bumped by the origin on every restart.
+- `Job.receive_network_job` compares: `network_job.attempt > self.attempt` → discard
+  the local job's cache and rebuild it from scratch before processing;
+  `network_job.attempt < self.attempt` → drop the packet as stale.
+- `CacheStatus` carries the attempt it refers to. `ABORT` for an attempt older than
+  the node's current one is ignored. A `MISS` for an attempt the origin has already
+  restarted is ignored too — otherwise one late miss would abort the retry that was
+  sent because of it, and a job could ping-pong.
+
+With that in place, `ABORT` is an **optimization, not a correctness requirement**: it
+frees the stale caches immediately instead of leaving them until the next packet
+rebuilds them or the 60s stale sweep reaps them.
+
+`cache_tokens_expected` is the same idea applied one level down. The sender states
+how many tokens it believes the receiver's cache holds; a node whose slice contains
+at least one ordinary attention layer can check its own `get_seq_length` against it
+and refuse the pass on a mismatch rather than computing garbage. It costs nothing and
+turns a whole class of silent divergence into a detectable condition — including the
+pre-existing `restart_token` hazard (§4.3), where a re-run pass appends duplicate KV
+on nodes that already computed it. A node hosting only linear-attention layers cannot
+answer that question and falls back to trusting `attempt`.
+
+### 5.5 Backward compatibility
+
+Appending fields is safe: `ByteHelper.read_bytes` at EOF reads a zero length and
+returns `b''`, and `read_int` returns `0` — exactly how the existing `completed` /
+`progress` fields already tolerate older peers. An older node reads `attempt = 0` and
+empty tags, so it never stores and never adopts; the origin's next reuse attempt
+misses, restarts once, and the request succeeds uncached. A newer node receiving an
+old packet sees `attempt = 0`, which matches a job that has never been restarted.
+Mixed-version pipes therefore degrade to today's behavior instead of breaking.
 
 ---
 
@@ -522,7 +633,7 @@ modeled on `JobCancel`, carrying a reason:
 | `jobs/cache_packets.py` *(new)* | `CacheStatus` packet with `MISS` / `NO_STORE` / `ABORT` reasons (mirrors `jobs/job_cancel.py`). |
 | `util/oai_cache.py` *(new)* | Parse `prompt_cache_*` params and breakpoints; build usage details; validation errors. |
 | `util/oai.py` | `ResponsesRequest` / `ChatCompletionRequest` carry a `CacheOptions`; usage blocks gain `input_tokens_details` / `prompt_tokens_details`. |
-| `jobs/job.py` | New fields: `cache_options`, `cache_scope`, `cache_ids`, `cached_prefix_len`, `cache_write_points`, `cache_write_tokens`, `pending_write_id`. `past_seen_tokens()` adds the cached prefix. `to_network_job()` emits the tags. |
+| `jobs/job.py` | New fields: `attempt`, `cache_options`, `cache_scope`, `cache_ids`, `cached_prefix_len`, `cache_write_points`, `cache_write_tokens`, `pending_write_id`. `past_seen_tokens()` adds the cached prefix. `to_network_job()` emits the tags. `receive_network_job()` compares `attempt` and rebuilds or drops. |
 | `util/chunk_state.py` | `init(prompt_length, start_offset=0)` and offset-aware `get_range`. |
 | `jobs/job_factory.py` | `start_job` accepts `cache_options` and stores it on the `Job`. |
 | `jobs/job_processor.py` | `_state_embed`: plan the chain, run admission, adopt a local hit, init chunking with the offset. `_state_process_layers`: honor the write tag after computing. `_state_head`: at completion, tag/store the end-of-response boundary and release the reservation. |
@@ -551,6 +662,9 @@ modeled on `JobCancel`, carrying a reason:
 | One node's budget is full, the rest have room | That node replies `NO_STORE`; the origin stops tagging, so no partial entry set is left behind to force a future restart. |
 | Budget thrash (every job evicts the last one) | Hit rate falls to zero; nothing is incorrect. The TUI's token-usage and eviction counters are what make this diagnosable. |
 | Client cancels mid-generation | Reservation released by `remove_job` / the stale sweep; no budget leak. |
+| `ABORT` overtaken by the retry's job packet | `attempt` on the packet rebuilds the node's cache; the late `ABORT` names an older attempt and is ignored. |
+| `MISS` arrives after the origin already restarted | Ignored — it names a dead attempt, so the retry is not aborted by the miss that caused it. |
+| Node's cache length disagrees with `cache_tokens_expected` | Node refuses the pass instead of computing against a drifted cache. |
 | Client changes one token in the middle of the prompt | Chain diverges at that block; everything before it still hits. |
 
 The invariant that keeps all of this safe: **a node that cannot prove it holds
@@ -622,14 +736,20 @@ Unit (`tests/language_pipes/unit/`):
   offset + a suffix shorter than `CHUNK_SIZE`.
 - `test_job.py` (extend) — `past_seen_tokens` with a cached prefix, during prefill
   and after the first decode step.
-- `test_network_job.py` (extend) — round-trip with tags; and a payload written
-  without them (old peer) still parses with empty tags.
+- `test_network_job.py` (extend) — round-trip with tags; a payload written without
+  them (old peer) still parses with empty tags and `attempt = 0`.
+- `test_job.py` (extend) — `receive_network_job` rebuilds the cache on a higher
+  `attempt`, drops a packet with a lower one, and refuses a pass whose
+  `cache_tokens_expected` disagrees with the local cache length.
 - `test_oai_responses.py` (extend) — parameter parsing and validation errors;
   breakpoint offset mapping including the "not a real prefix" rejection;
   `usage.input_tokens_details` shape in both streaming and non-streaming.
 - `job_processor/` — a hit skips prefill chunks; write tags are emitted at the
   expected boundaries in each mode; a `MISS` aborts and restarts once, with reuse
   disabled the second time; a `NO_STORE` leaves the job running with no write tags.
+- `test_job_receiver.py` (extend) — the two orderings that matter: an `ABORT` that
+  arrives after the retry's job packet is ignored, and a `MISS` naming a dead attempt
+  does not abort the retry. Both should fail loudly if `attempt` handling regresses.
 - `test_config.py` (extend) — both fields round-trip through save/load and default
   correctly when absent from an existing config file.
 
@@ -649,9 +769,12 @@ adopt/store on the origin only (end-model layers), both config fields + TUI + do
 Reuse only when the origin hosts the whole pipe locally. Ships a real feature and
 proves the resume-from-offset and budget paths without any protocol change.
 
-**Phase 2 — distributed reuse.** `NetworkJob` tags including `cache_reserve_tokens`,
-per-node admission, store-on-tag in layer nodes, `CacheStatus` in all three flavors,
-restart-with-reuse-disabled. This is the phase that needs the most integration testing.
+**Phase 2 — distributed reuse.** `NetworkJob` tags including `attempt`,
+`cache_tokens_expected` and `cache_reserve_tokens`; per-node admission; store-on-tag in
+layer nodes; `CacheStatus` in all three flavors; restart-with-reuse-disabled. The
+`attempt` field is worth landing first and on its own — it is a correctness fix for
+job restarts that stands independently of caching. This phase needs the most
+integration testing.
 
 **Phase 3 — full OpenAI surface.** `prompt_cache_options`, explicit breakpoints,
 breakpoint→offset mapping, `cache_write_tokens`, chat-completion
