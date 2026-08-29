@@ -95,42 +95,78 @@ OpenAI. Operators see totals in the TUI instead (§10).
 
 ## 3. Configuration
 
-One new field on the jobs server, as requested.
+Two new fields on the jobs server.
 
 `src/language_pipes/config.py` (alongside `max_node_jobs` / `max_api_jobs`):
 
 ```toml
-# Maximum seconds a cached prompt prefix is kept after its last use. 0 disables
-# prompt caching on this node.
+# Maximum seconds a cached prompt prefix is kept after its last use.
 max_cache_time = 300
+
+# Maximum tokens of KV state this node holds for the prompt cache, counting both
+# stored entries and the reservations of jobs still in flight.
+max_cache_tokens = 16384
 ```
 
-- `DEFAULT_MAX_CACHE_TIME = 300` (5 minutes), stored in seconds as an int.
-- `0` disables caching completely on that node: no reads, no writes, no memory held.
-- Read/written through `JobProvider.get_max_cache_time` / `set_max_cache_time`
-  (`src/language_pipes/content_provider/job_provider.py`), like the other two limits.
+- `DEFAULT_MAX_CACHE_TIME = 300` (5 minutes), seconds, int.
+- `DEFAULT_MAX_CACHE_TOKENS = 16384`, tokens, int.
+- **Either field at `0` disables prompt caching on this node**: no reads, no writes,
+  no memory held.
+- Both are read/written through `JobProvider.get_/set_max_cache_time` and
+  `.../max_cache_tokens` (`src/language_pipes/content_provider/job_provider.py`),
+  like the existing two limits.
 - Effective TTL for a request = `min(requested_ttl_or_default, max_cache_time)`.
-  A client asking for `"24h"` on a node configured with 300s gets 300s; the
-  response is not an error, since OpenAI treats retention as a request, not a contract.
+  A client asking for `"24h"` on a node configured with 300s gets 300s; this is not
+  an error, since OpenAI treats retention as a request, not a contract.
 - The lifetime is measured **from last use**, not from creation — reusing a prefix
   refreshes it, matching OpenAI ("a busy prefix stays warm, an idle one expires").
-- Every node applies its own `max_cache_time` to its own slice. Nodes are not
-  required to agree; disagreement just makes hits rarer (§7), never wrong.
+- Every node applies its own two limits to its own slice. Nodes are not required to
+  agree; disagreement makes hits rarer (§7), never wrong.
 
-TUI: a fourth editable row on the Jobs / Server page
-(`src/language_pipes/tui/components/jobs_server/top_state.py`), inserted after
-"Max API Jobs" — `focus_idx` 3 becomes "Max Cache Time", and the api-keys /
-start-server rows shift to 4 and 5. Needs a matching `TIPS["jobs_server"]["max_cache_time"]`
-entry in `src/language_pipes/tui/frame/tips.py`:
+### 3.1 Sizing `max_cache_tokens`
+
+The budget is counted in **tokens, not bytes**, for two reasons: tokens are the unit
+the API already reports (`cached_tokens`), and — the operative one — a token count is
+knowable *before* the KV state exists, which is what admission control needs (§4.7).
+
+Bytes per token depend on the model and on how much of it a node hosts:
+
+```
+bytes/token = 2 (K and V) x kv_heads x head_dim x dtype_size x layers_hosted_here
+```
+
+Qwen3-1.7B in bf16 (8 KV heads, head_dim 128) is 4 KB per token per layer. A node
+hosting all 28 layers spends ~115 KB/token, so `max_cache_tokens = 16384` is ~1.8 GB;
+a node hosting 4 layers spends ~16 KB/token, or ~270 MB for the same setting. Two
+consequences worth documenting: the same number means very different memory on
+different nodes, and a node hosting more layers should generally be given a *smaller*
+token budget, not a larger one.
+
+Size it against `max_api_jobs` too. Every in-flight job reserves
+`prompt + max_response` tokens against the same budget (§4.7), so a node that allows
+5 concurrent jobs with 4k prompts and 1k responses needs ~25k tokens of headroom
+before a single entry can be *stored*, let alone kept.
+
+TUI: two new editable rows on the Jobs / Server page
+(`src/language_pipes/tui/components/jobs_server/top_state.py`), after "Max API Jobs".
+`focus_idx` becomes: 0 port, 1 max node jobs, 2 max api jobs, 3 max cache time,
+4 max cache tokens, 5 api keys, 6 start/stop — every `_on_enter` / `_on_prev` /
+`_on_next` / `_get_tip_lines` / `get_footer` branch shifts accordingly. Two matching
+`TIPS["jobs_server"]` entries in `src/language_pipes/tui/frame/tips.py`:
 
 > Max Cache Time: How long (in seconds) a processed prompt prefix is kept in
 > memory so a follow-up request that starts with the same text can skip
 > re-processing it. Set to 0 to disable prompt caching.
 
-Docs to update: `documentation/configuration.md` (new `max_cache_time` section
-under "API Server"), `documentation/oai.md` (a "Prompt Caching" section covering
-§2), `documentation/architecture.md` (the KV-cache section currently says caches
-die with the job).
+> Max Cache Tokens: The total number of tokens this node will keep in the prompt
+> cache, including tokens reserved by jobs that are still running. When a new job
+> does not fit, the oldest cached prompts are dropped to make room. Set to 0 to
+> disable prompt caching.
+
+Docs to update: `documentation/configuration.md` (both fields under "API Server",
+with the sizing formula), `documentation/oai.md` (a "Prompt Caching" section covering
+§2), `documentation/architecture.md` (the KV-cache section currently says caches die
+with the job).
 
 ---
 
@@ -180,9 +216,9 @@ class CacheEntry:
     process_id: str          # LlmModel/EndModel process id: invalidates on reload
     start_layer: int
     end_layer: int
-    token_count: int         # i * BLOCK_SIZE
+    token_count: int         # i * BLOCK_SIZE, and this entry's charge on the budget
     cache: DynamicCache      # this node's slice only
-    size_gb: float
+    size_gb: float           # reporting only; the budget is counted in tokens
     created: float
     last_used: float
     expires_at: float        # last_used + min(requested_ttl, max_cache_time)
@@ -190,28 +226,31 @@ class CacheEntry:
 class PromptCache:
     def lookup(self, cache_id, model_id, process_id, start_layer, end_layer) -> Optional[CacheEntry]
     def adopt(self, entry) -> DynamicCache       # deep copy for the job to mutate
+    def reserve(self, job_id, tokens) -> bool    # admission + eviction, see 4.7
+    def release(self, job_id) -> None
     def store(self, cache_id, job, segment, token_count, ttl) -> None
-    def sweep(self) -> None                      # TTL + LRU eviction
+    def used_tokens(self) -> int                 # entries + live reservations
+    def sweep(self) -> None                      # TTL expiry
 ```
 
-One `PromptCache` per node, owned by `ContentProvider` next to `JobTracker`, so
-both the origin path (end model slice) and the layer path see the same store.
+One `PromptCache` per node, owned by `ContentProvider` next to `JobTracker`, so both
+the origin path (end model slice) and the layer path see the same store and the same
+budget.
 
-- **Adoption copies.** Two concurrent jobs can hit the same entry, and a job
-  mutates its cache as it decodes, so `adopt` clones the key/value tensors rather
-  than handing out the shared one. A clone of a few thousand tokens of KV is
-  milliseconds; it also makes rollback on a miss free (just drop the copy).
-- **Entries stay on the compute device.** Moving to CPU would save VRAM but give
-  back much of the latency win on adopt. If VRAM pressure turns out to dominate,
-  an entry can be demoted to CPU after one TTL period without changing anything else.
-- **Eviction** is TTL-first, then LRU against a byte cap. Start with module
-  constants `PROMPT_CACHE_MAX_GB = 4.0` and `PROMPT_CACHE_MAX_ENTRIES = 64`,
-  measured with the same tensor walk as `Job.get_job_ram` (`src/language_pipes/jobs/job.py`).
-  The sweeper runs on the existing 10s `JobTracker.check_stale_jobs` cadence
-  rather than adding a thread, and calls the same `gc.collect()` /
+- **Adoption copies.** Two concurrent jobs can hit the same entry, and a job mutates
+  its cache as it decodes, so `adopt` clones the key/value tensors rather than handing
+  out the shared one. A clone of a few thousand tokens of KV is milliseconds; it also
+  makes rollback on a miss free (just drop the copy), and it means evicting an entry
+  can never disturb a job already running against it.
+- **Entries stay on the compute device.** Moving to CPU would save VRAM but give back
+  much of the latency win on adopt. If VRAM pressure dominates, an entry can be
+  demoted to CPU after one TTL period without changing anything else.
+- **Two eviction triggers.** TTL expiry runs on the existing 10s
+  `JobTracker.check_stale_jobs` cadence rather than adding a thread; budget eviction
+  runs synchronously at admission (§4.7). Both call the same `gc.collect()` /
   `torch.cuda.empty_cache()` / `malloc_trim` sequence that job cleanup already uses.
-  If the in-flight node-memory work lands a configured memory ceiling, the cache
-  cap should be derived from it instead of a constant.
+- `size_gb` is measured with the same tensor walk as `Job.get_job_ram`
+  (`src/language_pipes/jobs/job.py`) and exists only for the TUI; nothing enforces it.
 
 ### 4.3 Write path — snapshot points
 
@@ -264,8 +303,11 @@ stored entry is a strict prefix of it.
 3. Each layer node handles the tag in `JobTracker.add_job`
    (`src/language_pipes/jobs/job_tracker.py:127`), which is where its `Job` (and
    its `DynamicCache`) is created today. Hit → the adopted copy becomes `job.cache`.
-   Miss → the node does **not** process the packet; it replies `CACHE_MISS` to the origin.
-4. On `CACHE_MISS` the origin broadcasts `CACHE_ABORT` to every segment node
+   Miss → the node does **not** process the packet; it replies `CacheStatus(MISS)`
+   to the origin. A node that holds the prefix but has no budget for the job (§4.7)
+   still adopts and computes; it replies `CacheStatus(NO_STORE)` so the origin stops
+   tagging write points.
+4. On `CacheStatus(MISS)` the origin broadcasts `CacheStatus(ABORT)` to every segment node
    (each drops the job via `remove_job` + `_drop_queued`), then re-runs the same
    `job_id` from `ComputeStep.TOKENIZE` with reuse disabled for the rest of that job.
    Wasted work is bounded by one 32-token chunk through part of the pipe.
@@ -335,18 +377,76 @@ Edge cases:
 - Gemma 4 `shared_kv_states` ride in `JobData` and are recomputed per pass; they
   are not part of a stored entry.
 
+### 4.7 Admission control and the token budget
+
+Each node tracks what the cache holds and what it has promised to hold:
+
+```
+used = sum(e.token_count for e in entries) + sum(r.tokens for r in live_reservations)
+```
+
+When a job starts, the node estimates what that job will ultimately cost the cache:
+
+```
+estimate = cached_prefix_len + prompt_tokens + max_completion_tokens
+```
+
+- `cached_prefix_len` — the entry being reused stays resident for the life of the job.
+- `prompt_tokens + max_completion_tokens` — the job's own working cache, which is what
+  gets stored at the write points.
+
+The prefix is deliberately counted twice: the source entry and the job's private copy
+exist at the same time, so the budget has to cover both. `max_completion_tokens` is the
+ceiling the client asked for (`Job.max_completion_tokens`), so the estimate is an upper
+bound — a job that stops early simply releases more than it used.
+
+Admission:
+
+```
+while used + estimate > max_cache_tokens and an evictable entry exists:
+    evict the least recently used entry
+if used + estimate > max_cache_tokens:
+    run this job uncached   # no reuse, no store, no reservation
+else:
+    hold a reservation of `estimate` tokens for the life of the job
+```
+
+Reservations are released in `JobTracker.complete_job` and `remove_job`, and by the
+stale-job sweep, so a dropped connection or an expired job cannot leak budget.
+
+Points worth being explicit about:
+
+- **Running uncached is not a rejection.** The job's own KV is ordinary inference
+  memory, bounded by `max_node_jobs` / `max_api_jobs` as it is today. `max_cache_tokens`
+  bounds only what the *cache* holds and what it is about to hold. A client that asks
+  for `max_output_tokens: 128000` will fail admission on its own and run exactly as it
+  does now, with a log line saying why.
+- **Eviction cannot break a running job**, because adoption copies (§4.2). The
+  least-recently-used entry can be dropped while a job is mid-decode against its copy.
+- **Every node runs the same arithmetic against its own budget.** The origin computes
+  the estimate right after tokenize (the first moment `prompt_tokens` is known) and
+  puts it in `cache_reserve_tokens` on the first `NetworkJob`; each layer node reserves
+  in `JobTracker.add_job`.
+- **A node that declines says so.** It replies `CacheStatus(NO_STORE)`, and the origin
+  stops tagging write points for that job. Otherwise the other nodes would store a
+  prefix that one node is missing — memory spent on an entry set that is guaranteed to
+  miss and force a restart later.
+- Eviction order is by `last_used`, so it is consistent with the TTL rule that reuse
+  refreshes an entry: the "oldest" entry is the one nothing has wanted for the longest.
+
 ---
 
 ## 5. Wire protocol changes
 
-`NetworkJob` (`src/language_pipes/jobs/network_job.py`) gains four fields, appended
+`NetworkJob` (`src/language_pipes/jobs/network_job.py`) gains five fields, appended
 at the end of the serialization:
 
 ```
-cache_use_id      bytes   (b'' when unused)
-cache_use_tokens  int
-cache_write_id    bytes   (b'' when unused)
-cache_write_tokens int
+cache_use_id         bytes   (b'' when unused)
+cache_use_tokens     int
+cache_write_id       bytes   (b'' when unused)
+cache_write_tokens   int
+cache_reserve_tokens int     (the job's budget estimate; 0 when caching is off)
 ```
 
 Appending is backward compatible: `ByteHelper.read_bytes` at EOF reads a zero
@@ -357,11 +457,16 @@ origin's next attempt to reuse one simply misses.
 
 New protocol number `CACHE_PROTOCOL = 3`, dispatched in
 `ContentProvider._receive_data` (`src/language_pipes/content_provider/content_provider.py:150`)
-alongside the existing `0` (job), `1` (RFM), `2` (cancel). Two tiny packets,
-modeled on `JobCancel`:
+alongside the existing `0` (job), `1` (RFM), `2` (cancel). One small packet type
+modeled on `JobCancel`, carrying a reason:
 
-- `CACHE_MISS(job_id, pipe_id)` — node → origin: "I could not adopt the prefix."
-- `CACHE_ABORT(job_id, pipe_id)` — origin → nodes: "drop this job, I am restarting it."
+- `CacheStatus(job_id, pipe_id, MISS)` — node → origin: "I could not adopt the
+  prefix." Origin aborts and restarts with reuse disabled.
+- `CacheStatus(job_id, pipe_id, NO_STORE)` — node → origin: "the prefix is fine but
+  I have no budget for this job." Origin stops tagging write points; the job runs
+  normally and stores nothing anywhere.
+- `CacheStatus(job_id, pipe_id, ABORT)` — origin → nodes: "drop this job, I am
+  restarting it."
 
 ---
 
@@ -369,20 +474,20 @@ modeled on `JobCancel`:
 
 | File | Change |
 |---|---|
-| `jobs/prompt_cache.py` *(new)* | `CacheEntry`, `PromptCache`, block hashing, TTL/LRU sweep. |
-| `jobs/cache_packets.py` *(new)* | `CacheMiss` / `CacheAbort` packets (mirrors `jobs/job_cancel.py`). |
+| `jobs/prompt_cache.py` *(new)* | `CacheEntry`, `PromptCache`, block hashing, token budget + reservations, TTL and LRU eviction. |
+| `jobs/cache_packets.py` *(new)* | `CacheStatus` packet with `MISS` / `NO_STORE` / `ABORT` reasons (mirrors `jobs/job_cancel.py`). |
 | `util/oai_cache.py` *(new)* | Parse `prompt_cache_*` params and breakpoints; build usage details; validation errors. |
 | `util/oai.py` | `ResponsesRequest` / `ChatCompletionRequest` carry a `CacheOptions`; usage blocks gain `input_tokens_details` / `prompt_tokens_details`. |
 | `jobs/job.py` | New fields: `cache_options`, `cache_scope`, `cache_ids`, `cached_prefix_len`, `cache_write_points`, `cache_write_tokens`, `pending_write_id`. `past_seen_tokens()` adds the cached prefix. `to_network_job()` emits the tags. |
 | `util/chunk_state.py` | `init(prompt_length, start_offset=0)` and offset-aware `get_range`. |
 | `jobs/job_factory.py` | `start_job` accepts `cache_options` and stores it on the `Job`. |
-| `jobs/job_processor.py` | `_state_embed`: plan the chain, adopt a local hit, init chunking with the offset. `_state_process_layers`: honor the write tag after computing. `_state_head`: at completion, tag/store the end-of-response boundary. |
-| `jobs/job_tracker.py` | `add_job` adopts on `cache_use_id` or signals a miss; sweep the `PromptCache` in `check_stale_jobs`. |
-| `jobs/job_receiver.py` | Send `CACHE_MISS`, handle `CACHE_ABORT`, restart a job with reuse disabled. |
+| `jobs/job_processor.py` | `_state_embed`: plan the chain, run admission, adopt a local hit, init chunking with the offset. `_state_process_layers`: honor the write tag after computing. `_state_head`: at completion, tag/store the end-of-response boundary and release the reservation. |
+| `jobs/job_tracker.py` | `add_job` reserves budget and adopts on `cache_use_id`, or signals `MISS` / `NO_STORE`; `complete_job` / `remove_job` / the stale sweep release reservations; sweep the `PromptCache` in `check_stale_jobs`. |
+| `jobs/job_receiver.py` | Send `CacheStatus`, handle `ABORT`, restart a job with reuse disabled, stop tagging on `NO_STORE`. |
 | `content_provider/content_provider.py` | Own the `PromptCache`; dispatch protocol `3`. |
 | `content_provider/job_provider.py` | `get/set_max_cache_time`; cache stats for the TUI. |
-| `config.py` | `max_cache_time` field, default, save/load, `to_string()`. |
-| `tui/.../jobs_server/top_state.py`, `tui/frame/tips.py` | New editable row + tip. |
+| `config.py` | `max_cache_time` and `max_cache_tokens` fields, defaults, save/load, `to_string()`. |
+| `tui/.../jobs_server/top_state.py`, `tui/frame/tips.py` | Two new editable rows (focus indices shift), two tips, cache stats line. |
 | `documentation/{configuration,oai,architecture}.md` | Document the field, the API surface, and the fact that KV state now outlives a job. |
 
 ---
@@ -391,13 +496,17 @@ modeled on `JobCancel`:
 
 | Situation | Result |
 |---|---|
-| One node evicted its slice (different memory pressure) | `CACHE_MISS` → abort → full prefill. Correct, one wasted chunk. |
+| One node evicted its slice (TTL, or budget pressure from its own jobs) | `MISS` → abort → full prefill. Correct, one wasted chunk. |
 | A node runs an older build | Never stores; every reuse attempt misses; requests still succeed. |
 | Pipe re-formed, a node now hosts a different layer range | Entry's `process_id`/layer range no longer match → treated as a miss. |
 | Node dies mid-job | Unchanged from today: job expires after `EXPIRED_JOB_TIME`. Its entries die with it. |
 | `restart_token` fires (hash validation failure) | Reuse for that job is disabled from that point; snapshot validation prevents a drifted node from storing a bad entry. |
-| `max_cache_time = 0` on one node | That node never stores, so hits require the others to miss too — effectively disables reuse for pipes through it. Correct, just slower. |
-| Two concurrent jobs on the same prefix | Both adopt independent copies; no interference. |
+| `max_cache_time = 0` or `max_cache_tokens = 0` on one node | That node never stores, so every reuse attempt through it misses — reuse is effectively off for pipes crossing it. Correct, just slower. |
+| Two concurrent jobs on the same prefix | Both adopt independent copies; no interference. Each reserves its own budget. |
+| Job's estimate alone exceeds `max_cache_tokens` | Runs uncached. Nothing is evicted to make room for something that will never fit. |
+| One node's budget is full, the rest have room | That node replies `NO_STORE`; the origin stops tagging, so no partial entry set is left behind to force a future restart. |
+| Budget thrash (every job evicts the last one) | Hit rate falls to zero; nothing is incorrect. The TUI's token-usage and eviction counters are what make this diagnosable. |
+| Client cancels mid-generation | Reservation released by `remove_job` / the stale sweep; no budget leak. |
 | Client changes one token in the middle of the prompt | Chain diverges at that block; everything before it still hits. |
 
 The invariant that keeps all of this safe: **a node that cannot prove it holds
@@ -429,12 +538,16 @@ state for up to `max_cache_time` after a request finishes, and that setting it t
 
 ## 9. Metrics and TUI
 
-`PromptCache` tracks `hits`, `misses`, `entries`, `bytes`, `evictions`. The Jobs /
-Server page shows one line under the new field:
+`PromptCache` tracks `hits`, `misses`, `entries`, `tokens`, `reserved`, `bytes`,
+`evictions`, and `no_store` refusals. The Jobs / Server page shows one line under the
+new fields:
 
 ```
-   Cache: 6 entries, 1.2 GB, 74% hit rate
+   Cache: 6 entries, 11.2k/16.4k tokens (3.1k reserved), 1.2 GB, 74% hit rate
 ```
+
+Token usage against the budget is the number an operator actually tunes on, so it
+leads; bytes follow because that is what runs the machine out of memory.
 
 `Job` carries `cached_tokens` and `cache_write_tokens` so the active-jobs view can
 show "prefill skipped: 3968 tokens" — the clearest signal that the feature is
@@ -448,8 +561,13 @@ Unit (`tests/language_pipes/unit/`):
 
 - `test_prompt_cache.py` — chain determinism; divergence at the first differing
   block; scope separation by API key / `prompt_cache_key` / origin; TTL expiry;
-  LRU eviction; `adopt` returns an independent copy; entry invalidated by a
-  changed `process_id` or layer range.
+  `adopt` returns an independent copy; entry invalidated by a changed `process_id`
+  or layer range.
+- `test_prompt_cache_budget.py` — `used_tokens` counts entries plus reservations;
+  admission evicts least-recently-used until the estimate fits; an estimate larger
+  than the whole budget evicts nothing and returns "uncached"; reservations released
+  on complete, cancel, and stale expiry; a reused entry moves to the back of the
+  eviction order; `max_cache_tokens = 0` short-circuits every path.
 - `test_chunk_state.py` (extend) — offset init, ranges, `get_tokens_processed`,
   offset + a suffix shorter than `CHUNK_SIZE`.
 - `test_job.py` (extend) — `past_seen_tokens` with a cached prefix, during prefill
@@ -460,8 +578,10 @@ Unit (`tests/language_pipes/unit/`):
   breakpoint offset mapping including the "not a real prefix" rejection;
   `usage.input_tokens_details` shape in both streaming and non-streaming.
 - `job_processor/` — a hit skips prefill chunks; write tags are emitted at the
-  expected boundaries in each mode; a `CACHE_MISS` aborts and restarts once, with
-  reuse disabled the second time.
+  expected boundaries in each mode; a `MISS` aborts and restarts once, with reuse
+  disabled the second time; a `NO_STORE` leaves the job running with no write tags.
+- `test_config.py` (extend) — both fields round-trip through save/load and default
+  correctly when absent from an existing config file.
 
 Integration (`tests/language_pipes/integration/oai.py`): two requests sharing a
 long prefix against a live pipe — assert the second reports `cached_tokens > 0`,
@@ -474,22 +594,23 @@ sliding-window one (Gemma 3), since those are where snapshot-not-crop matters.
 ## 11. Phasing
 
 **Phase 1 — single-node correctness.** `PromptCache`, chain IDs, `ChunkState`
-offset, `past_seen_tokens`, adopt/store on the origin only (end-model layers),
-`max_cache_time` config + TUI + docs. Reuse only when the origin hosts the whole
-pipe locally. Ships a real feature and gets the resume-from-offset path proven
-without any protocol change.
+offset, `past_seen_tokens`, the token budget with admission and LRU eviction,
+adopt/store on the origin only (end-model layers), both config fields + TUI + docs.
+Reuse only when the origin hosts the whole pipe locally. Ships a real feature and
+proves the resume-from-offset and budget paths without any protocol change.
 
-**Phase 2 — distributed reuse.** `NetworkJob` tags, store-on-tag in layer nodes,
-`CACHE_MISS` / `CACHE_ABORT`, restart-with-reuse-disabled. This is the phase that
-needs the most integration testing.
+**Phase 2 — distributed reuse.** `NetworkJob` tags including `cache_reserve_tokens`,
+per-node admission, store-on-tag in layer nodes, `CacheStatus` in all three flavors,
+restart-with-reuse-disabled. This is the phase that needs the most integration testing.
 
 **Phase 3 — full OpenAI surface.** `prompt_cache_options`, explicit breakpoints,
 breakpoint→offset mapping, `cache_write_tokens`, chat-completion
 `stream_options.include_usage`.
 
 **Phase 4 — optimizations.** Publish held-ID digests in DSN state to avoid doomed
-attempts; per-block snapshots for partial system-prompt reuse; CPU demotion of
-cold entries; wire the memory cap to the node memory limit.
+attempts; per-block snapshots for partial system-prompt reuse; CPU demotion of cold
+entries; derive a default `max_cache_tokens` from the node memory limit and the
+hosted layer count instead of a fixed number.
 
 ---
 
@@ -508,5 +629,14 @@ cold entries; wire the memory cap to the node memory limit.
 3. **Optimistic reuse over a prepare/ACK barrier.** Costs a wasted chunk on a
    miss; saves a round trip on every hit. Revisit if misses turn out to be common
    over WAN links.
-4. **The `restart_token` duplicate-append hazard** (§4.3) is pre-existing and
+4. **"Oldest" is read as least-recently-used.** Eviction drops the entry nothing has
+   touched for the longest, which keeps it consistent with the TTL rule that reuse
+   refreshes an entry. Strict creation order would evict a hot long-lived system
+   prompt in favor of a cold recent one. Say so if creation order was meant.
+5. **The budget is per node, in tokens.** Tokens are knowable before the KV state
+   exists, which is what admission needs, but they mean different amounts of memory
+   on different nodes (§3.1). A byte-denominated limit would be more honest about
+   memory and useless for admission; deriving the token budget from a byte limit
+   plus the hosted layer count (phase 4) gets both.
+6. **The `restart_token` duplicate-append hazard** (§4.3) is pre-existing and
    should be confirmed and fixed on its own, not folded into this work.
