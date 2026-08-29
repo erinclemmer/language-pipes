@@ -237,11 +237,27 @@ One `PromptCache` per node, owned by `ContentProvider` next to `JobTracker`, so 
 the origin path (end model slice) and the layer path see the same store and the same
 budget.
 
-- **Adoption copies.** Two concurrent jobs can hit the same entry, and a job mutates
-  its cache as it decodes, so `adopt` clones the key/value tensors rather than handing
-  out the shared one. A clone of a few thousand tokens of KV is milliseconds; it also
-  makes rollback on a miss free (just drop the copy), and it means evicting an entry
-  can never disturb a job already running against it.
+- **Adoption shares the K/V tensors; it does not copy them.** `DynamicLayer.update`
+  and `DynamicSlidingWindowLayer.update` both do `self.keys = torch.cat([self.keys,
+  new])` — they rebind the attribute to a freshly allocated tensor and never write
+  into the old one (the docstring's "in-place" is wrong). So a job can share an
+  entry's tensors and its first append leaves the entry untouched. `adopt` builds a
+  new `DynamicCache` container pointing at the same tensors.
+- **Recurrent layers are the exception and must be cloned.**
+  `LinearAttentionLayer.update_recurrent_state` does
+  `self.recurrent_states[i].copy_(new)` — a genuine in-place write into a
+  static-address buffer, and the conv states work the same way. A shared recurrent
+  state would be corrupted by the first pass of the borrowing job. These states are
+  fixed-size (they do not grow with the prefix), so cloning them is cheap and does
+  not scale with prefix length. `adopt` therefore clones any
+  `LinearAttention*Layer` state and shares everything else.
+- **The invariant needs a test, not just a comment**, since it depends on transformers
+  internals: after a job adopts an entry and runs one pass, the entry's tensors must
+  be unchanged in both content and `data_ptr`. A layer type that fails the check falls
+  back to cloning. This is the one place where a transformers upgrade could silently
+  corrupt cached state, so the test is the load-bearing part.
+- **Eviction cannot disturb a running job.** Evicting drops the store's reference;
+  Python's refcount keeps the tensors alive for whatever job is still using them.
 - **Entries stay on the compute device.** Moving to CPU would save VRAM but give back
   much of the latency win on adopt. If VRAM pressure dominates, an entry can be
   demoted to CPU after one TTL period without changing anything else.
@@ -270,6 +286,11 @@ need no extra round trip:
 
 Because the tag rides the one packet that defines the pass, every node stores the
 same boundary or none at all — no barrier, no consensus.
+
+**Stores do not copy either.** Because appends rebind rather than mutate, storing an
+entry is just retaining a reference to the job's current per-layer tensors. The write
+itself allocates nothing; what it costs is that the tensors stop being freed when the
+job's cache grows past that boundary (see §4.7).
 
 **Snapshot validation.** Before storing, a node checks that the pass it just ran
 ends where the origin says it does: `job.data.cache_position[-1] + 1 == cache_write_tokens`.
@@ -395,10 +416,26 @@ estimate = cached_prefix_len + prompt_tokens + max_completion_tokens
 - `prompt_tokens + max_completion_tokens` — the job's own working cache, which is what
   gets stored at the write points.
 
-The prefix is deliberately counted twice: the source entry and the job's private copy
-exist at the same time, so the budget has to cover both. `max_completion_tokens` is the
-ceiling the client asked for (`Job.max_completion_tokens`), so the estimate is an upper
-bound — a job that stops early simply releases more than it used.
+The prefix is counted twice because it really is resident twice while the job runs, and
+that is worth being precise about, since nothing in the design deliberately duplicates it:
+
+- Adoption itself copies nothing (§4.2) — the job starts out sharing the entry's tensors.
+- The job's first append calls `torch.cat`, which **allocates a new tensor of
+  `prefix + chunk`** for each layer. That allocation happens whether or not the entry
+  exists; it is how `DynamicCache` grows.
+- The entry keeps its original `prefix` tensors alive. So from the first pass onward,
+  memory holds `prefix` (entry) + `prefix + generated` (job).
+
+The same doubling appears without any reuse at all: a job that stores an entry at its
+prompt boundary and keeps decoding ends up holding both the stored tensors and its own
+grown ones. Retaining a prefix costs one extra copy of it for as long as some job is
+growing past it. That is inherent to a contiguous per-layer cache; the real fix is a
+paged/block KV cache with shared blocks, which would need attention kernels that take
+block tables and is well outside this plan.
+
+`max_completion_tokens` is the ceiling the client asked for
+(`Job.max_completion_tokens`), so the estimate is an upper bound — a job that stops
+early releases more than it used.
 
 Admission:
 
@@ -433,6 +470,13 @@ Points worth being explicit about:
   miss and force a restart later.
 - Eviction order is by `last_used`, so it is consistent with the TTL rule that reuse
   refreshes an entry: the "oldest" entry is the one nothing has wanted for the longest.
+- **Adopt-by-move, when the budget is tight.** If an entry has no other user and
+  admission would otherwise refuse the job, the entry can be handed over and deleted
+  instead of shared. After the job's first `torch.cat` the original tensors are freed,
+  so the peak is `prompt + generated` rather than `prefix + prompt + generated`, and
+  the estimate drops by `cached_prefix_len`. The cost is that a concurrent request for
+  the same prefix misses until this job completes and re-stores at a longer boundary.
+  Worth having as the fallback before giving up and running uncached (phase 4).
 
 ---
 
@@ -563,6 +607,12 @@ Unit (`tests/language_pipes/unit/`):
   block; scope separation by API key / `prompt_cache_key` / origin; TTL expiry;
   `adopt` returns an independent copy; entry invalidated by a changed `process_id`
   or layer range.
+- `test_prompt_cache_share.py` — the sharing invariant: after adopting an entry and
+  running a pass, the entry's tensors are unchanged in content and `data_ptr` for
+  `DynamicLayer` and `DynamicSlidingWindowLayer`; a `LinearAttentionLayer` entry is
+  cloned and survives a borrowing job's `copy_()`; a store taken by reference is
+  unaffected by the job's later appends. This test is what protects the design from a
+  transformers upgrade that starts mutating in place.
 - `test_prompt_cache_budget.py` — `used_tokens` counts entries plus reservations;
   admission evicts least-recently-used until the estimate fits; an estimate larger
   than the whole budget evicts nothing and returns "uncached"; reservations released
