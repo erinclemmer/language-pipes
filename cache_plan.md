@@ -294,12 +294,10 @@ job's cache grows past that boundary (see §4.7).
 
 **Snapshot validation.** Before storing, a node checks that the pass it just ran
 ends where the origin says it does: `job.data.cache_position[-1] + 1 == cache_write_tokens`.
-On mismatch it skips the store (and logs at debug). This is cheap insurance against
-a node whose cache silently drifted — notably the pre-existing hazard where
-`JobReceiver.restart_token` re-runs a pass on nodes that already appended KV for
-it, which appends duplicate entries. That hazard exists today; caching makes it
-worth confirming and fixing separately, and the validation keeps a drifted node
-from poisoning the shared prefix in the meantime.
+On mismatch it skips the store (and logs at debug). This is cheap insurance against a
+node whose cache has drifted — see the `restart_token` bug in §11 phase 0, which is
+the known way that happens today. A drifted node must not be allowed to write its
+slice into an entry that later requests will adopt.
 
 Which boundaries get written:
 
@@ -763,6 +761,35 @@ sliding-window one (Gemma 3), since those are where snapshot-not-crop matters.
 
 ## 11. Phasing
 
+**Phase 0 — fix job restart, independent of caching.** `JobReceiver.restart_token`
+(`src/language_pipes/jobs/job_receiver.py:185`) bounces a job back to the origin when
+a `NetworkJob`'s hash fails to validate, and the origin resumes without telling the
+nodes that already computed the failed pass. Two live defects follow, neither covered
+by a test:
+
+- **Prefill:** the origin re-enters `_state_embed`, `chunking.is_active()` is true, so
+  it calls `chunking.advance()` unconditionally
+  (`src/language_pipes/jobs/job_processor.py:212`). The failed chunk is skipped rather
+  than retried. `past_seen_tokens()` then counts it as processed while the nodes past
+  the corruption point never computed it.
+- **Decode:** the origin re-embeds the current token and re-runs its local layers, and
+  every node upstream of the corruption point runs that token a second time. Because
+  `DynamicLayer.update` concatenates, those nodes get a duplicate KV entry for one
+  position while the downstream nodes have none.
+
+Either way the pipe's caches disagree about their own length, and the failure surfaces
+later as a mask/shape mismatch or wrong attention rather than as an error at the
+restart. The trigger is rare — a payload corrupt enough to fail the hash but intact
+enough to still parse; anything that breaks framing is dropped and the job simply
+expires — which is presumably why it has gone unnoticed.
+
+The fix is the mechanism this plan needs anyway: `attempt` on `Job`/`NetworkJob`
+(bumped on restart, rebuild-or-drop on receive) and `cache_tokens_expected` validation
+(§5.4), plus a restart that retries the failed chunk instead of advancing past it.
+Ship it as its own commit with regression tests for both paths. It fixes a live bug,
+is reviewable without any cache context, and everything after it leans on the
+guarantee it establishes.
+
 **Phase 1 — single-node correctness.** `PromptCache`, chain IDs, `ChunkState`
 offset, `past_seen_tokens`, the token budget with admission and LRU eviction,
 adopt/store on the origin only (end-model layers), both config fields + TUI + docs.
@@ -811,5 +838,7 @@ hosted layer count instead of a fixed number.
    on different nodes (§3.1). A byte-denominated limit would be more honest about
    memory and useless for admission; deriving the token budget from a byte limit
    plus the hosted layer count (phase 4) gets both.
-6. **The `restart_token` duplicate-append hazard** (§4.3) is pre-existing and
-   should be confirmed and fixed on its own, not folded into this work.
+6. **The `restart_token` defects are confirmed, not hypothetical** (phase 0). They are
+   pre-existing and rare, so they do not block starting — but they are the first
+   commit rather than a footnote, because caching changes their blast radius from one
+   bad request to a poisoned entry that outlives it.
