@@ -418,8 +418,10 @@ job's cache grows past that boundary (see §4.7).
 **Snapshot validation.** Before storing, a node checks that the pass it just ran
 ends where the origin says it does: `job.data.cache_position[-1] + 1 == cache_write_tokens`.
 On mismatch it skips the store (and logs at debug). This is cheap insurance against a
-node whose cache has drifted — see the `restart_token` bug in §11 phase 0, which is
-the known way that happens today. A drifted node must not be allowed to write its
+node whose cache has drifted. The known way that happened — the `restart_token` bug
+fixed in §11 phase 0 — is closed by the `pass_idx` replay mechanism, and a node that
+receives a pass out of sequence refuses it (§5.4), so drift should no longer be
+reachable; the check stays because a drifted node must never be allowed to write its
 slice into an entry that later requests will adopt.
 
 Which boundaries get written:
@@ -627,13 +629,14 @@ to ride.
 ### 5.1 Tags on `NetworkJob`
 
 `src/language_pipes/jobs/network_job.py` gains seven fields, appended at the end of
-the serialization:
+the serialization. `pass_idx` lands first, with the phase 0 restart fix (§11); the
+other six arrive with phase 2:
 
 ```
-attempt                int     bumped when the origin restarts this job_id
+pass_idx               int     sequence number of this pass within the job (phase 0)
+attempt                int     bumped when the origin restarts this job_id from scratch
 cache_use_id           bytes   prefix the receiver should adopt (b'' = none)
 cache_use_tokens       int     how many tokens that prefix covers
-cache_tokens_expected  int     tokens the sender believes the receiver's cache holds
 cache_write_id         bytes   snapshot this pass under this id (b'' = don't)
 cache_write_tokens     int     token count that snapshot covers
 cache_reserve_tokens   int     the job's budget estimate (0 = caching off)
@@ -669,10 +672,13 @@ The negatives need their own channel because a job packet only ever flows *forwa
 (to the node hosting the next layers) or, at `HEAD`, back to the origin. A node that
 cannot compute has nothing to forward, and a node that computed fine but cannot store
 has no field in the outgoing packet to say so. `JobReceiver.restart_token` is the one
-existing exception — it bounces a `NetworkJob` back to the origin — and it works
-precisely because the node in question also cannot proceed. `MISS` could be expressed
-that way; it is a separate packet because `NO_STORE` and `ABORT` cannot be, and one
-small packet type is easier to reason about than two mechanisms.
+existing exception — it bounces a `NetworkJob` back to the origin, which after phase 0
+replays the pass (§11) — and it works precisely because the node in question also
+cannot proceed. `MISS` could be expressed that way; it is a separate packet because
+`NO_STORE` and `ABORT` cannot be, and one small packet type is easier to reason about
+than two mechanisms. The two restarts are also different operations: a bounce is a
+*replay* of the same pass against unchanged caches, a `MISS` is a *rebuild* from token
+0 against fresh ones.
 
 ### 5.3 The three exchanges
 
@@ -680,7 +686,7 @@ small packet type is easier to reason about than two mechanisms.
 
 ```
 origin  tokenize → chain → local hit at 3968 → adopt → embed [3968:4000] → local layers
-        └─ send NetworkJob{attempt:0, use_id:h[31], use_tokens:3968, expected:3968, reserve:E}
+        └─ send NetworkJob{pass:0, attempt:0, use_id:h[31], use_tokens:3968, reserve:E}
 node1   add_job: lookup h[31] → hit → adopt → compute → forward (tags carried through)
 node2   same → forward
 origin  HEAD → sample → next pass, untagged unless it lands on a write point
@@ -726,8 +732,9 @@ mechanism, node1 would apply attempt 1 to the polluted attempt-0 cache.
 
 - `Job.attempt` starts at 0 and is bumped by the origin on every restart.
 - `Job.receive_network_job` compares: `network_job.attempt > self.attempt` → discard
-  the local job's cache and rebuild it from scratch before processing;
-  `network_job.attempt < self.attempt` → drop the packet as stale.
+  the local job's cache and its saved last-pass output, reset `last_pass_idx`, and
+  rebuild from scratch before processing; `network_job.attempt < self.attempt` → drop
+  the packet as stale.
 - `CacheStatus` carries the attempt it refers to. `ABORT` for an attempt older than
   the node's current one is ignored. A `MISS` for an attempt the origin has already
   restarted is ignored too — otherwise one late miss would abort the retry that was
@@ -737,14 +744,15 @@ With that in place, `ABORT` is an **optimization, not a correctness requirement*
 frees the stale caches immediately instead of leaving them until the next packet
 rebuilds them or the 60s stale sweep reaps them.
 
-`cache_tokens_expected` is the same idea applied one level down. The sender states
-how many tokens it believes the receiver's cache holds; a node whose slice contains
-at least one ordinary attention layer can check its own `get_seq_length` against it
-and refuse the pass on a mismatch rather than computing garbage. It costs nothing and
-turns a whole class of silent divergence into a detectable condition — including the
-pre-existing `restart_token` hazard (§4.3), where a re-run pass appends duplicate KV
-on nodes that already computed it. A node hosting only linear-attention layers cannot
-answer that question and falls back to trusting `attempt`.
+`pass_idx` (§11 phase 0) is the same idea applied one level down, within an attempt.
+The origin numbers every pass it dispatches; a node keeps the index of the last pass
+it computed and accepts only `last` (replay the saved output, do not touch the cache)
+or `last + 1` (compute). Anything else means this node's cache cannot be right for the
+incoming pass, and it refuses rather than computing garbage. On a rebuild the origin
+resets `pass_idx` to 0 along with the bump to `attempt`, so the pair
+`(attempt, pass_idx)` totally orders every pass a job has ever sent. This is exact
+where a `get_seq_length` comparison would be inferred, and it works on a slice made
+only of linear-attention layers, which cannot report a sequence length at all.
 
 ### 5.5 Backward compatibility
 
@@ -753,7 +761,9 @@ returns `b''`, and `read_int` returns `0` — exactly how the existing `complete
 `progress` fields already tolerate older peers. An older node reads `attempt = 0` and
 empty tags, so it never stores and never adopts; the origin's next reuse attempt
 misses, restarts once, and the request succeeds uncached. A newer node receiving an
-old packet sees `attempt = 0`, which matches a job that has never been restarted.
+old packet sees `attempt = 0`, which matches a job that has never been restarted, and
+`pass_idx = 0` on every pass; it treats a constant `0` as "peer does not number
+passes" and skips the sequence check for that job, which is today's behavior.
 Mixed-version pipes therefore degrade to today's behavior instead of breaking.
 
 ---
@@ -766,12 +776,13 @@ Mixed-version pipes therefore degrade to today's behavior instead of breaking.
 | `jobs/cache_packets.py` *(new)* | `CacheStatus` packet with `MISS` / `NO_STORE` / `ABORT` reasons (mirrors `jobs/job_cancel.py`). |
 | `util/oai_cache.py` *(new)* | Parse `prompt_cache_*` params and breakpoints; build usage details; validation errors; disable caching when the server is unauthenticated and no `prompt_cache_key` was sent (§2.3). |
 | `util/oai.py` | `ResponsesRequest` / `ChatCompletionRequest` carry a `CacheOptions`; usage blocks gain `input_tokens_details` / `prompt_tokens_details`. |
-| `jobs/job.py` | New fields: `attempt`, `cache_options`, `cache_scope`, `cache_ids`, `cached_prefix_len`, `cache_write_points`, `cache_write_tokens`, `pending_write_id`. `past_seen_tokens()` adds the cached prefix. `to_network_job()` emits the tags. `receive_network_job()` compares `attempt` and rebuilds or drops. |
+| `jobs/network_job.py` | `pass_idx` (phase 0), then `attempt` and the five cache tags (phase 2), appended in that order. |
+| `jobs/job.py` | Phase 0: `pass_idx`, `last_pass_idx`, `last_pass_output` (the `JobData` this node forwarded for its last computed pass), replay-or-compute-or-refuse in `receive_network_job()`. Phase 1/2: `attempt`, `cache_options`, `cache_scope`, `cache_ids`, `cached_prefix_len`, `cache_write_points`, `cache_write_tokens`, `pending_write_id`. `past_seen_tokens()` adds the cached prefix. `to_network_job()` emits the tags. `receive_network_job()` compares `attempt` and rebuilds or drops. |
 | `util/chunk_state.py` | `init(prompt_length, start_offset=0)` and offset-aware `get_range`. |
 | `jobs/job_factory.py` | `start_job` accepts `cache_options` and stores it on the `Job`. |
 | `jobs/job_processor.py` | `_state_embed`: plan the chain, run admission, adopt a local hit, init chunking with the offset. `_state_process_layers`: honor the write tag after computing. `_state_head`: at completion, tag/store the end-of-response boundary and release the reservation. |
 | `jobs/job_tracker.py` | `add_job` reserves budget and adopts on `cache_use_id` (passing `network_job.origin_node_id` to `lookup`), or signals `MISS` / `NO_STORE`; `complete_job` / `remove_job` / the stale sweep release reservations; sweep the `PromptCache` in `check_stale_jobs`. |
-| `jobs/job_receiver.py` | Send `CacheStatus`, handle `ABORT`, restart a job with reuse disabled, stop tagging on `NO_STORE`. |
+| `jobs/job_receiver.py` | Phase 0: `restart_token` bounce handled by replaying the origin's saved pass; per-pass retry cap. Phase 2: send `CacheStatus`, handle `ABORT`, rebuild a job with reuse disabled, stop tagging on `NO_STORE`. |
 | `content_provider/content_provider.py` | Own the `PromptCache`; dispatch protocol `3`. |
 | `content_provider/job_provider.py` | `get/set_max_cache_time`; cache stats for the TUI. |
 | `config.py` | `max_cache_time` and `max_cache_tokens` fields, defaults, save/load, `to_string()`. |
@@ -788,7 +799,7 @@ Mixed-version pipes therefore degrade to today's behavior instead of breaking.
 | A node runs an older build | Never stores; every reuse attempt misses; requests still succeed. |
 | Pipe re-formed, a node now hosts a different layer range | Entry's `process_id`/layer range no longer match → treated as a miss. |
 | Node dies mid-job | Unchanged from today: job expires after `EXPIRED_JOB_TIME`. Its entries die with it. |
-| `restart_token` fires (hash validation failure) | Reuse for that job is disabled from that point; snapshot validation prevents a drifted node from storing a bad entry. |
+| `restart_token` fires (hash validation failure) | The origin replays its saved output for the pass; nodes that already computed it replay theirs, nodes that did not compute it now. No cache is touched, so no drift, and cache reuse for the job is unaffected. After the per-pass retry cap the job is canceled with a reason. |
 | `max_cache_time = 0` or `max_cache_tokens = 0` on one node | That node never stores, so every reuse attempt through it misses — reuse is effectively off for pipes crossing it. Correct, just slower. |
 | Two concurrent jobs on the same prefix | Both adopt independent copies; no interference. Each reserves its own budget. |
 | Job's estimate alone exceeds `max_cache_tokens` | Runs uncached. Nothing is evicted to make room for something that will never fit. |
@@ -797,7 +808,7 @@ Mixed-version pipes therefore degrade to today's behavior instead of breaking.
 | Client cancels mid-generation | Reservation released by `remove_job` / the stale sweep; no budget leak. |
 | `ABORT` overtaken by the retry's job packet | `attempt` on the packet rebuilds the node's cache; the late `ABORT` names an older attempt and is ignored. |
 | `MISS` arrives after the origin already restarted | Ignored — it names a dead attempt, so the retry is not aborted by the miss that caused it. |
-| Node's cache length disagrees with `cache_tokens_expected` | Node refuses the pass instead of computing against a drifted cache. |
+| Packet's `pass_idx` is neither the node's last pass nor the next one | Node refuses the pass and cancels the job with a reason instead of computing against a cache that cannot match. |
 | Client changes one token in the middle of the prompt | Chain diverges at that block; everything before it still hits. |
 | Origin restarts | New per-process cache secret, so every prior ID is unnameable. Layer nodes' orphaned slices idle out over `max_cache_time`. Correct, one cold period. |
 | Unauthenticated node, request with no `prompt_cache_key` | Runs uncached; `cached_tokens` is 0 (§2.3). |
@@ -912,19 +923,30 @@ Unit (`tests/language_pipes/unit/`):
 - `test_job.py` (extend) — `past_seen_tokens` with a cached prefix, during prefill
   and after the first decode step.
 - `test_network_job.py` (extend) — round-trip with tags; a payload written without
-  them (old peer) still parses with empty tags and `attempt = 0`.
-- `test_job.py` (extend) — `receive_network_job` rebuilds the cache on a higher
-  `attempt`, drops a packet with a lower one, and refuses a pass whose
-  `cache_tokens_expected` disagrees with the local cache length.
+  them (old peer) still parses with empty tags, `attempt = 0` and `pass_idx = 0`.
+- `test_job.py` (extend, phase 0) — `receive_network_job` with `pass_idx == last`
+  replays the saved output without calling the model and leaves the cache object and
+  its length unchanged; `last + 1` computes; any other value refuses; a constant `0`
+  from an old peer is accepted without the check.
+- `test_job.py` (extend, phase 2) — `receive_network_job` rebuilds the cache and
+  resets `last_pass_idx` on a higher `attempt`, and drops a packet with a lower one.
 - `test_oai_responses.py` (extend) — parameter parsing and validation errors;
   breakpoint offset mapping including the "not a real prefix" rejection;
   `usage.input_tokens_details` shape in both streaming and non-streaming.
 - `job_processor/` — a hit skips prefill chunks; write tags are emitted at the
   expected boundaries in each mode; a `MISS` aborts and restarts once, with reuse
   disabled the second time; a `NO_STORE` leaves the job running with no write tags.
-- `test_job_receiver.py` (extend) — the two orderings that matter: an `ABORT` that
-  arrives after the retry's job packet is ignored, and a `MISS` naming a dead attempt
-  does not abort the retry. Both should fail loudly if `attempt` handling regresses.
+- `test_job_receiver.py` (extend, phase 0) — a bounce makes the origin resend its
+  saved pass with the same `pass_idx` and go straight to `SEND` without embedding; a
+  bounce for a pass older than the one in flight is dropped; the retry cap cancels the
+  job with a reason.
+- `test_job_receiver.py` (extend, phase 2) — the two orderings that matter: an
+  `ABORT` that arrives after the retry's job packet is ignored, and a `MISS` naming a
+  dead attempt does not abort the retry. Both should fail loudly if `attempt` handling
+  regresses.
+- `job_processor/` (phase 0) — a layer node replaying a pass forwards the saved
+  `JobData` (state and `shared_kv_states`) and advances `current_layer` exactly as a
+  computed pass would; a prefill bounce at chunk *k* re-sends chunk *k*, not *k+1*.
 - `test_config.py` (extend) — both fields round-trip through save/load and default
   correctly when absent from an existing config file.
 
@@ -960,12 +982,48 @@ restart. The trigger is rare — a payload corrupt enough to fail the hash but i
 enough to still parse; anything that breaks framing is dropped and the job simply
 expires — which is presumably why it has gone unnoticed.
 
-The fix is the mechanism this plan needs anyway: `attempt` on `Job`/`NetworkJob`
-(bumped on restart, rebuild-or-drop on receive) and `cache_tokens_expected` validation
-(§5.4), plus a restart that retries the failed chunk instead of advancing past it.
+The fix is a **replay**, not a rebuild. It rests on one observation: a job is strictly
+sequential, so at most one pass is ever in flight, and when a hash fails every node is
+in exactly one of two states — it computed that pass, or it did not. Nothing is more
+than one pass out of step. So:
+
+- `NetworkJob.pass_idx`, a sequence number the origin increments for every pass it
+  dispatches. Appended after `progress` (§5.5), so it is the first of the new fields.
+- Every node, after computing its layers, keeps the `JobData` it is about to forward
+  (`Job.last_pass_output`) tagged with `Job.last_pass_idx`. It must be the whole
+  `JobData`, not just the hidden state: Gemma 4's `shared_kv_states` are mutated as
+  the pass flows and the next node needs the post-mutation copy. Per job this is one
+  chunk of hidden state — tens of KB for a decode token, a few hundred KB to ~1 MB
+  for a 32-token prefill chunk — bounded by `max_node_jobs`.
+- On receive, a node compares. `pass_idx == last_pass_idx`: replay — set `job.data`
+  to the saved output, call `set_layer` with the saved state so routing advances
+  exactly as after a real compute, go to `SEND`; the cache is not touched.
+  `pass_idx == last_pass_idx + 1`: compute normally. Anything else: this node's cache
+  cannot be right for the incoming pass; cancel the job with a reason rather than
+  compute. A constant `0` from a peer that predates the field skips the check.
+- The origin keeps its own saved output too, taken after its local end-model layers.
+  On a bounce (`data is None`, `compute_step == EMBED`, which no other packet to the
+  origin has) it does not re-enter `_state_embed` at all: it restores the saved
+  `JobData`, `compute_step` and `current_layer` and goes straight to `SEND`. That is
+  what fixes the prefill defect — the unconditional `advance()` is never reached — and
+  the decode defect follows from the replay rule on the upstream nodes. A bounce
+  naming a `pass_idx` older than the one in flight is a second node reporting the same
+  dead pass and is dropped.
+- A per-pass retry cap (three) then cancel with a reason, so a node whose
+  serialization is deterministically broken cannot loop until the stale timer.
+
+The decode case is worth tracing once: nodes before the corruption point already
+appended the token's KV and now replay, so they do not append again; nodes after it
+never saw the token and compute it once. Every cache ends up holding the position
+exactly once, and the origin's `current_token` and the client's streamed text are
+untouched.
+
 Ship it as its own commit with regression tests for both paths. It fixes a live bug,
-is reviewable without any cache context, and everything after it leans on the
-guarantee it establishes.
+is reviewable without any cache context, and `pass_idx` is also what §5.4 uses to
+detect drift once caching exists. `attempt` is *not* part of this phase: a bounce is a
+replay against unchanged caches, whereas a cache `MISS` (§4.4) is a genuine rebuild
+from token 0 against fresh ones, and `attempt` exists for the latter. It lands in
+phase 2.
 
 **Phase 1 — single-node correctness.** `PromptCache`, the keyed chain and its
 per-process secret, the unauthenticated-server rule (§2.3), `ChunkState`
@@ -974,11 +1032,10 @@ adopt/store on the origin only (end-model layers), both config fields + TUI + do
 Reuse only when the origin hosts the whole pipe locally. Ships a real feature and
 proves the resume-from-offset and budget paths without any protocol change.
 
-**Phase 2 — distributed reuse.** `NetworkJob` tags including `attempt`,
-`cache_tokens_expected` and `cache_reserve_tokens`; per-node admission; store-on-tag in
-layer nodes; `CacheStatus` in all three flavors; restart-with-reuse-disabled. The
-`attempt` field is worth landing first and on its own — it is a correctness fix for
-job restarts that stands independently of caching. This phase needs the most
+**Phase 2 — distributed reuse.** `NetworkJob` tags including `attempt` and
+`cache_reserve_tokens`; per-node admission; store-on-tag in layer nodes; `CacheStatus`
+in all three flavors; rebuild-with-reuse-disabled on `MISS`, which bumps `attempt`,
+resets `pass_idx` to 0 and gives every node a fresh cache. This phase needs the most
 integration testing.
 
 **Phase 3 — full OpenAI surface.** `prompt_cache_options`, explicit breakpoints,
@@ -1023,7 +1080,11 @@ listed here and is deliberately not being done — see §4.4.)
 6. **The `restart_token` defects are confirmed, not hypothetical** (phase 0). They are
    pre-existing and rare, so they do not block starting — but they are the first
    commit rather than a footnote, because caching changes their blast radius from one
-   bad request to a poisoned entry that outlives it.
+   bad request to a poisoned entry that outlives it. The fix is a replay of the last
+   pass from per-node saved output rather than a rebuild: it costs no recompute, keeps
+   every cache untouched, and needs one sequence number on the wire. A rebuild via
+   `attempt` was the earlier draft; it is still the right tool for a cache `MISS`, which
+   is why `attempt` remains in phase 2.
 7. **`prompt_cache_key` carries isolation on unauthenticated nodes** (§2.3). This is
    a deliberate departure from OpenAI, where the field is a routing hint and
    isolation comes from the org boundary; here, with no API keys, it is the only
