@@ -39,7 +39,7 @@ Parsed in `ResponsesRequest.from_dict` (`src/language_pipes/util/oai.py:207`).
 
 | Parameter | Type | Behavior |
 |---|---|---|
-| `prompt_cache_key` | string | Scopes the cache. Requests with the same key + same prefix share entries. Optional; defaults to `""`. |
+| `prompt_cache_key` | string | Scopes the cache. Requests with the same key + same prefix share entries. Optional; defaults to `""`. On a server with no `api_keys` configured it is also what separates one caller from another, so an absent key disables caching for the request (§2.3). |
 | `prompt_cache_options.mode` | `"implicit"` \| `"explicit"` | `implicit` (default): a write point is placed at the end of the prompt and at the end of the response. `explicit`: only client-marked breakpoints are written. |
 | `prompt_cache_options.ttl` | `"30m"` | Requested lifetime. Clamped to the node's `max_cache_time` (§3). |
 | `prompt_cache_retention` | `"in_memory"` \| `"24h"` | Older-model spelling; accepted as an alias and mapped to seconds, then clamped the same way. |
@@ -56,7 +56,43 @@ developer message — same as OpenAI.
 Only `prompt_cache_key` is accepted (that is all OpenAI exposes there). Caching
 otherwise behaves as `mode: "implicit"`.
 
-### 2.3 Response fields
+### 2.3 Unauthenticated servers
+
+`api_keys` defaults to empty (`src/language_pipes/config.py:164`), and `do_POST`
+then skips authorization and passes the literal string `"anon"` down as the key
+(`src/language_pipes/oai_server.py:50-53`). Every unauthenticated caller therefore
+lands in the *same* cache scope, and since `prompt_cache_key` defaults to `""` the
+default scope on such a node is one fixed value shared by everyone who can reach
+the port. That is a cross-tenant `cached_tokens` oracle: a caller can confirm
+another caller's prompt (and, because the completion boundary is also written, their
+response) 128 tokens at a time by guessing it and reading `cached_tokens`.
+
+So: **when `api_keys` is empty and `prompt_cache_key` is absent or `""`, the
+request runs uncached** — no lookup, no store, no reservation. `cached_tokens`
+is `0` and everything else about the request is unchanged.
+
+This is a silent disable, not an error. Requiring the parameter would 400 every
+plain chat request from a client that sends no cache options at all, including the
+two-node example in the README, so a missing key means "no caching" the same way
+`max_cache_time = 0` does. A request that *does* carry a key gets normal caching,
+scoped to that key.
+
+The honest framing of what this buys: with `api_keys` set, isolation rests on the
+API key and `prompt_cache_key` is what OpenAI says it is — a partitioning label.
+With `api_keys` empty, `prompt_cache_key` is doing the isolating, and it is only as
+good as the value the client picks. OpenAI's own guidance produces low-entropy,
+structured labels (`support-v3:user_123`), which are guessable; a caller who wants
+isolation on an unauthenticated node needs an unguessable value, and one that is
+sent in cleartext, since `OAIHttpServer` is a plain `ThreadingHTTPServer` with no
+TLS. It defends against someone who can reach the API, not against someone who can
+observe it. `documentation/oai.md` should say exactly that, and should say that
+configuring `api_keys` is the supported way to get cache isolation.
+
+Two consequences for the rest of the plan: the scope value is never logged (§9 logs
+a truncated hash instead), and `"anon"` is never treated as an identity anywhere
+else.
+
+### 2.4 Response fields
 
 Responses (`_response_json`, `src/language_pipes/util/oai.py:297`):
 
@@ -165,8 +201,11 @@ TUI: two new editable rows on the Jobs / Server page
 
 Docs to update: `documentation/configuration.md` (both fields under "API Server",
 with the sizing formula), `documentation/oai.md` (a "Prompt Caching" section covering
-§2), `documentation/architecture.md` (the KV-cache section currently says caches die
-with the job).
+§2, including the unauthenticated-server rule in §2.3 and the advice that `api_keys`
+is the supported way to get cache isolation), `documentation/architecture.md` (the
+KV-cache section currently says caches die with the job), and
+`documentation/privacy.md` (that a node now retains derived KV state for up to
+`max_cache_time` past the request, and what scopes it).
 
 ---
 
@@ -177,32 +216,94 @@ with the job).
 Prefix identity is a hash chain over fixed-size token blocks, so that two
 requests that share the first K blocks produce the same first K chain values.
 
+The chain is **keyed**, under a secret only the origin holds:
+
 ```python
 BLOCK_SIZE = 128          # tokens; must be a multiple of CHUNK_SIZE (32)
 MIN_CACHE_TOKENS = 256    # 2 blocks; shorter prefixes are never cached
 
-scope = sha256(b"lp-prompt-cache-v1" + origin_node_id + api_key + prompt_cache_key)
-h[0] = scope
-h[i] = sha256(h[i-1] + tokens[(i-1)*BLOCK_SIZE : i*BLOCK_SIZE] as int32 LE)
+# Per origin, per process. Generated at ContentProvider startup, never sent
+# over the network, never written to disk, never logged.
+_CACHE_SECRET = secrets.token_bytes(32)
+
+def _scope(origin_node_id: str, api_key: str, prompt_cache_key: str) -> bytes:
+    return hmac.new(
+        _CACHE_SECRET,
+        b"lp-prompt-cache-v1|scope"
+        + sha256(origin_node_id.encode()).digest()
+        + sha256(api_key.encode()).digest()
+        + sha256(prompt_cache_key.encode()).digest(),
+        sha256,
+    ).digest()
+
+def _link(prev: bytes, block: List[int]) -> bytes:
+    return hmac.new(
+        _CACHE_SECRET,
+        b"lp-prompt-cache-v1|blk" + prev
+        + np.asarray(block, dtype="<i4").tobytes(),
+        sha256,
+    ).digest()
+
+h[0] = _scope(origin_node_id, api_key, prompt_cache_key)
+h[i] = _link(h[i-1], tokens[(i-1)*BLOCK_SIZE : i*BLOCK_SIZE])
 ```
 
 `h[i]` is the 32-byte ID of the prefix that is exactly `i * BLOCK_SIZE` tokens long.
 
-Properties worth calling out:
+Two properties of this construction are load-bearing, and both were arrived at by
+asking what a *layer node* can do with the IDs it sees on the wire:
+
+- **Every link is keyed, not just the root.** The intermediate `h[i]` are not
+  private — they ride the packet as `cache_use_id` / `cache_write_id` (§5.1), so
+  every node on the pipe observes them. If only `h[0]` were keyed and the links were
+  plain `sha256`, a node holding an observed `h[31]` could compute
+  `sha256(h[31] + guess)` offline and test it against the next `cache_write_id` it
+  sees. The oracle would survive, just starting one block further in. Keying each
+  link means an observed ID cannot be extended, only compared.
+- **Fields are digested before concatenation**, so the boundaries between them are
+  unambiguous. `prompt_cache_key` is arbitrary client text; with plain
+  concatenation, `api_key="ops"` + `prompt_cache_key="-readonly:x"` and
+  `api_key="ops-readonly"` + `prompt_cache_key=":x"` produce the *same* scope, and
+  one tenant reads another's cache. Fixed-width digests make that impossible for any
+  choice of either field. (Keys minted by the TUI are `secrets.token_urlsafe(32)`
+  and are not prefix-related, but hand-typed keys and TOML-edited `api_keys` have no
+  such property.)
+
+The rest follows as before:
 
 - **The chain is computed only on the origin**, because only the origin ever sees
-  tokens (`EndModel.tokenize`). Layer nodes receive opaque 32-byte IDs and never
-  learn anything about the prompt from them.
-- The scope includes `origin_node_id` and the API key, so **entries are never
-  shared across users or across origin machines**. This is a privacy decision,
-  not a performance one: a cross-tenant hit is an oracle that tells one user
-  another user sent a particular prefix. It also means a shared layer node cannot
-  correlate two different users' prompts (§8).
+  tokens (`EndModel.tokenize`). Layer nodes receive opaque 32-byte IDs. With the
+  chain keyed under a secret the origin never transmits, those IDs are not merely
+  opaque but *unverifiable*: a node cannot test a guessed prompt against them at
+  any offset, even knowing `origin_node_id` (which is in every `NetworkJob`,
+  `src/language_pipes/jobs/network_job.py:49`), the API key, and the cache key.
+  This is the difference between "the attacker must invert hidden states" —
+  expensive, weight-dependent, per-request, and the bound
+  `documentation/privacy.md` already reasons about — and "the attacker can confirm
+  a guess with one hash", which caching would otherwise hand them for free.
+- The scope includes `origin_node_id`, the API key and `prompt_cache_key`, so
+  **entries are never shared across users or across origin machines**. This is a
+  privacy decision, not a performance one: a cross-tenant hit is an oracle that
+  tells one user another user sent a particular prefix. It also means a shared
+  layer node cannot correlate two different users' prompts (§8).
 - `prompt_cache_key` further partitions within one API key, which is what clients
-  use to keep unrelated workloads from evicting each other.
+  use to keep unrelated workloads from evicting each other — and on an
+  unauthenticated node it is the only thing partitioning at all (§2.3).
 - Block size 128 gives `cached_tokens` the same 128-granularity OpenAI reports,
   and divides evenly into `CHUNK_SIZE = 32` so cache boundaries always fall on
   prefill chunk boundaries.
+
+Cost is negligible: ~32 HMACs over ~512 bytes each for a 4k prompt, on the origin,
+once per request. Nothing else in the design needs to recompute a chain value —
+§4.4 no longer publishes IDs anywhere, so the origin is the only producer and every
+other party is a comparator.
+
+One behavioral consequence to be aware of: **the secret is per process, so entries
+do not survive an origin restart.** The origin's own entries died with the process
+anyway; what changes is that layer nodes' slices for that origin become unreachable
+and idle out over `max_cache_time` instead of hitting. This is consistent with §7
+already treating a changed `process_id` as a miss, and it is the conservative
+direction — a restarted origin cannot adopt state it can no longer name.
 
 ### 4.2 Node-local store
 
@@ -212,6 +313,7 @@ New file `src/language_pipes/jobs/prompt_cache.py`:
 @dataclass
 class CacheEntry:
     cache_id: bytes          # h[i]
+    origin_node_id: str      # the only node allowed to reuse this entry
     model_id: str
     process_id: str          # LlmModel/EndModel process id: invalidates on reload
     start_layer: int
@@ -224,11 +326,11 @@ class CacheEntry:
     expires_at: float        # last_used + min(requested_ttl, max_cache_time)
 
 class PromptCache:
-    def lookup(self, cache_id, model_id, process_id, start_layer, end_layer) -> Optional[CacheEntry]
+    def lookup(self, cache_id, origin_node_id, model_id, process_id, start_layer, end_layer) -> Optional[CacheEntry]
     def adopt(self, entry) -> DynamicCache       # deep copy for the job to mutate
     def reserve(self, job_id, tokens) -> bool    # admission + eviction, see 4.7
     def release(self, job_id) -> None
-    def store(self, cache_id, job, segment, token_count, ttl) -> None
+    def store(self, cache_id, origin_node_id, job, segment, token_count, ttl) -> None
     def used_tokens(self) -> int                 # entries + live reservations
     def sweep(self) -> None                      # TTL expiry
 ```
@@ -236,6 +338,27 @@ class PromptCache:
 One `PromptCache` per node, owned by `ContentProvider` next to `JobTracker`, so both
 the origin path (end model slice) and the layer path see the same store and the same
 budget.
+
+- **An entry is bound to its origin, and `lookup` enforces it.** A layer node's store
+  holds entries for every origin it serves, so `cache_id` alone must not be what
+  authorizes adoption — it is a value that every node on the pipe *observes* in the
+  packet tags, and a bare `cache_id` check would make it a bearer token. `store`
+  records `network_job.origin_node_id`; `lookup` requires
+  `entry.origin_node_id == network_job.origin_node_id` alongside the existing
+  `model_id` / `process_id` / layer-range checks, and treats a mismatch as a miss.
+  The sender's node identity is already authenticated by the DSN transport, so this
+  costs nothing and is not spoofable by a peer.
+
+  Without it, a node that observed an ID on a pipe it participates in could replay
+  that ID to a *different* node — one hosting a layer range it does not itself host
+  — and have that node compute the attacker's own suffix on top of the victim's
+  adopted KV state. The returned hidden states encode the victim's prompt at a depth
+  the attacker was never given, which `documentation/privacy.md` treats as
+  invertible given the public weights. The keyed chain (§4.1) stops an ID from being
+  *derived*; this binding stops an observed one from being *reused*. Both are needed:
+  the network is open to any authenticating peer unless `whitelist_node_ids` is set
+  (`src/language_pipes/config.py:265`), and any peer can drive job packets into a
+  node (`content_provider/content_provider.py:150`).
 
 - **Adoption shares the K/V tensors; it does not copy them.** `DynamicLayer.update`
   and `DynamicSlidingWindowLayer.update` both do `self.keys = torch.cat([self.keys,
@@ -338,10 +461,22 @@ compute on the rare one. The correctness of the miss path does not depend on
 timing: a node that cannot adopt refuses to compute, so a lost or slow packet
 degrades to a stalled job that the existing 60s expiry reaps, never to wrong output.
 
-A later optimization (§12, phase 4) is to have each node publish a digest of the
-IDs it holds into the DSN shared state, so the origin can skip an attempt that is
-going to miss. IDs are unguessable without the API key, so publishing them leaks
-nothing beyond cardinality.
+**Not doing: publishing held-ID digests.** An earlier draft had each node advertise
+the set of IDs it holds in DSN shared state so the origin could skip a doomed
+attempt. That is dropped deliberately. An ID is not just an identifier here — until
+`lookup` checks the origin binding (§4.2) it is the thing that names reusable KV
+state, and even with the binding it is a value that should stay confined to the
+pipes that legitimately carry it. Broadcasting the full set of live IDs to every
+peer in the swarm hands an attacker the input they cannot otherwise obtain, and
+does it for nodes they never shared a pipe with.
+
+The protocol already covers the case: `CacheStatus(MISS)` tells the origin, and
+§4.4 bounds the waste at one 32-token chunk through part of the pipe on a miss —
+a cost paid only on the uncommon path, while the hit path was already zero extra
+messages. Letting a job get partway down the pipe to discover a miss is the right
+trade against publishing a swarm-wide index of cache state. If the miss rate ever
+justifies revisiting this, the shape to consider is a per-origin membership hint
+served only to that origin, not a shared digest.
 
 ### 4.5 Breakpoints → token offsets
 
@@ -627,15 +762,15 @@ Mixed-version pipes therefore degrade to today's behavior instead of breaking.
 
 | File | Change |
 |---|---|
-| `jobs/prompt_cache.py` *(new)* | `CacheEntry`, `PromptCache`, block hashing, token budget + reservations, TTL and LRU eviction. |
+| `jobs/prompt_cache.py` *(new)* | `CacheEntry`, `PromptCache`, the keyed block chain and its per-process secret, origin binding on `store`/`lookup`, token budget + reservations, TTL and LRU eviction. |
 | `jobs/cache_packets.py` *(new)* | `CacheStatus` packet with `MISS` / `NO_STORE` / `ABORT` reasons (mirrors `jobs/job_cancel.py`). |
-| `util/oai_cache.py` *(new)* | Parse `prompt_cache_*` params and breakpoints; build usage details; validation errors. |
+| `util/oai_cache.py` *(new)* | Parse `prompt_cache_*` params and breakpoints; build usage details; validation errors; disable caching when the server is unauthenticated and no `prompt_cache_key` was sent (§2.3). |
 | `util/oai.py` | `ResponsesRequest` / `ChatCompletionRequest` carry a `CacheOptions`; usage blocks gain `input_tokens_details` / `prompt_tokens_details`. |
 | `jobs/job.py` | New fields: `attempt`, `cache_options`, `cache_scope`, `cache_ids`, `cached_prefix_len`, `cache_write_points`, `cache_write_tokens`, `pending_write_id`. `past_seen_tokens()` adds the cached prefix. `to_network_job()` emits the tags. `receive_network_job()` compares `attempt` and rebuilds or drops. |
 | `util/chunk_state.py` | `init(prompt_length, start_offset=0)` and offset-aware `get_range`. |
 | `jobs/job_factory.py` | `start_job` accepts `cache_options` and stores it on the `Job`. |
 | `jobs/job_processor.py` | `_state_embed`: plan the chain, run admission, adopt a local hit, init chunking with the offset. `_state_process_layers`: honor the write tag after computing. `_state_head`: at completion, tag/store the end-of-response boundary and release the reservation. |
-| `jobs/job_tracker.py` | `add_job` reserves budget and adopts on `cache_use_id`, or signals `MISS` / `NO_STORE`; `complete_job` / `remove_job` / the stale sweep release reservations; sweep the `PromptCache` in `check_stale_jobs`. |
+| `jobs/job_tracker.py` | `add_job` reserves budget and adopts on `cache_use_id` (passing `network_job.origin_node_id` to `lookup`), or signals `MISS` / `NO_STORE`; `complete_job` / `remove_job` / the stale sweep release reservations; sweep the `PromptCache` in `check_stale_jobs`. |
 | `jobs/job_receiver.py` | Send `CacheStatus`, handle `ABORT`, restart a job with reuse disabled, stop tagging on `NO_STORE`. |
 | `content_provider/content_provider.py` | Own the `PromptCache`; dispatch protocol `3`. |
 | `content_provider/job_provider.py` | `get/set_max_cache_time`; cache stats for the TUI. |
@@ -664,6 +799,9 @@ Mixed-version pipes therefore degrade to today's behavior instead of breaking.
 | `MISS` arrives after the origin already restarted | Ignored — it names a dead attempt, so the retry is not aborted by the miss that caused it. |
 | Node's cache length disagrees with `cache_tokens_expected` | Node refuses the pass instead of computing against a drifted cache. |
 | Client changes one token in the middle of the prompt | Chain diverges at that block; everything before it still hits. |
+| Origin restarts | New per-process cache secret, so every prior ID is unnameable. Layer nodes' orphaned slices idle out over `max_cache_time`. Correct, one cold period. |
+| Unauthenticated node, request with no `prompt_cache_key` | Runs uncached; `cached_tokens` is 0 (§2.3). |
+| An ID observed on the pipe is replayed by another node | `lookup` requires the entry's `origin_node_id` to match the requesting job's; mismatch is a miss (§4.2). |
 
 The invariant that keeps all of this safe: **a node that cannot prove it holds
 exactly the requested prefix refuses to compute the pass.** There is no path where
@@ -677,18 +815,44 @@ a partial or mismatched cache is silently used.
 does not weaken that, but it does add state that outlives a request, so the plan
 takes three explicit positions:
 
-1. **No cross-tenant reuse.** The chain is salted with the origin node ID and the
-   API key, so an entry can only ever be reused by the same user from the same
-   origin. This forgoes the "shared system prompt across all users" win on purpose.
-2. **IDs carry no plaintext.** Layer nodes see 32-byte hashes salted with a value
-   they do not know; they cannot test a guessed prompt against them.
-3. **Bounded lifetime, no persistence.** Entries are in-memory only, capped by
+1. **No cross-tenant reuse.** The chain is keyed over the origin node ID, the API
+   key and `prompt_cache_key`, each digested before it is combined (§4.1), so an
+   entry can only ever be reused by the same user from the same origin — and no
+   choice of the client-controlled `prompt_cache_key` can collide into another
+   tenant's scope. This forgoes the "shared system prompt across all users" win on
+   purpose. On a node with no `api_keys`, where every caller is `"anon"`, the
+   guarantee rests on `prompt_cache_key` alone, so a request without one is not
+   cached at all (§2.3).
+2. **IDs are unguessable and unverifiable.** Layer nodes see 32-byte values from an
+   HMAC chain under a per-origin secret that is never transmitted. They cannot test
+   a guessed prompt against an observed ID, and cannot extend one to predict the
+   next, even knowing every other input to the chain. This matters because
+   `origin_node_id` travels in the clear in every `NetworkJob` and the API key may
+   be a constant: an unkeyed hash would have made prompt confirmation a cheap
+   offline operation for any node on the pipe, which is a strictly stronger
+   capability than the hidden-state inversion `documentation/privacy.md` already
+   treats as the layer node's ceiling.
+3. **An ID is not a capability.** Adoption additionally requires that the entry was
+   created by the same origin that is now asking for it (§4.2), so an observed ID
+   cannot be replayed to a node hosting layers the observer does not host. Held IDs
+   are never published into DSN shared state (§4.4).
+4. **Bounded lifetime, no persistence.** Entries are in-memory only, capped by
    `max_cache_time`, and dropped on model unload, pipe teardown, and shutdown
    (hook into the existing `ModelManager` job hooks and `ContentProvider.stop_network`).
+   The per-process secret means a restart also makes every prior entry unnameable.
 
 The docs should say plainly that with caching enabled a node retains derived KV
 state for up to `max_cache_time` after a request finishes, and that setting it to
 `0` restores the previous behavior.
+
+Two limits worth stating rather than implying. The scope value and
+`prompt_cache_key` are never logged — §9's per-job line carries a truncated hash of
+the scope, not the key. And none of this is a defense against an observer of the
+API traffic itself: the OAI server is a plain `ThreadingHTTPServer` with no TLS
+(`src/language_pipes/oai_server.py:107`), so `prompt_cache_key`, like the API key
+beside it, is in cleartext on the wire. `documentation/privacy.md` Attack Vector 4
+already tells operators to firewall or bind the API locally; the cache scoping story
+assumes they did.
 
 ---
 
@@ -707,7 +871,10 @@ leads; bytes follow because that is what runs the machine out of memory.
 
 `Job` carries `cached_tokens` and `cache_write_tokens` so the active-jobs view can
 show "prefill skipped: 3968 tokens" — the clearest signal that the feature is
-working. Hit/miss counts also go into the existing per-job log line.
+working. Hit/miss counts also go into the existing per-job log line, identifying the
+scope by the first 8 hex characters of `h[0]`. Neither `prompt_cache_key` nor the
+API key is ever logged: on an unauthenticated node the cache key is what separates
+one caller from another (§2.3), so putting it in a log file would undo that.
 
 ---
 
@@ -715,10 +882,20 @@ working. Hit/miss counts also go into the existing per-job log line.
 
 Unit (`tests/language_pipes/unit/`):
 
-- `test_prompt_cache.py` — chain determinism; divergence at the first differing
-  block; scope separation by API key / `prompt_cache_key` / origin; TTL expiry;
-  `adopt` returns an independent copy; entry invalidated by a changed `process_id`
-  or layer range.
+- `test_prompt_cache.py` — chain determinism *within one secret*; divergence at the
+  first differing block; scope separation by API key / `prompt_cache_key` / origin;
+  TTL expiry; `adopt` returns an independent copy; entry invalidated by a changed
+  `process_id` or layer range. Plus three that exist because of the threat model:
+  a fresh secret yields different IDs for the same tokens; `api_key="a"` +
+  `prompt_cache_key="bc"` and `api_key="ab"` + `prompt_cache_key="c"` produce
+  *different* scopes (the field-framing regression); and `lookup` with a
+  non-matching `origin_node_id` returns `None` for an entry that matches on every
+  other field.
+- `test_prompt_cache_anon.py` — with `api_keys` empty: a request with no
+  `prompt_cache_key` neither reads nor writes and reports `cached_tokens: 0`, a
+  request with one caches normally, and two different keys do not see each other's
+  entries. Same assertions with `api_keys` set confirm the absent-key case still
+  caches there.
 - `test_prompt_cache_share.py` — the sharing invariant: after adopting an entry and
   running a pass, the entry's tensors are unchanged in content and `data_ptr` for
   `DynamicLayer` and `DynamicSlidingWindowLayer`; a `LinearAttentionLayer` entry is
@@ -790,7 +967,8 @@ Ship it as its own commit with regression tests for both paths. It fixes a live 
 is reviewable without any cache context, and everything after it leans on the
 guarantee it establishes.
 
-**Phase 1 — single-node correctness.** `PromptCache`, chain IDs, `ChunkState`
+**Phase 1 — single-node correctness.** `PromptCache`, the keyed chain and its
+per-process secret, the unauthenticated-server rule (§2.3), `ChunkState`
 offset, `past_seen_tokens`, the token budget with admission and LRU eviction,
 adopt/store on the origin only (end-model layers), both config fields + TUI + docs.
 Reuse only when the origin hosts the whole pipe locally. Ships a real feature and
@@ -807,21 +985,25 @@ integration testing.
 breakpoint→offset mapping, `cache_write_tokens`, chat-completion
 `stream_options.include_usage`.
 
-**Phase 4 — optimizations.** Publish held-ID digests in DSN state to avoid doomed
-attempts; per-block snapshots for partial system-prompt reuse; CPU demotion of cold
-entries; derive a default `max_cache_tokens` from the node memory limit and the
-hosted layer count instead of a fixed number.
+**Phase 4 — optimizations.** Per-block snapshots for partial system-prompt reuse;
+CPU demotion of cold entries; adopt-by-move under budget pressure (§4.7); derive a
+default `max_cache_tokens` from the node memory limit and the hosted layer count
+instead of a fixed number. (Publishing held-ID digests in DSN state was previously
+listed here and is deliberately not being done — see §4.4.)
 
 ---
 
 ## 12. Decisions worth a second opinion
 
-1. **Scope isolation vs. hit rate.** Salting with the API key and origin node ID
+1. **Scope isolation vs. hit rate.** Keying over the API key and origin node ID
    means a fleet of clients sharing one large system prompt gets no shared cache
    unless they share an API key. That is the right default for this project's
    privacy posture, but if a deployment wants it, an opt-in
    `shared_prompt_cache = true` on the jobs server could drop the API key from
-   the salt. Not in this plan.
+   the scope. Not in this plan — and note the keyed chain does not make it free:
+   HMAC stops a *layer node* from confirming prompts, but dropping the API key
+   re-opens the cross-tenant `cached_tokens` oracle at the *API*, which is a
+   different adversary and unaffected by how the IDs are computed.
 2. **`MIN_CACHE_TOKENS = 256`, not OpenAI's 1024.** Language Pipes runs much
    smaller models over much slower hops than OpenAI's fleet, so the prefill saved
    by a 256-token prefix is well worth an entry. It does mean `cached_tokens` can
@@ -842,3 +1024,12 @@ hosted layer count instead of a fixed number.
    pre-existing and rare, so they do not block starting — but they are the first
    commit rather than a footnote, because caching changes their blast radius from one
    bad request to a poisoned entry that outlives it.
+7. **`prompt_cache_key` carries isolation on unauthenticated nodes** (§2.3). This is
+   a deliberate departure from OpenAI, where the field is a routing hint and
+   isolation comes from the org boundary; here, with no API keys, it is the only
+   thing separating callers. The plan does not enforce a minimum length or reject
+   weak values — a request without a key is simply uncached, and a request with one
+   is trusted to have chosen it well. The alternative considered was disabling
+   caching outright whenever `api_keys` is empty, which is stricter but denies the
+   feature to every single-user and trusted-LAN deployment, which is most of them.
+   Worth revisiting if operators turn out to send `prompt_cache_key: "default"`.
