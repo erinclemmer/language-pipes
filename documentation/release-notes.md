@@ -30,6 +30,14 @@ because every caller there shares one identity. See
 [Prompt cache across nodes](architecture.md#prompt-cache-across-nodes) and
 [Privacy](privacy.md#prompt-cache-retention).
 
+`/v1/responses` also takes the rest of OpenAI's caching surface:
+`prompt_cache_options` (`mode` and `ttl`), `prompt_cache_retention` as an alias
+for the latter, and `prompt_cache_breakpoint` on an `input_text` block to mark
+where a stable block ends in explicit mode. Unknown values return `400` rather
+than being ignored. Responses report `cache_write_tokens` alongside
+`cached_tokens`, and a chat-completion stream can now carry a usage block by
+sending `stream_options: {"include_usage": true}`.
+
 Nodes running an older build read the new packet fields as absent, so they never
 adopt and never store; a mixed-version pipe serves requests uncached rather than
 failing.

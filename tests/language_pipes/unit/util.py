@@ -25,6 +25,16 @@ class FakeEndModel:
         self.calls = []
         self.layers = list(range(num_local_layers))
         self.process_id = process_id
+        # What `prefix_tokens` answers with, for explicit-mode breakpoints. A
+        # real end model renders the chat template up to each marked message;
+        # a test scripts the result directly.
+        self.prefixes = []
+        self.prefix_indices = None
+
+    def prefix_tokens(self, messages, indices):
+        self.calls.append("prefix_tokens")
+        self.prefix_indices = list(indices)
+        return self.prefixes
 
     def tokenize(self, job):
         self.calls.append("tokenize")

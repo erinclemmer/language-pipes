@@ -201,6 +201,14 @@ class CachePolicy:
 
         job.caching.ids = cache.chain(job.caching.scope, job.input_ids)
 
+        # In explicit mode the client says where the stable blocks end, and a
+        # request whose breakpoints all fall away asked for caching this prompt
+        # cannot give it - so it runs uncached rather than silently reverting to
+        # the implicit boundary it did not ask for.
+        if job.caching.options.mode == "explicit" and not self._plan_explicit(job):
+            job.caching.forget()
+            return
+
         # At least one token has to be left to embed, so the longest prefix that
         # could be adopted stops one token short of the prompt.
         max_blocks = (job.prompt_tokens - 1) // BLOCK_SIZE
@@ -236,8 +244,32 @@ class CachePolicy:
             job.caching.use_id = job.caching.ids[blocks]
             job.caching.use_tokens = blocks * BLOCK_SIZE
 
-        # Implicit mode writes at the end of the prompt.
-        job.caching.plan_prompt_write(job.prompt_tokens)
+        if job.caching.options.mode == "explicit":
+            # The breakpoints were resolved before admission; all that is left
+            # is to forget the ones the adopted prefix already covers.
+            job.caching.drop_covered_writes()
+        else:
+            # Implicit mode writes at the end of the prompt.
+            job.caching.plan_prompt_write(job.prompt_tokens)
+
+    def _plan_explicit(self, job: Job) -> bool:
+        """Turn the request's breakpoints into write points, if any survive.
+
+        Runs before admission: a job with nothing to write should not be holding
+        a reservation for it.
+        """
+        end_model = self.end_model
+        if end_model is None:
+            return False
+        prefixes = end_model.prefix_tokens(job.messages, job.caching.options.breakpoints)
+        if job.caching.plan_explicit_writes(prefixes, job.input_ids):
+            return True
+        self.logger.warning(
+            f"Job {job.job_id[:4]} running uncached: explicit prompt caching was "
+            "requested but no breakpoint survived (too early in the prompt, or "
+            "not a prefix of it)"
+        )
+        return False
 
     def adopt_for_node(self, job: Job, network_job: NetworkJob) -> CacheOutcome:
         """A layer node's whole read path, run as its `Job` is created.
@@ -341,11 +373,16 @@ class CachePolicy:
         identity = self.identity(job)
         if identity is None:
             return
-        cache.store(
+        stored = cache.store(
             write_id, job.cache, job.origin_node_id, identity.model_id,
             identity.process_ids, identity.start_layer, identity.end_layer,
             tokens, job.caching.options.ttl_seconds
         )
+        if stored and self.node_id == job.origin_node_id:
+            # Reported as `cache_write_tokens`. Only the origin counts: every
+            # other node stores the same boundaries under the same IDs, and none
+            # of that is visible to the client anyway.
+            job.caching.record_write(tokens)
 
     # -- reporting --------------------------------------------------------
 

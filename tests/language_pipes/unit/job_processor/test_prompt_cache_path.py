@@ -437,6 +437,199 @@ class DecodeWritePointTests(unittest.TestCase):
 
 
 @patch("language_pipes.util.chunk_state.CHUNK_SIZE", 32)
+class ExplicitModeTests(unittest.TestCase):
+    """In explicit mode the client says where the stable blocks end, so the
+    write points come from breakpoints instead of from the end of the prompt -
+    and nothing is written for the answer."""
+
+    def setUp(self):
+        self.cache = make_cache()
+        self.end_model = CachingEndModel(num_local_layers=1)
+        self.pipe = make_pipe()
+
+    def job(self, prefixes, breakpoints=(1,)):
+        job = enable(make_job(origin_node_id="node-1"), self.cache)
+        job.caching.options.mode = "explicit"
+        job.caching.options.breakpoints = list(breakpoints)
+        self.end_model.prefixes = prefixes
+        return job
+
+    def processor(self, job):
+        return make_processor(
+            job=job, pipe=self.pipe, end_model=self.end_model,
+            node_id="node-1", prompt_cache=self.cache
+        )
+
+    def test_a_breakpoint_becomes_a_write_point_rounded_to_a_block(self):
+        job = self.job([list(range(300))])
+
+        self.processor(job)._state_embed()
+
+        self.assertEqual(job.caching.write_points, [BLOCK_SIZE * 2])
+        self.assertEqual(self.end_model.prefix_indices, [1])
+
+    def test_the_implicit_end_of_prompt_boundary_is_not_added(self):
+        """The client asked for its boundaries, not ours."""
+        job = self.job([list(range(300))])
+
+        self.processor(job)._state_embed()
+
+        self.assertNotIn(BLOCK_SIZE * 4, job.caching.write_points)
+
+    def test_several_breakpoints_are_kept_in_order(self):
+        job = self.job([list(range(300)), list(range(500))], breakpoints=(1, 3))
+
+        self.processor(job)._state_embed()
+
+        self.assertEqual(job.caching.write_points, [BLOCK_SIZE * 2, BLOCK_SIZE * 3])
+
+    def test_a_rendering_the_prompt_does_not_start_with_is_dropped(self):
+        """A chat template that rewrote an earlier turn would otherwise hand
+        back an offset naming a prefix this prompt does not have."""
+        job = self.job([[999] + list(range(1, 300))])
+
+        self.processor(job)._state_embed()
+
+        self.assertEqual(job.caching.ids, [])
+        self.assertEqual(job.caching.write_points, [])
+
+    def test_a_breakpoint_below_the_minimum_is_dropped(self):
+        job = self.job([list(range(MIN_CACHE_TOKENS - 1))])
+
+        self.processor(job)._state_embed()
+
+        self.assertEqual(job.caching.write_points, [])
+
+    def test_no_surviving_breakpoint_runs_the_job_uncached(self):
+        job = self.job([])
+        before = self.cache.used_tokens()
+
+        self.processor(job)._state_embed()
+
+        self.assertEqual(job.caching.ids, [])
+        self.assertFalse(job.caching.reserved)
+        self.assertEqual(self.cache.used_tokens(), before)
+
+    def test_a_boundary_the_adopted_prefix_covers_is_not_rewritten(self):
+        job = self.job([list(range(300))])
+        ids = self.cache.chain(job.caching.scope, list(range(PROMPT_TOKENS)))
+        seeded = make_job()
+        seeded.cache.update(torch.ones(1, 1, 4, 4), torch.ones(1, 1, 4, 4), 0)
+        self.cache.store(
+            ids[2], seeded.cache, job.origin_node_id, "model-1",
+            [self.end_model.process_id, self.pipe.segments[0].process_id],
+            0, NUM_LAYERS - 1, BLOCK_SIZE * 2
+        )
+
+        self.processor(job)._state_embed()
+
+        self.assertEqual(job.caching.prefix_len, BLOCK_SIZE * 2)
+        self.assertEqual(job.caching.write_points, [])
+
+    def test_the_answer_crossing_a_boundary_is_not_stored(self):
+        """Implicit mode keeps writing as the response grows; explicit mode
+        writes only where the client marked, so the tail is never stored."""
+        job = self.job([list(range(300))])
+        job.prompt_tokens = PROMPT_TOKENS
+        job.current_token = BLOCK_SIZE
+        job.input_ids = list(range(BLOCK_SIZE * 6))
+        job.caching.ids = self.cache.chain(job.caching.scope, list(range(PROMPT_TOKENS)))
+        job.caching.write_points = [BLOCK_SIZE * 2]
+
+        CachePolicy("node-1", self.pipe, self.end_model, self.cache).tag_write_point(job)
+
+        self.assertEqual(job.caching.write_points, [BLOCK_SIZE * 2])
+        self.assertIsNone(job.caching.pending_write_id)
+
+
+@patch("language_pipes.util.chunk_state.CHUNK_SIZE", 32)
+class CacheWriteTokensTests(unittest.TestCase):
+    """`cache_write_tokens` is `cached_tokens`' opposite: what this request had
+    to compute and commit, rather than what it got for free."""
+
+    def setUp(self):
+        self.cache = make_cache()
+        self.end_model = CachingEndModel(num_local_layers=1)
+        self.pipe = make_pipe()
+
+    def policy(self):
+        return CachePolicy("node-1", self.pipe, self.end_model, self.cache)
+
+    def stored_job(self, tokens: int, prefix_len: int = 0):
+        job = enable(make_job(origin_node_id="node-1"), self.cache)
+        job.prompt_tokens = PROMPT_TOKENS
+        job.input_ids = list(range(max(tokens, PROMPT_TOKENS)))
+        job.caching.ids = self.cache.chain(job.caching.scope, job.input_ids)
+        job.caching.prefix_len = prefix_len
+        job.caching.cached_tokens = prefix_len
+        job.compute_step = ComputeStep.LAYER
+        job.current_layer = 0
+        job.data = make_job_data()
+        job.data.cache_position = torch.arange(tokens - 32, tokens)
+        job.cache.update(torch.ones(1, 1, tokens, 4), torch.ones(1, 1, tokens, 4), 0)
+        return job
+
+    def store(self, job, tokens: int):
+        job.caching.pending_write_id = job.caching.ids[tokens // BLOCK_SIZE]
+        job.caching.pending_write_tokens = tokens
+        self.policy().store_tagged_pass(job)
+
+    def test_a_single_boundary_counts_the_whole_entry(self):
+        job = self.stored_job(BLOCK_SIZE * 4)
+
+        self.store(job, BLOCK_SIZE * 4)
+
+        self.assertEqual(job.caching.write_tokens, BLOCK_SIZE * 4)
+
+    def test_an_adopted_prefix_is_not_counted_as_written(self):
+        """The client did not pay to compute it, and the entry it came from is
+        still in the store."""
+        job = self.stored_job(BLOCK_SIZE * 4, prefix_len=BLOCK_SIZE * 3)
+
+        self.store(job, BLOCK_SIZE * 4)
+
+        self.assertEqual(job.caching.write_tokens, BLOCK_SIZE)
+
+    def test_later_boundaries_count_only_what_they_add(self):
+        job = self.stored_job(BLOCK_SIZE * 4)
+        # The chain grows with the answer; every ID it shares with the prompt's
+        # comes out identical, by construction.
+        job.input_ids = list(range(BLOCK_SIZE * 5))
+        job.caching.ids = self.cache.chain(job.caching.scope, job.input_ids)
+        self.store(job, BLOCK_SIZE * 4)
+
+        job.data.cache_position = torch.arange(BLOCK_SIZE * 5 - 32, BLOCK_SIZE * 5)
+        job.cache = make_job().cache
+        job.cache.update(
+            torch.ones(1, 1, BLOCK_SIZE * 5, 4), torch.ones(1, 1, BLOCK_SIZE * 5, 4), 0
+        )
+        self.store(job, BLOCK_SIZE * 5)
+
+        self.assertEqual(job.caching.write_tokens, BLOCK_SIZE * 5)
+
+    def test_a_skipped_store_counts_nothing(self):
+        job = self.stored_job(BLOCK_SIZE * 4)
+        # A drifted pass: the tag claims more than the pass covered.
+        job.data.cache_position = torch.arange(0, 32)
+
+        self.store(job, BLOCK_SIZE * 4)
+
+        self.assertEqual(job.caching.write_tokens, 0)
+
+    def test_a_layer_node_reports_nothing(self):
+        """Only the origin answers a client, and the other nodes store the same
+        boundaries under the same IDs anyway."""
+        job = self.stored_job(BLOCK_SIZE * 4)
+        job.origin_node_id = "node-2"
+        job.caching.pending_write_id = job.caching.ids[4]
+        job.caching.pending_write_tokens = BLOCK_SIZE * 4
+
+        CachePolicy("node-1", self.pipe, self.end_model, self.cache).store_tagged_pass(job)
+
+        self.assertEqual(job.caching.write_tokens, 0)
+
+
+@patch("language_pipes.util.chunk_state.CHUNK_SIZE", 32)
 class TwoRequestTests(unittest.TestCase):
     """The loop that actually has to close: one request stores at its prompt
     boundary, the next one with the same prompt adopts it."""

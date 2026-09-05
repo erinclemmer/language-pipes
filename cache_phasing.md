@@ -52,7 +52,7 @@ are worth keeping as the baseline; the rows Phase 0 has since changed are marked
 | 0 ✅ | Job restart correctness (`pass_idx`, per-node saved output, replay instead of recompute) | A corrupted packet no longer silently desynchronizes the pipe's KV caches | — | M |
 | 1 ✅ | Single-node prompt cache | `cached_tokens > 0` on the second of two prefix-sharing requests when the whole pipe is on the origin node; two config fields; TUI rows; docs | 0 | L |
 | 2 ✅ | Distributed reuse | The same result across a multi-node pipe; `CacheStatus` protocol; per-node budgets | 0, 1 | L |
-| 3 | Full OpenAI surface | `prompt_cache_options`, explicit breakpoints, `cache_write_tokens`, chat `stream_options.include_usage` | 1 (2 not required) | M |
+| 3 ✅ | Full OpenAI surface | `prompt_cache_options`, explicit breakpoints, `cache_write_tokens`, chat `stream_options.include_usage` | 1 (2 not required) | M |
 | 4 | Optimizations | Adopt-by-move, CPU demotion, per-block snapshots, derived budget default | 2 | S each, independent |
 
 Phase 3 depends only on Phase 1: every Phase 3 item is origin-side (parsing,
@@ -654,7 +654,7 @@ own limits and a `0` on any node disables reuse across pipes through it.
 
 ---
 
-## 5. Phase 3 — full OpenAI surface
+## 5. Phase 3 — full OpenAI surface ✅
 
 **Goal.** §2.1 in full, §4.5, explicit-mode write points from §4.3,
 `cache_write_tokens`, and chat-completion `stream_options.include_usage`. All origin
@@ -713,12 +713,43 @@ table from §2.1, an explicit-mode example with a breakpoint, `cache_write_token
 and `stream_options.include_usage`. Remove the "arrives in a later release" note from
 Phase 1.
 
+The steps above landed as written apart from the departures recorded below.
+
+### Decisions that differ from the plan as written
+
+| Plan said | Shipped | Why |
+|---|---|---|
+| `EndModel.prefix_token_counts(messages, indices) -> List[int]`, and `_state_embed` checks `input_ids[:L_k] == prefix_tokens`. | `EndModel.prefix_tokens(messages, indices) -> List[List[int]]` - the renderings themselves - and `JobCache.plan_explicit_writes(prefixes, input_ids)` does the check, the rounding, the minimum and the ordering. | The caller cannot check a prefix it was given only the length of, so the two halves had to meet somewhere. Putting the rule on `JobCache` keeps it with the other decisions that read only the job's own state, and it makes the "not a real prefix" case testable against a scripted fake instead of a real tokenizer. |
+| The mapping happens "in `_state_embed`'s tokenize branch". | `CachePolicy.plan` calls `_plan_explicit` before admission. | Phase 1 moved the whole read/write path off the FSM; `_state_embed` no longer knows what a write point is. Running before `reserve` also means a job with nothing to write never holds a reservation for it. |
+| `parse_cache_options(data, authenticated)` grows the new parameters. | `parse_cache_options(data, authenticated, responses=False)`. | §2.2 says chat completions take only `prompt_cache_key`. Without the flag the chat endpoint would either 400 on a parameter it does not document or need its own parser. |
+| `JobCache.write_tokens` accumulates the token count of every entry the origin stored. | It accumulates what each entry *adds*: `tokens - max(previous write, prefix_len)`. | The raw counts double-count. §2.4's own example is a 4096-token prompt with `cached_tokens: 3968` and `cache_write_tokens: 128`, and with the decode-boundary entries Phase 2 added, the raw sum for one request would exceed its own total tokens several times over. The two readings coincide on the single-boundary run §3.3 asks the test to assert. |
+| — | `ttl` does not ride the wire. | Phase 3 is origin-side, and the tags are fixed by Phase 2. A layer node therefore keeps its slice for its own `max_cache_time`. A *shorter* requested TTL then expires the origin's entry first, so the pipe misses locally and never adopts a prefix a node is missing - the conservative direction, at the cost of some memory held on layer nodes until it idles out. Documented in `oai.md`. |
+| — | `"in-memory"` is accepted alongside `"in_memory"`. | Both spellings are in circulation; a hyphen is not an unknown value in the sense §2.1 means to reject. |
+| — | `_response_input_to_messages` returns `(messages, sources)`. | A breakpoint marks an `input` *item*, the write path needs a *message* index, and `instructions` plus the tool schemas insert messages ahead of both. The item-to-message map is the only honest way to line them up, and it also covers items that produce no message at all. |
+| — | A breakpoint is honored on a tool result's `output` blocks, not only on a message's `content`. | Those are the two places a Responses item keeps content blocks, and a long tool result is exactly the stable block a client would mark. |
+| — | The parsing surface got its own test file (`test_prompt_cache_options.py`) rather than growing `test_oai_responses.py`. | It is one subject - what the server accepts, rejects and ignores - and `test_oai_responses.py` is already 900 lines about a different one. |
+
+### Tests
+
+| File | Covers |
+|---|---|
+| `test_prompt_cache_options.py` *(new)* | `mode`, `ttl` and `prompt_cache_retention` parsing, the alias mapping and which spelling wins; every 400 (unknown mode, unknown ttl, unknown retention, a non-object `prompt_cache_options`, a non-object or unknown-mode breakpoint, a breakpoint on `instructions`); breakpoints capped at four; item-to-message index mapping through `instructions`, tool schemas, a tool result and an item that produced no message; the chat endpoint ignoring all of it; and the four 400s again over real HTTP, with a valid explicit request still returning 200. |
+| `job_processor/test_prompt_cache_path.py` *(extended)* | `ExplicitModeTests`: a breakpoint becomes a write point rounded down to a block; the implicit end-of-prompt boundary is not added; several breakpoints keep their order; a rendering the prompt does not start with is dropped; one below the minimum is dropped; no survivor runs the job uncached with no reservation; a boundary the adopted prefix covers is dropped; the answer crossing a boundary is not tagged. `CacheWriteTokensTests`: a single boundary counts the whole entry, an adopted prefix is not counted, a later boundary counts only what it adds, a skipped store counts nothing, and a layer node counts nothing. |
+| `test_oai_responses.py` *(extended)* | `cache_write_tokens` in `input_tokens_details`, streaming and not. `ChatStreamUsageTests`: no usage unless asked for, one usage chunk with empty `choices` immediately before `[DONE]`, the numbers matching `chat_usage`, `include_usage: false` respected, and a malformed `stream_options` ignored. |
+
 ### Exit criteria
 
-- Unit suite green.
-- Integration: an explicit-mode request with one breakpoint on a long system
-  message followed by a request with a different user turn hits at the breakpoint
-  boundary and not beyond.
+- ✅ 575 unit tests pass (529 before), no skips added. The only existing tests
+  changed were the three `input_tokens_details` assertions that now carry
+  `cache_write_tokens`, plus `prefix_tokens` on `FakeEndModel`.
+- ✅ `ruff check src tests` reports the same 60 pre-existing findings, none in
+  the new files.
+- ⚠️ The integration run was **not** executed: it needs model weights.
+  `ExplicitModeTests` stands in for it at the FSM level. Still to run against
+  real weights: an explicit-mode request with one breakpoint on a long system
+  message, followed by a request with a different user turn - the second hits at
+  the breakpoint boundary and not beyond, and `cache_write_tokens` on the first
+  equals that boundary.
 
 ---
 

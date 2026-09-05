@@ -265,6 +265,7 @@ POST /v1/responses
 | `top_k` | integer | | Top-k sampling limit (default: `0`, disabled) |
 | `min_p` | float | | Minimum probability threshold (default: `0`, disabled) |
 | `presence_penalty` | float | | Penalty for token repetition (default: `0`) |
+| `stream_options` | object | | `{"include_usage": true}` adds a final chunk carrying `usage` to a stream |
 | `prompt_cache_key` | string | | Scopes the [prompt cache](#prompt-caching) (default: `""`) |
 
 ### Responses Request Body
@@ -285,6 +286,8 @@ POST /v1/responses
 | `tool_choice` | string or object | | `auto`, `none`, `required`, or `{"type": "function", "name": "..."}` |
 | `parallel_tool_calls` | boolean | | Accepted for compatibility; parallel calls are not produced |
 | `prompt_cache_key` | string | | Scopes the [prompt cache](#prompt-caching) (default: `""`) |
+| `prompt_cache_options` | object | | `{"mode": "implicit"` or `"explicit"`, `"ttl": "30m"}` — see [prompt caching](#prompt-caching) |
+| `prompt_cache_retention` | string | | Older spelling of the same request: `"in_memory"` or `"24h"` |
 
 The endpoint returns a Responses API-style object with `output`, `output_text`, and `usage` fields. Custom function tools are supported; hosted tools, `previous_response_id` statefulness, and multimodal input are not currently implemented.
 
@@ -469,6 +472,69 @@ It defends against someone who can reach the API, not against someone who can
 observe it. **Configuring `api_keys` is the supported way to get cache
 isolation.**
 
+### `prompt_cache_options`
+
+Accepted on `/v1/responses` only, which is where OpenAI exposes it. Sending it
+to `/v1/chat/completions` is ignored.
+
+```json
+{
+  "model": "Qwen/Qwen3-1.7B",
+  "input": "...",
+  "prompt_cache_options": { "mode": "explicit", "ttl": "30m" }
+}
+```
+
+| Field | Values | Meaning |
+|---|---|---|
+| `mode` | `"implicit"` (default), `"explicit"` | Where the prefix is snapshotted. Implicit picks the boundaries for you; explicit uses only the breakpoints you mark. |
+| `ttl` | `"in_memory"`, `"30m"`, `"24h"` | How long you would like the entry kept. `in_memory` means "the node's usual lifetime". |
+
+`prompt_cache_retention` is the older spelling of `ttl` and takes the same
+values; if both are sent, `prompt_cache_options.ttl` wins.
+
+A TTL is a request, not a contract: the node clamps it to its own
+`max_cache_time`, so asking for `"24h"` on a node configured with 300 seconds
+gets 300 seconds and is not an error. Asking for a value that is not in the
+table **is** an error - unknown `mode`, `ttl` or `prompt_cache_retention` values
+return `400` rather than being silently ignored, so a client never has to guess
+whether a parameter took effect.
+
+### Explicit breakpoints
+
+In explicit mode you mark the end of each stable block with a
+`prompt_cache_breakpoint` on an `input_text` content block, and nothing else is
+written - not the end of the prompt, and not the response.
+
+```json
+{
+  "model": "Qwen/Qwen3-1.7B",
+  "prompt_cache_options": { "mode": "explicit" },
+  "input": [
+    {
+      "role": "system",
+      "content": [{
+        "type": "input_text",
+        "text": "<a long, unchanging system prompt>",
+        "prompt_cache_breakpoint": { "mode": "explicit" }
+      }]
+    },
+    { "role": "user", "content": "the part that changes every request" }
+  ]
+}
+```
+
+- A breakpoint marks the **end of the message** its block belongs to, and the
+  offset is rounded **down** to the nearest 128-token boundary.
+- At most **four** are used; extras are ignored rather than rejected.
+- One below the 256-token minimum is dropped.
+- A breakpoint on top-level `instructions` returns `400`: `instructions` is a
+  single string with no boundary to mark, so put the text in an `input`
+  developer or system message and mark it there.
+- If **no** breakpoint survives those rules, the request runs uncached. Explicit
+  mode means "cache where I said", so falling back to the implicit boundary you
+  did not ask for would be a surprise; the node logs a warning instead.
+
 ### Reading `cached_tokens`
 
 `/v1/responses`:
@@ -476,11 +542,15 @@ isolation.**
 ```json
 "usage": {
   "input_tokens": 4096,
-  "input_tokens_details": { "cached_tokens": 3968 },
+  "input_tokens_details": { "cached_tokens": 3968, "cache_write_tokens": 128 },
   "output_tokens": 210,
   "total_tokens": 4306
 }
 ```
+
+`cache_write_tokens` is the counterpart of `cached_tokens`: what this request
+had to process and then committed to the cache for the next one. A request that
+reuses 3968 tokens of a 4096-token prompt writes the 128 it computed itself.
 
 `/v1/chat/completions`:
 
@@ -493,8 +563,20 @@ isolation.**
 }
 ```
 
+There is no `cache_write_tokens` here, because OpenAI does not expose one on
+this endpoint.
+
 Streaming `/v1/responses` carries the same numbers in the `response.completed`
-event. Chat-completion streams do not yet report usage.
+event. A chat-completion stream reports usage only when asked, with
+`stream_options`:
+
+```json
+{ "stream": true, "stream_options": { "include_usage": true } }
+```
+
+The stream then ends with one extra chunk carrying an empty `choices` array and
+the same `usage` object the non-streaming response would have returned, followed
+by `data: [DONE]`.
 
 ### What gets cached
 
@@ -502,16 +584,16 @@ event. Chat-completion streams do not yet report usage.
 |---|---|
 | Granularity | 128 tokens. `cached_tokens` is always a multiple of it. |
 | Minimum | 256 tokens. Shorter prefixes are never cached. |
-| Write points | The end of the prompt, and every 128-token boundary the response crosses after it. The latter is what makes a multi-turn conversation hit: the next turn's prompt begins with the previous exchange. The tail of a response, below the last boundary, is not stored. |
-| Lifetime | Up to `max_cache_time` seconds after the entry's *last use*, so a busy prefix stays warm and an idle one expires. |
+| Write points (implicit) | The end of the prompt, and every 128-token boundary the response crosses after it. The latter is what makes a multi-turn conversation hit: the next turn's prompt begins with the previous exchange. The tail of a response, below the last boundary, is not stored. |
+| Write points (explicit) | Only the client's breakpoints, rounded down to a 128-token boundary. Nothing is written for the response. |
+| Lifetime | Up to `max_cache_time` seconds after the entry's *last use*, so a busy prefix stays warm and an idle one expires. A shorter requested `ttl` applies to the node that received the request; the other nodes on a pipe keep their slice for their own configured time, which costs memory but never a wrong answer. |
 | Persistence | Memory only. Nothing is written to disk, and entries do not survive a node restart. |
+
+Reads are unaffected by the mode: a request always reuses the longest stored
+prefix it matches, however that entry was written.
 
 There is no endpoint to inspect or clear the cache. Operators see totals on the
 Jobs / Server page.
-
-`prompt_cache_options`, `prompt_cache_retention`, explicit breakpoints and
-`cache_write_tokens` are not implemented yet and arrive in a later release;
-sending them today is ignored rather than rejected.
 
 ---
 

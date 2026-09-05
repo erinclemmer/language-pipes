@@ -13,6 +13,7 @@ from language_pipes.jobs.job_cache import JobCache
 from language_pipes.oai_server import OAIHttpServer
 from language_pipes.util.chat import ChatRole
 from language_pipes.util.oai import ResponsesRequest, _response_json
+from language_pipes.util.oai_cache import chat_usage
 from language_pipes.util.oai_tool_calls import (
     ReasoningStreamSplitter,
     parse_tool_call,
@@ -550,19 +551,24 @@ class CachedTokensUsageTests(unittest.TestCase):
 
         response = _response_json(DummyJob(), req, 1234.5)
 
-        self.assertEqual(response["usage"]["input_tokens_details"], {"cached_tokens": 0})
+        self.assertEqual(
+            response["usage"]["input_tokens_details"],
+            {"cached_tokens": 0, "cache_write_tokens": 0}
+        )
 
     def test_a_reused_prefix_is_reported_back(self):
         class CachedJob(DummyJob):
             caching = JobCache()
             caching.cached_tokens = 384
+            caching.write_tokens = 128
 
         req = ResponsesRequest.from_dict({"model": "model-1", "input": "Hi"})
 
         response = _response_json(CachedJob(), req, 1234.5)
 
         self.assertEqual(
-            response["usage"]["input_tokens_details"], {"cached_tokens": 384}
+            response["usage"]["input_tokens_details"],
+            {"cached_tokens": 384, "cache_write_tokens": 128}
         )
 
     def test_streaming_responses_carry_the_same_numbers(self):
@@ -576,7 +582,10 @@ class CachedTokensUsageTests(unittest.TestCase):
             completed = next(e for e in events if e["type"] == "response.completed")
 
             usage = completed["response"]["usage"]
-            self.assertEqual(usage["input_tokens_details"], {"cached_tokens": 0})
+            self.assertEqual(
+                usage["input_tokens_details"],
+                {"cached_tokens": 0, "cache_write_tokens": 0}
+            )
             self.assertEqual(usage["input_tokens"], 4)
         finally:
             server.shutdown()
@@ -599,6 +608,94 @@ class CachedTokensUsageTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=1)
+
+
+class ChatStreamUsageTests(unittest.TestCase):
+    """`stream_options.include_usage` is the only OpenAI-sanctioned way to get
+    usage out of a chat-completion stream, so it is the only way `cached_tokens`
+    reaches a streaming chat client."""
+
+    def _serve(self, job):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve, cache_options=None):
+            start(job)
+            resolve(job)
+
+        server = OAIHttpServer(0, [], complete, lambda: ["model-1"])
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        return server, thread
+
+    def _stream(self, body):
+        job = DummyJob()
+        job.caching = JobCache()
+        job.caching.cached_tokens = 256
+        server, thread = self._serve(job)
+        try:
+            port = server.server_address[1]
+            res = requests.post(
+                f"http://127.0.0.1:{port}/v1/chat/completions", json=body
+            )
+            return res.text, _parse_sse_events(res.text)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=1)
+
+    def base(self, **extra):
+        body = {
+            "model": "model-1",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+        body.update(extra)
+        return body
+
+    def test_usage_is_absent_unless_asked_for(self):
+        _, events = self._stream(self.base())
+
+        self.assertFalse(any("usage" in e for e in events))
+
+    def test_the_final_chunk_carries_usage_when_asked_for(self):
+        text, events = self._stream(
+            self.base(stream_options={"include_usage": True})
+        )
+
+        usage_chunks = [e for e in events if "usage" in e]
+        self.assertEqual(len(usage_chunks), 1)
+        chunk = usage_chunks[0]
+        self.assertEqual(chunk["choices"], [])
+        self.assertEqual(chunk["usage"]["prompt_tokens"], 4)
+        self.assertEqual(chunk["usage"]["completion_tokens"], 3)
+        self.assertEqual(
+            chunk["usage"]["prompt_tokens_details"], {"cached_tokens": 256}
+        )
+        # It is the last thing before the terminator, as OpenAI documents.
+        self.assertIs(events[-1], chunk)
+        self.assertTrue(text.rstrip().endswith("data: [DONE]"))
+
+    def test_the_numbers_match_the_non_streaming_response(self):
+        _, events = self._stream(
+            self.base(stream_options={"include_usage": True})
+        )
+        streamed = next(e for e in events if "usage" in e)["usage"]
+
+        job = DummyJob()
+        job.caching = JobCache()
+        job.caching.cached_tokens = 256
+
+        self.assertEqual(streamed, chat_usage(job))
+
+    def test_include_usage_false_is_respected(self):
+        _, events = self._stream(
+            self.base(stream_options={"include_usage": False})
+        )
+
+        self.assertFalse(any("usage" in e for e in events))
+
+    def test_a_malformed_stream_options_is_ignored(self):
+        _, events = self._stream(self.base(stream_options="yes"))
+
+        self.assertFalse(any("usage" in e for e in events))
 
 
 class ReasoningStreamingTests(unittest.TestCase):

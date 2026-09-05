@@ -93,7 +93,12 @@ def send_error(job: Job, message: str, created: float, handler: BaseHTTPRequestH
     except Exception:
         pass
 
-def send_complete(job: Job, created: float, handler: BaseHTTPRequestHandler):
+def send_complete(
+    job: Job,
+    created: float,
+    handler: BaseHTTPRequestHandler,
+    usage: Optional[dict] = None
+):
     final = {
         "id": f"chatcmpl-{job.job_id}",
         "object": "chat.completion.chunk",
@@ -107,8 +112,21 @@ def send_complete(job: Job, created: float, handler: BaseHTTPRequestHandler):
             }
         ]
     }
+    # `stream_options.include_usage`: one extra chunk after the last content
+    # chunk, carrying no choices and the same totals the non-streaming response
+    # would have reported.
+    usage_chunk = {
+        "id": f"chatcmpl-{job.job_id}",
+        "object": "chat.completion.chunk",
+        "created": int(created),
+        "model": job.model_id,
+        "choices": [],
+        "usage": usage
+    }
     try:
         handler.wfile.write(b'data: ' + json.dumps(final).encode('utf-8') + b'\n\n')
+        if usage is not None:
+            handler.wfile.write(b'data: ' + json.dumps(usage_chunk).encode('utf-8') + b'\n\n')
         handler.wfile.write(b'data: [DONE]\n\n')
         handler.wfile.flush()
     except Exception:

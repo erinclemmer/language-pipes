@@ -1,7 +1,7 @@
 import json
 import time
 import threading
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Tuple
 
 from promise import Promise
 from http.server import BaseHTTPRequestHandler
@@ -44,6 +44,9 @@ class ChatCompletionRequest:
     min_p: float
     presence_penalty: float
     cache_options: CacheOptions
+    # `stream_options.include_usage`: the only OpenAI-sanctioned way to get a
+    # usage block out of a chat-completion stream.
+    include_usage: bool
 
     def __init__(
             self, 
@@ -56,7 +59,8 @@ class ChatCompletionRequest:
             top_p: float = 1.0,
             min_p: float = 0.0,
             presence_penalty: float = 0.0,
-            cache_options: Optional[CacheOptions] = None
+            cache_options: Optional[CacheOptions] = None,
+            include_usage: bool = False
         ):
         self.model = model
         self.stream = stream
@@ -68,6 +72,7 @@ class ChatCompletionRequest:
         self.min_p = min_p
         self.presence_penalty = presence_penalty
         self.cache_options = cache_options if cache_options is not None else CacheOptions()
+        self.include_usage = include_usage
 
     def to_json(self):
         return {
@@ -97,7 +102,9 @@ class ChatCompletionRequest:
         min_p = data['min_p'] if 'min_p' in data else 0.0
         presence_penalty = data['presence_penalty'] if 'presence_penalty' in data else 0.0
         cache_options = parse_cache_options(data, authenticated)
-        return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature, top_k, top_p, min_p, presence_penalty, cache_options)
+        stream_options = data.get('stream_options')
+        include_usage = bool(stream_options.get('include_usage')) if isinstance(stream_options, dict) else False
+        return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature, top_k, top_p, min_p, presence_penalty, cache_options, include_usage)
 
 def _content_to_text(content: Any) -> str:
     if isinstance(content, str):
@@ -117,48 +124,84 @@ def _content_to_text(content: Any) -> str:
         return ""
     return str(content)
 
-def _response_input_to_messages(response_input: Any) -> List[ChatMessage]:
+def _response_input_to_messages(response_input: Any) -> Tuple[List[ChatMessage], List[int]]:
+    """The chat messages an `input` maps to, and where each one came from.
+
+    The second list holds, per message, the index of the `input` item that
+    produced it. A breakpoint is marked on an item but has to become a *message*
+    index for the chat template to be re-rendered up to it, and the two do not
+    line up on their own: an item the mapping skips produces no message at all.
+    """
     if isinstance(response_input, str):
-        return [ChatMessage(ChatRole.USER, response_input)]
+        return [ChatMessage(ChatRole.USER, response_input)], [0]
 
     items = response_input if isinstance(response_input, list) else [response_input]
-    messages = []
-    for item in items:
-        if isinstance(item, str):
-            messages.append(ChatMessage(ChatRole.USER, item))
-            continue
-        if not isinstance(item, dict):
-            continue
+    messages: List[ChatMessage] = []
+    sources: List[int] = []
+    for index, item in enumerate(items):
+        produced = _input_item_to_messages(item)
+        messages.extend(produced)
+        sources.extend([index] * len(produced))
 
-        item_type = item.get("type")
-        role = item.get("role")
+    return messages, sources
 
-        if item_type == "function_call":
-            # A prior assistant tool call. Replay it as an assistant message so
-            # the model has the context of what it asked for before it sees the
-            # corresponding tool result.
-            messages.append(ChatMessage(
-                ChatRole.ASSISTANT,
-                format_assistant_tool_call(
-                    item.get("name"),
-                    item.get("arguments", ""),
-                    item.get("call_id")
-                )
-            ))
-        elif item_type == "function_call_output":
-            output = _content_to_text(item.get("output", ""))
-            messages.append(ChatMessage(
-                ChatRole.USER,
-                format_tool_result(item.get("call_id"), output)
-            ))
-        elif item_type == "message" or role is not None:
-            content = _content_to_text(item.get("content", ""))
-            messages.append(ChatMessage.from_dict({
-                "role": role or "user",
-                "content": content
-            }))
 
-    return messages
+def _input_item_to_messages(item: Any) -> List[ChatMessage]:
+    """The chat messages one `input` item maps to; none for an item we skip."""
+    if isinstance(item, str):
+        return [ChatMessage(ChatRole.USER, item)]
+    if not isinstance(item, dict):
+        return []
+
+    item_type = item.get("type")
+    role = item.get("role")
+
+    if item_type == "function_call":
+        # A prior assistant tool call. Replay it as an assistant message so
+        # the model has the context of what it asked for before it sees the
+        # corresponding tool result.
+        return [ChatMessage(
+            ChatRole.ASSISTANT,
+            format_assistant_tool_call(
+                item.get("name"),
+                item.get("arguments", ""),
+                item.get("call_id")
+            )
+        )]
+    if item_type == "function_call_output":
+        output = _content_to_text(item.get("output", ""))
+        return [ChatMessage(
+            ChatRole.USER,
+            format_tool_result(item.get("call_id"), output)
+        )]
+    if item_type == "message" or role is not None:
+        content = _content_to_text(item.get("content", ""))
+        return [ChatMessage.from_dict({
+            "role": role or "user",
+            "content": content
+        })]
+    return []
+
+
+def _breakpoints_to_message_indices(
+    marked_items: List[int],
+    sources: List[int],
+    offset: int
+) -> List[int]:
+    """Turn `input`-item breakpoints into indices of the final message list.
+
+    A breakpoint names the end of an item, so the prefix ends on the last
+    message that item produced; an item that produced none is dropped. `offset`
+    covers the messages inserted ahead of the input - `instructions` and the
+    tool schemas - which are part of every prefix and shift every index by the
+    same amount.
+    """
+    indices = []
+    for item in marked_items:
+        positions = [i for i, source in enumerate(sources) if source == item]
+        if len(positions) > 0:
+            indices.append(positions[-1] + offset)
+    return sorted(set(indices))
 
 class ResponsesRequest:
     model: str
@@ -236,19 +279,27 @@ class ResponsesRequest:
             tools = parse_tool_definitions(data['tools'])
             validate_tool_choice(tool_choice, tools)
 
-        messages = _response_input_to_messages(data['input'])
+        messages, sources = _response_input_to_messages(data['input'])
+        # Everything inserted here goes ahead of the input, so it shifts every
+        # breakpoint index by the same amount.
+        inserted = 0
         if instructions is not None:
             messages.insert(0, ChatMessage(ChatRole.SYSTEM, str(instructions)))
+            inserted += 1
         if len(tools) > 0:
             # Inject tool schemas as a system-level instruction so the model
             # sees the available tools and the expected JSON output format.
             tool_message = ChatMessage(ChatRole.SYSTEM, build_tool_instructions(tools, tool_choice))
             insert_at = 1 if instructions is not None else 0
             messages.insert(insert_at, tool_message)
+            inserted += 1
         if len(messages) == 0:
             raise ValueError("input must contain at least one text message")
 
-        cache_options = parse_cache_options(data, authenticated)
+        cache_options = parse_cache_options(data, authenticated, responses=True)
+        cache_options.breakpoints = _breakpoints_to_message_indices(
+            cache_options.breakpoints, sources, inserted
+        )
         return ResponsesRequest(data['model'], stream, data['input'], instructions, max_output_tokens, messages, temperature, top_k, top_p, min_p, presence_penalty, tools, tool_choice, parallel_tool_calls, cache_options)
 
 def _reasoning_item(job: Any, reasoning_text: str) -> dict:
@@ -396,7 +447,10 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
         else:
             if req.stream:
                 with write_lock:
-                    send_complete(job, created_at, handler)
+                    send_complete(
+                        job, created_at, handler,
+                        chat_usage(job) if req.include_usage else None
+                    )
             else:
                 _respond_json(handler, {
                     "id": f"chatcmpl-{job.job_id}",

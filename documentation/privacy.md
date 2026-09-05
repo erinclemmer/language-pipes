@@ -277,6 +277,10 @@ can be served from them. So:
   bearer token that can be replayed to a node the observer never shared a pipe
   with. Nothing publishes the set of IDs a node holds; a node that does not hold
   one simply says so to the origin of that job.
+- **A client can ask for less, never more.** `prompt_cache_options.ttl` (and its
+  older spelling `prompt_cache_retention`) is a request that the node clamps to
+  its own `max_cache_time`, so a caller can shorten how long its prefix is held
+  but cannot extend it past what the operator configured.
 - **`max_cache_time = 0` restores the old behavior** exactly: no reads, no
   writes, no state retained past the job. So does `max_cache_tokens = 0`. Each
   node applies its own setting, and a `0` anywhere in a pipe means no reuse for

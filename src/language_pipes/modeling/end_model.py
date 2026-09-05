@@ -81,6 +81,30 @@ class EndModel:
         job.prompt_tokens = len(input_tokens)
         job.next_step()
 
+    def prefix_tokens(self, messages: List, indices: List[int]) -> List[List[int]]:
+        """Tokenize the prompt as it stands at the end of each marked message.
+
+        This is how a client breakpoint - which names a content block - becomes
+        a token offset. The prefix is rendered with `add_generation_prompt=False`
+        because it is the middle of a prompt, not the end of one; the caller
+        checks that the full prompt really does start with what comes back,
+        since a template that rewrote an earlier turn would otherwise produce an
+        offset the prompt does not have.
+        """
+        prefixes = []
+        for index in indices:
+            if index < 0 or index >= len(messages):
+                continue
+            prompt = self.tokenizer.apply_chat_template(
+                [m.to_json() for m in messages[:index + 1]],
+                tokenize=False,
+                chat_template=self.tokenizer.chat_template,
+                add_generation_prompt=False
+            )
+            tokens = self.tokenizer.encode(prompt, return_tensors='pt')[0]
+            prefixes.append([int(t) for t in tokens.numpy()])
+        return prefixes
+
     def compute_embed(self, job: Job):
         if job.compute_step != ComputeStep.EMBED and job.compute_step != ComputeStep.TOKENIZE:
             raise ValueError('Invalid step for embedding')

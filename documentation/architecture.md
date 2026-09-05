@@ -194,7 +194,10 @@ answers that have nowhere to ride:
 On a hit that is the whole story and there are no extra messages: every node
 adopts in `JobTracker.add_job`, computes, and forwards the tags on. Writes need
 no agreement either - the origin knows where the block boundaries are, the nodes
-do not, and the tag on the packet *is* the coordination.
+do not, and the tag on the packet *is* the coordination. Which boundaries those
+are is decided entirely on the origin, so the request's caching mode and any
+explicit breakpoints never reach a layer node: it is told where to snapshot, not
+why.
 
 The `CacheStatus` packet carries the three negatives:
 

@@ -30,6 +30,13 @@ class JobCache:
     prefix_len: int
     # Reported to the client as usage.*_tokens_details.cached_tokens.
     cached_tokens: int
+    # The counterpart, reported as cache_write_tokens: tokens this job newly
+    # committed to the cache, which is what each entry covers beyond whatever
+    # was already stored or adopted.
+    write_tokens: int
+    # The highest boundary stored so far, so a second entry only counts what it
+    # adds to the first.
+    write_mark: int
     # Token counts at which this job's slice should be snapshotted.
     write_points: List[int]
     # The write point the chunk currently being embedded ends on, if any.
@@ -55,6 +62,8 @@ class JobCache:
         self.ids = []
         self.prefix_len = 0
         self.cached_tokens = 0
+        self.write_tokens = 0
+        self.write_mark = 0
         self.write_points = []
         self.pending_write_id = None
         self.pending_write_tokens = 0
@@ -98,6 +107,61 @@ class JobCache:
         """Record a prefix taken from a stored entry, in blocks."""
         self.prefix_len = blocks * BLOCK_SIZE
         self.cached_tokens = self.prefix_len
+
+    def reset_usage(self):
+        """Forget what this attempt reused and wrote.
+
+        A rebuild prefills from token 0, so the client is told what the attempt
+        it actually got did - not what the aborted one would have.
+        """
+        self.cached_tokens = 0
+        self.write_tokens = 0
+        self.write_mark = 0
+
+    def plan_explicit_writes(self, prefixes: List[List[int]], input_ids: List[int]) -> bool:
+        """Snapshot only where the client asked, in explicit mode.
+
+        `prefixes` are the token renderings of the marked messages, in message
+        order. Each is accepted only if the prompt actually starts with it:
+        chat templates are append-only in practice, but one that rewrites an
+        earlier turn would otherwise hand back an offset that names a prefix
+        this prompt does not have, and a job resuming there would be wrong
+        rather than slow.
+
+        Returns whether anything survived - nothing to write in explicit mode
+        means the request asked for caching it cannot get.
+        """
+        points = []
+        for prefix in prefixes:
+            length = len(prefix)
+            if length == 0 or list(input_ids[:length]) != list(prefix):
+                continue
+            point = (length // BLOCK_SIZE) * BLOCK_SIZE
+            if point >= MIN_CACHE_TOKENS:
+                points.append(point)
+        self.write_points = sorted(set(points))
+        return len(self.write_points) > 0
+
+    def drop_covered_writes(self):
+        """Forget boundaries an adopted prefix already covers.
+
+        Whatever was adopted came out of an entry that is still in the store, so
+        storing it again would spend budget on a copy of itself.
+        """
+        self.write_points = [p for p in self.write_points if p > self.prefix_len]
+
+    def record_write(self, tokens: int):
+        """Count what an entry stored here added to what was already held.
+
+        An entry covers the whole prefix, but most of that prefix was either
+        adopted or written by an earlier entry of this same job, and reporting
+        it again would tell the client it paid for the same tokens twice.
+        """
+        covered = max(self.write_mark, self.prefix_len)
+        if tokens <= covered:
+            return
+        self.write_tokens += tokens - covered
+        self.write_mark = tokens
 
     def plan_prompt_write(self, prompt_tokens: int):
         """Snapshot at the last block boundary of the prompt, in implicit mode.
