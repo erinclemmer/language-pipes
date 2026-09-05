@@ -403,9 +403,10 @@ need no extra round trip:
    `cache_write_id = h[i]` and `cache_write_tokens = i * BLOCK_SIZE`.
 2. Every node that computes layers for that pass calls `PromptCache.store(...)`
    immediately after `process_job`, before forwarding.
-3. The origin does the same for its own end-model layers in `_state_process_layers`
-   (`src/language_pipes/jobs/job_processor.py:238`), then clears the tag so the
-   next pass is untagged.
+3. The origin does the same for its own end-model layers: `_state_process_layers`
+   sees the pass leave `ComputeStep.LAYER` and calls `CachePolicy.store_tagged_pass`
+   (`src/language_pipes/jobs/cache_policy.py`), which claims the tag and so leaves the
+   next pass untagged.
 
 Because the tag rides the one packet that defines the pass, every node stores the
 same boundary or none at all — no barrier, no consensus.
@@ -437,10 +438,11 @@ stored entry is a strict prefix of it.
 
 ### 4.4 Read path — optimistic adopt, miss restarts
 
-1. After `EndModel.tokenize` in `_state_embed` (`src/language_pipes/jobs/job_processor.py:208`),
-   the origin walks its chain from the longest candidate down and asks its own
-   `PromptCache` for a hit. The reusable length is capped at the largest block
-   boundary ≤ `prompt_tokens - 1` — at least one token must remain to embed.
+1. After `EndModel.tokenize`, `_state_embed` calls `CachePolicy.plan`
+   (`src/language_pipes/jobs/cache_policy.py`); the origin walks its chain from the
+   longest candidate down and asks its own `PromptCache` for a hit. The reusable
+   length is capped at the largest block boundary ≤ `prompt_tokens - 1` — at least
+   one token must remain to embed.
 2. On a local hit the origin adopts the copy into `job.cache`, sets
    `job.caching.prefix_len`, and tags the first outgoing `NetworkJob` with
    `cache_use_id` / `cache_use_tokens`.
@@ -797,11 +799,12 @@ Mixed-version pipes therefore degrade to today's behavior instead of breaking.
 | `util/oai.py` | `ResponsesRequest` / `ChatCompletionRequest` carry a `CacheOptions`; usage blocks gain `input_tokens_details` / `prompt_tokens_details`. |
 | `jobs/network_job.py` | `pass_idx` (phase 0, ✅ landed as the last appended field), then `attempt` and the five cache tags (phase 2), appended after it in that order. |
 | `jobs/pass_sequence.py` *(new, phase 0)* ✅ | `PassSequence`, `SavedPass`, `MAX_PASS_RETRIES`. Owns the pass numbering, the payload each entry point last forwarded, the sequence check, the bounce answer and the retry cap. Phase 2 adds `attempt` and `reset()` here. |
-| `jobs/job_cache.py` *(new, phase 1)* ✅ | `JobCache`, reached as `Job.caching`. Owns everything one job knows about the prompt cache: the request's `CacheOptions`, the `scope`, the chain `ids`, the adopted `prefix_len`, the reported `cached_tokens`, the `write_points`, the pending write tag and the reservation flag; plus the decisions that read only those — `searched()`, `forget()`, `adopt()`, `plan_prompt_write()`, `next_write_point()`, `tag()` / `take_pending()`, `response_write_point()` and `log_fields()`. Phase 2 adds the incoming `cache_use_*` tags and the reservation estimate here. Same split as `PassSequence`: this object decides, `Job` and the processor apply. |
+| `jobs/job_cache.py` *(new, phase 1)* ✅ | `JobCache`, reached as `Job.caching`. Owns everything one job knows about the prompt cache: the request's `CacheOptions`, the `scope`, the chain `ids`, the adopted `prefix_len`, the reported `cached_tokens`, the `write_points`, the pending write tag and the reservation flag; plus the decisions that read only those — `searched()`, `forget()`, `adopt()`, `plan_prompt_write()`, `next_write_point()`, `tag()` / `take_pending()`, `response_write_point()` and `log_fields()`. Phase 2 adds the incoming `cache_use_*` tags and the reservation estimate here. Same split as `PassSequence`: this object decides, `Job` and `CachePolicy` apply. |
+| `jobs/cache_policy.py` *(new, phase 1)* ✅ | `CachePolicy`, built from a node's `node_id`, `Pipe`, `EndModel` and `PromptCache`; one per `JobProcessor`, and a no-op when the node has no cache. Owns the decisions that need the *node* rather than the job: `identity(job)` (the `CacheIdentity` a slice is bound to — model, process ids, layer range), `usable(job)` (admission, including the phase 1 local-pipe gate), and the reads and writes themselves — `plan()`, `tag_write_point()`, `store_tagged_pass()`, `store_end_of_response()`, `log_fields()`. Phase 2 makes `identity()` return the local segment's shape off-origin, and `JobTracker` / `JobReceiver` build their own to stay on that one definition. |
 | `jobs/job.py` | Phase 0 ✅: `passes: PassSequence`, `replay(saved)`, and the two branches in `receive_network_job()` that ask it what to do. Phase 1 ✅: `caching: JobCache` — one field, not nine — and `past_seen_tokens()` / `init_chunking()` reading `caching.prefix_len`. `Job.cache` keeps its old meaning: the working `DynamicCache` for the layers this node hosts. Phase 2: `to_network_job()` emits the tags from `caching`, `receive_network_job()` compares `attempt` and rebuilds or drops. |
 | `util/chunk_state.py` | `init(prompt_length, start_offset=0)` and offset-aware `get_range`. |
 | `jobs/job_factory.py` | `start_job` accepts `cache_options` and stores it on `Job.caching`, then derives `caching.scope` there so the API key travels no further. |
-| `jobs/job_processor.py` | Phase 0 ✅: `_state_embed` numbers the pass, `_state_send` saves what went out, `replaying` short-circuits to `SEND`. Phase 1/2: `_state_embed`: plan the chain, run admission, adopt a local hit, init chunking with the offset. `_state_process_layers`: honor the write tag after computing. `_state_head`: at completion, tag/store the end-of-response boundary and release the reservation. |
+| `jobs/job_processor.py` | Phase 0 ✅: `_state_embed` numbers the pass, `_state_send` saves what went out, `replaying` short-circuits to `SEND`. Phase 1 ✅: holds a `CachePolicy` and calls it at the five moments the FSM is the only thing that knows about — `_state_embed`: `plan()` after tokenize (before `init_chunking`, which then starts after the adopted prefix) and `tag_write_point()` before the embed; `_state_process_layers`: `store_tagged_pass()` once the pass has left `ComputeStep.LAYER`; `_state_head`: `store_end_of_response()` before `complete()` releases the reservation, and `log_fields()` on the completion line. The cache logic itself is not here: this file decides *when* a boundary is covered, `cache_policy.py` decides *whether* and *under which identity*. |
 | `jobs/job_tracker.py` | `add_job` reserves budget and adopts on `cache_use_id` (passing `network_job.origin_node_id` to `lookup`), or signals `MISS` / `NO_STORE`; `complete_job` / `remove_job` / the stale sweep release reservations; sweep the `PromptCache` in `check_stale_jobs`. |
 | `jobs/job_receiver.py` | Phase 0 ✅: `_process_network_job` split out of the runner loop; a refused pass becomes a `cancel_job` carrying `PassSequence.error`. Phase 2: send `CacheStatus`, handle `ABORT`, rebuild a job with reuse disabled, stop tagging on `NO_STORE`. |
 | `content_provider/content_provider.py` | Own the `PromptCache`; dispatch protocol `3`. |
