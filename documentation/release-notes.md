@@ -38,6 +38,20 @@ than being ignored. Responses report `cache_write_tokens` alongside
 `cached_tokens`, and a chat-completion stream can now carry a usage block by
 sending `stream_options: {"include_usage": true}`.
 
+### Prompt Cache Host Tiering
+`max_cache_tokens` now bounds device (VRAM) residency specifically. Once
+nothing still needs an entry on the device, it moves to host RAM instead of
+being dropped, so it survives to be reused by a later request - promoted back
+onto the device, for whichever job borrows it next, with the entry itself
+staying on the host. A new setting, `max_cache_host_tokens`, bounds that host
+tier; absent from the config file it defaults to 4x `max_cache_tokens`, so an
+upgraded node needs no changes to keep caching exactly as it did before. Only
+the host tier evicts outright - device pressure demotes into it instead. A
+CPU-only node has no tiers: its entries are already on the host device, so
+`max_cache_tokens` keeps its exact previous meaning there. The "Jobs / Server"
+page's cache line now splits GPU and host totals. See
+[`max_cache_host_tokens`](configuration.md#max_cache_host_tokens).
+
 Nodes running an older build read the new packet fields as absent, so they never
 adopt and never store; a mixed-version pipe serves requests uncached rather than
 failing.

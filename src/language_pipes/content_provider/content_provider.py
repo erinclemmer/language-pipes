@@ -119,7 +119,9 @@ class ContentProvider:
             # the layer path, so both see the same entries and the same budget.
             self.prompt_cache = PromptCache(
                 self.job_provider.get_max_cache_time,
-                self.job_provider.get_max_cache_tokens
+                self.job_provider.get_max_cache_tokens,
+                self.job_provider.get_max_cache_host_tokens,
+                start_worker=True
             )
             self.job_tracker = JobTracker(self.prompt_cache)
             self.job_factory = JobFactory(self.job_tracker, self.pipe_manager, self.job_provider.get_max_api_jobs)
@@ -182,6 +184,7 @@ class ContentProvider:
         if self.job_receiver is not None:
             self.job_receiver.shutdown = True
         if self.prompt_cache is not None:
+            self.prompt_cache.shutdown = True
             self.prompt_cache.clear()
 
     @staticmethod

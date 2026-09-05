@@ -250,11 +250,16 @@ max_cache_time = 300
 
 #### `max_cache_tokens`
 
-Total tokens of KV state this node keeps for the prompt cache, counting both
-stored entries and the tokens reserved by jobs still running. When a new job
-does not fit, the least recently used entries are dropped to make room; a job
-that still does not fit runs uncached rather than being rejected. **Set to `0`
-to disable prompt caching.** Configurable from the TUI's "Jobs / Server" page.
+Total tokens of **device-resident** (VRAM) KV state this node keeps for the
+prompt cache, counting both device-resident entries and the tokens reserved by
+jobs still running. This is the same thing the field always measured - before
+host tiering existed, every entry was device-resident. When a new job does not
+fit, the least recently used device-resident entries are demoted into the host
+tier (see `max_cache_host_tokens`, below) rather than dropped, unless the host
+tier is disabled or full, in which case they are evicted the way every entry
+used to be; a job that still does not fit runs uncached rather than being
+rejected. **Set to `0` to disable prompt caching.** Configurable from the TUI's
+"Jobs / Server" page.
 
 | Type | Default |
 |------|---------|
@@ -264,7 +269,7 @@ to disable prompt caching.** Configurable from the TUI's "Jobs / Server" page.
 max_cache_tokens = 16384
 ```
 
-**Sizing it.** The budget is counted in tokens, but what it costs is memory, and
+**Sizing it.** The budget is counted in tokens, but what it costs is VRAM, and
 that depends on the model and on how much of it this node hosts:
 
 ```
@@ -290,6 +295,31 @@ through it - the other nodes go on serving requests normally and report
 `cached_tokens: 0`. The same is true of a node whose budget is too small for a
 given job: it tells the origin, and that job stores nothing anywhere rather than
 leaving a half-written entry set behind.
+
+#### `max_cache_host_tokens`
+
+Total tokens of **host-RAM-resident** KV state this node keeps. An entry moves
+here once the job that created or last adopted it ends, freeing its VRAM copy
+while keeping the entry itself available for the next request - a copy back
+onto the device (a H2D transfer) is the only cost paid when it is reused. Host
+RAM is cheaper and more plentiful than VRAM, so this is usually set well above
+`max_cache_tokens`. Only the host tier evicts for real: an entry dropped from
+here is gone. **Absent from the config file, it defaults to 4x
+`max_cache_tokens`**, so an upgraded node needs no config change. Set to `0` to
+disable host tiering - entries are evicted under device pressure exactly as
+they were before this field existed.
+
+| Type | Default |
+|------|---------|
+| int | `4 * max_cache_tokens` |
+
+```toml
+max_cache_host_tokens = 65536
+```
+
+A CPU-only node has no tiers: its entries' tensors are already on the host
+device, so there is nothing to demote, and they stay counted against
+`max_cache_tokens` exactly as they always did - this field has no effect there.
 
 ---
 

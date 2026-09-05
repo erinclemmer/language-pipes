@@ -319,6 +319,42 @@ class LayerNodeReadPathTests(unittest.TestCase):
         self.assertEqual(self.cache.used_tokens(), 0)
         self.assertEqual(self.cache.stats().hits + self.cache.stats().misses, 0)
 
+    def test_a_device_resident_local_entry_reserves_the_wire_amount_unchanged(self):
+        """The wire number is the origin's own estimate; a node whose local
+        copy of the entry is device-resident owes exactly that (cache_tier_plan.md §5.5)."""
+        self.seed_entry()
+
+        job, outcome = self.add(self.packet(reserve=2000))
+
+        assert job is not None
+        self.assertEqual(outcome, CacheOutcome.OK)
+        self.assertEqual(self.cache._reservations[job.job_id].tokens, 2000)
+
+    def test_a_host_resident_local_entry_subtracts_its_own_prefix(self):
+        """Residency is local to each node: this node's own copy of the entry
+        being host-resident means it does not pay the origin's device-pressure
+        charge, even though the wire number assumed it would."""
+        self.seed_entry()
+        self.cache._entries[self.cache_id].on_device = False
+
+        job, outcome = self.add(self.packet(reserve=2000))
+
+        assert job is not None
+        self.assertEqual(outcome, CacheOutcome.OK)
+        self.assertEqual(
+            self.cache._reservations[job.job_id].tokens, 2000 - BLOCK_SIZE * 3
+        )
+
+    def test_the_subtraction_never_goes_negative(self):
+        self.seed_entry()
+        self.cache._entries[self.cache_id].on_device = False
+
+        job, outcome = self.add(self.packet(reserve=BLOCK_SIZE))
+
+        assert job is not None
+        self.assertEqual(outcome, CacheOutcome.OK)
+        self.assertEqual(self.cache._reservations[job.job_id].tokens, 0)
+
 
 class CacheReservationTests(unittest.TestCase):
     """A dropped connection or an expired job must not leak cache budget."""
@@ -381,6 +417,70 @@ class CacheReservationTests(unittest.TestCase):
         tracker.jobs_pending["key"] = [job]
 
         tracker.complete_job(job)
+
+        self.assertIsNone(tracker.get_job(job.job_id))
+
+
+class DemotionOnJobEndTests(unittest.TestCase):
+    """Host tiering (cache_tier_plan.md §5.3): nothing still needs an entry on
+    the device once the job that touched it has ended, so ending a job is what
+    queues its entries for demotion."""
+
+    def setUp(self):
+        self.prompt_cache = PromptCache(lambda: 300, lambda: 100000, lambda: 100000)
+        self.tracker = make_tracker(self.prompt_cache)
+
+    def job_with_touched(self, *touched_ids: bytes) -> Job:
+        job = make_job()
+        job.caching.touched_ids = list(touched_ids)
+        return job
+
+    def test_remove_job_queues_its_touched_entries_for_demotion(self):
+        job = self.job_with_touched(b"a" * 32, b"b" * 32)
+        self.tracker.jobs_pending["key"] = [job]
+
+        self.tracker.remove_job(job.job_id)
+
+        self.assertEqual(self.prompt_cache._demote_queue.qsize(), 2)
+
+    def test_completing_a_job_reaches_the_same_path(self):
+        job = self.job_with_touched(b"a" * 32)
+        self.tracker.jobs_pending["key"] = [job]
+
+        self.tracker.complete_job(job)
+
+        self.assertEqual(self.prompt_cache._demote_queue.qsize(), 1)
+
+    def test_canceling_a_job_reaches_the_same_path(self):
+        job = self.job_with_touched(b"a" * 32)
+        self.tracker.jobs_pending["key"] = [job]
+
+        self.tracker.cancel_job(job, "reason")
+
+        self.assertEqual(self.prompt_cache._demote_queue.qsize(), 1)
+
+    def test_a_job_that_touched_nothing_queues_nothing(self):
+        job = self.job_with_touched()
+        self.tracker.jobs_pending["key"] = [job]
+
+        self.tracker.remove_job(job.job_id)
+
+        self.assertEqual(self.prompt_cache._demote_queue.qsize(), 0)
+
+    def test_a_job_still_pending_queues_nothing(self):
+        """Only ending the job triggers this - a job mid-decode must keep its
+        entry device-resident."""
+        job = self.job_with_touched(b"a" * 32)
+        self.tracker.jobs_pending["key"] = [job]
+
+        self.assertEqual(self.prompt_cache._demote_queue.qsize(), 0)
+
+    def test_a_tracker_without_a_cache_tolerates_touched_ids(self):
+        tracker = make_tracker()
+        job = self.job_with_touched(b"a" * 32)
+        tracker.jobs_pending["key"] = [job]
+
+        tracker.remove_job(job.job_id)  # must not raise
 
         self.assertIsNone(tracker.get_job(job.job_id))
 

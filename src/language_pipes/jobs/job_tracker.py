@@ -49,14 +49,21 @@ class JobTracker:
                         remove_jobs.append(j.job_id)
 
                 for job_id in remove_jobs:
-                    self.jobs_pending[key] = [j for j in self.jobs_pending[key] if j.job_id != job_id]
-                    self._release_reservation(job_id)
+                    # Routed through `remove_job` so a stale job's entries are
+                    # queued for demotion the same as any other ending job.
+                    self.remove_job(job_id)
 
                 if len(remove_jobs) > 0:
                     release_memory()
 
             if self.prompt_cache is not None:
-                self.prompt_cache.sweep()
+                # A layer node is never told a job finished, so this is also
+                # what demotes its entries - `sweep` drops anything none of
+                # our still-pending jobs touched.
+                live_ids: set = set()
+                for job in self.get_jobs():
+                    live_ids.update(job.caching.touched_ids)
+                self.prompt_cache.sweep(live_ids)
 
             sleep(CHECK_JOB_INTERVAL)
 
@@ -88,9 +95,20 @@ class JobTracker:
             self.prompt_cache.release(job_id)
 
     def remove_job(self, job_id: str):
+        removed: Optional[Job] = None
         for key in list(self.jobs_pending.keys()):
-            self.jobs_pending[key] = [j for j in self.jobs_pending[key] if j.job_id != job_id]
+            remaining = []
+            for j in self.jobs_pending[key]:
+                if j.job_id == job_id:
+                    removed = j
+                else:
+                    remaining.append(j)
+            self.jobs_pending[key] = remaining
         self._release_reservation(job_id)
+        # Nothing still running needs this job's entries on the device, so
+        # queue them for demotion - the actual move happens off this thread.
+        if removed is not None and self.prompt_cache is not None:
+            self.prompt_cache.demote_for_job(removed)
 
     def complete_job(self, job: Job):
         job_id = job.job_id

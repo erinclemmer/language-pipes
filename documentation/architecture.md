@@ -169,9 +169,11 @@ the same tokens can adopt it and skip that much prefill. Snapshots are taken by
 reference rather than copied, and a job that adopts one appends to its own
 container, so neither the entry nor the borrowing job can disturb the other.
 
-Entries are held in memory only, for at most `max_cache_time` after their last
-use, and are scoped so they are never shared across origins, API keys or
-`prompt_cache_key` values - see [Privacy](privacy.md#prompt-cache-retention).
+Entries are held in memory only - VRAM while a job that created or last
+adopted them is still running, host RAM after - for at most `max_cache_time`
+after their last use, and are scoped so they are never shared across origins,
+API keys or `prompt_cache_key` values - see
+[Privacy](privacy.md#prompt-cache-retention).
 
 #### Prompt cache across nodes
 

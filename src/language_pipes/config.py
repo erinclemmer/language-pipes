@@ -22,6 +22,10 @@ DEFAULT_MAX_CACHE_TIME = 300
 # Tokens of KV state the prompt cache may hold, counting stored entries and the
 # reservations of jobs still in flight. 0 disables the prompt cache.
 DEFAULT_MAX_CACHE_TOKENS = 16384
+# Host RAM is cheaper and more plentiful than VRAM, so entries demoted off the
+# device get more room there by default. 4x is a starting guess, not a
+# measurement - see cache_tier_plan.md §8.
+DEFAULT_MAX_CACHE_HOST_TOKENS_MULTIPLIER = 4
 
 def _deprecated_env_num_local_layers() -> Optional[int]:
     raw = os.environ.get("LP_NUM_LOCAL_LAYERS")
@@ -162,6 +166,7 @@ class LpConfig:
     max_api_jobs: int
     max_cache_time: int
     max_cache_tokens: int
+    max_cache_host_tokens: int
 
     network_config: DSNodeConfig
 
@@ -176,6 +181,7 @@ class LpConfig:
         self.max_api_jobs = _default_max_api_jobs()
         self.max_cache_time = DEFAULT_MAX_CACHE_TIME
         self.max_cache_tokens = DEFAULT_MAX_CACHE_TOKENS
+        self.max_cache_host_tokens = DEFAULT_MAX_CACHE_TOKENS * DEFAULT_MAX_CACHE_HOST_TOKENS_MULTIPLIER
         self._file_path = None
         self.network_config = DSNodeConfig.from_dict({ })
 
@@ -191,6 +197,7 @@ class LpConfig:
             "max_api_jobs": self.max_api_jobs,
             "max_cache_time": self.max_cache_time,
             "max_cache_tokens": self.max_cache_tokens,
+            "max_cache_host_tokens": self.max_cache_host_tokens,
             "node_id": self.network_config.node_id,
             "peer_port": self.network_config.port,
             "network_ip": self.network_config.network_ip,
@@ -218,6 +225,7 @@ class LpConfig:
             f"Max API Jobs: {self.max_api_jobs}",
             f"Max Cache Time: {self.max_cache_time}",
             f"Max Cache Tokens: {self.max_cache_tokens}",
+            f"Max Cache Host Tokens: {self.max_cache_host_tokens}",
         ]
 
         lines.append("API Keys:")
@@ -270,6 +278,13 @@ class LpConfig:
         cfg.max_api_jobs = data.get("max_api_jobs", cfg.max_api_jobs)
         cfg.max_cache_time = data.get("max_cache_time", cfg.max_cache_time)
         cfg.max_cache_tokens = data.get("max_cache_tokens", cfg.max_cache_tokens)
+        # Absent from an older config file: derive it from the tokens setting
+        # that file already has, rather than the class default, so an upgraded
+        # node's host tier scales with whatever it was already sized for.
+        cfg.max_cache_host_tokens = data.get(
+            "max_cache_host_tokens",
+            cfg.max_cache_tokens * DEFAULT_MAX_CACHE_HOST_TOKENS_MULTIPLIER
+        )
         cfg.network_config = DSNodeConfig.from_dict({
             "credential_dir": str(get_app_dir() / "credentials"),
             "logging_dir": str(get_app_dir() / "logs"),

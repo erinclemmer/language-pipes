@@ -381,13 +381,29 @@ budget.
   corrupt cached state, so the test is the load-bearing part.
 - **Eviction cannot disturb a running job.** Evicting drops the store's reference;
   Python's refcount keeps the tensors alive for whatever job is still using them.
-- **Entries stay on the compute device.** Moving to CPU would save VRAM but give back
-  much of the latency win on adopt. If VRAM pressure dominates, an entry can be
-  demoted to CPU after one TTL period without changing anything else.
-- **Two eviction triggers.** TTL expiry runs on the existing 10s
-  `JobTracker.check_stale_jobs` cadence rather than adding a thread; budget eviction
-  runs synchronously at admission (§4.7). Both call the same `gc.collect()` /
-  `torch.cuda.empty_cache()` / `malloc_trim` sequence that job cleanup already uses.
+- **An entry is device-resident only while the job that created it is still
+  running; after that it moves to host RAM.** `adopt` shares the tensors as
+  before when the entry is still on the device, and *promotes* a copy onto the
+  device for the borrower when it is not — the entry itself stays on the host,
+  so it survives for the next request instead of being deleted (host tiering,
+  `cache_tier_plan.md`). `CacheEntry.layer_devices` records where each layer's
+  tensors were computed so a later promotion can put them back without asking
+  the model. This is safe with no refcount: `Tensor.to()` returns a new tensor,
+  and every borrower already has its own layer objects (`copy_cache`), so
+  rebinding the entry's own tensors is invisible to a job that adopted it
+  earlier — the same argument that makes eviction safe, above. A CPU-only node
+  has nothing to demote to, so its entries stay device-resident always, and
+  `max_cache_tokens` keeps its exact original meaning there.
+- **Two budgets, two triggers.** `max_cache_tokens` bounds device-resident
+  entries plus live reservations, as it always did; `max_cache_host_tokens`
+  bounds entries demoted off the device. TTL expiry runs on the existing 10s
+  `JobTracker.check_stale_jobs` cadence rather than adding a thread, and that
+  same sweep demotes any device-resident entry no job still holds (needed
+  because a layer node is never told a job finished). Device-budget pressure at
+  admission demotes the device LRU into the host tier instead of evicting it;
+  only host-budget pressure evicts for real. All of these call the same
+  `gc.collect()` / `torch.cuda.empty_cache()` / `malloc_trim` sequence that job
+  cleanup already uses. See `cache_tier_plan.md` for the full design.
 - `size_gb` is measured with the same tensor walk as `Job.get_job_ram`
   (`src/language_pipes/jobs/job.py`) and exists only for the TUI; nothing enforces it.
 
@@ -537,38 +553,53 @@ Edge cases:
 
 ### 4.7 Admission control and the token budget
 
-Each node tracks what the cache holds and what it has promised to hold:
+Each node tracks what the cache holds and what it has promised to hold. Since host
+tiering (`cache_tier_plan.md`), this is a device-tier count: `max_cache_tokens` bounds
+device-resident tokens plus live reservations, exactly as it always did, back when every
+entry was device-resident.
 
 ```
-used = sum(e.token_count for e in entries) + sum(r.tokens for r in live_reservations)
+used = sum(e.token_count for e in entries if e.on_device) + sum(r.tokens for r in live_reservations)
 ```
 
-When a job starts, the node estimates what that job will ultimately cost the cache:
+When a job starts, the node looks before it reserves, so the estimate can charge the
+real cost instead of assuming the largest possible prefix:
 
 ```
-estimate = caching.prefix_len + prompt_tokens + max_completion_tokens
+estimate = (found.token_count if found is not None and found.on_device else 0)
+           + prompt_tokens + max_completion_tokens
 ```
 
-- `caching.prefix_len` — the entry being reused stays resident for the life of the job.
+- The residency-gated term — the entry being reused stays resident for the life of the
+  job *only if it was already device-resident*. A host-resident hit costs nothing extra
+  here: the copy `adopt` promotes for the borrower *is* the job's own working cache, so
+  it is already counted in `prompt_tokens`.
 - `prompt_tokens + max_completion_tokens` — the job's own working cache, which is what
   gets stored at the write points.
 
-The prefix is counted twice because it really is resident twice while the job runs, and
-that is worth being precise about, since nothing in the design deliberately duplicates it:
+Why a device-resident hit is still counted twice: it really is resident twice while the
+job runs, and that is worth being precise about, since nothing in the design deliberately
+duplicates it:
 
-- Adoption itself copies nothing (§4.2) — the job starts out sharing the entry's tensors.
+- Adoption itself copies nothing when the entry is device-resident (§4.2) — the job
+  starts out sharing the entry's tensors. (A host-resident entry *is* promoted with a
+  copy, but that copy becomes the job's own working cache rather than a second
+  device-resident thing, which is exactly why it is not charged again.)
 - The job's first append calls `torch.cat`, which **allocates a new tensor of
   `prefix + chunk`** for each layer. That allocation happens whether or not the entry
   exists; it is how `DynamicCache` grows.
 - The entry keeps its original `prefix` tensors alive. So from the first pass onward,
-  memory holds `prefix` (entry) + `prefix + generated` (job).
+  memory holds `prefix` (entry) + `prefix + generated` (job) — but only when the entry
+  is device-resident; a host-resident entry's `prefix` tensors are in host RAM, not
+  VRAM, so there is only one device-resident copy in that case.
 
 The same doubling appears without any reuse at all: a job that stores an entry at its
 prompt boundary and keeps decoding ends up holding both the stored tensors and its own
-grown ones. Retaining a prefix costs one extra copy of it for as long as some job is
-growing past it. That is inherent to a contiguous per-layer cache; the real fix is a
-paged/block KV cache with shared blocks, which would need attention kernels that take
-block tables and is well outside this plan.
+grown ones — until the job ends, at which point the entry demotes to host RAM rather
+than staying doubled indefinitely. Retaining a prefix costs one extra copy of it for as
+long as some job is growing past it. That is inherent to a contiguous per-layer cache;
+the real fix is a paged/block KV cache with shared blocks, which would need attention
+kernels that take block tables and is well outside this plan.
 
 `max_completion_tokens` is the ceiling the client asked for
 (`Job.max_completion_tokens`), so the estimate is an upper bound — a job that stops
@@ -577,13 +608,19 @@ early releases more than it used.
 Admission:
 
 ```
-while used + estimate > max_cache_tokens and an evictable entry exists:
-    evict the least recently used entry
+while used + estimate > max_cache_tokens and a device-resident entry exists:
+    demote the least recently used device-resident entry into the host tier
+    (or evict it outright if it cannot be demoted - host tier disabled, or a
+    CPU node with nothing to demote to)
 if used + estimate > max_cache_tokens:
     run this job uncached   # no reuse, no store, no reservation
 else:
     hold a reservation of `estimate` tokens for the life of the job
 ```
+
+Demoting instead of evicting is host tiering's whole point: the entry survives for the
+next request instead of being thrown away. See `cache_tier_plan.md` for the two-tier
+budget and the demotion mechanism in full.
 
 Reservations are released in `JobTracker.complete_job` and `remove_job`, and by the
 stale-job sweep, so a dropped connection or an expired job cannot leak budget.
@@ -607,13 +644,14 @@ Points worth being explicit about:
   miss and force a restart later.
 - Eviction order is by `last_used`, so it is consistent with the TTL rule that reuse
   refreshes an entry: the "oldest" entry is the one nothing has wanted for the longest.
-- **Adopt-by-move, when the budget is tight.** If an entry has no other user and
-  admission would otherwise refuse the job, the entry can be handed over and deleted
-  instead of shared. After the job's first `torch.cat` the original tensors are freed,
-  so the peak is `prompt + generated` rather than `prefix + prompt + generated`, and
-  the estimate drops by `caching.prefix_len`. The cost is that a concurrent request for
-  the same prefix misses until this job completes and re-stores at a longer boundary.
-  Worth having as the fallback before giving up and running uncached (phase 4).
+- **Adopt-by-move, as the last resort below host tiering.** Superseded as the primary
+  answer to budget pressure by host tiering (`cache_tier_plan.md`), which gets the same
+  admission-estimate win without destroying the entry. Adopt-by-move only remains worth
+  considering when the host tier is *also* full and admission would otherwise refuse the
+  job: hand the tensors over and delete the entry rather than share it, so the peak is
+  `prompt + generated` rather than `prefix + prompt + generated`. The cost is that a
+  concurrent request for the same prefix misses until this job completes and re-stores at
+  a longer boundary. Optional; reasonable to skip and let the job run uncached instead.
 
 ---
 

@@ -221,7 +221,8 @@ class TopPageState(PageState):
         return [
             f"   Cache: {stats.entries} entries, "
             f"{stats.tokens}/{stats.budget} tokens ({stats.reserved} reserved), "
-            f"{stats.size_gb:.1f} GB, {stats.hit_rate() * 100:.0f}% hit rate"
+            f"{stats.size_gb:.1f} GB GPU / {stats.host_size_gb:.1f} GB host, "
+            f"{stats.hit_rate() * 100:.0f}% hit rate"
         ]
 
     def _get_tip_lines(self) -> list[str]:

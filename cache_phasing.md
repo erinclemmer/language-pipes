@@ -53,7 +53,7 @@ are worth keeping as the baseline; the rows Phase 0 has since changed are marked
 | 1 ✅ | Single-node prompt cache | `cached_tokens > 0` on the second of two prefix-sharing requests when the whole pipe is on the origin node; two config fields; TUI rows; docs | 0 | L |
 | 2 ✅ | Distributed reuse | The same result across a multi-node pipe; `CacheStatus` protocol; per-node budgets | 0, 1 | L |
 | 3 ✅ | Full OpenAI surface | `prompt_cache_options`, explicit breakpoints, `cache_write_tokens`, chat `stream_options.include_usage` | 1 (2 not required) | M |
-| 4 | Optimizations | Adopt-by-move, CPU demotion, per-block snapshots, derived budget default | 2 | S each, independent |
+| 4a ✅ | Optimizations | Host tiering (supersedes adopt-by-move and CPU demotion), per-block snapshots, derived budget default | 2 | S each, independent |
 
 Phase 3 depends only on Phase 1: every Phase 3 item is origin-side (parsing,
 breakpoint→offset mapping, usage reporting). It can land before Phase 2 if the
@@ -757,8 +757,7 @@ The steps above landed as written apart from the departures recorded below.
 
 | Item | Where | What it needs | Note |
 |---|---|---|---|
-| Adopt-by-move under budget pressure (§4.7) | `PromptCache.reserve` / `adopt` | An entry refcount (jobs currently sharing it); when 0 and admission would refuse, hand the tensors over and delete the entry, and drop `caching.prefix_len` from the estimate. | Do first: it is the cheapest win on small nodes. |
-| CPU demotion of cold entries (§4.2) | `PromptCache.sweep` | After one TTL period unused, `.to("cpu")` each tensor; `adopt` moves back. `size_gb` stays; a `device` field is added to `CacheEntry`. | Only worth it when VRAM, not tokens, is the binding limit. |
+| Host tiering (§4.2, §4.7) — supersedes adopt-by-move and CPU demotion, below | `PromptCache`, `CachePolicy`, `config.py` | ✅ Shipped, see `cache_tier_plan.md`. Demote a device-resident entry into host RAM instead of evicting it or deleting it; promote a copy back for a borrower. Drops `caching.prefix_len` from the admission estimate the way adopt-by-move would have, without destroying the entry to do it. | Adopt-by-move survives only as the fallback below host tiering, when the host tier is also full (`cache_tier_plan.md` §5.6, optional, not shipped). |
 | Per-block snapshots (§11) | `_state_embed` write-point planning | Tag every block boundary inside the prompt, not just the last; entries share tensors so the cost is bookkeeping, not memory. | Makes a request that diverges mid-prompt still hit on the shared head. |
 | Derived default for `max_cache_tokens` (§3.1, §12.5) | `config.py`, `model_provider` | `bytes/token` from the hosted model's config and layer count, budget = fraction of the node's configured memory. | Keep the explicit field; derive only when it is absent from the file. |
 

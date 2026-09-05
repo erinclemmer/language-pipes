@@ -213,10 +213,26 @@ class CachePolicy:
         # could be adopted stops one token short of the prompt.
         max_blocks = (job.prompt_tokens - 1) // BLOCK_SIZE
 
+        # Look before reserving, so the estimate can charge the real cost
+        # instead of assuming the largest possible prefix. Uncounted: the
+        # outcome is not known to be usable until admission succeeds below, and
+        # a hit followed by a refused reservation must count as neither.
+        found = cache.find_longest(
+            job.caching.ids, max_blocks, job.origin_node_id,
+            identity.model_id, identity.process_ids,
+            identity.start_layer, identity.end_layer,
+            count=False
+        )
+        # Only a device-resident hit costs anything extra: memory then holds
+        # the entry plus this job's own working cache (which already covers
+        # whatever it adopts) at once. A host-resident hit costs nothing here -
+        # the promoted copy *is* the job's working cache.
+        prefix_cost = found[1].token_count if found is not None and found[1].on_device else 0
+
         # An upper bound on what this job will ask the cache to hold: the entry
         # it may reuse stays resident for the job's life, and its own working
         # cache is what gets stored at the write points.
-        estimate = max_blocks * BLOCK_SIZE + job.prompt_tokens + job.max_completion_tokens
+        estimate = prefix_cost + job.prompt_tokens + job.max_completion_tokens
         if not cache.reserve(job.job_id, estimate):
             self.logger.info(
                 f"Job {job.job_id[:4]} running uncached: "
@@ -230,11 +246,7 @@ class CachePolicy:
         # this job reuses and stores, so it is told the same estimate.
         job.caching.reserve_tokens = estimate
 
-        found = cache.find_longest(
-            job.caching.ids, max_blocks, job.origin_node_id,
-            identity.model_id, identity.process_ids,
-            identity.start_layer, identity.end_layer
-        )
+        cache.count_lookup(found is not None)
         if found is not None:
             blocks, entry = found
             job.cache = cache.adopt(entry)
@@ -243,6 +255,7 @@ class CachePolicy:
             # slices were stored under the same ID, against their own identity.
             job.caching.use_id = job.caching.ids[blocks]
             job.caching.use_tokens = blocks * BLOCK_SIZE
+            job.caching.touched_ids.append(job.caching.use_id)
 
         if job.caching.options.mode == "explicit":
             # The breakpoints were resolved before admission; all that is left
@@ -291,6 +304,7 @@ class CachePolicy:
             # Caching is off here, or this node hosts nothing of this pipe.
             return CacheOutcome.MISS if wants_read else CacheOutcome.NO_STORE
 
+        reserve_tokens = network_job.cache_reserve_tokens
         if wants_read:
             entry = cache.lookup(
                 network_job.cache_use_id, job.origin_node_id, identity.model_id,
@@ -305,8 +319,15 @@ class CachePolicy:
             assert entry is not None
             job.cache = cache.adopt(entry)
             job.caching.adopt(entry.token_count // BLOCK_SIZE)
+            job.caching.touched_ids.append(network_job.cache_use_id)
+            # The wire number is the origin's own estimate, which charges the
+            # prefix only when the origin's copy of this entry is
+            # device-resident. Residency is local to each node, so a node
+            # whose own entry is host-resident has to undo that charge itself.
+            if not entry.on_device:
+                reserve_tokens = max(0, reserve_tokens - entry.token_count)
 
-        if wants_write and not cache.reserve(job.job_id, network_job.cache_reserve_tokens):
+        if wants_write and not cache.reserve(job.job_id, reserve_tokens):
             return CacheOutcome.NO_STORE
         job.caching.reserved = wants_write
         return CacheOutcome.OK
@@ -378,6 +399,8 @@ class CachePolicy:
             identity.process_ids, identity.start_layer, identity.end_layer,
             tokens, job.caching.options.ttl_seconds
         )
+        if stored:
+            job.caching.touched_ids.append(write_id)
         if stored and self.node_id == job.origin_node_id:
             # Reported as `cache_write_tokens`. Only the origin counts: every
             # other node stores the same boundaries under the same IDs, and none

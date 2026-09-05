@@ -113,6 +113,15 @@ class JobProvider:
         cfg.max_cache_tokens = value
         cfg.save()
 
+    def get_max_cache_host_tokens(self) -> int:
+        cfg = LpConfig.from_file(self.config_file)
+        return cfg.max_cache_host_tokens
+
+    def set_max_cache_host_tokens(self, value: int):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.max_cache_host_tokens = value
+        cfg.save()
+
     def get_api_keys(self) -> List[str]:
         cfg = LpConfig.from_file(self.config_file)
         return cfg.api_keys

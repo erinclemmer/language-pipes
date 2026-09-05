@@ -735,5 +735,87 @@ class LogFieldTests(unittest.TestCase):
         self.assertIn("cache=off", self.fields(job))
 
 
+@patch("language_pipes.util.chunk_state.CHUNK_SIZE", 32)
+class ReservationEstimateTests(unittest.TestCase):
+    """cache_tier_plan.md §5.5: `plan` looks before it reserves, so the
+    estimate charges the prefix only when the entry it would adopt is
+    device-resident - a host-resident hit costs nothing extra there, because
+    the promoted copy *is* the job's own working cache."""
+
+    def setUp(self):
+        self.cache = make_cache()
+        self.end_model = CachingEndModel(num_local_layers=1)
+        self.pipe = make_pipe()
+
+    def processor(self, job):
+        return make_processor(
+            job=job, pipe=self.pipe, end_model=self.end_model,
+            node_id="node-1", prompt_cache=self.cache
+        )
+
+    def seed(self, job, blocks: int, on_device: bool) -> bytes:
+        ids = self.cache.chain(job.caching.scope, list(range(PROMPT_TOKENS)))
+        seeded = make_job()
+        seeded.cache.update(torch.ones(1, 1, blocks * BLOCK_SIZE, 4),
+                             torch.ones(1, 1, blocks * BLOCK_SIZE, 4), 0)
+        self.cache.store(
+            ids[blocks], seeded.cache, job.origin_node_id, "model-1",
+            [self.end_model.process_id, self.pipe.segments[0].process_id],
+            0, NUM_LAYERS - 1, blocks * BLOCK_SIZE
+        )
+        # Residency is exercised at the tensor level in
+        # test_prompt_cache_tiering.py; here only the flag `plan` reads matters.
+        self.cache._entries[ids[blocks]].on_device = on_device
+        return ids[blocks]
+
+    def test_a_device_resident_hit_reserves_the_prefix_too(self):
+        job = enable(make_job(origin_node_id="node-1"), self.cache)
+        self.seed(job, 3, on_device=True)
+
+        self.processor(job)._state_embed()
+
+        self.assertEqual(
+            job.caching.reserve_tokens,
+            3 * BLOCK_SIZE + PROMPT_TOKENS + job.max_completion_tokens
+        )
+        self.assertEqual(job.caching.prefix_len, 3 * BLOCK_SIZE)
+
+    def test_a_host_resident_hit_reserves_only_prompt_plus_completion(self):
+        job = enable(make_job(origin_node_id="node-1"), self.cache)
+        self.seed(job, 3, on_device=False)
+
+        self.processor(job)._state_embed()
+
+        self.assertEqual(
+            job.caching.reserve_tokens,
+            PROMPT_TOKENS + job.max_completion_tokens
+        )
+        # The hit itself is unaffected by residency.
+        self.assertEqual(job.caching.prefix_len, 3 * BLOCK_SIZE)
+
+    def test_a_job_that_fits_only_because_of_the_reduction_is_admitted(self):
+        # Enough for prompt + completion, not enough with the prefix on top.
+        self.cache = make_cache(tokens=PROMPT_TOKENS + 1000 + 10)
+        job = enable(make_job(origin_node_id="node-1"), self.cache)
+        self.seed(job, 3, on_device=False)
+
+        self.processor(job)._state_embed()
+
+        self.assertTrue(job.caching.reserved)
+        self.assertEqual(job.caching.prefix_len, 3 * BLOCK_SIZE)
+
+    def test_a_hit_whose_reservation_is_refused_counts_as_neither_hit_nor_miss(self):
+        self.cache = make_cache(tokens=1)
+        job = enable(make_job(origin_node_id="node-1"), self.cache)
+        self.seed(job, 3, on_device=True)
+
+        self.processor(job)._state_embed()
+
+        self.assertEqual(job.caching.prefix_len, 0)
+        self.assertFalse(job.caching.reserved)
+        self.assertEqual(self.cache.stats().hits, 0)
+        self.assertEqual(self.cache.stats().misses, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

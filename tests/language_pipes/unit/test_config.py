@@ -19,6 +19,7 @@ from language_pipes.config import (
     DEFAULT_MAX_API_JOBS,
     DEFAULT_MAX_CACHE_TIME,
     DEFAULT_MAX_CACHE_TOKENS,
+    DEFAULT_MAX_CACHE_HOST_TOKENS_MULTIPLIER,
 )
 
 
@@ -288,6 +289,66 @@ class PromptCacheLimitTests(unittest.TestCase):
 
         self.assertIn("Max Cache Time: 120", text)
         self.assertIn("Max Cache Tokens: 2048", text)
+
+
+class MaxCacheHostTokensTests(unittest.TestCase):
+    """The host tier's budget: absent from the TOML, it scales with whatever
+    the device budget already is, rather than a fixed constant - an upgraded
+    node needs no config change to keep its sizing consistent."""
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_defaults_to_four_times_the_token_budget(self):
+        cfg = LpConfig()
+        self.assertEqual(
+            cfg.max_cache_host_tokens,
+            DEFAULT_MAX_CACHE_TOKENS * DEFAULT_MAX_CACHE_HOST_TOKENS_MULTIPLIER
+        )
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_an_existing_config_file_without_it_derives_from_its_own_tokens_value(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            import toml
+            with open(path, "w", encoding="utf-8") as f:
+                toml.dump({"max_cache_tokens": 5000}, f)
+
+            cfg = LpConfig.from_file(path)
+
+            self.assertEqual(cfg.max_cache_host_tokens, 5000 * DEFAULT_MAX_CACHE_HOST_TOKENS_MULTIPLIER)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_round_trip_through_save_and_reload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            cfg = LpConfig()
+            cfg._file_path = path
+            cfg.max_cache_tokens = 4096
+            cfg.max_cache_host_tokens = 1234
+            cfg.save()
+
+            reloaded = LpConfig.from_file(path)
+
+            self.assertEqual(reloaded.max_cache_host_tokens, 1234)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_zero_survives_the_round_trip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            cfg = LpConfig()
+            cfg._file_path = path
+            cfg.max_cache_host_tokens = 0
+            cfg.save()
+
+            reloaded = LpConfig.from_file(path)
+
+            self.assertEqual(reloaded.max_cache_host_tokens, 0)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_to_string_lists_it(self):
+        cfg = LpConfig()
+        cfg.max_cache_host_tokens = 65536
+
+        self.assertIn("Max Cache Host Tokens: 65536", cfg.to_string())
 
 
 if __name__ == "__main__":

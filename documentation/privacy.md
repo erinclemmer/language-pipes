@@ -254,10 +254,12 @@ already held while the job ran, and the same inversion bound above applies to
 them. What changed is how long a node holds them and that a *different* request
 can be served from them. So:
 
-- **Memory only.** Nothing is written to disk. Entries do not survive a node
-  restart, and cannot be named again afterwards even in principle: the identity
-  of a cached prefix is a keyed hash under a secret generated per process and
-  never transmitted.
+- **Memory only.** Nothing is written to disk. An entry lives in VRAM while the
+  job that created or last adopted it is still running, and in host RAM after -
+  never on any storage device, and never for longer than described here either
+  way. Entries do not survive a node restart, and cannot be named again
+  afterwards even in principle: the identity of a cached prefix is a keyed hash
+  under a secret generated per process and never transmitted.
 - **Scoped, never shared.** An entry is bound to the origin node, the API key,
   and the `prompt_cache_key` that produced it, and to the exact model processes
   whose layers are in it. A request that differs in any of those is a miss. A

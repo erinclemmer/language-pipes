@@ -55,6 +55,10 @@ class JobCache:
     use_id: bytes
     use_tokens: int
     reserve_tokens: int
+    # Every entry this job adopted or stored here, in the order it touched
+    # them. What `JobTracker` demotes once the job ends - see
+    # `PromptCache.demote_for_job`.
+    touched_ids: List[bytes]
 
     def __init__(self, options: Optional[CacheOptions] = None):
         self.options = options if options is not None else CacheOptions()
@@ -72,6 +76,7 @@ class JobCache:
         self.use_id = b''
         self.use_tokens = 0
         self.reserve_tokens = 0
+        self.touched_ids = []
 
     def searched(self) -> bool:
         """Whether this job ever reached the store.
