@@ -47,14 +47,24 @@ def parse_cache_options(data: Dict[str, Any], authenticated: bool) -> CacheOptio
     )
 
 
+def cached_tokens(job: Any) -> int:
+    """What the job reused, or 0 for anything that never got that far.
+
+    Read through `job.caching` (`JobCache`) rather than off the job, and
+    defensively: the usage block is built for whatever object the API layer was
+    handed, and a job that never reached the cache path still has to report.
+    """
+    return getattr(getattr(job, "caching", None), "cached_tokens", 0)
+
+
 def input_tokens_details(job: Any) -> Dict[str, int]:
     """`usage.input_tokens_details` for the Responses API."""
-    return {"cached_tokens": getattr(job, "cached_tokens", 0)}
+    return {"cached_tokens": cached_tokens(job)}
 
 
 def prompt_tokens_details(job: Any) -> Dict[str, int]:
     """`usage.prompt_tokens_details` for chat completions."""
-    return {"cached_tokens": getattr(job, "cached_tokens", 0)}
+    return {"cached_tokens": cached_tokens(job)}
 
 
 def responses_usage(job: Any) -> Dict[str, Any]:

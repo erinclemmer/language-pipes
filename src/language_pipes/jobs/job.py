@@ -8,6 +8,7 @@ from typing import Callable
 from transformers import PretrainedConfig
 from transformers.cache_utils import DynamicCache
 
+from language_pipes.jobs.job_cache import JobCache
 from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_progress import JobProgress
 from language_pipes.jobs.network_job import NetworkJob
@@ -17,7 +18,6 @@ from language_pipes.jobs.timing_stats import TimingStats
 from language_pipes.util.chat import ChatMessage
 from language_pipes.util.chunk_state import ChunkState
 from language_pipes.util.enums import ComputeStep, JobStatus
-from language_pipes.util.oai_cache import CacheOptions
 
 class Job:
     # IDs
@@ -54,25 +54,11 @@ class Job:
     presence_penalty: float
     max_completion_tokens: int
 
-    # Prompt cache
-    cache_options: CacheOptions
-    # Prompt tokens whose keys and values arrived with an adopted entry rather
-    # than being embedded by this job.
-    cached_prefix_len: int
-    # Reported to the client as usage.*_tokens_details.cached_tokens.
-    cached_tokens: int
-    cache_scope: bytes
-    # Chain IDs by block index; cache_ids[i] names the i * BLOCK_SIZE prefix.
-    cache_ids: List[bytes]
-    # Token counts at which this job's slice should be snapshotted.
-    cache_write_points: List[int]
-    # The write point the chunk currently being embedded ends on, if any.
-    pending_write_id: Optional[bytes]
-    pending_write_tokens: int
-    cache_reserved: bool
-
     # Classes
+    # Working KV cache for the layers this node hosts.
     cache: DynamicCache
+    # Prompt-cache bookkeeping: what may be reused and what is due to be stored.
+    caching: JobCache
     chunking: ChunkState
     # Restart bookkeeping: which pass this node is on and what it last sent.
     passes: PassSequence
@@ -129,17 +115,8 @@ class Job:
         
         self.current_layer = 0
 
-        self.cache_options = CacheOptions()
-        self.cached_prefix_len = 0
-        self.cached_tokens = 0
-        self.cache_scope = b''
-        self.cache_ids = []
-        self.cache_write_points = []
-        self.pending_write_id = None
-        self.pending_write_tokens = 0
-        self.cache_reserved = False
-
         self.cache = DynamicCache(config=config)
+        self.caching = JobCache()
         self.chunking = ChunkState(self.job_id)
         self.passes = PassSequence()
         self.resolve = resolve
@@ -156,18 +133,7 @@ class Job:
         pass
 
     def init_chunking(self):
-        self.chunking.init(self.prompt_tokens, self.cached_prefix_len)
-
-    def next_write_point(self, chunk_end: int) -> Optional[int]:
-        """The write point a chunk ending at `chunk_end` completes, if any.
-
-        Write points are block boundaries, and `BLOCK_SIZE` is a multiple of
-        `CHUNK_SIZE`, so a chunk either lands exactly on one or on none.
-        """
-        for point in self.cache_write_points:
-            if point == chunk_end:
-                return point
-        return None
+        self.chunking.init(self.prompt_tokens, self.caching.prefix_len)
 
     def past_seen_tokens(self) -> int:
         """Tokens already consumed by the cache, tracked here rather than read back
@@ -182,7 +148,7 @@ class Job:
         if self.current_token == 0:
             # Still prefilling: the adopted prefix, plus the chunks of the
             # remaining suffix that have already finished.
-            return self.cached_prefix_len + self.chunking.get_tokens_processed()
+            return self.caching.prefix_len + self.chunking.get_tokens_processed()
 
         # Decoding: every token but the one about to be embedded.
         return len(self.input_ids) - 1

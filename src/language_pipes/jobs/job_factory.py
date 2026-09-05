@@ -77,13 +77,13 @@ class JobFactory:
             complete=self.job_tracker.complete_job
         )
         if cache_options is not None:
-            job.cache_options = cache_options
+            job.caching.options = cache_options
         # The scope is derived here rather than in the processor so the API key
         # never has to travel any further than this call.
         prompt_cache = self.job_tracker.prompt_cache
-        if prompt_cache is not None and job.cache_options.enabled:
-            job.cache_scope = prompt_cache.scope(
-                node_id, api_key, job.cache_options.prompt_cache_key
+        if prompt_cache is not None and job.caching.options.enabled:
+            job.caching.scope = prompt_cache.scope(
+                node_id, api_key, job.caching.options.prompt_cache_key
             )
 
         self.logger.info(f"Job {job.job_id[:4]} started")

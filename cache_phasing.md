@@ -264,9 +264,9 @@ say where the end model's own layers stop.
 - `ChunkState.init(prompt_length, start_offset=0)`; `get_range` adds the offset;
   `is_active` / `has_more` / `is_final` derive from `prompt_length - start_offset`.
   `get_tokens_processed` keeps returning tokens covered by this job's own chunks.
-- `Job.cached_prefix_len: int = 0`; `Job.past_seen_tokens()` returns
-  `cached_prefix_len + chunking.get_tokens_processed()` during prefill; decode branch
-  unchanged. `Job.init_chunking()` passes `cached_prefix_len` as the offset.
+- `JobCache.prefix_len: int = 0` (§1.5); `Job.past_seen_tokens()` returns
+  `caching.prefix_len + chunking.get_tokens_processed()` during prefill; decode branch
+  unchanged. `Job.init_chunking()` passes `caching.prefix_len` as the offset.
 - Tests: extend `test_chunk_state.py` (offset ranges, offset + suffix shorter than
   `CHUNK_SIZE` stays inactive, `get_tokens_processed` excludes the offset) and
   `test_job.py` `JobPastSeenTokensTests` (prefill with prefix, first decode step
@@ -284,17 +284,23 @@ say where the end model's own layers stop.
     breakpoints are parsed in Phase 3; unknown-value 400s also wait for Phase 3 so
     that Phase 1 never rejects a request today's server accepts.
   - `usage_details(job)` helpers that emit `input_tokens_details.cached_tokens` /
-    `prompt_tokens_details.cached_tokens` (`cache_write_tokens` is Phase 3).
+    `prompt_tokens_details.cached_tokens` (`cache_write_tokens` is Phase 3). They read
+    through `job.caching` defensively (`getattr`), because the usage block is built for
+    whatever object the API layer was handed.
 - `oai.py`: `ChatCompletionRequest` and `ResponsesRequest` gain `cache_options`;
   `from_dict` needs to know whether the server is authenticated, so thread
   `authenticated: bool` from `OAIHttpHandler` (`len(self.server.api_keys) > 0`)
   through `oai_chat_complete` / `oai_responses_create`. `_response_json` (line 253)
   and the chat usage block (line 409) and the streaming `response.completed` usage
   all call the helpers.
-- `Job` gains `cache_options`, `cache_scope: bytes`, `cache_ids: List[bytes]`,
-  `cache_write_points: List[int]`, `pending_write_id: bytes`,
-  `pending_write_tokens: int`, `cached_tokens: int`, `cache_reserved: bool`.
-- `JobFactory.start_job` accepts `cache_options` and stores it on the job; the
+- New `src/language_pipes/jobs/job_cache.py`: `JobCache`, reached as `Job.caching`.
+  It holds `options: CacheOptions`, `scope: bytes`, `ids: List[bytes]`,
+  `prefix_len: int`, `cached_tokens: int`, `write_points: List[int]`,
+  `pending_write_id: Optional[bytes]`, `pending_write_tokens: int` and
+  `reserved: bool`, plus the decisions that need nothing else (§1.7). `Job` gains the
+  single `caching` field; `Job.cache` keeps its old meaning, the working
+  `DynamicCache` for the layers this node hosts.
+- `JobFactory.start_job` accepts `cache_options` and stores it on `job.caching`; the
   `complete_cb` call sites in `oai.py` (line 418 and the responses equivalent) pass
   it. Keep the positional signature stable by adding it as a trailing keyword.
 - Tests: `test_prompt_cache_anon.py` at the parse layer (§10), and
@@ -309,7 +315,7 @@ say where the end model's own layers stop.
   `JobReceiver` reaches it via the tracker. `JobContext` gains
   `prompt_cache: Optional[PromptCache] = None`; `make_processor` in the test util
   leaves it `None`, and every cache branch in the processor is skipped when it is
-  `None` or the job's `cache_options` is disabled.
+  `None` or the job's `caching.options` is disabled.
 - `JobTracker.complete_job` / `remove_job` / the stale sweep call
   `prompt_cache.release(job_id)`; `check_stale_jobs` calls `prompt_cache.sweep()` on
   its existing 10 s cadence.
@@ -326,34 +332,37 @@ say where the end model's own layers stop.
 - `_state_embed`, in the `prompt_tokens == 0` branch after `tokenize`:
   1. If caching is off for the job, or the pipe is not local, or
      `prompt_tokens < MIN_CACHE_TOKENS`: skip.
-  2. Compute `cache_scope` and `cache_ids` from the chain.
+  2. Compute `caching.scope` and `caching.ids` from the chain.
   3. Admission: `estimate = candidate_prefix + prompt_tokens + max_completion_tokens`;
      `reserve(job_id, estimate)`; on refusal, run uncached (log at info, one line,
      with the truncated scope hash).
-  4. Walk `cache_ids` from the longest boundary `≤ prompt_tokens - 1` downward;
-     first `lookup` hit → `adopt`, set `cached_prefix_len`, `cached_tokens`.
-  5. Compute implicit write points: largest boundary `≤ prompt_tokens`, dropping any
-     `≤ cached_prefix_len` (already stored). The end-of-response point is decided at
-     completion, not here.
+  4. Walk `caching.ids` from the longest boundary `≤ prompt_tokens - 1` downward;
+     first `lookup` hit → `adopt`, and `JobCache.adopt(blocks)` sets `prefix_len` and
+     `cached_tokens`.
+  5. `JobCache.plan_prompt_write(prompt_tokens)`: largest boundary `≤ prompt_tokens`,
+     dropping any `≤ prefix_len` (already stored). The end-of-response point is
+     decided at completion, not here.
   6. `init_chunking()` with the offset.
-- Before each embed (both the tokenize branch and the `advance()` branch), set
-  `pending_write_id` / `pending_write_tokens` if the chunk about to be embedded ends
-  on a write point. Helper `Job.next_write_point(chunk_end) -> Optional[int]`.
+- Before each embed (both the tokenize branch and the `advance()` branch),
+  `JobCache.tag(chunk_end)` sets `pending_write_id` / `pending_write_tokens` if the
+  chunk about to be embedded ends on a write point (`JobCache.next_write_point`).
 - `_state_process_layers`: after `end_model.compute_layers(job)` and after
-  `model.process_job(job)`, if `pending_write_id` is set, snapshot-validate
-  (`job.data.cache_position[-1] + 1 == pending_write_tokens`) and `store`. Clear the
-  tag in `_state_embed` before the next embed (the origin is the only writer in
+  `model.process_job(job)`, `JobCache.take_pending()` claims the tag and clears it in
+  one step; snapshot-validate (`job.data.cache_position[-1] + 1 == pending_write_tokens`)
+  and `store`. A tag that is never claimed is cleared by the next `JobCache.tag()`
+  instead, so it cannot survive into another pass (the origin is the only writer in
   Phase 1, so "cleared before the next pass" is trivially true).
-- `_state_head`: when the job completes and mode is implicit, compute the largest
-  boundary `≤ len(input_ids)` and, if it is greater than every point already stored,
-  store the end-of-response entry. Note that at `HEAD` the cache covers
+- `_state_head`: when the job completes and mode is implicit,
+  `JobCache.response_write_point(covered)` gives the largest boundary that is greater
+  than every point already stored, or `None`; on a boundary, store the end-of-response
+  entry. Note that at `HEAD` the cache covers
   `len(input_ids) - 1` positions (the last sampled token is never embedded), so the
   candidate is the largest boundary `≤ len(input_ids) - 1`. Release the reservation
   through the tracker as today.
 - Tests: `job_processor/test_state_embed.py` — a local hit skips the cached chunks
   (count `compute_embed` calls); no hit when the pipe has a remote segment; write tag
   set on the chunk that ends on a boundary and only that chunk; admission refusal
-  leaves `cached_prefix_len == 0` and no store. `test_state_layers.py` — store is
+  leaves `caching.prefix_len == 0` and no store. `test_state_layers.py` — store is
   called once with the tagged id and skipped when `cache_position` disagrees.
   `test_state_head.py` — end-of-response store at the right boundary.
 
@@ -367,7 +376,7 @@ say where the end model's own layers stop.
   §3.
 - Stats line under the fields, from `JobProvider.get_cache_stats()` →
   `PromptCache.stats()`: entries, tokens used / budget, reserved, GB, hit rate.
-- Active jobs view: "prefill skipped: N tokens" when `job.cached_tokens > 0`
+- Active jobs view: "prefill skipped: N tokens" when `job.caching.cached_tokens > 0`
   (`MetaJob` gains `cached_tokens`).
 - Tests: the `main_frame/components` suite has page tests for other pages; add one
   for the two new rows (navigation wraps at 6 / 5, enter on each row edits the right
@@ -403,7 +412,8 @@ cached=<n> scope=<8 hex of h[0]>`. Never log `prompt_cache_key` or the API key.
 | `parse_cache_options(data, api_key, authenticated)`. | `parse_cache_options(data, authenticated)`. | The API key is never needed to *parse*; the scope that uses it is derived in `JobFactory.start_job`, so the key travels no further than the call that already had it. |
 | `adopt` clones `LinearAttention*Layer` states. | `copy_cache` deep-copies any layer carrying `conv_states` / `recurrent_states`. | In transformers 5.14 those are **dicts keyed by state index**, not bare tensors, and `lazy_initialization` mutates the sibling bookkeeping dicts too. A shallow copy would share all of it. Recognized by attribute rather than class name so a new variant is copied by default. |
 | `reserve` evicts until the estimate fits. | An estimate larger than the whole budget refuses *before* evicting. | §4.7 asks for this: a job that cannot fit an empty cache will not fit any cache, so throwing entries away for it is pure loss. |
-| — | `cache=off` in the log line covers "never looked", not just "opted out". | A short prompt, a remote segment and a refused admission are not cache misses, and scoring them as misses would understate the hit rate. Keyed off `cache_ids` being empty. |
+| — | `cache=off` in the log line covers "never looked", not just "opted out". | A short prompt, a remote segment and a refused admission are not cache misses, and scoring them as misses would understate the hit rate. Keyed off `JobCache.searched()`, i.e. the chain ids being empty. |
+| Nine `cache_*` / `pending_write_*` fields directly on `Job`. | One `Job.caching: JobCache` (`jobs/job_cache.py`), holding the same state under shorter names plus the decisions that read only it. | The same split `PassSequence` got in Phase 0, for the same reason: `Job` is already a 380-line state machine, and the cache path is the one part of it a reader can take in on its own. It also gives Phase 2 somewhere to put the incoming `cache_use_*` tags without growing `Job` again. `Job.cache` (the working `DynamicCache`) deliberately keeps its name — it is KV state, not bookkeeping. |
 | — | Two new test files beyond the plan's list: `job_processor/test_prompt_cache_path.py` and `test_jobs_server_page.py`. | The plan named `main_frame/components` for the TUI page test; that directory does not exist in this tree, so the page test sits with the other top-level TUI tests. |
 
 **Cross-cutting decisions (§7) as settled.** (1) Default **on**: `DEFAULT_MAX_CACHE_TIME
@@ -422,7 +432,7 @@ without restarting the process.
 | `test_prompt_cache_anon.py` *(new)* | §2.3 at the parse layer, on both endpoints: no key on an open server disables caching, a key enables it, two keys do not share a scope, an absent key still caches when `api_keys` is set, and a non-string key is ignored rather than 400ed. |
 | `job_processor/test_prompt_cache_path.py` *(new)* | The origin FSM: a hit starts the chunks after the prefix and skips them; a miss prefills everything; the whole prompt is never adopted; a remote segment, a disabled job, a short prompt and a refused admission all run uncached; write points and which chunk is tagged; store on the last layer of the pass and the drift check that skips it; the end-of-response entry; the two-request round trip; the log fields. |
 | `test_chunk_state.py` *(extended)* | Offset ranges, `get_tokens_processed` excluding the offset, an offset plus a sub-chunk suffix staying inactive, `disable` clearing the offset. |
-| `test_job.py` *(extended)* | `past_seen_tokens` with a cached prefix during prefill and at the first decode step; `next_write_point`. |
+| `test_job.py` *(extended)* | `past_seen_tokens` with a cached prefix during prefill and at the first decode step; `JobCache.next_write_point`, exercised through `job.caching`. |
 | `test_job_tracker.py` *(extended)* | Reservations released on complete, cancel and stale expiry; the sweep expiring entries; a tracker built without a cache. |
 | `test_model_manager.py` *(extended)* | Unloading layers or an end model drops that process's entries; unloading without the hook still works. |
 | `test_oai_responses.py` *(extended)* | `input_tokens_details` / `prompt_tokens_details` shape on both endpoints, streaming and not. |
@@ -434,7 +444,9 @@ without restarting the process.
 - ✅ 468 unit tests pass (348 before), no skips added. The only existing tests
   changed were the ones being extended, plus a `cache_options=None` parameter on the
   `complete_cb` fakes in `test_oai_responses.py` / `test_oai_cancel.py` and
-  `process_id` / `prompt_cache` on the fakes in `tests/…/unit/util.py`.
+  `process_id` / `prompt_cache` on the fakes in `tests/…/unit/util.py`. The `JobCache`
+  extraction later moved those assertions onto `job.caching` and gave
+  `test_oai_responses.py`'s `DummyJob` a `JobCache` instead of a bare `cached_tokens`.
 - ✅ `ruff check src tests` reports the same 60 pre-existing findings, none in the
   new files.
 - ⚠️ The integration runs were **not** executed: they need model weights.
@@ -467,7 +479,8 @@ before touching a real pipe.
   `cache_use_id`, `cache_use_tokens`, `cache_write_id`, `cache_write_tokens`,
   `cache_reserve_tokens`. Defaults `0` / `b''`.
 - `attempt` is new here. It belongs with the rest of the pass bookkeeping, so put it
-  on `PassSequence` (`jobs/pass_sequence.py`) rather than on `Job`: `attempt: int = 0`,
+  on `PassSequence` (`jobs/pass_sequence.py`) rather than on `Job` — and the five cache
+  tags belong on `JobCache` (`jobs/job_cache.py`) for the same reason: `attempt: int = 0`,
   bumped by the origin on a `MISS` rebuild (2.5), plus a `reset()` that clears `idx`,
   `last_idx`, `key`, `outputs` and `retries` in one place. Keep the Phase 0 split —
   `PassSequence` decides, `Job` applies.
@@ -478,13 +491,14 @@ before touching a real pipe.
   kept on the `Job` (passed to `__init__` today but not stored). Tests in `test_job.py`:
   higher attempt rebuilds and resets the pass bookkeeping, lower is dropped, equal is
   unchanged.
-- `Job.to_network_job()` emits them from the Phase 1 job fields; the origin clears
-  `cache_write_id` after the pass that carried it. `cache_use_id` /
+- `Job.to_network_job()` emits them from `job.caching` and `job.passes`; the origin
+  clears `cache_write_id` after the pass that carried it. `cache_use_id` /
   `cache_reserve_tokens` are sent only on the job's first packet
   (`compute_step == TOKENIZE → EMBED` transition, i.e. from `JobFactory.start_job`'s
-  dispatch and the first `_state_send`); a `Job.first_packet_sent` flag is enough.
+  dispatch and the first `_state_send`); a `JobCache.first_packet_sent` flag is enough.
 - `Job.receive_network_job` copies `cache_write_id` / `cache_write_tokens` into
-  `pending_write_id` / `pending_write_tokens` so the Phase 1 store hook in
+  `job.caching.pending_write_id` / `pending_write_tokens` — a `JobCache.tag_from_wire`
+  next to the origin's own `tag()` — so the Phase 1 store hook in
   `_state_process_layers` works unchanged on a layer node.
 - Tests: `test_network_job.py` — round-trip with every tag; old-writer payload parses
   with empty tags. `test_job.py` — receive copies the write tag; a packet without it
@@ -513,8 +527,8 @@ before touching a real pipe.
     network_job.origin_node_id, model_id, process_id, start_layer, end_layer)`. The
     layer range and `process_id` come from the local `LlmModel` for this pipe
     (`pipe.get_layer(network_job.current_layer, need_physical=True)`), so the
-    receiver passes them in. Hit → `adopt` into the new job's `cache`, set
-    `cached_prefix_len`. Miss → do **not** add the job; return `MISS`.
+    receiver passes them in. Hit → `adopt` into the new job's `cache`, and
+    `job.caching.adopt(blocks)`. Miss → do **not** add the job; return `MISS`.
   - If `cache_reserve_tokens > 0`: `reserve(job_id, cache_reserve_tokens)`; on
     refusal return `NO_STORE` alongside the job (the job still runs).
 - `_process_network_job` (split out of `_job_runner_loop` in Phase 0): on `MISS`, send `CacheStatus(MISS, attempt)` to
@@ -527,7 +541,7 @@ before touching a real pipe.
 **2.4 — Layer-node write path.** (S)
 
 - Nothing new in the processor: the Phase 1 hook in `_state_process_layers` fires on
-  `pending_write_id`, which 2.1 populates from the packet. Confirm the snapshot
+  `job.caching.pending_write_id`, which 2.1 populates from the packet. Confirm the snapshot
   validation runs on layer nodes with a test in `test_state_layers.py` that builds a
   job through `receive_network_job` rather than `make_job`.
 - `store` on a layer node needs `origin_node_id`, `model_id`, `process_id`, layer
@@ -537,8 +551,10 @@ before touching a real pipe.
 
 - `MISS` (attempt matches the job's current attempt):
   1. `job.passes.reset()` with the bumped attempt (which clears `idx`, `last_idx`
-     and `outputs` together); `job.cache = DynamicCache(config)`; `cached_prefix_len = 0`;
-     `cache_options.enabled = False` for the rest of this job; clear write points.
+     and `outputs` together); `job.cache = DynamicCache(config)`;
+     `job.caching.forget()` (which drops the ids, the write points and any pending
+     tag) and `job.caching.prefix_len = 0`; `caching.options.enabled = False` for the
+     rest of this job.
   2. Broadcast `CacheStatus(ABORT, old_attempt)` to every distinct `node_id` in the
      pipe's segments other than the origin.
   3. Re-run from the tokenize branch: `prompt_tokens` and `input_ids` are still
@@ -559,7 +575,7 @@ before touching a real pipe.
 - Tests: `test_job_receiver.py` — the two orderings from §10 (late `ABORT` after the
   retry's packet is ignored; `MISS` naming a dead attempt does not abort the retry);
   `MISS` sends `ABORT` to every non-origin segment node exactly once. `job_processor/`
-  — after a `MISS` restart, the second run has `cached_prefix_len == 0` and emits no
+  — after a `MISS` restart, the second run has `caching.prefix_len == 0` and emits no
   `cache_use_id`.
 
 **2.6 — Remove the local-pipe gate.** (S) Delete the `Pipe.is_local_to` check from
@@ -620,7 +636,8 @@ side.
 - In `_state_embed`'s tokenize branch: for each candidate `L_k`, accept only if
   `input_ids[:L_k] == prefix_tokens` (the "not a real prefix" check); round down to a
   block boundary; drop `< MIN_CACHE_TOKENS`; keep at most 4; sort ascending. These
-  become `cache_write_points` in explicit mode, replacing the implicit ones. If none
+  become `caching.write_points` in explicit mode, replacing the implicit ones
+  (`JobCache.plan_prompt_write` is the implicit-mode counterpart). If none
   survive in explicit mode, log a warning and disable caching for the job.
 - Tests: with a `FakeEndModel` that returns scripted prefix lengths — accepted,
   rejected (not a real prefix), rounded, capped at 4, below minimum dropped; explicit
@@ -628,7 +645,7 @@ side.
 
 **3.3 — `cache_write_tokens`.** (S)
 
-- `Job.cache_write_tokens` accumulates the token count of every entry the *origin*
+- `JobCache.write_tokens` accumulates the token count of every entry the *origin*
   stored for this job (layer-node stores are not observable and are assumed to
   match). Reported in `input_tokens_details.cache_write_tokens` for Responses only
   (OpenAI does not expose it on chat completions).
@@ -660,7 +677,7 @@ Phase 1.
 
 | Item | Where | What it needs | Note |
 |---|---|---|---|
-| Adopt-by-move under budget pressure (§4.7) | `PromptCache.reserve` / `adopt` | An entry refcount (jobs currently sharing it); when 0 and admission would refuse, hand the tensors over and delete the entry, and drop `cached_prefix_len` from the estimate. | Do first: it is the cheapest win on small nodes. |
+| Adopt-by-move under budget pressure (§4.7) | `PromptCache.reserve` / `adopt` | An entry refcount (jobs currently sharing it); when 0 and admission would refuse, hand the tensors over and delete the entry, and drop `caching.prefix_len` from the estimate. | Do first: it is the cheapest win on small nodes. |
 | CPU demotion of cold entries (§4.2) | `PromptCache.sweep` | After one TTL period unused, `.to("cpu")` each tensor; `adopt` moves back. `size_gb` stays; a `device` field is added to `CacheEntry`. | Only worth it when VRAM, not tokens, is the binding limit. |
 | Per-block snapshots (§11) | `_state_embed` write-point planning | Tag every block boundary inside the prompt, not just the last; entries share tensors so the cost is bookkeeping, not memory. | Makes a request that diverges mid-prompt still hit on the shared head. |
 | Derived default for `max_cache_tokens` (§3.1, §12.5) | `config.py`, `model_provider` | `bytes/token` from the hosted model's config and layer count, budget = fraction of the node's configured memory. | Keep the explicit field; derive only when it is absent from the file. |

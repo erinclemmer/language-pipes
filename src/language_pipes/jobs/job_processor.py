@@ -180,7 +180,7 @@ class JobProcessor:
     def _cache_usable(self, job: Job) -> bool:
         """Whether this job may read or write the prompt cache at all."""
         cache = self.ctx.prompt_cache
-        if cache is None or not job.cache_options.enabled or not cache.enabled():
+        if cache is None or not job.caching.options.enabled or not cache.enabled():
             return False
         if job.prompt_tokens < MIN_CACHE_TOKENS:
             return False
@@ -207,7 +207,7 @@ class JobProcessor:
             return
         model_id, process_ids, start_layer, end_layer = identity
 
-        job.cache_ids = cache.chain(job.cache_scope, job.input_ids)
+        job.caching.ids = cache.chain(job.caching.scope, job.input_ids)
 
         # At least one token has to be left to embed, so the longest prefix that
         # could be adopted stops one token short of the prompt.
@@ -221,59 +221,45 @@ class JobProcessor:
             self.logger.info(
                 f"Job {job.job_id[:4]} running uncached: "
                 f"{estimate} tokens does not fit the cache budget "
-                f"(scope {job.cache_scope[:4].hex()})"
+                f"(scope {job.caching.scope[:4].hex()})"
             )
-            job.cache_ids = []
+            job.caching.forget()
             return
-        job.cache_reserved = True
+        job.caching.reserved = True
 
         found = cache.find_longest(
-            job.cache_ids, max_blocks, job.origin_node_id,
+            job.caching.ids, max_blocks, job.origin_node_id,
             model_id, process_ids, start_layer, end_layer
         )
         if found is not None:
             blocks, entry = found
             job.cache = cache.adopt(entry)
-            job.cached_prefix_len = blocks * BLOCK_SIZE
-            job.cached_tokens = job.cached_prefix_len
+            job.caching.adopt(blocks)
 
-        # Implicit mode writes at the end of the prompt. A boundary at or below
-        # what was just adopted is already stored, so there is nothing to add.
-        prompt_point = (job.prompt_tokens // BLOCK_SIZE) * BLOCK_SIZE
-        if prompt_point >= MIN_CACHE_TOKENS and prompt_point > job.cached_prefix_len:
-            job.cache_write_points = [prompt_point]
+        # Implicit mode writes at the end of the prompt.
+        job.caching.plan_prompt_write(job.prompt_tokens)
 
     def _tag_write_point(self, job: Job):
         """Mark the chunk about to be embedded if it ends on a write point.
 
-        Cleared first: the origin is the only writer in Phase 1, so a tag that
-        is not renewed before an embed must not survive into the next pass.
+        Only the prompt is ever tagged here, so a job that has started decoding
+        clears its tag and keeps it clear.
         """
-        job.pending_write_id = None
-        job.pending_write_tokens = 0
-        if len(job.cache_write_points) == 0 or job.current_token != 0:
+        if job.current_token != 0:
+            job.caching.clear_pending()
             return
-
-        point = job.next_write_point(job.chunking.get_range()[1])
-        if point is None:
-            return
-
-        blocks = point // BLOCK_SIZE
-        if blocks >= len(job.cache_ids):
-            return
-        job.pending_write_id = job.cache_ids[blocks]
-        job.pending_write_tokens = point
+        job.caching.tag(job.chunking.get_range()[1])
 
     def _store_tagged_pass(self, job: Job):
         """Snapshot this node's slice at the tagged boundary."""
         cache = self.ctx.prompt_cache
-        if cache is None or job.pending_write_id is None:
+        if cache is None:
             return
 
-        write_id = job.pending_write_id
-        tokens = job.pending_write_tokens
-        job.pending_write_id = None
-        job.pending_write_tokens = 0
+        pending = job.caching.take_pending()
+        if pending is None:
+            return
+        write_id, tokens = pending
 
         # A node whose cache has drifted must never write its slice into an
         # entry that later requests will adopt.
@@ -293,7 +279,7 @@ class JobProcessor:
         cache.store(
             write_id, job.cache, job.origin_node_id, model_id,
             process_ids, start_layer, end_layer, tokens,
-            job.cache_options.ttl_seconds
+            job.caching.options.ttl_seconds
         )
 
     def _store_end_of_response(self, job: Job):
@@ -303,16 +289,16 @@ class JobProcessor:
         message, so an entry stored here is a strict prefix of it.
         """
         cache = self.ctx.prompt_cache
-        if cache is None or len(job.cache_ids) == 0:
+        if cache is None or not job.caching.searched():
             return
-        if job.cache_options.mode != "implicit":
+        if job.caching.options.mode != "implicit":
             return
 
         # The last sampled token was never embedded, so the cache covers one
         # position fewer than the sequence.
         covered = len(job.input_ids) - 1
-        point = (covered // BLOCK_SIZE) * BLOCK_SIZE
-        if point < MIN_CACHE_TOKENS or point <= max(job.cache_write_points, default=0):
+        point = job.caching.response_write_point(covered)
+        if point is None:
             return
         if job.data is None or len(job.data.cache_position) == 0:
             return
@@ -323,29 +309,18 @@ class JobProcessor:
         if identity is None:
             return
         model_id, process_ids, start_layer, end_layer = identity
-        ids = cache.chain(job.cache_scope, job.input_ids)
+        ids = cache.chain(job.caching.scope, job.input_ids)
         cache.store(
             ids[point // BLOCK_SIZE], job.cache, job.origin_node_id, model_id,
             process_ids, start_layer, end_layer, point,
-            job.cache_options.ttl_seconds
+            job.caching.options.ttl_seconds
         )
 
     def _cache_log_fields(self, job: Job) -> str:
-        """Cache outcome for the per-job completion line.
-
-        Neither the API key nor `prompt_cache_key` is ever logged: on an
-        unauthenticated node the cache key is what separates one caller from
-        another, so writing it to a log file would undo that.
-        """
-        # `cache_ids` is set only for a job that actually reached the store, so
-        # it is what separates "looked and found nothing" from "never looked":
-        # caching off on the node, opted out by the request, a prompt too short
-        # to be worth it, a pipe with a remote segment, or a refused admission.
-        if self.ctx.prompt_cache is None or len(job.cache_ids) == 0:
+        """Cache outcome for the per-job completion line."""
+        if self.ctx.prompt_cache is None:
             return "cache=off cached=0"
-        outcome = "hit" if job.cached_tokens > 0 else "miss"
-        scope = job.cache_scope[:4].hex() if len(job.cache_scope) > 0 else ""
-        return f"cache={outcome} cached={job.cached_tokens} scope={scope}"
+        return job.caching.log_fields()
 
     def _state_validating(self) -> JobState:
         """Validate context for processing"""
@@ -488,7 +463,7 @@ class JobProcessor:
         # `set_layer` leaves the LAYER step behind once the last layer of the
         # pass is done, which on a Phase 1 pipe is the only moment this node's
         # cache covers exactly the tagged boundary.
-        if job.pending_write_id is not None and job.compute_step != ComputeStep.LAYER:
+        if job.caching.pending_write_id is not None and job.compute_step != ComputeStep.LAYER:
             self._store_tagged_pass(job)
 
         return self._next_state()

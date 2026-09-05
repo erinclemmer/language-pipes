@@ -64,8 +64,8 @@ def make_cache(seconds: int = 300, tokens: int = 100000) -> PromptCache:
 
 
 def enable(job, cache: PromptCache, key: str = "tenant-1"):
-    job.cache_options.enabled = True
-    job.cache_scope = cache.scope(job.origin_node_id, "api-key", key)
+    job.caching.options.enabled = True
+    job.caching.scope = cache.scope(job.origin_node_id, "api-key", key)
     return job
 
 
@@ -93,7 +93,7 @@ class EmbedReadPathTests(unittest.TestCase):
 
     def seed_entry(self, job, blocks: int):
         """Put an entry in the store for the first `blocks` blocks of the prompt."""
-        ids = self.cache.chain(job.cache_scope, list(range(PROMPT_TOKENS)))
+        ids = self.cache.chain(job.caching.scope, list(range(PROMPT_TOKENS)))
         seeded = make_job()
         seeded.cache.update(torch.ones(1, 1, blocks * BLOCK_SIZE, 4),
                             torch.ones(1, 1, blocks * BLOCK_SIZE, 4), 0)
@@ -110,8 +110,8 @@ class EmbedReadPathTests(unittest.TestCase):
 
         self.processor(job)._state_embed()
 
-        self.assertEqual(job.cached_prefix_len, 3 * BLOCK_SIZE)
-        self.assertEqual(job.cached_tokens, 3 * BLOCK_SIZE)
+        self.assertEqual(job.caching.prefix_len, 3 * BLOCK_SIZE)
+        self.assertEqual(job.caching.cached_tokens, 3 * BLOCK_SIZE)
         self.assertEqual(self.end_model.embeds[0], (3 * BLOCK_SIZE, 3 * BLOCK_SIZE + 32))
 
     def test_a_hit_skips_the_cached_chunks_entirely(self):
@@ -130,8 +130,8 @@ class EmbedReadPathTests(unittest.TestCase):
 
         self.processor(job)._state_embed()
 
-        self.assertEqual(job.cached_prefix_len, 0)
-        self.assertEqual(job.cached_tokens, 0)
+        self.assertEqual(job.caching.prefix_len, 0)
+        self.assertEqual(job.caching.cached_tokens, 0)
         self.assertEqual(self.end_model.embeds[0], (0, 32))
 
     def test_the_whole_prompt_is_never_adopted_leaving_nothing_to_embed(self):
@@ -141,7 +141,7 @@ class EmbedReadPathTests(unittest.TestCase):
             prompt_tokens=BLOCK_SIZE * 4, num_local_layers=1
         )
         job = enable(make_job(origin_node_id="node-1"), self.cache)
-        ids = self.cache.chain(job.cache_scope, list(range(BLOCK_SIZE * 4)))
+        ids = self.cache.chain(job.caching.scope, list(range(BLOCK_SIZE * 4)))
         for blocks in (3, 4):
             seeded = make_job()
             seeded.cache.update(torch.ones(1, 1, 4, 4), torch.ones(1, 1, 4, 4), 0)
@@ -153,7 +153,7 @@ class EmbedReadPathTests(unittest.TestCase):
 
         self.processor(job)._state_embed()
 
-        self.assertEqual(job.cached_prefix_len, 3 * BLOCK_SIZE)
+        self.assertEqual(job.caching.prefix_len, 3 * BLOCK_SIZE)
 
     def test_no_reuse_when_the_pipe_has_a_remote_segment(self):
         self.pipe = make_pipe(layer_node_id="node-2")
@@ -162,18 +162,18 @@ class EmbedReadPathTests(unittest.TestCase):
 
         self.processor(job)._state_embed()
 
-        self.assertEqual(job.cached_prefix_len, 0)
-        self.assertEqual(job.cache_ids, [])
+        self.assertEqual(job.caching.prefix_len, 0)
+        self.assertEqual(job.caching.ids, [])
 
     def test_caching_off_for_the_job_touches_nothing(self):
-        job = make_job(origin_node_id="node-1")  # cache_options disabled
+        job = make_job(origin_node_id="node-1")  # caching disabled
         self.seed_entry(enable(make_job(origin_node_id="node-1"), self.cache), 3)
         before = self.cache.used_tokens()
 
         self.processor(job)._state_embed()
 
-        self.assertEqual(job.cache_ids, [])
-        self.assertFalse(job.cache_reserved)
+        self.assertEqual(job.caching.ids, [])
+        self.assertFalse(job.caching.reserved)
         # No lookup, no store, no reservation: the store is exactly as it was.
         self.assertEqual(self.cache.used_tokens(), before)
         self.assertEqual(self.cache.stats().hits + self.cache.stats().misses, 0)
@@ -186,8 +186,8 @@ class EmbedReadPathTests(unittest.TestCase):
 
         self.processor(job)._state_embed()
 
-        self.assertEqual(job.cache_ids, [])
-        self.assertEqual(job.cache_write_points, [])
+        self.assertEqual(job.caching.ids, [])
+        self.assertEqual(job.caching.write_points, [])
 
     def test_admission_refusal_leaves_the_job_uncached(self):
         self.cache = make_cache(tokens=BLOCK_SIZE)
@@ -195,10 +195,10 @@ class EmbedReadPathTests(unittest.TestCase):
 
         self.processor(job)._state_embed()
 
-        self.assertEqual(job.cached_prefix_len, 0)
-        self.assertFalse(job.cache_reserved)
-        self.assertEqual(job.cache_ids, [])
-        self.assertEqual(job.cache_write_points, [])
+        self.assertEqual(job.caching.prefix_len, 0)
+        self.assertFalse(job.caching.reserved)
+        self.assertEqual(job.caching.ids, [])
+        self.assertEqual(job.caching.write_points, [])
 
 
 @patch("language_pipes.util.chunk_state.CHUNK_SIZE", 32)
@@ -219,7 +219,7 @@ class WritePointTests(unittest.TestCase):
 
         self.processor(job)._state_embed()
 
-        self.assertEqual(job.cache_write_points, [BLOCK_SIZE * 4])
+        self.assertEqual(job.caching.write_points, [BLOCK_SIZE * 4])
 
     def test_only_the_chunk_that_lands_on_the_boundary_is_tagged(self):
         job = enable(make_job(origin_node_id="node-1"), self.cache)
@@ -227,19 +227,19 @@ class WritePointTests(unittest.TestCase):
         tagged = []
 
         processor._state_embed()
-        tagged.append((job.chunking.get_range()[1], job.pending_write_id is not None))
+        tagged.append((job.chunking.get_range()[1], job.caching.pending_write_id is not None))
         while job.chunking.has_more():
             job.compute_step = ComputeStep.EMBED
             processor._state_embed()
-            tagged.append((job.chunking.get_range()[1], job.pending_write_id is not None))
+            tagged.append((job.chunking.get_range()[1], job.caching.pending_write_id is not None))
 
         marked = [end for end, is_tagged in tagged if is_tagged]
         self.assertEqual(marked, [BLOCK_SIZE * 4])
-        self.assertEqual(job.pending_write_tokens, 0)
+        self.assertEqual(job.caching.pending_write_tokens, 0)
 
     def test_a_boundary_already_covered_by_the_adopted_prefix_is_not_rewritten(self):
         job = enable(make_job(origin_node_id="node-1"), self.cache)
-        ids = self.cache.chain(job.cache_scope, list(range(PROMPT_TOKENS)))
+        ids = self.cache.chain(job.caching.scope, list(range(PROMPT_TOKENS)))
         seeded = make_job()
         seeded.cache.update(torch.ones(1, 1, 4, 4), torch.ones(1, 1, 4, 4), 0)
         self.cache.store(
@@ -250,8 +250,8 @@ class WritePointTests(unittest.TestCase):
 
         self.processor(job)._state_embed()
 
-        self.assertEqual(job.cached_prefix_len, BLOCK_SIZE * 4)
-        self.assertEqual(job.cache_write_points, [])
+        self.assertEqual(job.caching.prefix_len, BLOCK_SIZE * 4)
+        self.assertEqual(job.caching.write_points, [])
 
 
 @patch("language_pipes.util.chunk_state.CHUNK_SIZE", 32)
@@ -269,8 +269,8 @@ class StoreOnLayersTests(unittest.TestCase):
     def tag(self, tokens: int):
         self.job.compute_step = ComputeStep.LAYER
         self.job.current_layer = 0
-        self.job.pending_write_id = b"\x09" * 32
-        self.job.pending_write_tokens = tokens
+        self.job.caching.pending_write_id = b"\x09" * 32
+        self.job.caching.pending_write_tokens = tokens
         self.job.data = make_job_data()
         self.job.data.cache_position = torch.arange(tokens - 32, tokens)
         self.job.cache.update(torch.ones(1, 1, tokens, 4), torch.ones(1, 1, tokens, 4), 0)
@@ -287,7 +287,7 @@ class StoreOnLayersTests(unittest.TestCase):
         )
         assert entry is not None
         self.assertEqual(entry.token_count, BLOCK_SIZE * 4)
-        self.assertIsNone(self.job.pending_write_id)
+        self.assertIsNone(self.job.caching.pending_write_id)
 
     def test_a_pass_that_does_not_end_where_the_tag_says_is_not_stored(self):
         self.tag(BLOCK_SIZE * 4)
@@ -300,7 +300,7 @@ class StoreOnLayersTests(unittest.TestCase):
 
     def test_an_untagged_pass_stores_nothing(self):
         self.tag(BLOCK_SIZE * 4)
-        self.job.pending_write_id = None
+        self.job.caching.pending_write_id = None
 
         self.processor._state_process_layers()
 
@@ -321,8 +321,8 @@ class EndOfResponseTests(unittest.TestCase):
         job.prompt_tokens = PROMPT_TOKENS
         job.current_token = total_tokens - PROMPT_TOKENS
         job.input_ids = list(range(total_tokens))
-        job.cache_ids = self.cache.chain(job.cache_scope, list(range(PROMPT_TOKENS)))
-        job.cache_write_points = [BLOCK_SIZE * 4]
+        job.caching.ids = self.cache.chain(job.caching.scope, list(range(PROMPT_TOKENS)))
+        job.caching.write_points = [BLOCK_SIZE * 4]
         job.compute_step = ComputeStep.HEAD
         job.status = JobStatus.COMPLETED
         job.data = make_job_data()
@@ -345,7 +345,7 @@ class EndOfResponseTests(unittest.TestCase):
 
         self.processor(job)._store_end_of_response(job)
 
-        ids = self.cache.chain(job.cache_scope, job.input_ids)
+        ids = self.cache.chain(job.caching.scope, job.input_ids)
         entry = self.cache.lookup(
             ids[6], "node-1", "model-1",
             [self.end_model.process_id, self.pipe.segments[0].process_id],
@@ -363,7 +363,7 @@ class EndOfResponseTests(unittest.TestCase):
 
     def test_an_uncached_job_stores_nothing_at_completion(self):
         job = self.finished_job(BLOCK_SIZE * 6 + 10)
-        job.cache_ids = []
+        job.caching.ids = []
 
         self.processor(job)._store_end_of_response(job)
 
@@ -391,15 +391,15 @@ class TwoRequestTests(unittest.TestCase):
 
     def test_the_second_request_skips_the_prefill_the_first_paid_for(self):
         first = self.run_request()
-        self.assertEqual(first.cached_prefix_len, 0)
+        self.assertEqual(first.caching.prefix_len, 0)
         self.assertEqual(self.cache.stats().entries, 1)
         first_embeds = len(self.end_model.embeds)
 
         self.end_model.embeds = []
         second = self.run_request()
 
-        self.assertEqual(second.cached_prefix_len, BLOCK_SIZE * 4)
-        self.assertEqual(second.cached_tokens, BLOCK_SIZE * 4)
+        self.assertEqual(second.caching.prefix_len, BLOCK_SIZE * 4)
+        self.assertEqual(second.caching.cached_tokens, BLOCK_SIZE * 4)
         self.assertLess(len(self.end_model.embeds), first_embeds)
         self.assertEqual(self.end_model.embeds[0][0], BLOCK_SIZE * 4)
 
@@ -413,7 +413,7 @@ class TwoRequestTests(unittest.TestCase):
         )
         run_prefill(processor)
 
-        self.assertEqual(other.cached_prefix_len, 0)
+        self.assertEqual(other.caching.prefix_len, 0)
 
     def test_nothing_is_reused_after_the_hosting_process_is_unloaded(self):
         self.run_request()
@@ -421,7 +421,7 @@ class TwoRequestTests(unittest.TestCase):
 
         second = self.run_request()
 
-        self.assertEqual(second.cached_prefix_len, 0)
+        self.assertEqual(second.caching.prefix_len, 0)
 
     def test_a_node_with_caching_switched_off_behaves_as_it_did_before(self):
         self.cache = make_cache(seconds=0)
@@ -431,8 +431,8 @@ class TwoRequestTests(unittest.TestCase):
         self.end_model.embeds = []
         second = self.run_request()
 
-        self.assertEqual(first.cached_prefix_len, 0)
-        self.assertEqual(second.cached_prefix_len, 0)
+        self.assertEqual(first.caching.prefix_len, 0)
+        self.assertEqual(second.caching.prefix_len, 0)
         self.assertEqual(len(self.end_model.embeds), baseline)
         self.assertEqual(self.cache.stats().entries, 0)
         self.assertEqual(self.cache.used_tokens(), 0)
@@ -452,19 +452,19 @@ class LogFieldTests(unittest.TestCase):
 
     def test_a_hit_reports_the_scope_prefix_and_never_the_cache_key(self):
         job = enable(make_job(origin_node_id="node-1"), self.cache, key="secret-key")
-        job.cache_ids = [job.cache_scope, b"a" * 32]
-        job.cached_tokens = 384
+        job.caching.ids = [job.caching.scope, b"a" * 32]
+        job.caching.cached_tokens = 384
 
         fields = self.fields(job)
 
         self.assertIn("cache=hit", fields)
         self.assertIn("cached=384", fields)
-        self.assertIn(job.cache_scope[:4].hex(), fields)
+        self.assertIn(job.caching.scope[:4].hex(), fields)
         self.assertNotIn("secret-key", fields)
 
     def test_a_miss_is_reported_as_a_miss(self):
         job = enable(make_job(origin_node_id="node-1"), self.cache)
-        job.cache_ids = [job.cache_scope, b"a" * 32]
+        job.caching.ids = [job.caching.scope, b"a" * 32]
 
         self.assertIn("cache=miss", self.fields(job))
 

@@ -20,7 +20,7 @@ different token anywhere before the breakpoint means everything after it is a mi
 What makes this project different from a single-box server is that **the KV
 cache is not in one place**. Today (`documentation/architecture.md`, "KV cache
 handling across nodes") every node holds `Job.cache` for only the layers it
-hosts, and that cache is created in `Job.__init__` (`src/language_pipes/jobs/job.py:111`)
+hosts, and that cache is created in `Job.__init__` (`src/language_pipes/jobs/job.py:118`)
 and thrown away when the job leaves `JobTracker.jobs_pending`. So a cached prefix
 is a **distributed object**: for a prefix of N tokens to be reusable, *every*
 node on the pipe must still hold its own slice of KV for exactly those N tokens.
@@ -442,7 +442,7 @@ stored entry is a strict prefix of it.
    `PromptCache` for a hit. The reusable length is capped at the largest block
    boundary ≤ `prompt_tokens - 1` — at least one token must remain to embed.
 2. On a local hit the origin adopts the copy into `job.cache`, sets
-   `job.cached_prefix_len`, and tags the first outgoing `NetworkJob` with
+   `job.caching.prefix_len`, and tags the first outgoing `NetworkJob` with
    `cache_use_id` / `cache_use_tokens`.
 3. Each layer node handles the tag in `JobTracker.add_job`
    (`src/language_pipes/jobs/job_tracker.py:127`), which is where its `Job` (and
@@ -509,8 +509,8 @@ slices `input_ids[:, past_seen_tokens : past_seen_tokens + take]`, and
 local cache. So resuming is a matter of making `past_seen_tokens` start at the
 cached length:
 
-- `Job.past_seen_tokens()` (`src/language_pipes/jobs/job.py:129`) becomes
-  `self.cached_prefix_len + self.chunking.get_tokens_processed()` during prefill.
+- `Job.past_seen_tokens()` (`src/language_pipes/jobs/job.py:138`) becomes
+  `self.caching.prefix_len + self.chunking.get_tokens_processed()` during prefill.
   The decode branch (`len(self.input_ids) - 1`) is unchanged.
 - `ChunkState.init(prompt_length, start_offset=0)` gains the offset:
   `total_chunks` is computed from `prompt_length - start_offset`, and `get_range`
@@ -544,10 +544,10 @@ used = sum(e.token_count for e in entries) + sum(r.tokens for r in live_reservat
 When a job starts, the node estimates what that job will ultimately cost the cache:
 
 ```
-estimate = cached_prefix_len + prompt_tokens + max_completion_tokens
+estimate = caching.prefix_len + prompt_tokens + max_completion_tokens
 ```
 
-- `cached_prefix_len` — the entry being reused stays resident for the life of the job.
+- `caching.prefix_len` — the entry being reused stays resident for the life of the job.
 - `prompt_tokens + max_completion_tokens` — the job's own working cache, which is what
   gets stored at the write points.
 
@@ -609,7 +609,7 @@ Points worth being explicit about:
   admission would otherwise refuse the job, the entry can be handed over and deleted
   instead of shared. After the job's first `torch.cat` the original tensors are freed,
   so the peak is `prompt + generated` rather than `prefix + prompt + generated`, and
-  the estimate drops by `cached_prefix_len`. The cost is that a concurrent request for
+  the estimate drops by `caching.prefix_len`. The cost is that a concurrent request for
   the same prefix misses until this job completes and re-stores at a longer boundary.
   Worth having as the fallback before giving up and running uncached (phase 4).
 
@@ -699,7 +699,7 @@ origin  HEAD → sample → next pass, untagged unless it lands on a write point
 ```
 node2   add_job: lookup h[31] → not held → does NOT compute
         └─ CacheStatus(job_id, pipe_id, attempt=0, MISS) → origin
-origin  attempt := 1; drop adopted cache; cached_prefix_len := 0; reuse disabled
+origin  attempt := 1; drop adopted cache; caching.prefix_len := 0; reuse disabled
         └─ CacheStatus(..., attempt=0, ABORT) → every segment node
         └─ re-dispatch from EMBED with a fresh cache, past_seen_tokens = 0
 node1   ABORT → remove_job + drop queued packets for the job
@@ -765,6 +765,13 @@ class a `reset()`: the two numbers are one ordering and should not drift apart a
 two objects. Keep the phase 0 split — `PassSequence` decides, `Job` applies the
 decision to its own fields.
 
+The five cache tags are the same story one object over: they belong on `JobCache`
+(`jobs/job_cache.py`, reached as `Job.caching`), which already holds the chain ids and
+write points they carry. Phase 1 put the whole read/write path there, so phase 2 adds
+`cache_use_id` / `cache_use_tokens` and the reservation estimate to that object rather
+than to `Job`, and `receive_network_job` copies the write tag into the same
+`pending_write_id` / `pending_write_tokens` the origin already sets on itself.
+
 ### 5.5 Backward compatibility
 
 Appending fields is safe: `ByteHelper.read_bytes` at EOF reads a zero length and
@@ -790,9 +797,10 @@ Mixed-version pipes therefore degrade to today's behavior instead of breaking.
 | `util/oai.py` | `ResponsesRequest` / `ChatCompletionRequest` carry a `CacheOptions`; usage blocks gain `input_tokens_details` / `prompt_tokens_details`. |
 | `jobs/network_job.py` | `pass_idx` (phase 0, ✅ landed as the last appended field), then `attempt` and the five cache tags (phase 2), appended after it in that order. |
 | `jobs/pass_sequence.py` *(new, phase 0)* ✅ | `PassSequence`, `SavedPass`, `MAX_PASS_RETRIES`. Owns the pass numbering, the payload each entry point last forwarded, the sequence check, the bounce answer and the retry cap. Phase 2 adds `attempt` and `reset()` here. |
-| `jobs/job.py` | Phase 0 ✅: `passes: PassSequence`, `replay(saved)`, and the two branches in `receive_network_job()` that ask it what to do. Phase 1/2: `cache_options`, `cache_scope`, `cache_ids`, `cached_prefix_len`, `cache_write_points`, `cache_write_tokens`, `pending_write_id`. `past_seen_tokens()` adds the cached prefix. `to_network_job()` emits the tags. `receive_network_job()` compares `attempt` and rebuilds or drops. |
+| `jobs/job_cache.py` *(new, phase 1)* ✅ | `JobCache`, reached as `Job.caching`. Owns everything one job knows about the prompt cache: the request's `CacheOptions`, the `scope`, the chain `ids`, the adopted `prefix_len`, the reported `cached_tokens`, the `write_points`, the pending write tag and the reservation flag; plus the decisions that read only those — `searched()`, `forget()`, `adopt()`, `plan_prompt_write()`, `next_write_point()`, `tag()` / `take_pending()`, `response_write_point()` and `log_fields()`. Phase 2 adds the incoming `cache_use_*` tags and the reservation estimate here. Same split as `PassSequence`: this object decides, `Job` and the processor apply. |
+| `jobs/job.py` | Phase 0 ✅: `passes: PassSequence`, `replay(saved)`, and the two branches in `receive_network_job()` that ask it what to do. Phase 1 ✅: `caching: JobCache` — one field, not nine — and `past_seen_tokens()` / `init_chunking()` reading `caching.prefix_len`. `Job.cache` keeps its old meaning: the working `DynamicCache` for the layers this node hosts. Phase 2: `to_network_job()` emits the tags from `caching`, `receive_network_job()` compares `attempt` and rebuilds or drops. |
 | `util/chunk_state.py` | `init(prompt_length, start_offset=0)` and offset-aware `get_range`. |
-| `jobs/job_factory.py` | `start_job` accepts `cache_options` and stores it on the `Job`. |
+| `jobs/job_factory.py` | `start_job` accepts `cache_options` and stores it on `Job.caching`, then derives `caching.scope` there so the API key travels no further. |
 | `jobs/job_processor.py` | Phase 0 ✅: `_state_embed` numbers the pass, `_state_send` saves what went out, `replaying` short-circuits to `SEND`. Phase 1/2: `_state_embed`: plan the chain, run admission, adopt a local hit, init chunking with the offset. `_state_process_layers`: honor the write tag after computing. `_state_head`: at completion, tag/store the end-of-response boundary and release the reservation. |
 | `jobs/job_tracker.py` | `add_job` reserves budget and adopts on `cache_use_id` (passing `network_job.origin_node_id` to `lookup`), or signals `MISS` / `NO_STORE`; `complete_job` / `remove_job` / the stale sweep release reservations; sweep the `PromptCache` in `check_stale_jobs`. |
 | `jobs/job_receiver.py` | Phase 0 ✅: `_process_network_job` split out of the runner loop; a refused pass becomes a `cancel_job` carrying `PassSequence.error`. Phase 2: send `CacheStatus`, handle `ABORT`, rebuild a job with reuse disabled, stop tagging on `NO_STORE`. |
@@ -893,7 +901,7 @@ new fields:
 Token usage against the budget is the number an operator actually tunes on, so it
 leads; bytes follow because that is what runs the machine out of memory.
 
-`Job` carries `cached_tokens` and `cache_write_tokens` so the active-jobs view can
+`Job.caching` carries `cached_tokens` and `cache_write_tokens` so the active-jobs view can
 show "prefill skipped: 3968 tokens" — the clearest signal that the feature is
 working. Hit/miss counts also go into the existing per-job log line, identifying the
 scope by the first 8 hex characters of `h[0]`. Neither `prompt_cache_key` nor the
@@ -934,7 +942,7 @@ Unit (`tests/language_pipes/unit/`):
 - `test_chunk_state.py` (extend) — offset init, ranges, `get_tokens_processed`,
   offset + a suffix shorter than `CHUNK_SIZE`.
 - `test_job.py` (extend) — `past_seen_tokens` with a cached prefix, during prefill
-  and after the first decode step.
+  and after the first decode step; `JobCache.next_write_point` through `job.caching`.
 - `test_network_job.py` (extend) — round-trip with tags; a payload written without
   them (old peer) still parses with empty tags, `attempt = 0` and `pass_idx = 0`.
 - ✅ `test_job.py` (phase 0, `JobReplayTests`) — a repeat of the last pass replays the
@@ -1014,7 +1022,10 @@ than one pass out of step. What shipped:
   count, the `replaying` flag, the refusal reason, and the payloads the node forwarded.
   It decides; `Job.replay(saved)` applies the decision to `data` / `compute_step` /
   `current_layer`. Keeping the two apart is what stops `Job` from accreting the
-  bookkeeping, and it is where `attempt` belongs in phase 2.
+  bookkeeping, and it is where `attempt` belongs in phase 2. Phase 1 applied the same
+  pattern to the cache: `JobCache` (`src/language_pipes/jobs/job_cache.py`, `Job.caching`)
+  holds the nine prompt-cache fields and the decisions that need only them, so `Job`
+  gained one field instead of nine.
 - The saved payload is the whole `JobData`, not just the hidden state: Gemma 4's
   `shared_kv_states` are mutated as the pass flows and the next node needs the
   post-mutation copy. It is keyed by the pass's **entry point**
@@ -1058,7 +1069,8 @@ for drift detection.
 
 **Phase 1 — single-node correctness.** `PromptCache`, the keyed chain and its
 per-process secret, the unauthenticated-server rule (§2.3), `ChunkState`
-offset, `past_seen_tokens`, the token budget with admission and LRU eviction,
+offset, `past_seen_tokens`, the per-job `JobCache` (`Job.caching`), the token
+budget with admission and LRU eviction,
 adopt/store on the origin only (end-model layers), both config fields + TUI + docs.
 Reuse only when the origin hosts the whole pipe locally. Ships a real feature and
 proves the resume-from-offset and budget paths without any protocol change.

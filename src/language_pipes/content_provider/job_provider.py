@@ -202,7 +202,7 @@ class JobProvider:
                     ram=job.get_job_ram(),
                     timing_stats=job.timing_stats,
                     progress=progress,
-                    cached_tokens=job.cached_tokens
+                    cached_tokens=job.caching.cached_tokens
                ))
         
         return meta_jobs

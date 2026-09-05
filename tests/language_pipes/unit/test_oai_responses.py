@@ -9,6 +9,7 @@ import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
+from language_pipes.jobs.job_cache import JobCache
 from language_pipes.oai_server import OAIHttpServer
 from language_pipes.util.chat import ChatRole
 from language_pipes.util.oai import ResponsesRequest, _response_json
@@ -39,7 +40,7 @@ class DummyJob:
     prompt_tokens = 4
     current_token = 3
     cancel_reason = None
-    cached_tokens = 0
+    caching = JobCache()
 
 
 class ToolJob(DummyJob):
@@ -553,7 +554,8 @@ class CachedTokensUsageTests(unittest.TestCase):
 
     def test_a_reused_prefix_is_reported_back(self):
         class CachedJob(DummyJob):
-            cached_tokens = 384
+            caching = JobCache()
+            caching.cached_tokens = 384
 
         req = ResponsesRequest.from_dict({"model": "model-1", "input": "Hi"})
 
