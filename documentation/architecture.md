@@ -170,8 +170,14 @@ requires them downstream.)
 
 Because caches are pinned to specific nodes:
 
-- On a **reroute or restart**, there is no cache migration. A token restart
-  re-embeds from the origin; nodes recompute as the job flows through again.
+- On a **restart**, there is no cache migration and no recomputation. A node
+  that cannot validate a payload sends it back to the origin, and the origin
+  sends the same pass again. Each node that already computed that pass forwards
+  the payload it kept, so its cache does not change; each node that did not
+  compute it computes it once. Every cache keeps each position one time only.
+  See [Job Processor](job-processor.md) for the pass numbers that control this.
+- On a **reroute**, there is no cache migration either. The new node has no
+  keys and values for the layers it takes over.
 - If a **node is lost**, its portion of the cache is lost with it. The job cannot
   be moved to a different node hosting the same layers without recomputation, so
   in practice the job simply expires (see above).

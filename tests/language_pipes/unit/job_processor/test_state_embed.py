@@ -7,9 +7,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tests', 'language_pipes', 'unit'))
 
 from language_pipes.jobs.job_processor import JobState
+from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.util.enums import ComputeStep
 
-from util import make_processor, make_job, FakeEndModel, FakeModel, PipeWrapper
+from util import (
+    make_processor,
+    make_job,
+    mock_complete,
+    FakeEndModel,
+    FakeEndModelContinue,
+    FakeModel,
+    PipeWrapper,
+)
 
 class TestEmbedState(unittest.TestCase):
     """Tests for the _state_embed method."""
@@ -210,6 +219,126 @@ class TestEmbedPrefillIntegration(unittest.TestCase):
         self.assertEqual(processor.state, JobState.DONE)
         self.assertIn("tokenize", end_model.calls)
         self.assertIn("compute_embed", end_model.calls)
+
+class TestRestartAtTheOrigin(unittest.TestCase):
+    """A node that cannot validate a packet strips it and bounces it back. The
+    origin must resend the pass, not embed again: `_state_embed` advances the
+    prefill chunk, which would skip it, and embedding a decode token again
+    would put it into the caches of every node before the corruption point a
+    second time."""
+
+    def make_origin(self, end_model):
+        job = make_job(complete=mock_complete)
+        job.origin_node_id = "node-1"
+        job.compute_step = ComputeStep.TOKENIZE
+
+        # The layers live on another node, so the origin has to send the job out
+        remote = FakeModel("node-b", 0, 1, virtual=True, num_hidden_layers=2)
+        pipe = PipeWrapper("node-1", "model-a", [remote])
+        return job, pipe
+
+    def dispatch(self, job, pipe, end_model):
+        make_processor(job=job, pipe=pipe, end_model=end_model).run()
+
+    def return_from_pipe(self, job, pipe):
+        """Hand the pass back the way the last node on the pipe would."""
+        sent = pipe.sent_jobs[-1]
+        job.receive_network_job(NetworkJob(
+            job_id=sent.job_id,
+            pipe_id=sent.pipe_id,
+            origin_node_id=sent.origin_node_id,
+            current_layer=0,
+            data=sent.data,
+            data_hash=b"",
+            compute_step=ComputeStep.HEAD,
+            times=[],
+            pass_idx=sent.pass_idx
+        ), job.origin_node_id)
+
+    def bounce(self, job, pipe, pass_idx=None):
+        """The packet `JobReceiver.restart_token` sends back to the origin."""
+        sent = pipe.sent_jobs[-1]
+        return job.receive_network_job(NetworkJob(
+            job_id=sent.job_id,
+            pipe_id=sent.pipe_id,
+            origin_node_id=sent.origin_node_id,
+            current_layer=0,
+            data=None,
+            data_hash=b"",
+            compute_step=ComputeStep.EMBED,
+            times=[],
+            pass_idx=sent.pass_idx if pass_idx is None else pass_idx
+        ), job.origin_node_id)
+
+    @patch("language_pipes.util.chunk_state.CHUNK_SIZE", 1)
+    def test_a_bounced_prefill_chunk_is_resent_not_skipped(self):
+        # 2 prompt tokens at a chunk size of 1 => two prefill chunks
+        job, pipe = self.make_origin(FakeEndModel())
+        self.dispatch(job, pipe, FakeEndModel())
+        sent = pipe.sent_jobs[0]
+        chunk = job.chunking.current_chunk
+
+        self.assertTrue(self.bounce(job, pipe))
+
+        end_model = FakeEndModel()
+        processor = make_processor(job=job, pipe=pipe, end_model=end_model)
+        processor.run()
+
+        self.assertEqual(processor.states, [JobState.VALIDATING, JobState.SEND])
+        self.assertEqual(end_model.calls, [])
+        self.assertEqual(job.chunking.current_chunk, chunk)
+        self.assertEqual(len(pipe.sent_jobs), 2)
+        self.assertIs(pipe.sent_jobs[1].data, sent.data)
+        self.assertEqual(pipe.sent_jobs[1].pass_idx, sent.pass_idx)
+
+    @patch("language_pipes.util.chunk_state.CHUNK_SIZE", 1)
+    def test_the_next_chunk_still_advances_after_a_restart(self):
+        job, pipe = self.make_origin(FakeEndModel())
+        self.dispatch(job, pipe, FakeEndModel())
+        self.bounce(job, pipe)
+        self.dispatch(job, pipe, FakeEndModel())
+
+        self.return_from_pipe(job, pipe)
+        end_model = FakeEndModel()
+        self.dispatch(job, pipe, end_model)
+
+        self.assertEqual(job.chunking.current_chunk, 1)
+        self.assertIn("compute_embed", end_model.calls)
+        self.assertEqual(pipe.sent_jobs[2].pass_idx, 2)
+
+    def test_a_bounced_decode_token_is_resent_not_embedded_again(self):
+        # A short prompt never chunks, so the second pass is a decode token
+        job, pipe = self.make_origin(FakeEndModelContinue())
+        self.dispatch(job, pipe, FakeEndModelContinue())
+        self.return_from_pipe(job, pipe)
+        self.dispatch(job, pipe, FakeEndModelContinue())
+
+        sent = pipe.sent_jobs[1]
+        current_token = job.current_token
+        input_ids = list(job.input_ids)
+
+        self.assertTrue(self.bounce(job, pipe))
+
+        end_model = FakeEndModelContinue()
+        make_processor(job=job, pipe=pipe, end_model=end_model).run()
+
+        self.assertEqual(end_model.calls, [])
+        self.assertEqual(job.current_token, current_token)
+        self.assertEqual(job.input_ids, input_ids)
+        self.assertEqual(len(pipe.sent_jobs), 3)
+        self.assertIs(pipe.sent_jobs[2].data, sent.data)
+        self.assertEqual(pipe.sent_jobs[2].pass_idx, sent.pass_idx)
+
+    def test_a_bounce_for_a_pass_already_replaced_is_dropped(self):
+        job, pipe = self.make_origin(FakeEndModelContinue())
+        self.dispatch(job, pipe, FakeEndModelContinue())
+        self.return_from_pipe(job, pipe)
+        self.dispatch(job, pipe, FakeEndModelContinue())
+
+        self.assertFalse(self.bounce(job, pipe, pass_idx=1))
+        self.assertFalse(job.replaying)
+        self.assertIsNone(job.receive_error)
+
 
 if __name__ == "__main__":
     unittest.main()

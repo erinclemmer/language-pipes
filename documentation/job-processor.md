@@ -29,6 +29,7 @@ Then the state finds the next state. The compute step of the job and the locatio
 | Condition | Next State |
 |-----------|------------|
 | The job is missing | `DONE` |
+| The job replays a pass (see Restart) | `SEND` |
 | The step is `HEAD`, and the origin node is not the local node | `DONE` |
 | The step is `HEAD`, and the end model is not available | `DONE` |
 | No node in the pipe has the current layer | `DONE` |
@@ -145,6 +146,27 @@ This state converts the job to a network payload. Then the state sends the paylo
 | The state sent the job | `DONE` |
 | No node in the pipe has the next layer | `DONE` |
 
+#### Restart
+
+The state also keeps the payload that it sent. A restart uses this saved pass.
+
+The origin node gives a number (`pass_idx`) to each pass that it sends. Each node keeps the payload of the pass that it sent last, with that number. If a node receives a payload that does not agree with its hash, the node removes the data and sends the payload back to the origin node. The `pass_idx` stays the same.
+
+The origin node then sends the saved pass again. The origin node does not embed again: a second embed operation advances the prefill chunk, which skips it, and puts a decode token into the caches of the nodes before the point of corruption a second time.
+
+Each node that receives the pass again compares `pass_idx`:
+
+| Condition | Result |
+|-----------|--------|
+| The number agrees with a pass this node sent | The node sends the saved payload again. The node does not compute, and the KV cache does not change. |
+| The number is the next pass | The node computes the pass. |
+| The number is `0` | The peer does not give numbers to passes. The node computes the pass. |
+| Any other number | The KV cache of this node cannot agree with the pass. The node cancels the job with the reason `pass out of sequence`. |
+
+A job is sequential: the origin node waits for the pass to come back through `HEAD` before it sends the next pass. Thus no node is more than one pass out of step, and one saved pass for each node is sufficient.
+
+If the same pass fails three times, the origin node cancels the job with the reason `packet failed validation after 3 retries`.
+
 ---
 
 ### `DONE`
@@ -202,6 +224,8 @@ Without cancellation, a job stays in the pending jobs until `EXPIRED_JOB_TIME`
 VALIDATING
     │
     ├──(no job, or no node for the current layer)────────────► DONE
+    │
+    ├──(the job replays a pass)──────────────────────────────► SEND
     │
     ├──(`HEAD` step, not the origin node)────────────────────► DONE
     │

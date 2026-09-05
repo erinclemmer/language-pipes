@@ -4,9 +4,12 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
+import torch
 from transformers import PretrainedConfig
 
-from language_pipes.jobs.job import Job
+from language_pipes.jobs.job import MAX_PASS_RETRIES, Job
+from language_pipes.jobs.job_data import JobData
+from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.util.enums import ComputeStep, JobStatus
 from language_pipes.util.utils import CHUNK_SIZE
 
@@ -28,6 +31,48 @@ def make_relay(origin: Job) -> Job:
     relay.pipe_id = origin.pipe_id
     relay.origin_node_id = origin.origin_node_id
     return relay
+
+
+def make_data(value: float = 0.0) -> JobData:
+    return JobData(
+        state=torch.full((1, 1), value),
+        cache_position=torch.tensor([0]),
+        position_ids=torch.tensor([[0]]),
+        causal_mask={},
+        position_embeddings={},
+        shared_kv_states={"full_attention": (torch.full((1, 1), value), torch.full((1, 1), value))}
+    )
+
+
+def make_packet(job: Job, pass_idx: int, step=ComputeStep.LAYER, layer: int = 0, data=None) -> NetworkJob:
+    """A pass arriving at a node that hosts layers."""
+    return NetworkJob(
+        job_id=job.job_id,
+        pipe_id=job.pipe_id,
+        origin_node_id=job.origin_node_id,
+        current_layer=layer,
+        data=make_data() if data is None else data,
+        data_hash=b"",
+        compute_step=step,
+        times=[],
+        pass_idx=pass_idx
+    )
+
+
+def fill_cache(job: Job):
+    """Put one position in the cache, the way computing a pass would."""
+    keys = torch.zeros((1, 2, 1, 4))
+    job.cache.update(keys, keys.clone(), 0)
+
+
+def compute_and_send(job: Job, output: JobData):
+    """What a layer node does between receiving a pass and forwarding it."""
+    fill_cache(job)
+    job.data = output
+    job.compute_step = ComputeStep.HEAD
+    job.current_layer = 0
+    job.save_pass_output()
+    job.replaying = False
 
 
 class JobOutputTests(unittest.TestCase):
@@ -225,6 +270,204 @@ class JobPastSeenTokensTests(unittest.TestCase):
         job.input_ids.append(99)
 
         self.assertEqual(job.past_seen_tokens(), CHUNK_SIZE * 2)
+
+
+class JobReplayTests(unittest.TestCase):
+    """A packet that fails its hash is bounced to the origin, which sends the
+    same pass again. A node that already computed that pass must resend what it
+    produced: its keys and values are in the cache already, and computing again
+    would append them a second time."""
+
+    def receive_and_compute(self, relay: Job, pass_idx: int) -> JobData:
+        self.assertTrue(relay.receive_network_job(make_packet(relay, pass_idx), "node-b"))
+        self.assertFalse(relay.replaying)
+        output = make_data(float(pass_idx))
+        compute_and_send(relay, output)
+        return output
+
+    def test_repeat_of_the_last_pass_resends_the_saved_output(self):
+        relay = make_relay(make_job())
+        output = self.receive_and_compute(relay, 1)
+
+        self.assertTrue(relay.receive_network_job(make_packet(relay, 1), "node-b"))
+
+        self.assertTrue(relay.replaying)
+        self.assertIs(relay.data, output)
+        self.assertEqual(relay.compute_step, ComputeStep.HEAD)
+        self.assertEqual(relay.current_layer, 0)
+
+    def test_replay_leaves_the_cache_alone(self):
+        relay = make_relay(make_job())
+        self.receive_and_compute(relay, 1)
+        cache = relay.cache
+        length = cache.get_seq_length()
+
+        relay.receive_network_job(make_packet(relay, 1), "node-b")
+
+        self.assertIs(relay.cache, cache)
+        self.assertEqual(relay.cache.get_seq_length(), length)
+
+    def test_replay_keeps_the_shared_kv_states_of_the_saved_pass(self):
+        # Gemma 4 mutates `shared_kv_states` as the pass flows, so the next node
+        # needs the copy this node produced, not the one it was handed.
+        relay = make_relay(make_job())
+        output = self.receive_and_compute(relay, 1)
+
+        relay.receive_network_job(make_packet(relay, 1), "node-b")
+
+        self.assertIs(relay.data.shared_kv_states, output.shared_kv_states)
+
+    def test_next_pass_is_computed(self):
+        relay = make_relay(make_job())
+        self.receive_and_compute(relay, 1)
+
+        incoming = make_packet(relay, 2)
+        self.assertTrue(relay.receive_network_job(incoming, "node-b"))
+
+        self.assertFalse(relay.replaying)
+        self.assertIs(relay.data, incoming.data)
+        self.assertEqual(relay.compute_step, ComputeStep.LAYER)
+
+    def test_second_visit_of_the_same_pass_is_computed(self):
+        # A node hosting two layer ranges sees the same pass twice, once per
+        # range. The second visit enters at a different layer, so it is not a
+        # repeat of the first.
+        relay = make_relay(make_job())
+        self.receive_and_compute(relay, 1)
+
+        incoming = make_packet(relay, 1, layer=4)
+        self.assertTrue(relay.receive_network_job(incoming, "node-b"))
+
+        self.assertFalse(relay.replaying)
+        self.assertIs(relay.data, incoming.data)
+
+    def test_pass_out_of_sequence_is_refused(self):
+        relay = make_relay(make_job())
+        self.receive_and_compute(relay, 1)
+        self.receive_and_compute(relay, 2)
+
+        # Pass 3 never arrived, so the cache holds two positions, not three.
+        self.assertFalse(relay.receive_network_job(make_packet(relay, 4), "node-b"))
+        self.assertEqual(relay.receive_error, "pass out of sequence")
+
+    def test_a_pass_already_left_behind_is_refused(self):
+        relay = make_relay(make_job())
+        self.receive_and_compute(relay, 1)
+        self.receive_and_compute(relay, 2)
+
+        self.assertFalse(relay.receive_network_job(make_packet(relay, 1), "node-b"))
+        self.assertEqual(relay.receive_error, "pass out of sequence")
+
+    def test_a_node_that_joins_the_job_late_accepts_the_pass(self):
+        relay = make_relay(make_job())
+
+        self.assertTrue(relay.receive_network_job(make_packet(relay, 9), "node-b"))
+
+        self.assertFalse(relay.replaying)
+        self.assertIsNone(relay.receive_error)
+
+    def test_a_peer_that_does_not_number_passes_is_always_computed(self):
+        relay = make_relay(make_job())
+        for _ in range(3):
+            self.assertTrue(relay.receive_network_job(make_packet(relay, 0), "node-b"))
+            self.assertFalse(relay.replaying)
+            compute_and_send(relay, make_data())
+
+        self.assertIsNone(relay.receive_error)
+
+
+class JobRestartTests(unittest.TestCase):
+    """The origin's half: a bounced packet resends the pass in flight instead of
+    embedding again."""
+
+    def dispatch(self, origin: Job) -> JobData:
+        """Run the origin through one pass, up to the handoff."""
+        origin.start_pass()
+        output = make_data(float(origin.pass_idx))
+        origin.data = output
+        origin.compute_step = ComputeStep.LAYER
+        origin.current_layer = 2
+        origin.save_pass_output()
+        origin.replaying = False
+        return output
+
+    def bounce(self, origin: Job, pass_idx: int) -> NetworkJob:
+        """The packet `JobReceiver.restart_token` sends back: no data, EMBED."""
+        return NetworkJob(
+            job_id=origin.job_id,
+            pipe_id=origin.pipe_id,
+            origin_node_id=origin.origin_node_id,
+            current_layer=0,
+            data=None,
+            data_hash=b"",
+            compute_step=ComputeStep.EMBED,
+            times=[],
+            pass_idx=pass_idx
+        )
+
+    def test_bounce_resends_the_pass_in_flight(self):
+        origin = make_job()
+        output = self.dispatch(origin)
+
+        self.assertTrue(origin.receive_network_job(self.bounce(origin, origin.pass_idx), "node-a"))
+
+        self.assertTrue(origin.replaying)
+        self.assertIs(origin.data, output)
+        self.assertEqual(origin.compute_step, ComputeStep.LAYER)
+        self.assertEqual(origin.current_layer, 2)
+
+    def test_bounce_does_not_change_the_pass_number(self):
+        origin = make_job()
+        self.dispatch(origin)
+        pass_idx = origin.pass_idx
+
+        origin.receive_network_job(self.bounce(origin, pass_idx), "node-a")
+
+        self.assertEqual(origin.pass_idx, pass_idx)
+        self.assertEqual(origin.to_network_job().pass_idx, pass_idx)
+
+    def test_bounce_from_a_peer_that_does_not_number_passes_is_honored(self):
+        # Only one pass is ever in flight, so an unnumbered bounce can only be
+        # about that pass.
+        origin = make_job()
+        output = self.dispatch(origin)
+
+        self.assertTrue(origin.receive_network_job(self.bounce(origin, 0), "node-a"))
+
+        self.assertIs(origin.data, output)
+
+    def test_a_bounce_for_a_dead_pass_is_dropped(self):
+        origin = make_job()
+        self.dispatch(origin)
+        self.dispatch(origin)
+
+        self.assertFalse(origin.receive_network_job(self.bounce(origin, 1), "node-a"))
+        self.assertIsNone(origin.receive_error)
+        self.assertFalse(origin.replaying)
+
+    def test_retries_are_capped(self):
+        origin = make_job()
+        self.dispatch(origin)
+
+        for _ in range(MAX_PASS_RETRIES):
+            self.assertTrue(origin.receive_network_job(self.bounce(origin, origin.pass_idx), "node-a"))
+            origin.save_pass_output()
+            origin.replaying = False
+
+        self.assertFalse(origin.receive_network_job(self.bounce(origin, origin.pass_idx), "node-a"))
+        self.assertEqual(
+            origin.receive_error,
+            f"packet failed validation after {MAX_PASS_RETRIES} retries"
+        )
+
+    def test_the_retry_count_resets_with_the_next_pass(self):
+        origin = make_job()
+        self.dispatch(origin)
+        origin.receive_network_job(self.bounce(origin, origin.pass_idx), "node-a")
+
+        self.dispatch(origin)
+
+        self.assertEqual(origin.pass_retries, 0)
 
 
 if __name__ == "__main__":

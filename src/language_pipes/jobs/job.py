@@ -1,6 +1,7 @@
 from time import time
 from uuid import uuid4
-from typing import Iterable, List, Optional
+from dataclasses import dataclass
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import torch
 from promise import Promise
@@ -16,6 +17,35 @@ from language_pipes.jobs.timing_stats import TimingStats
 from language_pipes.util.chat import ChatMessage
 from language_pipes.util.chunk_state import ChunkState
 from language_pipes.util.enums import ComputeStep, JobStatus
+
+# How many times the origin resends the same pass before it gives up. A packet
+# that fails its hash is usually transport corruption and comes good on the
+# retry; a node whose serialization is deterministically broken must not loop
+# until the stale timer.
+MAX_PASS_RETRIES = 3
+
+# What identifies one visit of a pass to this node. A node can host two layer
+# ranges of the same pipe, so it can see the same pass twice, with a different
+# entry point each time.
+PassKey = Tuple[ComputeStep, int]
+
+
+@dataclass
+class SavedPass:
+    """The output of one pass, kept so the node can resend it on a restart.
+
+    It holds the whole `JobData`, not only the hidden state: Gemma 4 mutates
+    `shared_kv_states` as the pass flows and the next node needs the mutated
+    copy. The cost is one pass of hidden state per entry point - tens of KB
+    while decoding, up to about a MB for a prefill chunk - bounded by
+    `max_node_jobs` and released with the job. `get_job_ram` reports KV cache
+    only and deliberately does not count it.
+    """
+    pass_idx: int
+    data: Optional[JobData]
+    compute_step: ComputeStep
+    current_layer: int
+
 
 class Job:
     # IDs
@@ -43,6 +73,19 @@ class Job:
     cancel_reason: Optional[str]
     # Origin's progress report, kept only on the nodes that can't derive it
     reported_progress: Optional[JobProgress]
+
+    # Restart bookkeeping. The origin numbers every pass it dispatches from 1;
+    # every node keeps the output of the pass it last handled so a restart is a
+    # replay rather than a recompute. See documentation/job-processor.md.
+    pass_idx: int
+    last_pass_idx: int
+    pass_key: Optional[PassKey]
+    pass_outputs: Dict[PassKey, SavedPass]
+    pass_retries: int
+    replaying: bool
+    # Set when a packet is refused for a reason the job cannot survive; the
+    # receiver turns it into a cancel so the caller gets an error, not a timeout.
+    receive_error: Optional[str]
     
     # API params
     top_k: int
@@ -98,6 +141,14 @@ class Job:
         self.cancel_reason = None
         self.reported_progress = None
         self.messages = messages
+
+        self.pass_idx = 0
+        self.last_pass_idx = 0
+        self.pass_key = None
+        self.pass_outputs = { }
+        self.pass_retries = 0
+        self.replaying = False
+        self.receive_error = None
 
         self.temperature = temperature
         self.top_k = top_k
@@ -201,25 +252,138 @@ class Job:
         else:
             self.status = JobStatus.COMPLETED
 
+    def start_pass(self):
+        """Begin a new pass here. Only the origin starts one; it numbers the
+        pass and every node downstream carries that number."""
+        self.pass_idx += 1
+        self.pass_retries = 0
+        self.pass_key = (ComputeStep.EMBED, 0)
+        self.replaying = False
+
+    def save_pass_output(self):
+        """Keep what this node is forwarding, so a restart can resend it.
+
+        A job is strictly sequential - the origin waits for the pass to come
+        back through `HEAD` before it dispatches the next one - so one saved
+        pass per entry point answers every restart this node can be asked for.
+        """
+        if self.pass_key is None:
+            return
+        self.pass_outputs[self.pass_key] = SavedPass(
+            pass_idx=self.pass_idx,
+            data=self.data,
+            compute_step=self.compute_step,
+            current_layer=self.current_layer
+        )
+
+    def _replay(self, saved: SavedPass):
+        """Put the job back in the state it was in when it sent that pass.
+
+        The cache is not touched: this node already holds the keys and values
+        for the pass, and computing it again would append them a second time.
+        """
+        self.replaying = True
+        self.data = saved.data
+        self.compute_step = saved.compute_step
+        self.current_layer = saved.current_layer
+
+    def _receive_restart(self, network_job: NetworkJob) -> bool:
+        """Handle a packet a node bounced back because its hash failed.
+
+        `JobReceiver.restart_token` strips the payload, so a data-less `EMBED`
+        packet is the one packet that can only be a restart request. The origin
+        must not embed again: `_state_embed` advances the prefill chunk, which
+        skips it, and re-embedding a decode token puts it into the caches of
+        every node before the corruption point a second time. The origin
+        resends the saved pass under the same `pass_idx` instead, and the nodes
+        that already computed it replay their own saved output.
+        """
+        saved = self.pass_outputs.get((ComputeStep.EMBED, 0))
+        if saved is None or saved.pass_idx != self.pass_idx:
+            return False
+        # A peer that predates pass numbering drops the field when it bounces the
+        # packet. Only one pass is ever in flight, so an unnumbered restart can
+        # only be about that pass.
+        if network_job.pass_idx != 0 and network_job.pass_idx != self.pass_idx:
+            # A second node bounced the same dead pass; the retry is already out.
+            return False
+
+        self.pass_retries += 1
+        if self.pass_retries > MAX_PASS_RETRIES:
+            self.receive_error = f"packet failed validation after {MAX_PASS_RETRIES} retries"
+            return False
+
+        # The pass goes out from the head of the pipe again, so it is that entry
+        # point the resend belongs to.
+        self.pass_key = (ComputeStep.EMBED, 0)
+        self._replay(saved)
+        return True
+
+    def _accept_pass(self, network_job: NetworkJob) -> Optional[SavedPass]:
+        """Decide what to do with an incoming pass.
+
+        Returns the saved pass to replay, or `None` to compute. Sets
+        `receive_error` and returns `None` when the pass cannot be honored at
+        all - this node's cache holds a different number of positions than the
+        packet expects, and computing would produce garbage.
+        """
+        self.pass_key = (network_job.compute_step, network_job.current_layer)
+        if network_job.pass_idx == 0:
+            # Peer does not number passes: no sequence to check.
+            return None
+
+        saved = self.pass_outputs.get(self.pass_key)
+        if saved is not None and saved.pass_idx == network_job.pass_idx:
+            return saved
+
+        # `last_pass_idx == 0` is a node that joins the job at this pass, which
+        # is how every layer node starts. After that, `==` is a second visit of
+        # the same pass, which a node hosting two layer ranges gets, and `+ 1`
+        # is the next pass.
+        if self.last_pass_idx == 0 or self.last_pass_idx <= network_job.pass_idx <= self.last_pass_idx + 1:
+            self.last_pass_idx = network_job.pass_idx
+            return None
+
+        self.receive_error = "pass out of sequence"
+        return None
+
     def receive_network_job(self, network_job: NetworkJob, node_id: str) -> bool:
+        self.receive_error = None
         if network_job.job_id != self.job_id or network_job.pipe_id != self.pipe_id:
             return False
         if network_job.origin_node_id != self.origin_node_id:
             return False
 
+        if network_job.data is None and network_job.compute_step == ComputeStep.EMBED:
+            return self._receive_restart(network_job)
+
+        saved = self._accept_pass(network_job)
+        if self.receive_error is not None:
+            return False
+
+        # The origin owns the numbering; it never takes one from the wire.
+        if node_id != self.origin_node_id:
+            self.pass_idx = network_job.pass_idx
+
+        self.timing_stats.receive_network_job(network_job.times, network_job.completed)
+        # Origin keeps its own live state; a peer too old to report leaves the
+        # last good reading in place
+        if node_id != self.origin_node_id and network_job.progress is not None:
+            self.reported_progress = network_job.progress
+
+        if saved is not None:
+            self._replay(saved)
+            return True
+
+        self.replaying = False
         if network_job.compute_step == ComputeStep.HEAD and self.chunking.has_more():
             self.compute_step = ComputeStep.EMBED
             self.current_layer = 0
         else:
             self.compute_step = network_job.compute_step
             self.current_layer = network_job.current_layer
-            
+
         self.data = network_job.data
-        self.timing_stats.receive_network_job(network_job.times, network_job.completed)
-        # Origin keeps its own live state; a peer too old to report leaves the
-        # last good reading in place
-        if node_id != self.origin_node_id and network_job.progress is not None:
-            self.reported_progress = network_job.progress
 
         return True
 
@@ -266,13 +430,16 @@ class Job:
             compute_step=self.compute_step,
             times=list(self.timing_stats.current_times),
             completed=self.timing_stats.completed_pass,
-            progress=self.get_progress()
+            progress=self.get_progress(),
+            pass_idx=self.pass_idx
         )
 
     def set_last_update(self):
         self.last_update = time()
 
     def get_job_ram(self) -> float:
+        """KV cache held for this job, in GB. The saved pass output
+        (`pass_outputs`) is one pass of hidden state and is not counted."""
         total_bytes = 0
         tensors = []
         # Newer transformers: cache.layers is a list of layer objects with keys/values

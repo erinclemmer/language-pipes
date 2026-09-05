@@ -16,6 +16,7 @@ class NetworkJob:
     times: list[JobTime]
     completed: CompletedPass | None
     progress: JobProgress | None
+    pass_idx: int
     prefill_chunk_size: int
 
     def __init__(
@@ -29,7 +30,8 @@ class NetworkJob:
         compute_step: ComputeStep,
         times: list[JobTime],
         completed: CompletedPass | None = None,
-        progress: JobProgress | None = None
+        progress: JobProgress | None = None,
+        pass_idx: int = 0
     ):
         self.job_id = job_id
         self.pipe_id = pipe_id
@@ -41,6 +43,7 @@ class NetworkJob:
         self.times = times
         self.completed = completed
         self.progress = progress
+        self.pass_idx = pass_idx
 
     def to_bytes(self):
         bts = ByteHelper()
@@ -58,6 +61,9 @@ class NetworkJob:
 
         bts.write_bytes(self.completed.to_bytes() if self.completed is not None else b'')
         bts.write_bytes(self.progress.to_bytes() if self.progress is not None else b'')
+        # Appended fields keep their order: a peer that predates one reads the
+        # zero/empty value that `ByteHelper` gives at EOF.
+        bts.write_int(self.pass_idx)
 
         return bts.get_bytes()
 
@@ -89,6 +95,9 @@ class NetworkJob:
         progress_bytes = bts.read_bytes()
         progress = JobProgress.from_bytes(progress_bytes) if progress_bytes != b'' else None
 
+        # 0 means the peer does not number passes; the origin numbers from 1.
+        pass_idx = bts.read_int()
+
         return NetworkJob(
             job_id=job_id,
             pipe_id=pipe_id,
@@ -99,5 +108,6 @@ class NetworkJob:
             compute_step=step,
             times=times,
             completed=completed,
-            progress=progress
+            progress=progress,
+            pass_idx=pass_idx
         ), valid

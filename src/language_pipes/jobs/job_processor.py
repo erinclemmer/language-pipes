@@ -30,6 +30,12 @@ def should_prefill_chunk(job: Job) -> bool:
     return job.current_token == 0 and job.chunking.has_more()
 
 def get_next_state(ctx: JobContext) -> JobState:
+    # A replay resends the output this node already computed for the pass. It
+    # must not run any layer again: the keys and values are in the cache
+    # already, and computing would append them a second time.
+    if ctx.job.replaying:
+        return JobState.SEND
+
     cs = ctx.job.compute_step
     if cs == ComputeStep.HEAD or cs == ComputeStep.EMBED or cs == ComputeStep.TOKENIZE:
         if ctx.job.origin_node_id != ctx.node_id:
@@ -63,7 +69,9 @@ class JobProcessor:
 
     VALIDATING -> DONE (missing job, or HEAD step off-origin/without end model,
                         or no node hosts the current layer)
-    VALIDATING -> SEND (EMBED/TOKENIZE step off-origin, or current layer is virtual)
+    VALIDATING -> SEND (the job is replaying a pass that failed validation
+                        downstream, or the EMBED/TOKENIZE step is off-origin, or
+                        the current layer is virtual)
     VALIDATING -> HEAD (HEAD step on origin and prefill finished)
     VALIDATING -> EMBED (EMBED/TOKENIZE step on origin, or more prefill chunks)
     VALIDATING -> PROCESS_LAYERS (current layer is local)
@@ -139,7 +147,12 @@ class JobProcessor:
         """Validate context for processing"""
         if self.ctx.job is None:
             return JobState.DONE
-        
+
+        # A replaying job only forwards what it already computed, so none of the
+        # checks below apply to it.
+        if self.ctx.job.replaying:
+            return JobState.SEND
+
         if self.ctx.job.compute_step == ComputeStep.HEAD:
             # Ensure we only process the ends of jobs we sent out
             if self.ctx.job.origin_node_id != self.ctx.node_id:
@@ -213,6 +226,11 @@ class JobProcessor:
         if end_model is None:
             return self._fail("end model unloaded")
 
+        # Only the origin embeds, and every pass starts here, so this is where
+        # the origin gives the pass its number. A restart never reaches this
+        # state: it resends the saved pass under the number it already has.
+        job.start_pass()
+
         if job.prompt_tokens == 0:
             end_model.tokenize(job)
             job.init_chunking()
@@ -272,5 +290,10 @@ class JobProcessor:
             if next_model is None:
                 return self._fail(f"no node hosts layer {network_job.current_layer}")
             pipe.send_job(network_job, next_model.node_id)
-        
+
+        # Keep what went out. If a node downstream cannot validate the packet, it
+        # bounces back and this is what gets sent again.
+        job.save_pass_output()
+        job.replaying = False
+
         return JobState.DONE

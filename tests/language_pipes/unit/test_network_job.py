@@ -51,6 +51,45 @@ class NetworkJobTests(unittest.TestCase):
         self.assertEqual(len(restored.times), 1)
         self.assertEqual(restored.times[0].node_id, "node-a")
 
+    def test_pass_index_round_trips(self):
+        job = NetworkJob(
+            job_id="job-1",
+            pipe_id="pipe-1",
+            origin_node_id="node-a",
+            current_layer=0,
+            data=None,
+            data_hash=b"",
+            compute_step=ComputeStep.LAYER,
+            times=[],
+            pass_idx=7
+        )
+
+        restored, _ = NetworkJob.from_bytes(job.to_bytes())
+
+        self.assertEqual(restored.pass_idx, 7)
+
+    def test_payload_from_a_peer_without_pass_numbers_reads_zero(self):
+        job = NetworkJob(
+            job_id="job-1",
+            pipe_id="pipe-1",
+            origin_node_id="node-a",
+            current_layer=0,
+            data=None,
+            data_hash=b"",
+            compute_step=ComputeStep.LAYER,
+            times=[],
+            pass_idx=7
+        )
+
+        # `pass_idx` is the last field written, as a 4-byte int. Cutting it off
+        # gives the bytes an older peer would have produced.
+        old_payload = job.to_bytes()[:-4]
+        restored, valid = NetworkJob.from_bytes(old_payload)
+
+        self.assertTrue(valid)
+        self.assertEqual(restored.pass_idx, 0)
+        self.assertEqual(restored.job_id, "job-1")
+
 
 if __name__ == "__main__":
     unittest.main()

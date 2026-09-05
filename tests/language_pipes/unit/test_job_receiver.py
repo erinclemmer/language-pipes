@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'sr
 
 from transformers import PretrainedConfig
 
-from language_pipes.jobs.job import Job
+from language_pipes.jobs.job import MAX_PASS_RETRIES, Job
 from language_pipes.jobs.job_cancel import JobCancel
 from language_pipes.jobs.job_receiver import CANCEL_PROTOCOL, JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
@@ -110,6 +110,10 @@ class FakeRouter:
 class FakePipeManager:
     def __init__(self, router: FakeRouter):
         self.router_pipes = type("FakeRouterPipes", (), {"router": router})()
+
+    def get_pipe_by_pipe_id(self, pipe_id: str):
+        # No pipe here, so a packet that is accepted stops before the FSM runs.
+        return None
 
 
 def make_cancel_receiver(node_id: str = "node-a"):
@@ -257,6 +261,75 @@ class ReceiveCancelTests(unittest.TestCase):
         receiver.receive_cancel("node-b", JobCancel("job-1", "pipe-1", "layers unloaded").to_bytes())
 
         self.assertEqual([node_id for node_id, _ in router.sent], ["node-c"])
+
+
+class PassSequenceTests(unittest.TestCase):
+    """A packet whose pass this node cannot account for is a cancel, not a
+    dropped packet: the origin is holding an API request open and would
+    otherwise wait out the stale timeout."""
+
+    def packet(self, pass_idx: int, data=None, compute_step=ComputeStep.LAYER) -> NetworkJob:
+        return NetworkJob(
+            job_id="job-1",
+            pipe_id="pipe-1",
+            origin_node_id="node-a",
+            current_layer=0,
+            data=data,
+            data_hash=b"",
+            compute_step=compute_step,
+            times=[],
+            pass_idx=pass_idx
+        )
+
+    def test_a_pass_out_of_sequence_cancels_the_job(self):
+        receiver, tracker, router = make_cancel_receiver("node-b")
+        job = make_pending_job(tracker, origin_node_id="node-a")
+        job.last_pass_idx = 2
+
+        receiver._process_network_job(self.packet(5))
+
+        self.assertEqual(job.cancel_reason, "pass out of sequence")
+        self.assertIsNone(tracker.get_job("job-1"))
+        # The origin holds the request open, so it has to hear about it
+        self.assertEqual([node_id for node_id, _ in router.sent], ["node-a"])
+
+    def make_dispatched_origin(self):
+        """An origin with one pass in flight, waiting for it to come back."""
+        receiver, tracker, router = make_cancel_receiver("node-a")
+        job = make_pending_job(tracker, origin_node_id="node-a")
+        job.start_pass()
+        job.save_pass_output()
+        return receiver, tracker, job
+
+    def bounce(self, pass_idx: int) -> NetworkJob:
+        """What `restart_token` sends back: no data, EMBED step."""
+        return self.packet(pass_idx, compute_step=ComputeStep.EMBED)
+
+    def test_repeated_validation_failures_cancel_the_job(self):
+        receiver, tracker, job = self.make_dispatched_origin()
+
+        for _ in range(MAX_PASS_RETRIES):
+            receiver._process_network_job(self.bounce(job.pass_idx))
+            self.assertIsNone(job.cancel_reason)
+
+        receiver._process_network_job(self.bounce(job.pass_idx))
+
+        self.assertEqual(
+            job.cancel_reason,
+            f"packet failed validation after {MAX_PASS_RETRIES} retries"
+        )
+        self.assertIsNone(tracker.get_job("job-1"))
+
+    def test_a_bounce_for_a_pass_no_longer_in_flight_is_dropped(self):
+        receiver, tracker, job = self.make_dispatched_origin()
+        job.start_pass()
+        job.save_pass_output()
+
+        receiver._process_network_job(self.bounce(1))
+
+        self.assertIsNone(job.cancel_reason)
+        self.assertIsNotNone(tracker.get_job("job-1"))
+        self.assertFalse(job.replaying)
 
 
 class JobCancelPacketTests(unittest.TestCase):
