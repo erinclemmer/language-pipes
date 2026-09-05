@@ -1,25 +1,28 @@
 import os
 import sys
 import unittest
+from time import time
 from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
 import torch
 from transformers import PretrainedConfig
+from transformers.cache_utils import DynamicCache
 
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_progress import JobProgress
-from language_pipes.jobs.job_tracker import JobTracker
+from language_pipes.jobs.job_tracker import EXPIRED_JOB_TIME, JobTracker
 from language_pipes.jobs.network_job import NetworkJob
+from language_pipes.jobs.prompt_cache import PromptCache
 from language_pipes.util.enums import ComputeStep, JobStatus
 
 
-def make_tracker() -> JobTracker:
+def make_tracker(prompt_cache: PromptCache | None = None) -> JobTracker:
     # The stale-job sweeper thread is not under test
     with patch("language_pipes.jobs.job_tracker.Thread"):
-        return JobTracker()
+        return JobTracker(prompt_cache)
 
 
 def make_job(job_id: str = "job-1", **kwargs) -> Job:
@@ -185,6 +188,71 @@ class AddJobTests(unittest.TestCase):
 
         with self.assertRaises(Exception):  # noqa: B017
             tracker.add_job(network_job, PretrainedConfig(num_hidden_layers=1)) # pyright: ignore[reportCallIssue]
+
+
+class CacheReservationTests(unittest.TestCase):
+    """A dropped connection or an expired job must not leak cache budget."""
+
+    def setUp(self):
+        self.prompt_cache = PromptCache(lambda: 300, lambda: 10000)
+        self.tracker = make_tracker(self.prompt_cache)
+
+    def track(self, job: Job):
+        self.tracker.jobs_pending["key"] = [job]
+        self.prompt_cache.reserve(job.job_id, 500)
+
+    def run_one_sweep(self):
+        """`check_stale_jobs` loops forever; stop it at its first sleep."""
+        def stop(_seconds):
+            self.tracker.shutdown = True
+        with patch("language_pipes.jobs.job_tracker.sleep", side_effect=stop):
+            self.tracker.check_stale_jobs()
+
+    def test_completing_a_job_releases_its_reservation(self):
+        job = make_job()
+        self.track(job)
+
+        self.tracker.complete_job(job)
+
+        self.assertEqual(self.prompt_cache.used_tokens(), 0)
+
+    def test_canceling_a_job_releases_its_reservation(self):
+        job = make_job()
+        self.track(job)
+
+        self.tracker.cancel_job(job, "layers unloaded")
+
+        self.assertEqual(self.prompt_cache.used_tokens(), 0)
+
+    def test_a_job_reaped_as_stale_releases_its_reservation(self):
+        job = make_job()
+        self.track(job)
+        job.last_update = time() - EXPIRED_JOB_TIME - 1
+
+        self.run_one_sweep()
+
+        self.assertIsNone(self.tracker.get_job(job.job_id))
+        self.assertEqual(self.prompt_cache.used_tokens(), 0)
+
+    def test_the_stale_sweep_also_expires_cache_entries(self):
+        self.prompt_cache.store(
+            b"a" * 32, DynamicCache(config=PretrainedConfig(num_hidden_layers=1)), # pyright: ignore[reportCallIssue]
+            "node-a", "model-1", ["proc"], 0, 0, 256
+        )
+        self.prompt_cache._entries[b"a" * 32].expires_at = time() - 1
+
+        self.run_one_sweep()
+
+        self.assertEqual(self.prompt_cache.stats().entries, 0)
+
+    def test_a_tracker_without_a_cache_behaves_as_before(self):
+        tracker = make_tracker()
+        job = make_job()
+        tracker.jobs_pending["key"] = [job]
+
+        tracker.complete_job(job)
+
+        self.assertIsNone(tracker.get_job(job.job_id))
 
 
 if __name__ == "__main__":

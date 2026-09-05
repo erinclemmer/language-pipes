@@ -241,6 +241,43 @@ is the strongest single mitigation available today.
 
 ---
 
+### Prompt cache retention
+
+[Prompt caching](oai.md#prompt-caching) changes how long derived state lives.
+Without it, a job's key/value state is created when the job starts and thrown
+away when it ends. With it, **a node may retain the KV state for a prompt prefix
+for up to `max_cache_time` seconds after the request that produced it** (default
+300), so a later request starting with the same tokens can reuse it.
+
+What that state is has not changed - it is the same derived tensors a node
+already held while the job ran, and the same inversion bound above applies to
+them. What changed is how long a node holds them and that a *different* request
+can be served from them. So:
+
+- **Memory only.** Nothing is written to disk. Entries do not survive a node
+  restart, and cannot be named again afterwards even in principle: the identity
+  of a cached prefix is a keyed hash under a secret generated per process and
+  never transmitted.
+- **Scoped, never shared.** An entry is bound to the origin node, the API key,
+  and the `prompt_cache_key` that produced it, and to the exact model processes
+  whose layers are in it. A request that differs in any of those is a miss. A
+  cross-tenant hit would be an oracle telling one user that another user sent a
+  particular prefix, which is why the binding is enforced on read rather than
+  trusted from the request.
+- **Opt-in on an open node.** With no `api_keys` configured, every caller shares
+  one identity, so a request with no `prompt_cache_key` runs uncached. See
+  [Prompt Caching](oai.md#prompt-caching) for why the key alone is weaker
+  isolation than an API key.
+- **`max_cache_time = 0` restores the old behavior** exactly: no reads, no
+  writes, no state retained past the job. So does `max_cache_tokens = 0`.
+
+The `cached_tokens` field a client gets back is itself a small signal - it says
+how much of this prompt someone had sent before, within the caller's own scope.
+That is the same information OpenAI reports, and the scoping above is what keeps
+it from crossing between callers.
+
+---
+
 ### Privacy Enhancement: Host the End Model Yourself
 
 ```

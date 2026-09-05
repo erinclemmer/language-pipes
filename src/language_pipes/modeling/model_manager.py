@@ -24,6 +24,10 @@ class ModelManager:
     # unloading a model can stop the jobs that were relying on it.
     cancel_pipe_jobs: Callable[[List[str], str], None]
     cancel_model_jobs: Callable[[str, str], None]
+    # Prompt-cache entries name the model processes whose layers they hold, so
+    # unloading one has to drop them: the reloaded weights are a different
+    # process and the old KV state must not be adopted onto them.
+    drop_cached_prefixes: Callable[[str], None]
 
     def __init__(self):
         self.layer_models = []
@@ -35,14 +39,18 @@ class ModelManager:
     def set_job_hooks(
         self,
         cancel_pipe_jobs: Callable[[List[str], str], None],
-        cancel_model_jobs: Callable[[str, str], None]
+        cancel_model_jobs: Callable[[str, str], None],
+        drop_cached_prefixes: Optional[Callable[[str], None]] = None
     ):
         self.cancel_pipe_jobs = cancel_pipe_jobs
         self.cancel_model_jobs = cancel_model_jobs
+        if drop_cached_prefixes is not None:
+            self.drop_cached_prefixes = drop_cached_prefixes
 
     def clear_job_hooks(self):
         self.cancel_pipe_jobs = lambda pipe_ids, reason: None
         self.cancel_model_jobs = lambda model_id, reason: None
+        self.drop_cached_prefixes = lambda process_id: None
 
     def stop(self):
         self.logger.info("Stopping models")
@@ -198,6 +206,7 @@ class ModelManager:
 
         for m_id in to_remove:
             self.layer_models = [m for m in self.layer_models if m.process_id != m_id]
+            self.drop_cached_prefixes(m_id)
 
         self.refresh_pipes_hosted()
         gc.collect()
@@ -214,6 +223,7 @@ class ModelManager:
 
         for m_id in to_remove:
             self.end_models = [m for m in self.end_models if m.process_id != m_id]
+            self.drop_cached_prefixes(m_id)
 
         self.refresh_pipes_hosted()
         gc.collect()

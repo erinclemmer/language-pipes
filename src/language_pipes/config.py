@@ -16,6 +16,12 @@ DEFAULT_NUM_LOCAL_LAYERS = 1
 DEFAULT_END_MODEL_DEVICE = "cpu"
 DEFAULT_MAX_NODE_JOBS = 10
 DEFAULT_MAX_API_JOBS = 5
+# Seconds a cached prompt prefix survives after its last use. 0 disables the
+# prompt cache on this node.
+DEFAULT_MAX_CACHE_TIME = 300
+# Tokens of KV state the prompt cache may hold, counting stored entries and the
+# reservations of jobs still in flight. 0 disables the prompt cache.
+DEFAULT_MAX_CACHE_TOKENS = 16384
 
 def _deprecated_env_num_local_layers() -> Optional[int]:
     raw = os.environ.get("LP_NUM_LOCAL_LAYERS")
@@ -154,6 +160,8 @@ class LpConfig:
     end_models: List[EndModelConfig]
     max_node_jobs: int
     max_api_jobs: int
+    max_cache_time: int
+    max_cache_tokens: int
 
     network_config: DSNodeConfig
 
@@ -166,6 +174,8 @@ class LpConfig:
         self.end_models = []
         self.max_node_jobs = _default_max_node_jobs()
         self.max_api_jobs = _default_max_api_jobs()
+        self.max_cache_time = DEFAULT_MAX_CACHE_TIME
+        self.max_cache_tokens = DEFAULT_MAX_CACHE_TOKENS
         self._file_path = None
         self.network_config = DSNodeConfig.from_dict({ })
 
@@ -179,6 +189,8 @@ class LpConfig:
             "end_models": _serialize_end_models(self.end_models),
             "max_node_jobs": self.max_node_jobs,
             "max_api_jobs": self.max_api_jobs,
+            "max_cache_time": self.max_cache_time,
+            "max_cache_tokens": self.max_cache_tokens,
             "node_id": self.network_config.node_id,
             "peer_port": self.network_config.port,
             "network_ip": self.network_config.network_ip,
@@ -204,6 +216,8 @@ class LpConfig:
             f"Job Port: {self.job_port if self.job_port is not None else 'Disabled'}",
             f"Max Node Jobs: {self.max_node_jobs}",
             f"Max API Jobs: {self.max_api_jobs}",
+            f"Max Cache Time: {self.max_cache_time}",
+            f"Max Cache Tokens: {self.max_cache_tokens}",
         ]
 
         lines.append("API Keys:")
@@ -254,6 +268,8 @@ class LpConfig:
         cfg.end_models = [EndModelConfig.from_config(o) for o in data.get("end_models", [])]
         cfg.max_node_jobs = data.get("max_node_jobs", cfg.max_node_jobs)
         cfg.max_api_jobs = data.get("max_api_jobs", cfg.max_api_jobs)
+        cfg.max_cache_time = data.get("max_cache_time", cfg.max_cache_time)
+        cfg.max_cache_tokens = data.get("max_cache_tokens", cfg.max_cache_tokens)
         cfg.network_config = DSNodeConfig.from_dict({
             "credential_dir": str(get_app_dir() / "credentials"),
             "logging_dir": str(get_app_dir() / "logs"),

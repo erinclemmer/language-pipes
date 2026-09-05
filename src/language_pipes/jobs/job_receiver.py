@@ -117,7 +117,8 @@ class JobReceiver:
             pipe=pipe,
             end_model=end_model,
             job=job,
-            on_fail=self.cancel_job
+            on_fail=self.cancel_job,
+            prompt_cache=self.job_tracker.prompt_cache
         ))
 
         try:

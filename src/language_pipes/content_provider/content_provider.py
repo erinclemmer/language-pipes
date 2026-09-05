@@ -9,6 +9,7 @@ from language_pipes.request_for_model.rfm import RequestForModelHandler
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_receiver import CANCEL_PROTOCOL, JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
+from language_pipes.jobs.prompt_cache import PromptCache
 from language_pipes.util.byte_helper import ByteHelper
 from language_pipes.util.utils import is_port_available
 from language_pipes.pipes.pipe_manager import PipeManager
@@ -32,6 +33,7 @@ class ContentProvider:
     job_tracker: Optional[JobTracker]
     job_factory: Optional[JobFactory]
     job_receiver: Optional[JobReceiver]
+    prompt_cache: Optional[PromptCache]
 
     model_manager: ModelManager
     model_provider: ModelProvider
@@ -49,6 +51,7 @@ class ContentProvider:
         self.job_tracker = None
         self.job_factory = None
         self.job_receiver = None
+        self.prompt_cache = None
         self.model_manager = ModelManager()
         self.config_file = config_file
         self.create_alert = create_alert
@@ -112,7 +115,13 @@ class ContentProvider:
         if router is not None:
             self.router_pipes = RouterPipes(router)
             self.pipe_manager = PipeManager(self.model_manager, self.router_pipes)
-            self.job_tracker = JobTracker()
+            # One cache per node, shared by the origin path and (from Phase 2)
+            # the layer path, so both see the same entries and the same budget.
+            self.prompt_cache = PromptCache(
+                self.job_provider.get_max_cache_time,
+                self.job_provider.get_max_cache_tokens
+            )
+            self.job_tracker = JobTracker(self.prompt_cache)
             self.job_factory = JobFactory(self.job_tracker, self.pipe_manager, self.job_provider.get_max_api_jobs)
             self.job_receiver = JobReceiver(
                 job_factory=self.job_factory,
@@ -124,7 +133,8 @@ class ContentProvider:
             )
             self.model_manager.set_job_hooks(
                 self.job_receiver.cancel_pipe_jobs,
-                self.job_receiver.cancel_model_jobs
+                self.job_receiver.cancel_model_jobs,
+                self.prompt_cache.clear_process
             )
 
             self.router_pipes.router.set_receive_cb(self._receive_data)
@@ -138,6 +148,7 @@ class ContentProvider:
         else:
             self.router_pipes = None
             self.pipe_manager = None
+            self.prompt_cache = None
             self.model_manager.clear_job_hooks()
 
     def request_model(self, model_id: str, token: Optional[str] = None):
@@ -168,6 +179,8 @@ class ContentProvider:
             self.job_tracker.shutdown = True
         if self.job_receiver is not None:
             self.job_receiver.shutdown = True
+        if self.prompt_cache is not None:
+            self.prompt_cache.clear()
 
     @staticmethod
     def get_total_system_ram() -> float:

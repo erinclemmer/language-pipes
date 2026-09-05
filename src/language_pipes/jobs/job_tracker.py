@@ -1,7 +1,4 @@
-import gc
-import ctypes
 import logging
-import torch
 from time import time
 from typing import Dict, List, Optional
 from time import sleep
@@ -11,28 +8,26 @@ from transformers import PretrainedConfig
 
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.network_job import NetworkJob
+from language_pipes.jobs.prompt_cache import PromptCache
 from language_pipes.util.enums import JobStatus
+from language_pipes.util.utils import release_memory
 
 CHECK_JOB_INTERVAL = 10
 EXPIRED_JOB_TIME = 60  # Unified timeout for both prefill and decode phases
-
-try:
-    _libc = ctypes.CDLL("libc.so.6")
-    _malloc_trim = _libc.malloc_trim
-    _malloc_trim.argtypes = [ctypes.c_size_t]
-    _malloc_trim.restype = ctypes.c_int
-except:  # noqa: E722
-    _malloc_trim = None
 
 class JobTracker:
     jobs_completed: List[str]
     jobs_pending: Dict[str, List[Job]]
     shutdown: bool
+    # None when the node was built without a cache (tests, and any path that
+    # does not go through ContentProvider.set_router).
+    prompt_cache: Optional[PromptCache]
 
-    def __init__(self):
+    def __init__(self, prompt_cache: Optional[PromptCache] = None):
         self.jobs_completed = []
         self.jobs_pending = { }
         self.shutdown = False
+        self.prompt_cache = prompt_cache
         self.logger = logging.getLogger(__name__)
         Thread(target=self.check_stale_jobs, args=( )).start()
 
@@ -54,12 +49,13 @@ class JobTracker:
 
                 for job_id in remove_jobs:
                     self.jobs_pending[key] = [j for j in self.jobs_pending[key] if j.job_id != job_id]
+                    self._release_reservation(job_id)
 
-                if len(remove_jobs) > 0:        
-                    gc.collect()
-                    torch.cuda.empty_cache()
-                    if _malloc_trim is not None:
-                        _malloc_trim(0)
+                if len(remove_jobs) > 0:
+                    release_memory()
+
+            if self.prompt_cache is not None:
+                self.prompt_cache.sweep()
 
             sleep(CHECK_JOB_INTERVAL)
 
@@ -85,9 +81,15 @@ class JobTracker:
             if j.model_id == model_id and (origin_node_id is None or j.origin_node_id == origin_node_id)
         ]
 
+    def _release_reservation(self, job_id: str):
+        """Give a finished job's share of the cache budget back."""
+        if self.prompt_cache is not None:
+            self.prompt_cache.release(job_id)
+
     def remove_job(self, job_id: str):
         for key in list(self.jobs_pending.keys()):
             self.jobs_pending[key] = [j for j in self.jobs_pending[key] if j.job_id != job_id]
+        self._release_reservation(job_id)
 
     def complete_job(self, job: Job):
         job_id = job.job_id

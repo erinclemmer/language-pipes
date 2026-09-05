@@ -525,5 +525,52 @@ class ShutdownCancelsJobsTests(unittest.TestCase):
         self.assertEqual(len(manager.end_models), 0)
 
 
+class UnloadDropsCachedPrefixesTests(unittest.TestCase):
+    """A cached prefix names the model processes whose layers it holds. Reloaded
+    weights are a different process, so the old KV state must not be adopted
+    onto them."""
+
+    def _manager_with_hooks(self):
+        manager = ModelManager()
+        dropped = []
+        manager.set_job_hooks(
+            lambda pipe_ids, reason: None,
+            lambda model_id, reason: None,
+            dropped.append
+        )
+        return manager, dropped
+
+    def test_unloading_layers_drops_entries_for_that_process(self):
+        manager, dropped = self._manager_with_hooks()
+        model = FakeLlmModel("model-1", "node-a", "pipe-1", torch.device("cpu"))
+        manager.layer_models.append(model)  # type: ignore[arg-type]
+        router = RouterPipes(FakeStateNetworkNode("node-a"))
+
+        manager.shutdown_layer_models(router, "model-1", torch.device("cpu"))
+
+        self.assertEqual(dropped, [model.process_id])
+
+    def test_unloading_an_end_model_drops_entries_for_that_process(self):
+        manager, dropped = self._manager_with_hooks()
+        end_model = FakeEndModel(0, Path("./models"), "model-1", "cpu")
+        manager.end_models.append(end_model)  # type: ignore[arg-type]
+
+        manager.shutdown_end_model("model-1")
+
+        self.assertEqual(dropped, [end_model.process_id])
+
+    def test_unloading_without_a_cache_hook_still_works(self):
+        """The hook only exists once the network is running."""
+        manager = ModelManager()
+        manager.end_models.append(  # type: ignore[arg-type]
+            FakeEndModel(0, Path("./models"), "model-1", "cpu")
+        )
+        manager.set_job_hooks(lambda a, b: None, lambda a, b: None)
+
+        manager.shutdown_end_model("model-1")
+
+        self.assertEqual(len(manager.end_models), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

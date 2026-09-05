@@ -7,6 +7,7 @@ from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.pipes.pipe_manager import PipeManager
+from language_pipes.util.oai_cache import CacheOptions
 
 class JobFactory:
     job_tracker: JobTracker
@@ -37,7 +38,8 @@ class JobFactory:
         presence_penalty: float = 0.0,
         start: Optional[Callable] = None,
         update: Optional[Callable] = None,
-        resolve: Optional[Promise] = None
+        resolve: Optional[Promise] = None,
+        cache_options: Optional[CacheOptions] = None
     ) -> Optional[Job]:
         end_model = self.pipe_manager.model_manager.get_end_model(model_id)
         if end_model is None:
@@ -74,6 +76,15 @@ class JobFactory:
             update=update,
             complete=self.job_tracker.complete_job
         )
+        if cache_options is not None:
+            job.cache_options = cache_options
+        # The scope is derived here rather than in the processor so the API key
+        # never has to travel any further than this call.
+        prompt_cache = self.job_tracker.prompt_cache
+        if prompt_cache is not None and job.cache_options.enabled:
+            job.cache_scope = prompt_cache.scope(
+                node_id, api_key, job.cache_options.prompt_cache_key
+            )
 
         self.logger.info(f"Job {job.job_id[:4]} started")
 

@@ -265,6 +265,7 @@ POST /v1/responses
 | `top_k` | integer | | Top-k sampling limit (default: `0`, disabled) |
 | `min_p` | float | | Minimum probability threshold (default: `0`, disabled) |
 | `presence_penalty` | float | | Penalty for token repetition (default: `0`) |
+| `prompt_cache_key` | string | | Scopes the [prompt cache](#prompt-caching) (default: `""`) |
 
 ### Responses Request Body
 
@@ -283,6 +284,7 @@ POST /v1/responses
 | `tools` | array | | Custom function tool definitions (see [Function Tool Calling](#function-tool-calling)) |
 | `tool_choice` | string or object | | `auto`, `none`, `required`, or `{"type": "function", "name": "..."}` |
 | `parallel_tool_calls` | boolean | | Accepted for compatibility; parallel calls are not produced |
+| `prompt_cache_key` | string | | Scopes the [prompt cache](#prompt-caching) (default: `""`) |
 
 The endpoint returns a Responses API-style object with `output`, `output_text`, and `usage` fields. Custom function tools are supported; hosted tools, `previous_response_id` statefulness, and multimodal input are not currently implemented.
 
@@ -406,6 +408,107 @@ A stream that has already started cannot use that shape, because the response
 headers are sent. Chat completions send a final chunk that carries an `error`
 object and `"finish_reason": "error"`, then `data: [DONE]`. The Responses API
 sends a `response.failed` event, then `data: [DONE]`.
+
+---
+
+## Prompt Caching
+
+When a request's prompt starts with a prefix a previous request already
+processed, the node can reuse the key/value state computed for that prefix
+instead of processing those tokens again. Reused tokens are reported back as
+`cached_tokens`.
+
+A hit requires an **exact match of the whole token prefix**. One different token
+anywhere before the boundary means everything after it is a miss, so the stable
+part of a prompt - a system message, a tool schema, a long document - belongs at
+the front.
+
+### Enabling it
+
+Caching is controlled by the node, with two settings on the
+[Jobs / Server page](configuration.md#max_cache_time) (`max_cache_time` and
+`max_cache_tokens` in the config file). **Either at `0` disables it**, and the
+server behaves exactly as it did before.
+
+Reuse is currently limited to pipes whose every layer runs on the node serving
+the API. On a multi-node pipe, requests run normally and report
+`cached_tokens: 0`.
+
+### `prompt_cache_key`
+
+Accepted on both endpoints. It partitions the cache: two requests share entries
+only if they carry the same key *and* the same API key *and* reached the same
+node.
+
+```json
+{
+  "model": "Qwen/Qwen3-1.7B",
+  "input": "...",
+  "prompt_cache_key": "support-v3:user_123"
+}
+```
+
+**On a server with `api_keys` configured**, the API key is what isolates one
+caller from another and `prompt_cache_key` is an optional partitioning label -
+useful for keeping unrelated workloads from evicting each other. Requests
+without one are cached normally.
+
+**On a server with no `api_keys`**, every caller is authenticated as the same
+identity, so `prompt_cache_key` is the *only* thing separating them. A request
+that does not carry one **runs uncached**: no lookup, no store, `cached_tokens:
+0`, everything else unchanged. This is a silent disable rather than an error, so
+a plain chat request against an open node keeps working.
+
+Be clear-eyed about what a key buys on such a node. It is only as unguessable as
+the value the client picks, and OpenAI's own guidance produces low-entropy,
+structured labels; it is also sent in cleartext, since the API server has no TLS.
+It defends against someone who can reach the API, not against someone who can
+observe it. **Configuring `api_keys` is the supported way to get cache
+isolation.**
+
+### Reading `cached_tokens`
+
+`/v1/responses`:
+
+```json
+"usage": {
+  "input_tokens": 4096,
+  "input_tokens_details": { "cached_tokens": 3968 },
+  "output_tokens": 210,
+  "total_tokens": 4306
+}
+```
+
+`/v1/chat/completions`:
+
+```json
+"usage": {
+  "prompt_tokens": 4096,
+  "prompt_tokens_details": { "cached_tokens": 3968 },
+  "completion_tokens": 210,
+  "total_tokens": 4306
+}
+```
+
+Streaming `/v1/responses` carries the same numbers in the `response.completed`
+event. Chat-completion streams do not yet report usage.
+
+### What gets cached
+
+| | |
+|---|---|
+| Granularity | 128 tokens. `cached_tokens` is always a multiple of it. |
+| Minimum | 256 tokens. Shorter prefixes are never cached. |
+| Write points | The end of the prompt, and the end of the prompt plus the response. The second is what makes a multi-turn conversation hit: the next turn's prompt begins with the previous exchange. |
+| Lifetime | Up to `max_cache_time` seconds after the entry's *last use*, so a busy prefix stays warm and an idle one expires. |
+| Persistence | Memory only. Nothing is written to disk, and entries do not survive a node restart. |
+
+There is no endpoint to inspect or clear the cache. Operators see totals on the
+Jobs / Server page.
+
+`prompt_cache_options`, `prompt_cache_retention`, explicit breakpoints and
+`cache_write_tokens` are not implemented yet and arrive in a later release;
+sending them today is ignored rather than rejected.
 
 ---
 

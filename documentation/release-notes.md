@@ -3,6 +3,37 @@ title: Release Notes
 description: Change log for Language Pipes releases.
 ---
 
+## Unreleased
+
+### Prompt Caching
+A request whose prompt starts with a prefix a previous request already processed
+can now reuse the key/value state computed for that prefix instead of processing
+those tokens again, which cuts time-to-first-token on repeated system prompts,
+long documents and multi-turn chat. Reused tokens are reported to the client as
+`usage.input_tokens_details.cached_tokens` (`prompt_tokens_details` on
+`/v1/chat/completions`), and `prompt_cache_key` is accepted on both endpoints to
+partition the cache.
+
+Two new settings on the "Jobs / Server" page control it, `max_cache_time`
+(default 300 seconds) and `max_cache_tokens` (default 16384); either at `0`
+disables caching entirely and restores the previous behavior. The page also
+shows live cache totals, and the active jobs view reports the prefill a job
+skipped.
+
+In this release reuse is limited to pipes whose every layer runs on the node
+serving the API; requests on a multi-node pipe run as before and report
+`cached_tokens: 0`. On a server with no `api_keys` configured, a request without
+a `prompt_cache_key` runs uncached, because every caller there shares one
+identity. See [Prompt Caching](oai.md#prompt-caching) and
+[Privacy](privacy.md#prompt-cache-retention).
+
+### Job Restart Correctness
+A packet that fails its hash check now replays the pass that produced it instead
+of having the origin resume from a guess. Nodes that already computed the failed
+pass resend what they sent before without touching their caches, and a node that
+receives a pass out of sequence refuses it and cancels the job rather than
+letting it desynchronize.
+
 ## Release 2.5.0
 
 ### 4 Bit Support

@@ -50,7 +50,7 @@ are worth keeping as the baseline; the rows Phase 0 has since changed are marked
 | Phase | Deliverable | User-visible result | Depends on | Size |
 |---|---|---|---|---|
 | 0 ✅ | Job restart correctness (`pass_idx`, per-node saved output, replay instead of recompute) | A corrupted packet no longer silently desynchronizes the pipe's KV caches | — | M |
-| 1 | Single-node prompt cache | `cached_tokens > 0` on the second of two prefix-sharing requests when the whole pipe is on the origin node; two config fields; TUI rows; docs | 0 | L |
+| 1 ✅ | Single-node prompt cache | `cached_tokens > 0` on the second of two prefix-sharing requests when the whole pipe is on the origin node; two config fields; TUI rows; docs | 0 | L |
 | 2 | Distributed reuse | The same result across a multi-node pipe; `CacheStatus` protocol; per-node budgets | 0, 1 | L |
 | 3 | Full OpenAI surface | `prompt_cache_options`, explicit breakpoints, `cache_write_tokens`, chat `stream_options.include_usage` | 1 (2 not required) | M |
 | 4 | Optimizations | Adopt-by-move, CPU demotion, per-block snapshots, derived budget default | 2 | S each, independent |
@@ -192,7 +192,7 @@ from reroute and says a hash failure replays the pass and never rebuilds a cache
 
 ---
 
-## 3. Phase 1 — single-node prompt cache
+## 3. Phase 1 — single-node prompt cache ✅
 
 **Goal.** Everything in §3, §4.1, §4.2, §4.5 (implicit only), §4.6, §4.7, §2.3, §9
 and the origin half of §4.3 / §4.4, with reuse gated to pipes whose every layer is
@@ -203,6 +203,11 @@ The gate is deliberately conservative. A pipe is "local" when every segment
 `node_id == origin` and is not virtual. Add `Pipe.is_local_to(node_id) -> bool`
 beside `Pipe.is_complete` (`src/language_pipes/pipes/pipe.py:67`). When it is
 false, the request runs exactly as today; `cached_tokens` is 0.
+
+The steps below landed as written apart from the departures recorded after them.
+`Pipe.is_local_to` shipped as `is_local_to(node_id, start_layer)`, matching the
+shape of `Pipe.is_complete(start_layer)` right above it, since the caller has to
+say where the end model's own layers stop.
 
 ### Steps, in commit order
 
@@ -387,18 +392,63 @@ cached=<n> scope=<8 hex of h[0]>`. Never log `prompt_cache_key` or the API key.
   behavior.
 - `documentation/release-notes.md`: entry under the next release.
 
+### Decisions that differ from the plan as written
+
+| Plan said | Shipped | Why |
+|---|---|---|
+| `CacheEntry.process_id: str`. | `process_ids: List[str]`. | A Phase 1 entry covers the whole stack on the origin, which is the end model process *plus* every local layer segment's. `lookup` compares the list; `clear_process` drops any entry containing the id. Collapses to one element on a Phase 2 layer node. |
+| `release_memory` helper in `job_tracker.py`. | In `util/utils.py`. | `JobTracker` now takes a `PromptCache`, so a helper in `job_tracker.py` that `prompt_cache.py` imports would be a cycle. |
+| `lookup` is what the processor walks down. | `lookup` stays the single-id primitive; `find_longest` does the walk. | Counting hits and misses inside `lookup` would score one miss per candidate probed and make the reported hit rate meaningless. `find_longest` counts exactly one outcome per request. |
+| Store after `end_model.compute_layers` *and* after `model.process_job`. | Store once, after `process_job`, when the pass has left `ComputeStep.LAYER`. | On a Phase 1 pipe the entry covers the whole stack, so a store after the end model's own layers would freeze a slice that is missing every later layer. Leaving `LAYER` is exactly the moment the last layer of the pass is done. |
+| `parse_cache_options(data, api_key, authenticated)`. | `parse_cache_options(data, authenticated)`. | The API key is never needed to *parse*; the scope that uses it is derived in `JobFactory.start_job`, so the key travels no further than the call that already had it. |
+| `adopt` clones `LinearAttention*Layer` states. | `copy_cache` deep-copies any layer carrying `conv_states` / `recurrent_states`. | In transformers 5.14 those are **dicts keyed by state index**, not bare tensors, and `lazy_initialization` mutates the sibling bookkeeping dicts too. A shallow copy would share all of it. Recognized by attribute rather than class name so a new variant is copied by default. |
+| `reserve` evicts until the estimate fits. | An estimate larger than the whole budget refuses *before* evicting. | §4.7 asks for this: a job that cannot fit an empty cache will not fit any cache, so throwing entries away for it is pure loss. |
+| — | `cache=off` in the log line covers "never looked", not just "opted out". | A short prompt, a remote segment and a refused admission are not cache misses, and scoring them as misses would understate the hit rate. Keyed off `cache_ids` being empty. |
+| — | Two new test files beyond the plan's list: `job_processor/test_prompt_cache_path.py` and `test_jobs_server_page.py`. | The plan named `main_frame/components` for the TUI page test; that directory does not exist in this tree, so the page test sits with the other top-level TUI tests. |
+
+**Cross-cutting decisions (§7) as settled.** (1) Default **on**: `DEFAULT_MAX_CACHE_TIME
+= 300`, `DEFAULT_MAX_CACHE_TOKENS = 16384`, which with the §2.3 anon rule only caches
+for callers who authenticate or opt in with `prompt_cache_key`. (3) The secret is
+**per `PromptCache` instance**, so restarting the network from the TUI rotates it
+without restarting the process.
+
+### Tests
+
+| File | Covers |
+|---|---|
+| `test_prompt_cache.py` *(new)* | Chain determinism under one secret; divergence from the first differing block; scope separation by API key / cache key / origin; the three threat-model cases (fresh secret, field framing, origin mismatch); store/lookup binding by model, process ids and layer range; TTL expiry, refresh-on-use and clamping; `find_longest` taking the longest candidate and counting one outcome; both disable switches; `clear` / `clear_process`. |
+| `test_prompt_cache_share.py` *(new)* | The sharing invariant, against real transformers layer objects: `DynamicLayer` and `DynamicSlidingWindowLayer` appends leave the entry's tensors unchanged in content and `data_ptr`; `cumulative_length` survives a snapshot; a `LinearAttentionLayer` entry is copied, its per-state dicts included, and a borrower's `copy_()` cannot reach it; a stored entry does not grow with the job. |
+| `test_prompt_cache_budget.py` *(new)* | `used_tokens` counts entries plus reservations; LRU eviction at admission; an over-budget estimate evicts nothing; release on demand and on a double reserve; reuse moves an entry to the back of the order; eviction cannot break a job already running on it; the stats line. |
+| `test_prompt_cache_anon.py` *(new)* | §2.3 at the parse layer, on both endpoints: no key on an open server disables caching, a key enables it, two keys do not share a scope, an absent key still caches when `api_keys` is set, and a non-string key is ignored rather than 400ed. |
+| `job_processor/test_prompt_cache_path.py` *(new)* | The origin FSM: a hit starts the chunks after the prefix and skips them; a miss prefills everything; the whole prompt is never adopted; a remote segment, a disabled job, a short prompt and a refused admission all run uncached; write points and which chunk is tagged; store on the last layer of the pass and the drift check that skips it; the end-of-response entry; the two-request round trip; the log fields. |
+| `test_chunk_state.py` *(extended)* | Offset ranges, `get_tokens_processed` excluding the offset, an offset plus a sub-chunk suffix staying inactive, `disable` clearing the offset. |
+| `test_job.py` *(extended)* | `past_seen_tokens` with a cached prefix during prefill and at the first decode step; `next_write_point`. |
+| `test_job_tracker.py` *(extended)* | Reservations released on complete, cancel and stale expiry; the sweep expiring entries; a tracker built without a cache. |
+| `test_model_manager.py` *(extended)* | Unloading layers or an end model drops that process's entries; unloading without the hook still works. |
+| `test_oai_responses.py` *(extended)* | `input_tokens_details` / `prompt_tokens_details` shape on both endpoints, streaming and not. |
+| `test_config.py` *(extended)* | Defaults when absent from an existing file, round-trip through save/load, `0` surviving the round trip, `to_string`. |
+| `test_jobs_server_page.py` *(new)* | Navigation across all seven rows and both wraps, digit editing that persists, `0` accepted, enter routing to the keys page and the start row, the rendered rows, tips, and the stats line. |
+
 ### Exit criteria
 
-- Unit suite green with no cache-related skips.
-- Integration (`tests/language_pipes/integration/oai.py`, single-node case): two
-  requests sharing a ≥ 256-token prefix; the second reports `cached_tokens ≥ 256`,
-  returns the same text at `temperature = 0`, and has a lower time-to-first-token.
-  Run once with Qwen3 (plain attention) and once with a Gemma 3 or Qwen3.5 end model
-  if weights are on hand, since snapshot-not-crop is only exercised there.
-- The same integration file's two-node case still passes with `cached_tokens == 0`,
-  proving the local-pipe gate.
-- `max_cache_time = 0` and `max_cache_tokens = 0` both produce byte-identical
-  behavior to `main` on the single-node case (no entries, no reservations, no stats).
+- ✅ 468 unit tests pass (348 before), no skips added. The only existing tests
+  changed were the ones being extended, plus a `cache_options=None` parameter on the
+  `complete_cb` fakes in `test_oai_responses.py` / `test_oai_cancel.py` and
+  `process_id` / `prompt_cache` on the fakes in `tests/…/unit/util.py`.
+- ✅ `ruff check src tests` reports the same 60 pre-existing findings, none in the
+  new files.
+- ⚠️ The integration runs were **not** executed: they need model weights.
+  `job_processor/test_prompt_cache_path.py::TwoRequestTests` stands in for the
+  single-node case (the second of two identical requests adopts 512 tokens and
+  embeds strictly fewer chunks) and for the disabled case (`max_cache_time = 0`
+  leaves the embed count, the entry count and the reservation total exactly as an
+  uncached run). Before Phase 2, still run against real weights:
+  - two requests sharing a ≥ 256-token prefix on a single-node pipe — the second
+    reports `cached_tokens ≥ 256`, returns the same text at `temperature = 0`, and
+    has a lower time-to-first-token;
+  - the same with a Gemma 3 or Qwen3.5 end model, since snapshot-not-crop is only
+    exercised by sliding-window and linear-attention stacks;
+  - the two-node case, which must still report `cached_tokens == 0`.
 
 ---
 
@@ -619,7 +669,10 @@ Phase 1.
 
 ## 7. Cross-cutting decisions to settle before Phase 1 starts
 
-1. **Default on or off in Phase 1.** `cache_plan.md` sets `max_cache_time = 300` and
+Items 1 and 3 were settled when Phase 1 shipped: **default on** (300 / 16384) and
+an **instance-level secret**. Item 2 is still open; it belongs to Phase 2.
+
+1. **Default on or off in Phase 1.** ✅ *Shipped default-on.* `cache_plan.md` sets `max_cache_time = 300` and
    `max_cache_tokens = 16384` as defaults, which turns the feature on for every
    upgraded node. With the §2.3 anon rule, a default-on node only caches for callers
    who opt in with `prompt_cache_key` or who authenticate, which is a reasonable
@@ -628,7 +681,7 @@ Phase 1.
    changes.
 2. **`add_job` return shape in 2.3.** Tuple vs. small result dataclass. Either is
    fine; pick one before writing the tracker tests.
-3. **Where the per-process secret lives.** Module-level in `prompt_cache.py`
+3. **Where the per-process secret lives.** ✅ *Shipped instance-level.* Module-level in `prompt_cache.py`
    (simplest; one per process) or on the `PromptCache` instance (one per
    `set_router`, so restarting the network in the TUI without restarting the process
    also rotates it). Instance-level is slightly more conservative and costs nothing;

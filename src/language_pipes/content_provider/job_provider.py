@@ -12,6 +12,7 @@ from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_progress import JobProgress
 from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
+from language_pipes.jobs.prompt_cache import CacheStats
 from language_pipes.jobs.timing_stats import TimingStats
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.oai_server import OAIHttpServer
@@ -33,6 +34,8 @@ class MetaJob:
     ram: float
     timing_stats: TimingStats
     progress: JobProgress
+    # Prompt tokens this job skipped because it adopted a cached prefix.
+    cached_tokens: int = 0
 
 class JobProvider:
     oai_server: Optional[OAIHttpServer]
@@ -90,6 +93,24 @@ class JobProvider:
     def set_max_api_jobs(self, value: int):
         cfg = LpConfig.from_file(self.config_file)
         cfg.max_api_jobs = value
+        cfg.save()
+
+    def get_max_cache_time(self) -> int:
+        cfg = LpConfig.from_file(self.config_file)
+        return cfg.max_cache_time
+
+    def set_max_cache_time(self, value: int):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.max_cache_time = value
+        cfg.save()
+
+    def get_max_cache_tokens(self) -> int:
+        cfg = LpConfig.from_file(self.config_file)
+        return cfg.max_cache_tokens
+
+    def set_max_cache_tokens(self, value: int):
+        cfg = LpConfig.from_file(self.config_file)
+        cfg.max_cache_tokens = value
         cfg.save()
 
     def get_api_keys(self) -> List[str]:
@@ -153,6 +174,12 @@ class JobProvider:
 
     def oai_server_running(self) -> bool:
         return self.oai_server is not None
+
+    def get_cache_stats(self) -> Optional[CacheStats]:
+        job_tracker = self.get_job_tracker()
+        if job_tracker is None or job_tracker.prompt_cache is None:
+            return None
+        return job_tracker.prompt_cache.stats()
     
     def get_active_jobs(self) -> List[MetaJob]:
         job_tracker = self.get_job_tracker()
@@ -174,7 +201,8 @@ class JobProvider:
                     last_update=time() - job.last_update,
                     ram=job.get_job_ram(),
                     timing_stats=job.timing_stats,
-                    progress=progress
+                    progress=progress,
+                    cached_tokens=job.cached_tokens
                ))
         
         return meta_jobs

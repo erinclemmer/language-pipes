@@ -51,6 +51,10 @@ class JobsActive:
                 f"Decode Token:  {job.current_token}" if not job.progress.prefilling else f"Prefill Token: {job.progress.prefill_tokens} of {job.progress.prompt_tokens}"
             ]
 
+            # The clearest signal that prompt caching is doing anything.
+            if job.cached_tokens > 0:
+                entry.append(f"Prefill skipped: {job.cached_tokens} tokens")
+
             prefill_speed = job.timing_stats.prefill_times.get_tokens_per_second()
             if prefill_speed > 0:
                 entry.extend(["", f"Prefill speed: {prefill_speed:.2f} Tok/s", ""])

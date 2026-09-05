@@ -16,6 +16,10 @@ class TopPageState(PageState):
     edit_max_node_jobs: str | None
     max_api_jobs: int | None
     edit_max_api_jobs: str | None
+    max_cache_time: int | None
+    edit_max_cache_time: str | None
+    max_cache_tokens: int | None
+    edit_max_cache_tokens: str | None
 
     def __init__(self):
         super().__init__('top')
@@ -27,6 +31,10 @@ class TopPageState(PageState):
         self.edit_max_node_jobs = None
         self.max_api_jobs = None
         self.edit_max_api_jobs = None
+        self.max_cache_time = None
+        self.edit_max_cache_time = None
+        self.max_cache_tokens = None
+        self.edit_max_cache_tokens = None
 
     def on_change(self, args: dict):
         self.focus_idx = 0
@@ -54,6 +62,12 @@ class TopPageState(PageState):
         elif self.focus_idx == 2:
             self.edit_max_api_jobs = self._max_api_jobs_str() + ch
             self._save_max_api_jobs()
+        elif self.focus_idx == 3:
+            self.edit_max_cache_time = self._max_cache_time_str() + ch
+            self._save_max_cache_time()
+        elif self.focus_idx == 4:
+            self.edit_max_cache_tokens = self._max_cache_tokens_str() + ch
+            self._save_max_cache_tokens()
 
     def _on_backspace(self):
         if self.focus_idx == 0:
@@ -64,6 +78,12 @@ class TopPageState(PageState):
         elif self.focus_idx == 2:
             self.edit_max_api_jobs = self._max_api_jobs_str()[:-1]
             self._save_max_api_jobs()
+        elif self.focus_idx == 3:
+            self.edit_max_cache_time = self._max_cache_time_str()[:-1]
+            self._save_max_cache_time()
+        elif self.focus_idx == 4:
+            self.edit_max_cache_tokens = self._max_cache_tokens_str()[:-1]
+            self._save_max_cache_tokens()
 
     def _save_max_node_jobs(self):
         if self._valid_max_node_jobs():
@@ -74,6 +94,16 @@ class TopPageState(PageState):
         if self._valid_max_api_jobs():
             self.max_api_jobs = int(self.edit_max_api_jobs) # pyright: ignore[reportArgumentType]
             self.provider.job_provider.set_max_api_jobs(self.max_api_jobs)
+
+    def _save_max_cache_time(self):
+        if self._valid_max_cache_time():
+            self.max_cache_time = int(self.edit_max_cache_time) # pyright: ignore[reportArgumentType]
+            self.provider.job_provider.set_max_cache_time(self.max_cache_time)
+
+    def _save_max_cache_tokens(self):
+        if self._valid_max_cache_tokens():
+            self.max_cache_tokens = int(self.edit_max_cache_tokens) # pyright: ignore[reportArgumentType]
+            self.provider.job_provider.set_max_cache_tokens(self.max_cache_tokens)
 
     def _on_escape(self):
         self.exit_page()
@@ -86,28 +116,26 @@ class TopPageState(PageState):
             self.provider.job_provider.stop_oai_server()
             return
 
-        if self.focus_idx == 0:
-            self.focus_idx = 1
-        elif self.focus_idx == 1:
-            self.focus_idx = 2
-        elif self.focus_idx == 2:
-            self.focus_idx = 3
-        elif self.focus_idx == 3:
+        if self.focus_idx < 5:
+            self.focus_idx += 1
+        elif self.focus_idx == 5:
             self.change_state('keys', { })
-        elif self.focus_idx == 4:
+        elif self.focus_idx == 6:
             self._save_and_run()
+
+    def _last_idx(self) -> int:
+        return 6 if self.can_start_server() else 5
 
     def _on_prev(self):
         if not self.server_running:
             self.focus_idx -= 1
             if self.focus_idx < 0:
-                self.focus_idx = 4 if self.can_start_server() else 3
+                self.focus_idx = self._last_idx()
 
     def _on_next(self):
         if not self.server_running:
             self.focus_idx += 1
-            max_idx = 4 if self.can_start_server() else 3
-            if self.focus_idx > max_idx:
+            if self.focus_idx > self._last_idx():
                 self.focus_idx = 0
 
     def _save_and_run(self):
@@ -115,6 +143,10 @@ class TopPageState(PageState):
             return
 
         self.provider.job_provider.set_job_port(int(self._port_str()))
+        if self._valid_max_cache_time():
+            self.provider.job_provider.set_max_cache_time(int(self._max_cache_time_str()))
+        if self._valid_max_cache_tokens():
+            self.provider.job_provider.set_max_cache_tokens(int(self._max_cache_tokens_str()))
         self.provider.job_provider.set_api_keys(self.provider.job_provider.get_api_keys())
         self.provider.job_provider.start_oai_server()
 
@@ -126,6 +158,8 @@ class TopPageState(PageState):
 
         node_jobs_cursor = "|" if self.focus_idx == 1 else ""
         api_jobs_cursor = "|" if self.focus_idx == 2 else ""
+        cache_time_cursor = "|" if self.focus_idx == 3 else ""
+        cache_tokens_cursor = "|" if self.focus_idx == 4 else ""
 
         lines = [
             "Jobs Server:", "",
@@ -143,8 +177,18 @@ class TopPageState(PageState):
         if not self._valid_max_api_jobs():
             lines.append("   Error: Invalid max api jobs value")
 
+        lines.append(f"   Max Cache Time: {self._max_cache_time_str()}{cache_time_cursor}")
+        if not self._valid_max_cache_time():
+            lines.append("   Error: Invalid max cache time value")
+
+        lines.append(f"   Max Cache Tokens: {self._max_cache_tokens_str()}{cache_tokens_cursor}")
+        if not self._valid_max_cache_tokens():
+            lines.append("   Error: Invalid max cache tokens value")
+
+        lines.extend(self._cache_stats_lines())
+
         api_keys = self.provider.job_provider.get_api_keys()
-        lines.append(make_selectable_text(f"{len(api_keys)} api key(s)", self.focus_idx == 3))
+        lines.append(make_selectable_text(f"{len(api_keys)} api key(s)", self.focus_idx == 5))
         if len(api_keys) == 0:
             lines.extend(["   INFO: No API keys set, authentication not required", ""])
 
@@ -155,7 +199,7 @@ class TopPageState(PageState):
             lines.extend(["   INFO: Stop server to edit port, job limits, and API Keys", ""])
 
         if self.can_start_server():
-            lines.append(make_selectable_text("Save and Start Server", self.focus_idx == 4))
+            lines.append(make_selectable_text("Save and Start Server", self.focus_idx == 6))
         elif not self.server_running and not ContentProvider.is_port_available(self._current_port()):
             lines.append(f"   Warning: Can't start server, port {self._current_port()} is not available")
 
@@ -166,6 +210,20 @@ class TopPageState(PageState):
 
         return lines
 
+    def _cache_stats_lines(self) -> list[str]:
+        """Live prompt-cache totals. Absent until the network is up, since the
+        cache is created with the rest of the job runtime."""
+        stats = self.provider.job_provider.get_cache_stats()
+        if stats is None:
+            return []
+        if stats.budget == 0:
+            return ["   Cache: disabled"]
+        return [
+            f"   Cache: {stats.entries} entries, "
+            f"{stats.tokens}/{stats.budget} tokens ({stats.reserved} reserved), "
+            f"{stats.size_gb:.1f} GB, {stats.hit_rate() * 100:.0f}% hit rate"
+        ]
+
     def _get_tip_lines(self) -> list[str]:
         tip_key = None
         if self.focus_idx == 0:
@@ -175,6 +233,10 @@ class TopPageState(PageState):
         elif self.focus_idx == 2:
             tip_key = "max_api_jobs"
         elif self.focus_idx == 3:
+            tip_key = "max_cache_time"
+        elif self.focus_idx == 4:
+            tip_key = "max_cache_tokens"
+        elif self.focus_idx == 5:
             tip_key = "api_keys"
 
         if tip_key is not None:
@@ -188,16 +250,13 @@ class TopPageState(PageState):
         if self.focus_idx == 0:
             return make_footer_text(["Arrows U/D: Move", "[0-9]: Type Port", "Backspace: Remove character", "Esc: Menu"])
 
-        if self.focus_idx == 1:
+        if self.focus_idx in (1, 2, 3, 4):
             return make_footer_text(["Arrows U/D: Move", "[0-9]: Type", "Backspace: Remove character", "Esc: Menu"])
 
-        if self.focus_idx == 2:
-            return make_footer_text(["Arrows U/D: Move", "[0-9]: Type", "Backspace: Remove character", "Esc: Menu"])
-
-        if self.focus_idx == 3:
+        if self.focus_idx == 5:
             return make_footer_text(["Arrows U/D: Move", "Enter: Change", "Esc: Menu"])
 
-        if self.focus_idx == 4:
+        if self.focus_idx == 6:
             return make_footer_text(["Arrows U/D: Move", "Enter: Start Server", "Esc: Menu"])
 
         return ""
@@ -244,6 +303,40 @@ class TopPageState(PageState):
     def _valid_max_api_jobs(self) -> bool:
         try:
             return int(self._max_api_jobs_str()) > 0
+        except ValueError:
+            return False
+
+    def _get_max_cache_time(self) -> int:
+        if self.max_cache_time is None:
+            self.max_cache_time = self.provider.job_provider.get_max_cache_time()
+        return self.max_cache_time
+
+    def _max_cache_time_str(self) -> str:
+        if self.edit_max_cache_time is None:
+            self.edit_max_cache_time = str(self._get_max_cache_time())
+        return self.edit_max_cache_time
+
+    def _valid_max_cache_time(self) -> bool:
+        # 0 is a real setting here, unlike the job limits: it turns the prompt
+        # cache off.
+        try:
+            return int(self._max_cache_time_str()) >= 0
+        except ValueError:
+            return False
+
+    def _get_max_cache_tokens(self) -> int:
+        if self.max_cache_tokens is None:
+            self.max_cache_tokens = self.provider.job_provider.get_max_cache_tokens()
+        return self.max_cache_tokens
+
+    def _max_cache_tokens_str(self) -> str:
+        if self.edit_max_cache_tokens is None:
+            self.edit_max_cache_tokens = str(self._get_max_cache_tokens())
+        return self.edit_max_cache_tokens
+
+    def _valid_max_cache_tokens(self) -> bool:
+        try:
+            return int(self._max_cache_tokens_str()) >= 0
         except ValueError:
             return False
 

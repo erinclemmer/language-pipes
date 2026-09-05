@@ -9,6 +9,7 @@ from http.server import BaseHTTPRequestHandler
 from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage, ChatRole
 from language_pipes.util.http import _connection_alive, _respond_json, _send_code, _send_sse_headers
+from language_pipes.util.oai_cache import CacheOptions, chat_usage, parse_cache_options, responses_usage
 from language_pipes.util.oai_chunks import send_complete, send_error, send_initial_chunk, send_keepalive, send_update_chunk
 
 # Emit an SSE keepalive comment after this many seconds of write silence so the
@@ -42,6 +43,7 @@ class ChatCompletionRequest:
     top_p: float
     min_p: float
     presence_penalty: float
+    cache_options: CacheOptions
 
     def __init__(
             self, 
@@ -53,7 +55,8 @@ class ChatCompletionRequest:
             top_k: int = 0,
             top_p: float = 1.0,
             min_p: float = 0.0,
-            presence_penalty: float = 0.0
+            presence_penalty: float = 0.0,
+            cache_options: Optional[CacheOptions] = None
         ):
         self.model = model
         self.stream = stream
@@ -64,6 +67,7 @@ class ChatCompletionRequest:
         self.top_p = top_p
         self.min_p = min_p
         self.presence_penalty = presence_penalty
+        self.cache_options = cache_options if cache_options is not None else CacheOptions()
 
     def to_json(self):
         return {
@@ -79,7 +83,7 @@ class ChatCompletionRequest:
         }
     
     @staticmethod
-    def from_dict(data):
+    def from_dict(data, authenticated: bool = False):
         max_completion_tokens = 1000
         if "max_tokens" in data:
             max_completion_tokens = data['max_tokens']
@@ -92,7 +96,8 @@ class ChatCompletionRequest:
         top_p = data['top_p'] if 'top_p' in data else 1.0
         min_p = data['min_p'] if 'min_p' in data else 0.0
         presence_penalty = data['presence_penalty'] if 'presence_penalty' in data else 0.0
-        return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature, top_k, top_p, min_p, presence_penalty)
+        cache_options = parse_cache_options(data, authenticated)
+        return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature, top_k, top_p, min_p, presence_penalty, cache_options)
 
 def _content_to_text(content: Any) -> str:
     if isinstance(content, str):
@@ -170,6 +175,7 @@ class ResponsesRequest:
     tools: List[ResponsesTool]
     tool_choice: Any
     parallel_tool_calls: bool
+    cache_options: CacheOptions
 
     def __init__(
             self,
@@ -186,7 +192,8 @@ class ResponsesRequest:
             presence_penalty: float = 0.0,
             tools: Optional[List[ResponsesTool]] = None,
             tool_choice: Any = None,
-            parallel_tool_calls: bool = False
+            parallel_tool_calls: bool = False,
+            cache_options: Optional[CacheOptions] = None
         ):
         self.model = model
         self.stream = stream
@@ -202,9 +209,10 @@ class ResponsesRequest:
         self.tools = tools if tools is not None else []
         self.tool_choice = tool_choice
         self.parallel_tool_calls = parallel_tool_calls
+        self.cache_options = cache_options if cache_options is not None else CacheOptions()
 
     @staticmethod
-    def from_dict(data):
+    def from_dict(data, authenticated: bool = False):
         max_output_tokens = 1000
         if "max_tokens" in data:
             max_output_tokens = data['max_tokens']
@@ -240,7 +248,8 @@ class ResponsesRequest:
         if len(messages) == 0:
             raise ValueError("input must contain at least one text message")
 
-        return ResponsesRequest(data['model'], stream, data['input'], instructions, max_output_tokens, messages, temperature, top_k, top_p, min_p, presence_penalty, tools, tool_choice, parallel_tool_calls)
+        cache_options = parse_cache_options(data, authenticated)
+        return ResponsesRequest(data['model'], stream, data['input'], instructions, max_output_tokens, messages, temperature, top_k, top_p, min_p, presence_penalty, tools, tool_choice, parallel_tool_calls, cache_options)
 
 def _reasoning_item(job: Any, reasoning_text: str) -> dict:
     return {
@@ -294,11 +303,7 @@ def _response_json(job: Any, req: ResponsesRequest, created_at: float):
         "model": job.model_id,
         "output": response_output,
         "output_text": response_output_text,
-        "usage": {
-            "input_tokens": job.prompt_tokens,
-            "output_tokens": job.current_token,
-            "total_tokens": job.prompt_tokens + job.current_token
-        }
+        "usage": responses_usage(job)
     }
 
 def _write_response_event(handler: BaseHTTPRequestHandler, event_type: str, data: dict):
@@ -342,8 +347,8 @@ def _start_disconnect_watchdog(
     threading.Thread(target=_watch, daemon=True).start()
     return stop_event
 
-def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict, api_key: str):
-    req = ChatCompletionRequest.from_dict(data)
+def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict, api_key: str, authenticated: bool = False):
+    req = ChatCompletionRequest.from_dict(data, authenticated)
     created_at = time.time()
 
     # Serialize every write to the SSE socket: the watchdog thread and the
@@ -406,21 +411,17 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
                         },
                         "finish_reason": "stop"
                     }],
-                    "usage": {
-                        "prompt_tokens": job.prompt_tokens,
-                        "completion_tokens": job.current_token,
-                        "total_tokens": job.prompt_tokens + job.current_token
-                    }
+                    "usage": chat_usage(job)
                 })
 
     def promise_fn(resolve: Callable, _: Callable):
-        complete_cb(api_key, req.model, req.messages, req.max_completion_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
+        complete_cb(api_key, req.model, req.messages, req.max_completion_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve, cache_options=req.cache_options)
     job = Promise(promise_fn).get()
     complete(job)
 
-def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict, api_key: str):
+def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict, api_key: str, authenticated: bool = False):
     try:
-        req = ResponsesRequest.from_dict(data)
+        req = ResponsesRequest.from_dict(data, authenticated)
     except ValueError as e:
         _send_code(400, handler, str(e))
         return
@@ -702,7 +703,7 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
                 _respond_json(handler, response)
 
     def promise_fn(resolve: Callable, _: Callable):
-        complete_cb(api_key, req.model, req.messages, req.max_output_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
+        complete_cb(api_key, req.model, req.messages, req.max_output_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve, cache_options=req.cache_options)
     job = Promise(promise_fn).get()
     complete(job)
 

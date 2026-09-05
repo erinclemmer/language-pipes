@@ -21,9 +21,10 @@ def make_job_data() -> JobData:
     )
 
 class FakeEndModel:
-    def __init__(self, num_local_layers: int = 0):
+    def __init__(self, num_local_layers: int = 0, process_id: str = "proc-end"):
         self.calls = []
         self.layers = list(range(num_local_layers))
+        self.process_id = process_id
 
     def tokenize(self, job):
         self.calls.append("tokenize")
@@ -62,13 +63,14 @@ class FakeEndModelContinue(FakeEndModel):
 
 
 class FakeModel:
-    def __init__(self, node_id, start_layer, end_layer, virtual=False, num_hidden_layers=1):
+    def __init__(self, node_id, start_layer, end_layer, virtual=False, num_hidden_layers=1, process_id="proc-layers"):
         self.node_id = node_id
         self.start_layer = start_layer
         self.end_layer = end_layer
         self.virtual = virtual
         self.loaded = True
         self.num_hidden_layers = num_hidden_layers
+        self.process_id = process_id
 
     def process_job(self, job):
         if job.data is None:
@@ -76,8 +78,8 @@ class FakeModel:
         job.set_layer(torch.zeros((1, 1)), self.end_layer + 1, self.num_hidden_layers)
 
 class TrackingModel(FakeModel):
-    def __init__(self, node_id, start_layer, end_layer, virtual=False, num_hidden_layers=1):
-        super().__init__(node_id, start_layer, end_layer, virtual=virtual, num_hidden_layers=num_hidden_layers)
+    def __init__(self, node_id, start_layer, end_layer, virtual=False, num_hidden_layers=1, process_id="proc-layers"):
+        super().__init__(node_id, start_layer, end_layer, virtual=virtual, num_hidden_layers=num_hidden_layers, process_id=process_id)
         self.processed = False
 
     def process_job(self, job):
@@ -113,7 +115,7 @@ class ProcessorWrapper(JobProcessor):
         self.states.append(self.state)
         return super()._transition()
 
-def make_processor(job, pipe, end_model, on_fail=None, node_id="node-1"):
+def make_processor(job, pipe, end_model, on_fail=None, node_id="node-1", prompt_cache=None):
     """Helper to create a JobProcessor with sensible defaults."""
     return ProcessorWrapper(
         JobContext(
@@ -122,6 +124,7 @@ def make_processor(job, pipe, end_model, on_fail=None, node_id="node-1"):
             pipe=pipe,
             end_model=end_model,
             on_fail=on_fail,
+            prompt_cache=prompt_cache,
         )
     )
 

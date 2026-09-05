@@ -162,6 +162,22 @@ creates a `Job` with its own `DynamicCache`. Subsequent decode steps for the sam
 `job_id` route back to the same node and reuse that cache, so each layer node
 accumulates the keys and values for the layers it hosts.
 
+A cache no longer necessarily dies with its job. When
+[prompt caching](oai.md#prompt-caching) is enabled, a node can keep a snapshot of
+its slice at a block boundary so that a later request whose prompt starts with
+the same tokens can adopt it and skip that much prefill. Snapshots are taken by
+reference rather than copied, and a job that adopts one appends to its own
+container, so neither the entry nor the borrowing job can disturb the other.
+
+Reuse requires every node on the pipe to still hold its slice for exactly the
+same tokens, which the current release does not have a protocol to establish.
+So **reuse is limited to pipes whose every layer runs on the origin node**
+(`Pipe.is_local_to`); a request on a multi-node pipe runs exactly as it always
+has and reports `cached_tokens: 0`. Entries are held in memory only, for at most
+`max_cache_time` after their last use, and are scoped so they are never shared
+across origins, API keys or `prompt_cache_key` values - see
+[Privacy](privacy.md#prompt-cache-retention).
+
 The serialized `NetworkJob` carries only the hidden state, position IDs,
 attention mask, and cache position — **not** the `DynamicCache`. (The one
 exception is cross-node KV sharing for the Gemma 4 architecture, whose

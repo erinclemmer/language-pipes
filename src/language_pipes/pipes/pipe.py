@@ -78,6 +78,31 @@ class Pipe:
 
         return current_layer == self.num_hidden_layers()
 
+    def is_local_to(self, node_id: str, start_layer: int) -> bool:
+        """True when this node computes every layer from `start_layer` on.
+
+        The prompt cache reuses a prefix only when every node on the pipe still
+        holds its slice of it. Phase 1 does not have the protocol to establish
+        that across nodes, so reuse is gated to pipes that have exactly one
+        node - this one - and `Job.cache` therefore holds the whole prefix.
+        """
+        num_hidden_layers = self.num_hidden_layers()
+        if num_hidden_layers is None:
+            return False
+
+        layer = start_layer
+        while layer < num_hidden_layers:
+            segment = self.get_layer(layer)
+            if segment is None or segment.virtual or not segment.loaded:
+                return False
+            if segment.node_id != node_id:
+                return False
+            if segment.end_layer < layer:
+                return False
+            layer = segment.end_layer + 1
+
+        return True
+
     @staticmethod
     def from_meta(
         meta_pipe: MetaPipe, 

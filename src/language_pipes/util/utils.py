@@ -1,3 +1,4 @@
+import gc
 import io
 from pathlib import Path
 import re
@@ -172,3 +173,22 @@ def is_port_available(port: Optional[int]) -> bool:
         return True
     
 CHUNK_SIZE = 32
+
+try:
+    _libc = ctypes.CDLL("libc.so.6")
+    _malloc_trim = _libc.malloc_trim
+    _malloc_trim.argtypes = [ctypes.c_size_t]
+    _malloc_trim.restype = ctypes.c_int
+except:  # noqa: E722
+    _malloc_trim = None
+
+def release_memory():
+    """Hand back the memory a dropped KV cache was holding.
+
+    Called from job cleanup and from prompt-cache eviction/expiry, which is why
+    it lives here rather than on either of them: both drop the last reference to
+    a pile of tensors and want the allocator to actually give the pages back."""
+    gc.collect()
+    torch.cuda.empty_cache()
+    if _malloc_trim is not None:
+        _malloc_trim(0)

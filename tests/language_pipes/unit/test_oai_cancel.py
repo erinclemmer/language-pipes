@@ -39,7 +39,7 @@ def _parse_sse_events(text):
 
 class CanceledJobResponseTests(unittest.TestCase):
     def _serve(self):
-        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve, cache_options=None):
             job = CanceledJob()
             start(job)
             resolve(job)

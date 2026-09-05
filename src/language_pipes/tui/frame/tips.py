@@ -27,6 +27,8 @@ TIPS = {
         "port": "Port: The network port the OpenAI-compatible server listens on.\nClients send inference requests to this port.",
         "max_node_jobs": "Max Node Jobs: The maximum number of jobs this node will process\nconcurrently per node on the network.",
         "max_api_jobs": "Max API Jobs: The maximum number of inference requests the server\nwill handle concurrently per API key.If no API keys are set\nthis is a global limit.",
+        "max_cache_time": "Max Cache Time: How long (in seconds) a processed prompt prefix is kept\nin memory so a follow-up request that starts with the same text can skip\nre-processing it. Set to 0 to disable prompt caching.",
+        "max_cache_tokens": "Max Cache Tokens: The total number of tokens this node will keep in the\nprompt cache, including tokens reserved by jobs that are still running.\nWhen a new job does not fit, the oldest cached prompts are dropped to\nmake room. Set to 0 to disable prompt caching.",
         "api_keys": "API Keys: Keys that clients must provide to authenticate with the\nserver. Leave the list empty to allow unauthenticated access."
     }
 }

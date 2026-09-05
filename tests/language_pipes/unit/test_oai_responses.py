@@ -39,6 +39,7 @@ class DummyJob:
     prompt_tokens = 4
     current_token = 3
     cancel_reason = None
+    cached_tokens = 0
 
 
 class ToolJob(DummyJob):
@@ -107,7 +108,7 @@ class ResponsesRequestTests(unittest.TestCase):
     def test_http_handler_routes_responses_endpoint(self):
         captured = {}
 
-        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve, cache_options=None):
             captured["model"] = model
             captured["messages"] = messages
             captured["max_completion_tokens"] = max_completion_tokens
@@ -364,7 +365,7 @@ def _parse_sse_events(text):
 
 class StreamingTests(unittest.TestCase):
     def _serve(self, job):
-        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve, cache_options=None):
             start(job)
             resolve(job)
 
@@ -529,9 +530,78 @@ class ReasoningResponseShapeTests(unittest.TestCase):
         self.assertEqual(response["output_text"], "")
 
 
+class CachedTokensUsageTests(unittest.TestCase):
+    """`cached_tokens` is always reported, so a client can read it without
+    knowing whether the node has caching enabled."""
+
+    def _serve(self, job):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve, cache_options=None):
+            start(job)
+            resolve(job)
+
+        server = OAIHttpServer(0, [], complete, lambda: ["model-1"])
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        return server, thread
+
+    def test_non_streaming_responses_report_input_tokens_details(self):
+        req = ResponsesRequest.from_dict({"model": "model-1", "input": "Hi"})
+
+        response = _response_json(DummyJob(), req, 1234.5)
+
+        self.assertEqual(response["usage"]["input_tokens_details"], {"cached_tokens": 0})
+
+    def test_a_reused_prefix_is_reported_back(self):
+        class CachedJob(DummyJob):
+            cached_tokens = 384
+
+        req = ResponsesRequest.from_dict({"model": "model-1", "input": "Hi"})
+
+        response = _response_json(CachedJob(), req, 1234.5)
+
+        self.assertEqual(
+            response["usage"]["input_tokens_details"], {"cached_tokens": 384}
+        )
+
+    def test_streaming_responses_carry_the_same_numbers(self):
+        server, thread = self._serve(DummyJob())
+        try:
+            port = server.server_address[1]
+            res = requests.post(f"http://127.0.0.1:{port}/v1/responses", json={
+                "model": "model-1", "input": "Hello", "stream": True,
+            })
+            events = _parse_sse_events(res.text)
+            completed = next(e for e in events if e["type"] == "response.completed")
+
+            usage = completed["response"]["usage"]
+            self.assertEqual(usage["input_tokens_details"], {"cached_tokens": 0})
+            self.assertEqual(usage["input_tokens"], 4)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=1)
+
+    def test_chat_completions_report_prompt_tokens_details(self):
+        server, thread = self._serve(DummyJob())
+        try:
+            port = server.server_address[1]
+            res = requests.post(f"http://127.0.0.1:{port}/v1/chat/completions", json={
+                "model": "model-1",
+                "messages": [{"role": "user", "content": "Hello"}],
+            })
+            usage = res.json()["usage"]
+
+            self.assertEqual(usage["prompt_tokens_details"], {"cached_tokens": 0})
+            self.assertEqual(usage["prompt_tokens"], 4)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=1)
+
+
 class ReasoningStreamingTests(unittest.TestCase):
     def _serve_streaming(self, job, chunks):
-        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve, cache_options=None):
             start(job)
             for chunk in chunks:
                 job.delta = chunk
@@ -606,7 +676,7 @@ class ToolCallHttpTests(unittest.TestCase):
     def _serve(self, job):
         captured = {}
 
-        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve, cache_options=None):
             captured["messages"] = messages
             start(job)
             resolve(job)
@@ -676,7 +746,7 @@ class DisconnectDetectionTests(unittest.TestCase):
         client_gone = threading.Event()
         result = {}
 
-        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve, cache_options=None):
             job = DummyJob()
             start(job)
             client_gone.wait(timeout=5)
@@ -709,7 +779,7 @@ class DisconnectDetectionTests(unittest.TestCase):
         client_gone = threading.Event()
         result = {}
 
-        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve, cache_options=None):
             job = ToolJob()
             start(job)
             client_gone.wait(timeout=5)
@@ -766,7 +836,7 @@ class DisconnectWatchdogTests(unittest.TestCase):
         client_gone = threading.Event()
         result = {}
 
-        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve):
+        def complete(api_key, model, messages, max_completion_tokens, temperature, top_k, top_p, min_p, presence_penalty, start, update, resolve, cache_options=None):
             job = DummyJob()
             start(job)  # only this launches the watchdog; update() is never called below
             client_gone.wait(timeout=5)

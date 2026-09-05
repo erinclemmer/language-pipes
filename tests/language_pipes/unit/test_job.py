@@ -272,6 +272,58 @@ class JobPastSeenTokensTests(unittest.TestCase):
 
         self.assertEqual(job.past_seen_tokens(), CHUNK_SIZE * 2)
 
+    def test_a_cached_prefix_is_counted_before_the_first_chunk(self):
+        job = make_job()
+        job.prompt_tokens = CHUNK_SIZE * 8
+        job.cached_prefix_len = CHUNK_SIZE * 4
+        job.init_chunking()
+
+        self.assertEqual(job.past_seen_tokens(), CHUNK_SIZE * 4)
+
+    def test_a_cached_prefix_is_added_to_this_jobs_own_chunks(self):
+        job = make_job()
+        job.prompt_tokens = CHUNK_SIZE * 8
+        job.cached_prefix_len = CHUNK_SIZE * 4
+        job.init_chunking()
+
+        job.chunking.advance()
+        self.assertEqual(job.past_seen_tokens(), CHUNK_SIZE * 5)
+        job.chunking.advance()
+        self.assertEqual(job.past_seen_tokens(), CHUNK_SIZE * 6)
+
+    def test_the_first_decode_step_after_a_cached_prefix_counts_the_whole_prompt(self):
+        job = make_job()
+        job.prompt_tokens = CHUNK_SIZE * 8
+        job.cached_prefix_len = CHUNK_SIZE * 4
+        job.input_ids = list(range(CHUNK_SIZE * 8))
+        job.init_chunking()
+
+        job.current_token = 1
+        job.input_ids.append(99)
+
+        self.assertEqual(job.past_seen_tokens(), CHUNK_SIZE * 8)
+
+
+class JobWritePointTests(unittest.TestCase):
+    """Block boundaries divide evenly into chunks, so a chunk either lands on a
+    write point or on none."""
+
+    def test_a_chunk_ending_on_a_write_point_is_recognized(self):
+        job = make_job()
+        job.cache_write_points = [512]
+
+        self.assertEqual(job.next_write_point(512), 512)
+
+    def test_a_chunk_ending_anywhere_else_is_not(self):
+        job = make_job()
+        job.cache_write_points = [512]
+
+        self.assertIsNone(job.next_write_point(480))
+        self.assertIsNone(job.next_write_point(544))
+
+    def test_a_job_with_no_write_points_never_matches(self):
+        self.assertIsNone(make_job().next_write_point(512))
+
 
 class JobReplayTests(unittest.TestCase):
     """A packet that fails its hash is bounced to the origin, which sends the

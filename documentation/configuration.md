@@ -47,6 +47,8 @@ end_models = ["meta-llama/Llama-3.2-1B-Instruct"]
 # === API Server ===
 job_port = 8000
 api_keys = ["test_key"]
+max_cache_time = 300
+max_cache_tokens = 16384
 
 # === Network ===
 peer_port = 5000
@@ -229,6 +231,57 @@ until earlier jobs for that key complete. Configurable from the TUI's
 ```toml
 max_api_jobs = 5
 ```
+
+#### `max_cache_time`
+
+How long, in seconds, a processed prompt prefix is kept in memory so a follow-up
+request that starts with the same text can skip re-processing it. Measured from
+the entry's last use, so a busy prefix stays warm. **Set to `0` to disable
+[prompt caching](./oai.md#prompt-caching)** on this node. Configurable from the
+TUI's "Jobs / Server" page.
+
+| Type | Default |
+|------|---------|
+| int | `300` |
+
+```toml
+max_cache_time = 300
+```
+
+#### `max_cache_tokens`
+
+Total tokens of KV state this node keeps for the prompt cache, counting both
+stored entries and the tokens reserved by jobs still running. When a new job
+does not fit, the least recently used entries are dropped to make room; a job
+that still does not fit runs uncached rather than being rejected. **Set to `0`
+to disable prompt caching.** Configurable from the TUI's "Jobs / Server" page.
+
+| Type | Default |
+|------|---------|
+| int | `16384` |
+
+```toml
+max_cache_tokens = 16384
+```
+
+**Sizing it.** The budget is counted in tokens, but what it costs is memory, and
+that depends on the model and on how much of it this node hosts:
+
+```
+bytes/token = 2 (K and V) x kv_heads x head_dim x dtype_size x layers_hosted_here
+```
+
+Qwen3-1.7B in bf16 (8 KV heads, head_dim 128) is 4 KB per token per layer. A node
+hosting all 28 layers spends ~115 KB/token, so `max_cache_tokens = 16384` is
+~1.8 GB; a node hosting 4 layers spends ~16 KB/token, or ~270 MB for the same
+setting. Two consequences worth keeping in mind: **the same number means very
+different memory on different nodes**, and a node hosting more layers should
+generally be given a *smaller* token budget, not a larger one.
+
+Size it against `max_api_jobs` too. Every in-flight job reserves
+`prompt + max_response` tokens against the same budget, so a node allowing 5
+concurrent jobs with 4k prompts and 1k responses needs ~25k tokens of headroom
+before a single entry can be stored, let alone kept.
 
 ---
 

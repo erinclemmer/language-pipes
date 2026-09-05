@@ -17,6 +17,8 @@ from language_pipes.config import (
     DEFAULT_NUM_LOCAL_LAYERS,
     DEFAULT_MAX_NODE_JOBS,
     DEFAULT_MAX_API_JOBS,
+    DEFAULT_MAX_CACHE_TIME,
+    DEFAULT_MAX_CACHE_TOKENS,
 )
 
 
@@ -223,6 +225,69 @@ class EndModelsRoundTripTests(unittest.TestCase):
 
             self.assertEqual([m.model_id for m in cfg.end_models], ["org/a", "org/b"])
             self.assertTrue(all(m.num_local_layers == DEFAULT_NUM_LOCAL_LAYERS for m in cfg.end_models))
+
+
+class PromptCacheLimitTests(unittest.TestCase):
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_defaults_when_absent(self):
+        cfg = LpConfig()
+        self.assertEqual(cfg.max_cache_time, DEFAULT_MAX_CACHE_TIME)
+        self.assertEqual(cfg.max_cache_tokens, DEFAULT_MAX_CACHE_TOKENS)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_an_existing_config_file_without_them_still_gets_the_defaults(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            import toml
+            with open(path, "w", encoding="utf-8") as f:
+                toml.dump({"max_node_jobs": 4}, f)
+
+            cfg = LpConfig.from_file(path)
+
+            self.assertEqual(cfg.max_cache_time, DEFAULT_MAX_CACHE_TIME)
+            self.assertEqual(cfg.max_cache_tokens, DEFAULT_MAX_CACHE_TOKENS)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_round_trip_through_save_and_reload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            cfg = LpConfig()
+            cfg._file_path = path
+            cfg.max_cache_time = 60
+            cfg.max_cache_tokens = 4096
+            cfg.save()
+
+            reloaded = LpConfig.from_file(path)
+
+            self.assertEqual(reloaded.max_cache_time, 60)
+            self.assertEqual(reloaded.max_cache_tokens, 4096)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_zero_survives_the_round_trip(self):
+        """0 disables the cache, so it must not be read back as "absent"."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            cfg = LpConfig()
+            cfg._file_path = path
+            cfg.max_cache_time = 0
+            cfg.max_cache_tokens = 0
+            cfg.save()
+
+            reloaded = LpConfig.from_file(path)
+
+            self.assertEqual(reloaded.max_cache_time, 0)
+            self.assertEqual(reloaded.max_cache_tokens, 0)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_to_string_lists_both(self):
+        cfg = LpConfig()
+        cfg.max_cache_time = 120
+        cfg.max_cache_tokens = 2048
+
+        text = cfg.to_string()
+
+        self.assertIn("Max Cache Time: 120", text)
+        self.assertIn("Max Cache Tokens: 2048", text)
 
 
 if __name__ == "__main__":
