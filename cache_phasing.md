@@ -11,7 +11,10 @@ tests green before the next starts.
 
 Conventions used below:
 
-- File paths are relative to the repo root; line numbers are as of commit `ab55c0e`.
+- File paths are relative to the repo root. Line numbers were as of commit `ab55c0e`
+  and have been dropped from anything Phase 0 touched, since they have moved.
+- A phase marked ✅ has shipped; its section records what was actually built, including
+  where it departs from the plan as first written.
 - "Tests green" means `pytest` (equivalently `python -m tests.language_pipes.unit`)
   passes without model weights, which is what CI runs. Integration tests under
   `tests/language_pipes/integration/` need weights and a GPU-less run is acceptable.
@@ -19,26 +22,26 @@ Conventions used below:
 
 ---
 
-## 0. Where the code stands today
+## 0. Where the code started
 
-The plan was written against the same tree, but a few facts drive the ordering and
-are worth restating as the baseline:
+The plan was written against the tree at `ab55c0e`. A few facts drove the ordering and
+are worth keeping as the baseline; the rows Phase 0 has since changed are marked:
 
 | Fact | Where | Consequence for phasing |
 |---|---|---|
-| `Job.cache` is created in `Job.__init__` and dies with the job. | `src/language_pipes/jobs/job.py:111` | Every phase that retains KV has to hook `JobTracker.complete_job` / `remove_job` / the stale sweep. |
+| `Job.cache` is created in `Job.__init__` and dies with the job. | `src/language_pipes/jobs/job.py` | Every phase that retains KV has to hook `JobTracker.complete_job` / `remove_job` / the stale sweep. |
 | Only the origin tokenizes; layer nodes create their `Job` in `JobTracker.add_job` from the first packet. | `src/language_pipes/jobs/job_tracker.py:127` | Layer-node adopt/reserve must live in or right beside `add_job`. |
 | Prefill chunking is offset-free: `ChunkState.init(prompt_length)` starts at 0. | `src/language_pipes/util/chunk_state.py:17` | Resume-from-prefix needs an offset before any hit can be honored. |
 | `StaticAutoModel.compute_embedding` already takes `past_seen_tokens` explicitly and slices `input_ids[:, past:past+take]`. | `packages/llm-layer-collector/src/llm_layer_collector/auto/static_auto_model.py:31-47` | No `llm_layer_collector` change is required for resume. |
-| A hash-validation failure bounces the packet to the origin via `restart_token`, and the origin then `advance()`s the chunk unconditionally. | `src/language_pipes/jobs/job_receiver.py:185`, `src/language_pipes/jobs/job_processor.py:212-214` | This is the Phase 0 bug. It must be fixed before any node is allowed to *store* KV. |
-| A job has at most one pass in flight: the origin waits for `HEAD` before dispatching the next. | `src/language_pipes/jobs/job_processor.py:451-499` | After a failure no node is more than one pass out of step, so replaying one saved output per node is a complete fix. |
-| `NetworkJob` serialization tolerates appended fields (`read_bytes` at EOF → `b''`, `read_int` → `0`), which is how `completed` / `progress` were added. | `src/language_pipes/jobs/network_job.py:82-90` | New wire fields are backward compatible if appended in order. |
+| ~~A hash-validation failure bounces the packet to the origin via `restart_token`, and the origin then `advance()`s the chunk unconditionally.~~ | `jobs/job_receiver.py`, `jobs/job_processor.py` | **Fixed in Phase 0.** The origin now resends the saved pass; `_state_embed` is never re-entered on a bounce. |
+| A job has at most one pass in flight: the origin waits for `HEAD` before dispatching the next. | `src/language_pipes/jobs/job_processor.py` | After a failure no node is more than one pass out of step, so replaying one saved output per node is a complete fix. Phase 0 relies on this; so does `attempt` in Phase 2. |
+| `NetworkJob` serialization tolerates appended fields (`read_bytes` at EOF → `b''`, `read_int` → `0`), which is how `completed` / `progress` were added. | `src/language_pipes/jobs/network_job.py` | New wire fields are backward compatible if appended in order. Phase 0 added `pass_idx` last; Phase 2 appends after it. |
 | Protocol dispatch is a flat `if` chain on an int: `0` job, `1` RFM, `CANCEL_PROTOCOL = 2`. | `src/language_pipes/content_provider/content_provider.py:150-157` | `CACHE_PROTOCOL = 3` slots in with one more branch. |
 | Config limits are read fresh from TOML on every call (`JobProvider.get_max_node_jobs` does `LpConfig.from_file`). | `src/language_pipes/content_provider/job_provider.py:77-80` | The cache should take *callables* for its two limits, like `JobReceiver` takes `get_max_node_jobs`. |
 | `do_POST` passes the literal `"anon"` as the API key when `api_keys` is empty. | `src/language_pipes/oai_server.py:50-53` | The §2.3 rule is decided at request-parse time and can be implemented entirely in `util/`. |
 | Jobs / Server page has five focus rows: port, max node jobs, max api jobs, api keys, start/stop. | `src/language_pipes/tui/components/jobs_server/top_state.py:81-111` | Two rows insert at index 3 and 4; every `focus_idx` comparison after 2 shifts. |
 | `EndModel` and `LlmModel` each carry a per-load `process_id` (uuid4). | `src/language_pipes/modeling/end_model.py:38`, `llm_model.py:84-87` | Entry invalidation on model reload needs no new plumbing; the id is already there. |
-| Test fakes: `FakeEndModel`, `FakeModel`, `PipeWrapper`, `make_processor` in `tests/language_pipes/unit/util.py`. | — | Cache plumbing must default to "off" when the processor is built without a cache, or every existing job-processor test breaks. |
+| Test fakes: `FakeEndModel`, `FakeModel`, `PipeWrapper`, `make_processor` in `tests/language_pipes/unit/util.py`. `make_processor` takes a `node_id` since Phase 0. | — | Cache plumbing must default to "off" when the processor is built without a cache, or every existing job-processor test breaks. |
 
 ---
 
@@ -46,7 +49,7 @@ are worth restating as the baseline:
 
 | Phase | Deliverable | User-visible result | Depends on | Size |
 |---|---|---|---|---|
-| 0 | Job restart correctness (`pass_idx`, per-node saved output, replay instead of recompute) | A corrupted packet no longer silently desynchronizes the pipe's KV caches | — | M |
+| 0 ✅ | Job restart correctness (`pass_idx`, per-node saved output, replay instead of recompute) | A corrupted packet no longer silently desynchronizes the pipe's KV caches | — | M |
 | 1 | Single-node prompt cache | `cached_tokens > 0` on the second of two prefix-sharing requests when the whole pipe is on the origin node; two config fields; TUI rows; docs | 0 | L |
 | 2 | Distributed reuse | The same result across a multi-node pipe; `CacheStatus` protocol; per-node budgets | 0, 1 | L |
 | 3 | Full OpenAI surface | `prompt_cache_options`, explicit breakpoints, `cache_write_tokens`, chat `stream_options.include_usage` | 1 (2 not required) | M |
@@ -58,128 +61,134 @@ protocol work runs long. Phase 4 items are individually optional.
 
 ---
 
-## 2. Phase 0 — job restart correctness
+## 2. Phase 0 — job restart correctness ✅
+
+Landed in `f049727` (the fix) and `dfff22b` (the `PassSequence` extraction).
 
 **Goal.** Make `restart_token` recovery correct with a *replay* of the failed pass,
 and land the one wire field the cache protocol later reuses for drift detection
 (`pass_idx`, §5.4). Reviewable without any cache context.
 
-**Bug being fixed** (confirmed in code, §11):
+**Bug fixed** (was confirmed in code, §11):
 
-- Prefill: origin receives the bounced packet with `compute_step = EMBED`,
-  `data = None`. `_state_embed` sees `prompt_tokens != 0` and `chunking.is_active()`
-  and calls `chunking.advance()` (`job_processor.py:212-214`), so the failed chunk is
-  skipped, not retried.
-- Decode: origin re-embeds the current token; nodes upstream of the corruption point
-  already appended it and now hold a duplicate KV position.
+- Prefill: the origin received the bounced packet with `compute_step = EMBED`,
+  `data = None`. `_state_embed` saw `prompt_tokens != 0` and `chunking.is_active()`
+  and called `chunking.advance()`, so the failed chunk was skipped, not retried.
+- Decode: the origin re-embedded the current token; nodes upstream of the corruption
+  point had already appended it and ended up with a duplicate KV position.
 
 **Why replay works.** A job is strictly sequential: the origin dispatches pass N, waits
 for it to return through `HEAD`, then dispatches N+1. When a hash fails, every node is
 in exactly one of two states — it computed pass N or it did not — and nobody is more
-than one pass out of step. So each node needs to keep only the output of its *last*
-computed pass. On a retry, nodes that already computed the pass resend that output
-without touching their cache; nodes that did not compute it now. No cache is ever
+than one pass out of step. So each node needs to keep only the output of the *last*
+pass it computed at each point it was entered. On a retry, nodes that already computed
+the pass resend that output without touching their cache; nodes that did not compute it
+now. No cache is ever
 rebuilt or cropped, no recompute happens, and the cost is one forwarding-only trip
 through the nodes before the corruption point.
 
-### Steps
+### What shipped
 
-**0.1 — `pass_idx` on `Job` and `NetworkJob`.** (S)
+All of the bookkeeping lives in **`src/language_pipes/jobs/pass_sequence.py`** rather
+than on `Job`, which carries only `Job.passes: PassSequence` and a three-line
+`Job.replay(saved)` that applies a decision to its own fields. The module owns
+`MAX_PASS_RETRIES = 3`, `PassKey`, `SavedPass` and the class:
 
-- `Job.pass_idx: int = 0`, incremented by the origin each time it dispatches a pass
-  (in `to_network_job()` on the origin, or explicitly in `_state_send`; pick one and
-  test it).
-- `NetworkJob.pass_idx`, constructor default `0`, written as the **first appended
-  field** after `progress` in `to_bytes`, read in the same slot in `from_bytes`. The
-  Phase 2 fields append after it, so the order is fixed here.
-- Tests: `test_network_job.py` — round-trip with `pass_idx`; a payload built by the
-  *old* writer (truncate the bytes after `progress`) parses with `pass_idx == 0`.
+| `PassSequence` member | Meaning |
+|---|---|
+| `idx` | The pass this node is handling. On the origin, the pass it dispatched. |
+| `last_idx` | Highest pass number seen here; the sequence check reads it. |
+| `key` | Entry point of the pass in hand, `(compute_step, current_layer)`. |
+| `outputs` | `PassKey -> SavedPass`, what was forwarded for each entry point. |
+| `retries` | Bounces served for the pass in flight. Origin only. |
+| `replaying` | Set while forwarding a saved payload instead of computing. |
+| `error` | Why a packet was refused, when the job cannot survive the refusal. |
+| `start()` | Origin numbers a new pass (called from `_state_embed`). |
+| `adopt(pass_idx)` | A layer node carries the origin's number. |
+| `save(data, step, layer)` / `sent()` | Keep what went out; end a replay. Both from `_state_send`. |
+| `restart(pass_idx)` | Answer a bounce → the pass to resend, or `None` to drop. |
+| `accept(pass_idx, step, layer)` | → saved pass to forward, or `None` to compute; sets `error` to refuse. |
 
-**0.2 — Saved output per node.** (S)
+`PassSequence` decides and hands back a `SavedPass`; `Job` applies it. The tracker
+never touches `Job` fields and `Job` never reasons about sequence numbers — keep that
+split when Phase 2 adds `attempt`.
 
-- `Job.last_pass_idx: int = -1` and `Job.last_pass_output: Optional[JobData]`.
-- In `_state_process_layers`, after the local layers (both the `end_model.compute_layers`
-  branch and the `model.process_job` branch) set `last_pass_output = job.data` and
-  `last_pass_idx = job.pass_idx`. It has to be the whole `JobData`: for Gemma 4 the
-  `shared_kv_states` dict is mutated as the pass flows and the next node needs the
-  post-mutation copy. `JobData` is already detached (`compute_layers` in
-  `modeling/compute.py` detaches), so holding it retains no graph.
-- Memory: one chunk of hidden state per job — tens of KB for a decode token, a few
-  hundred KB to ~1 MB for a 32-token prefill chunk, bounded by `max_node_jobs`. Freed
-  with the job.
-- On the origin, the saved output is taken after its local end-model layers, which is
-  the same hook. Also save `compute_step` and `current_layer` as they stood when the
-  packet went out (`last_pass_step`, `last_pass_layer`), since the origin restores
-  them on a bounce.
-- `MetaJob` / `get_job_ram` do not need to count it; note that in a comment.
+**0.1 — `pass_idx` on the wire.** `NetworkJob.pass_idx`, constructor default `0`,
+written as the first appended field after `progress` and read in the same slot. The
+Phase 2 fields append after it. The origin's own counter is `PassSequence.idx`,
+incremented in `_state_embed`, which is where every pass starts.
 
-**0.3 — Replay-or-compute-or-refuse on receive.** (M)
+**0.2 — Saved output per node.** `PassSequence.save()` is called from `_state_send`
+with `job.data`, `job.compute_step` and `job.current_layer` — exactly the payload that
+went out. It keeps the whole `JobData` (Gemma 4 mutates `shared_kv_states` as the pass
+flows and the next node needs the post-mutation copy); `JobData` is already detached,
+so holding it retains no graph. One chunk of hidden state per entry point, bounded by
+`max_node_jobs` and freed with the job; `Job.get_job_ram` says in a comment that it
+does not count it.
 
-- In `Job.receive_network_job`, after the existing identity checks and before
-  `self.data = network_job.data`:
-  - `network_job.pass_idx == self.last_pass_idx` → **replay**. Set
-    `self.data = self.last_pass_output`, then call `set_layer(saved.state,
-    end_layer + 1, num_hidden_layers, saved.shared_kv_states)` so `compute_step` /
-    `current_layer` advance exactly as after a real compute, and mark the job so the
-    processor goes to `SEND` without computing. The cleanest way is a
-    `self.replaying = True` flag that `get_next_state` honors ahead of
-    `PROCESS_LAYERS` and `_state_send` clears.
-  - `network_job.pass_idx == self.last_pass_idx + 1` → compute normally (today's path).
-  - `network_job.pass_idx == 0` and every packet so far has been `0` → old peer that
-    does not number passes; skip the check for this job.
-  - Anything else → this node's cache cannot be right for the incoming pass. Return
-    `False` and have the receiver cancel the job with reason
-    `"pass out of sequence"` via `cancel_job`, so the origin's client gets an error
-    instead of a stale timeout.
-- The layer range for `set_layer` on a replay comes from the local `LlmModel` for this
-  pipe, which the receiver already looks up; pass it in or store `end_layer` on the
-  job at `add_job`.
-- Tests: `test_job.py` — replay leaves the cache object and its `get_seq_length`
-  unchanged and sets `replaying`; next-pass computes; out-of-sequence refuses; a
-  constant `0` is accepted. `job_processor/test_state_layers.py` — a replaying job
-  forwards the saved state and `shared_kv_states` and never calls `process_job`.
+**0.3 — Replay-or-compute-or-refuse on receive.** `PassSequence.accept` is called from
+`Job.receive_network_job` after the identity checks:
 
-**0.4 — Origin handles the bounce by resending, not re-embedding.** (M)
+- Saved pass under this entry point with the same number → **replay**. `Job.replay`
+  restores `data` / `compute_step` / `current_layer`; `replaying` sends the FSM
+  straight to `SEND`, ahead of every other check in `get_next_state` and
+  `_state_validating`. The cache is not touched.
+- `pass_idx == 0` → peer that does not number passes; compute, check nothing.
+- `last_idx == 0`, or `last_idx <= pass_idx <= last_idx + 1` → compute.
+- Anything else → `error = "pass out of sequence"`. `Job.receive_network_job` returns
+  `False` and `JobReceiver._process_network_job` cancels the job with that reason, so
+  the origin's client gets an error instead of a stale timeout.
 
-- A bounced packet is already distinguishable at the origin: `data is None` and
-  `compute_step == EMBED`. No other packet the origin receives has `data is None`.
-  Treat that as "restart requested for `network_job.pass_idx`."
-  - `pass_idx == self.pass_idx` (the pass in flight) → restore `self.data =
-    last_pass_output`, `compute_step = last_pass_step`, `current_layer =
-    last_pass_layer`, increment a per-pass retry counter, and route to `SEND`. Because
-    `_state_embed` is never entered, the unconditional `advance()` is never reached;
-    that is the prefill fix. The decode fix follows from 0.3 on the upstream nodes.
-  - `pass_idx < self.pass_idx` → a second node bounced the same dead pass; drop it.
-- `restart_token` (`job_receiver.py:185`) keeps stripping `data` and setting `EMBED`;
-  it should now also leave `pass_idx` untouched (it already does, since it only
-  edits `data`, `data_hash`, `compute_step`, `current_layer`).
-- Retry cap: three bounces for the same `pass_idx`, then `cancel_job(job, "packet
-  failed validation after 3 retries")`. Replay re-serializes the saved state, so a
-  transport corruption is genuinely retried; the cap is for a node whose
-  serialization is deterministically broken, which today loops until the stale timer.
-- Remove nothing from `_state_embed`. The `advance()` there is correct on every path
-  that still reaches it.
-- Tests: `job_processor/test_state_embed.py` / `test_state_send.py` — a bounce at
-  prefill chunk *k* resends the saved pass with the same `pass_idx` and `compute_embed`
-  is not called; the origin's `chunking` is unchanged by the bounce; a decode-phase
-  bounce resends and `current_token` is unchanged. `test_job_receiver.py` — the retry
-  cap cancels with the expected reason; a stale bounce is dropped.
+**0.4 — Origin handles the bounce by resending, not re-embedding.** A bounced packet is
+distinguishable at the origin: `data is None` and `compute_step == EMBED`, which no
+other packet has. `PassSequence.restart` answers it — same number (or `0`) as the pass
+in flight → resend the payload saved under `(EMBED, 0)`, counting a retry; a lower
+number is a second node reporting the same dead pass and is dropped. Because
+`_state_embed` is never entered, the unconditional `advance()` is never reached; that
+is the prefill fix, and the decode fix follows from 0.3 upstream. `restart_token` was
+left alone apart from a docstring: it only edits `data`, `data_hash`, `compute_step`
+and `current_layer`, so `pass_idx` already survives it. The fourth bounce for one pass
+sets `error = "packet failed validation after 3 retries"` and cancels.
 
-**0.5 — docs.** (S) `documentation/job-processor.md` gets a short "Restart" paragraph
-under the `SEND` state describing the bounce and replay; `documentation/architecture.md`
-"KV cache handling across nodes" says a hash failure replays the pass and never
-rebuilds a cache.
+**0.5 — docs.** `documentation/job-processor.md` gained a "Restart" subsection under
+`SEND` (with the decision table), a VALIDATING transition row and a diagram branch;
+`documentation/architecture.md` "KV cache handling across nodes" now splits restart
+from reroute and says a hash failure replays the pass and never rebuilds a cache.
+
+### Decisions that differ from the plan as written
+
+| Plan said | Shipped | Why |
+|---|---|---|
+| Passes number from `0`, `last_pass_idx = -1`, and a "constant `0` so far" flag detects an old peer. | Passes number from **1**, `last_idx = 0`, and `0` alone means "peer does not number passes". | With 0-based numbering the genuine first pass and "unnumbered" are the same value, so a bounce on the first pass would recompute — the exact bug being fixed. No flag needed. |
+| One `last_pass_output` slot per job. | `outputs` keyed by the pass's **entry point**. | A node can host two layer ranges of one pipe and see the same pass twice (`TimingStats.record_completed_pass` already says so). One slot makes the second visit look like a replay of the first. |
+| Save in `_state_process_layers`. | Save in `_state_send`. | An origin with no local end-model layers never enters `PROCESS_LAYERS` and would have nothing to replay. `_state_send` is exactly what went on the wire. |
+| Replay calls `set_layer(saved.state, end_layer + 1, …)`, so the job needs the local `end_layer`. | Replay restores the saved `(data, compute_step, current_layer)` triple. | Same routing result, no layer-range lookup to plumb, and it also works when the saved step is `HEAD` (last node forwarding to the origin), which `set_layer` rejects. |
+| — | A node whose `last_idx` is still `0` accepts any pass number. | Every layer node joins its job mid-stream via `JobTracker.add_job`; without this the first packet it ever sees is "out of sequence". |
+| — | `JobReceiver._process_network_job` extracted from the runner loop body. | Makes the cancel-on-refusal path unit-testable. Behaviour is identical, including which exceptions reach the thread-restart handler. |
+
+### Tests
+
+| File | Covers |
+|---|---|
+| `test_network_job.py` | `pass_idx` round-trip; a payload truncated to the old writer's length parses with `pass_idx == 0`. |
+| `test_job.py` — `JobReplayTests` | Replay resends the saved output, leaves the cache object and its `get_seq_length` alone, keeps the saved `shared_kv_states`; the next pass computes; a second visit at another entry point computes; out-of-sequence and already-passed refuse with the reason; a late joiner is accepted; a constant `0` always computes. |
+| `test_job.py` — `JobRestartTests` | Bounce resends the pass in flight without changing its number; an unnumbered bounce is honored; a bounce for a dead pass is dropped; the retry cap; the counter resets with the next pass. |
+| `job_processor/test_state_layers.py` | A repeated pass is forwarded without `process_job`, with the same `data` and `shared_kv_states` objects; the next pass runs the layers. |
+| `job_processor/test_state_embed.py` | A bounced prefill chunk is resent with `compute_embed` never called and `chunking` unchanged; the next chunk still advances afterwards; a bounced decode token is resent with `current_token` and `input_ids` unchanged; a bounce for a replaced pass is dropped. |
+| `job_processor/test_state_send.py` | The pass number goes on the wire; the payload is saved under the entry point; a replay ends when the pass goes back out. |
+| `test_job_receiver.py` | Out-of-sequence cancels and notifies the origin; repeated validation failures cancel with the capped reason; a bounce for a dead pass is dropped. |
+| `job_processor/test_restart.py` *(new file)* | Two real `Job`s across the real wire format with a real `restart_token`-shaped bounce, asserting KV positions on both nodes: a chunk lost outbound, a chunk lost on the return, the chunk that follows a restart, and a decode token. |
 
 ### Exit criteria
 
-- All new tests above pass; no existing test changes except where a fake had to learn
-  `pass_idx`.
-- A hand-driven two-node run with a deliberately corrupted packet (flip a byte in
-  `JobData` after hashing, behind a test-only env var) completes the request with
-  output identical to an uncorrupted run at `temperature = 0`, in both prefill and
-  decode, and the log shows one replay.
-- One commit (or a short series) titled as a restart fix, with no mention of caching
-  in the code it touches.
+- ✅ 348 unit tests pass; the only existing tests touched were the ones being extended,
+  plus a `node_id` parameter added to `make_processor` in `tests/…/unit/util.py`.
+- ✅ `ruff` reports the same 60 pre-existing findings as before, none new.
+- ⚠️ The hand-driven two-node run with a deliberately corrupted packet was **not** run:
+  it needs model weights. `job_processor/test_restart.py` stands in for it and was
+  falsified — all of its cases fail when the replay paths are disabled. Run the real
+  two-node check before Phase 2 starts leaning on `pass_idx` for drift detection.
+- ✅ Landed as its own commit, with no mention of caching in the code it touches.
 
 ---
 
@@ -407,14 +416,18 @@ before touching a real pipe.
 - `NetworkJob` appends, after `pass_idx` (Phase 0 fixed its slot): `attempt`,
   `cache_use_id`, `cache_use_tokens`, `cache_write_id`, `cache_write_tokens`,
   `cache_reserve_tokens`. Defaults `0` / `b''`.
-- `attempt` is new here. `Job.attempt: int = 0`, bumped by the origin on a `MISS`
-  rebuild (2.5). In `Job.receive_network_job`, ahead of the Phase 0 `pass_idx` check:
-  `network_job.attempt > self.attempt` → replace `self.cache` with a fresh
-  `DynamicCache(config)`, set `self.attempt`, reset `last_pass_idx = -1` and drop
-  `last_pass_output`, then continue; `network_job.attempt < self.attempt` → return
-  `False`. This needs the `config` kept on the `Job` (passed to `__init__` today but
-  not stored). Tests in `test_job.py`: higher attempt rebuilds and resets the pass
-  bookkeeping, lower is dropped, equal is unchanged.
+- `attempt` is new here. It belongs with the rest of the pass bookkeeping, so put it
+  on `PassSequence` (`jobs/pass_sequence.py`) rather than on `Job`: `attempt: int = 0`,
+  bumped by the origin on a `MISS` rebuild (2.5), plus a `reset()` that clears `idx`,
+  `last_idx`, `key`, `outputs` and `retries` in one place. Keep the Phase 0 split —
+  `PassSequence` decides, `Job` applies.
+- In `Job.receive_network_job`, ahead of the Phase 0 `PassSequence.accept` call:
+  `network_job.attempt > passes.attempt` → replace `self.cache` with a fresh
+  `DynamicCache(config)`, `passes.reset()` to the new attempt, then continue;
+  `network_job.attempt < passes.attempt` → return `False`. This needs the `config`
+  kept on the `Job` (passed to `__init__` today but not stored). Tests in `test_job.py`:
+  higher attempt rebuilds and resets the pass bookkeeping, lower is dropped, equal is
+  unchanged.
 - `Job.to_network_job()` emits them from the Phase 1 job fields; the origin clears
   `cache_write_id` after the pass that carried it. `cache_use_id` /
   `cache_reserve_tokens` are sent only on the job's first packet
@@ -454,8 +467,8 @@ before touching a real pipe.
     `cached_prefix_len`. Miss → do **not** add the job; return `MISS`.
   - If `cache_reserve_tokens > 0`: `reserve(job_id, cache_reserve_tokens)`; on
     refusal return `NO_STORE` alongside the job (the job still runs).
-- `_job_runner_loop`: on `MISS`, send `CacheStatus(MISS, attempt)` to
-  `network_job.origin_node_id` and `continue` without processing. On `NO_STORE`,
+- `_process_network_job` (split out of `_job_runner_loop` in Phase 0): on `MISS`, send `CacheStatus(MISS, attempt)` to
+  `network_job.origin_node_id` and return without processing. On `NO_STORE`,
   send it and proceed.
 - Tests: `test_job_tracker.py AddJobTests` — hit adopts (job cache is the adopted
   container), miss returns no job, origin mismatch is a miss, reservation refusal
@@ -473,8 +486,8 @@ before touching a real pipe.
 **2.5 — Origin handling of `MISS`, `NO_STORE`, `ABORT`.** (M)
 
 - `MISS` (attempt matches the job's current attempt):
-  1. `job.attempt += 1`; `job.pass_idx = 0`; `last_pass_idx = -1`;
-     `job.cache = DynamicCache(config)`; `cached_prefix_len = 0`;
+  1. `job.passes.reset()` with the bumped attempt (which clears `idx`, `last_idx`
+     and `outputs` together); `job.cache = DynamicCache(config)`; `cached_prefix_len = 0`;
      `cache_options.enabled = False` for the rest of this job; clear write points.
   2. Broadcast `CacheStatus(ABORT, old_attempt)` to every distinct `node_id` in the
      pipe's segments other than the origin.
@@ -491,7 +504,7 @@ before touching a real pipe.
   either stored them too (it refused later) or never reserved (it refused at
   `add_job`, before any write point). Only the latter can happen, since reservation
   is decided once at `add_job`; state that in a comment.
-- `ABORT` on a layer node: if `attempt` matches the local job's attempt →
+- `ABORT` on a layer node: if `attempt` matches the local job's `passes.attempt` →
   `remove_job` + `_drop_queued` + `release`; if lower → ignore.
 - Tests: `test_job_receiver.py` — the two orderings from §10 (late `ABORT` after the
   retry's packet is ignored; `MISS` naming a dead attempt does not abort the retry);
