@@ -56,6 +56,11 @@ class PassSequence:
     fields.
     """
 
+    # Which rebuild of the job this is. The origin bumps it when a node reports
+    # that it cannot adopt the prefix the job was dispatched with, so every
+    # cache on the pipe has to be thrown away and the prefill started again.
+    # `(attempt, idx)` totally orders every pass the job has ever sent.
+    attempt: int
     # The pass this node is handling. On the origin this is the pass it
     # dispatched; elsewhere it is the number that came in on the wire.
     idx: int
@@ -73,6 +78,23 @@ class PassSequence:
     error: Optional[str]
 
     def __init__(self):
+        self.attempt = 0
+        self.idx = 0
+        self.last_idx = 0
+        self.key = None
+        self.outputs = { }
+        self.retries = 0
+        self.replaying = False
+        self.error = None
+
+    def reset(self, attempt: int):
+        """Start the job's numbering over for a new attempt.
+
+        Every saved payload goes with it: they were computed against caches
+        that the rebuild is about to discard, so replaying one would forward
+        hidden state for a prefix this node no longer holds.
+        """
+        self.attempt = attempt
         self.idx = 0
         self.last_idx = 0
         self.key = None

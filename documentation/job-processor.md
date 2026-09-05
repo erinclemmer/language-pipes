@@ -80,6 +80,17 @@ This state sends the hidden state through one or more local layer segments. The 
 1. The state gets the local model segment for the current layer.
 2. The state calls `LlmModel.process_job()` to compute the layers of the segment.
 3. The state updates the timestamp of the last update.
+4. The state makes a prompt cache snapshot, if these two conditions are true:
+   - The pass has a write tag (`cache_write_id`). The origin node sets the tag
+     before it embeds. The tag moves with the packet to each node in the pass.
+   - This node computed the last of its layers for the pass. A node with two
+     layer ranges in one pipe gets the pass two times. A snapshot after the
+     first range would not have this pass for the layers of the second range.
+
+   Before it writes, the state makes sure that the pass stops where the origin
+   node says it does (`cache_position[-1] + 1 == cache_write_tokens`). If the
+   two values do not agree, the state does not write. A node with an incorrect
+   cache must not put its slice into an entry that subsequent requests use.
 
 **Transitions:**
 
@@ -166,6 +177,29 @@ Each node that receives the pass again compares `pass_idx`:
 A job is sequential: the origin node waits for the pass to come back through `HEAD` before it sends the next pass. Thus no node is more than one pass out of step, and one saved pass for each node is sufficient.
 
 If the same pass fails three times, the origin node cancels the job with the reason `packet failed validation after 3 retries`.
+
+#### Rebuild
+
+A rebuild is not a restart. A restart sends one pass again, and the KV caches do not change. A rebuild removes each KV cache of the job and starts the prefill again from token 0.
+
+The origin node does a rebuild when a node sends `CacheStatus(MISS)`. The message means that the node does not have the prompt cache entry that the job told it to use. That node did not compute the pass.
+
+The origin node does these operations:
+
+1. It adds 1 to the `attempt` number of the job.
+2. It removes its own KV cache, the saved passes, and the prompt cache plan. Prompt cache use stays off for the remainder of the job.
+3. It sends `CacheStatus(ABORT)` with the previous `attempt` number to each other node in the pipe. Each node removes its job and the packets in its queue.
+4. It puts the job back to the `TOKENIZE` step and starts the prefill again.
+
+Each node compares the `attempt` number of an incoming packet with its own:
+
+| Condition | Result |
+|-----------|--------|
+| The number is larger | The node removes its KV cache and its saved passes, then computes the packet. |
+| The number agrees | The node continues as usual. |
+| The number is smaller | The packet is from an attempt that is complete. The node discards the packet. |
+
+The `ABORT` message and the packets of the new attempt go on different connections, thus their sequence is not known. The `attempt` number on the packet, and not the `ABORT` message, keeps the operation correct. The `ABORT` message only makes the stale caches free more quickly.
 
 ---
 

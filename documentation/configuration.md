@@ -283,6 +283,14 @@ Size it against `max_api_jobs` too. Every in-flight job reserves
 concurrent jobs with 4k prompts and 1k responses needs ~25k tokens of headroom
 before a single entry can be stored, let alone kept.
 
+**Every node applies its own limits.** A cached prefix is reusable only while
+every node on the pipe still holds its slice of it, so `max_cache_time = 0` or
+`max_cache_tokens = 0` on *any* node disables reuse for every pipe that runs
+through it - the other nodes go on serving requests normally and report
+`cached_tokens: 0`. The same is true of a node whose budget is too small for a
+given job: it tells the origin, and that job stores nothing anywhere rather than
+leaving a half-written entry set behind.
+
 ---
 
 ### Network

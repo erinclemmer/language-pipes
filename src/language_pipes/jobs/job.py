@@ -55,6 +55,8 @@ class Job:
     max_completion_tokens: int
 
     # Classes
+    # Kept so a rebuild can make a new working cache of the right shape.
+    config: PretrainedConfig
     # Working KV cache for the layers this node hosts.
     cache: DynamicCache
     # Prompt-cache bookkeeping: what may be reused and what is due to be stored.
@@ -115,6 +117,7 @@ class Job:
         
         self.current_layer = 0
 
+        self.config = config
         self.cache = DynamicCache(config=config)
         self.caching = JobCache()
         self.chunking = ChunkState(self.job_id)
@@ -221,10 +224,56 @@ class Job:
         self.compute_step = saved.compute_step
         self.current_layer = saved.current_layer
 
+    def drop_cache(self):
+        """Throw away every position this node holds for the job.
+
+        The counterpart of `replay`, and the opposite operation: a replay
+        resends a pass against caches that are still right, a rebuild starts
+        the prefill over because they are not.
+        """
+        self.cache = DynamicCache(config=self.config)
+        self.caching.forget()
+        self.caching.prefix_len = 0
+
+    def rebuild(self):
+        """Run this job again from token 0, with reuse switched off.
+
+        Only the origin calls this, and only while it is still prefilling: a
+        node reports a miss from the first packet it ever sees, which is the
+        first prefill chunk, and the origin is waiting for that pass to come
+        back. Everything the job computed is discarded and it goes back to
+        `TOKENIZE`, so the state machine takes exactly the path a fresh job
+        takes - re-tokenizing costs one tokenizer call and is cheaper than a
+        second way of starting a prefill.
+        """
+        self.passes.reset(self.passes.attempt + 1)
+        self.drop_cache()
+        self.caching.options.enabled = False
+        self.caching.cached_tokens = 0
+        self.data = None
+        self.delta = ''
+        self.result = None
+        self.input_ids = []
+        self.prompt_tokens = 0
+        self.current_token = 0
+        self.current_layer = 0
+        self.chunking.disable()
+        self.compute_step = ComputeStep.TOKENIZE
+
     def receive_network_job(self, network_job: NetworkJob, node_id: str) -> bool:
         if network_job.job_id != self.job_id or network_job.pipe_id != self.pipe_id:
             return False
         if network_job.origin_node_id != self.origin_node_id:
+            return False
+
+        # `attempt` is what makes the rebuild safe against a lost race: the
+        # origin's ABORT can arrive after its own retry, so the retry itself has
+        # to say that everything held for this job is stale.
+        if network_job.attempt > self.passes.attempt:
+            self.drop_cache()
+            self.passes.reset(network_job.attempt)
+        elif network_job.attempt < self.passes.attempt:
+            # A packet from an attempt this node has already left behind.
             return False
 
         # `JobReceiver.restart_token` strips the payload, so a data-less `EMBED`
@@ -258,6 +307,12 @@ class Job:
         if saved is not None:
             self.replay(saved)
             return True
+
+        # Only a layer node takes cache tags off the wire. The origin is the one
+        # that put them there and has already acted on them.
+        if node_id != self.origin_node_id:
+            self.caching.tag_from_wire(network_job)
+            self.caching.use_from_wire(network_job)
 
         if network_job.compute_step == ComputeStep.HEAD and self.chunking.has_more():
             self.compute_step = ComputeStep.EMBED
@@ -303,6 +358,11 @@ class Job:
 
     def to_network_job(self) -> NetworkJob:
         data_hash = self.data.hash_state() if self.data is not None else b''
+        # Every node joins the job on the first pass, so that is the only pass
+        # that has to carry what to adopt and what to reserve - and it has to
+        # carry them on a replay too, since a node that bounced the packet has
+        # not created its job yet.
+        first_pass = self.passes.idx <= 1
         return NetworkJob(
             job_id=self.job_id, 
             pipe_id=self.pipe_id, 
@@ -314,7 +374,13 @@ class Job:
             times=list(self.timing_stats.current_times),
             completed=self.timing_stats.completed_pass,
             progress=self.get_progress(),
-            pass_idx=self.passes.idx
+            pass_idx=self.passes.idx,
+            attempt=self.passes.attempt,
+            cache_use_id=self.caching.use_id if first_pass else b'',
+            cache_use_tokens=self.caching.use_tokens if first_pass else 0,
+            cache_write_id=self.caching.pending_write_id or b'',
+            cache_write_tokens=self.caching.pending_write_tokens,
+            cache_reserve_tokens=self.caching.reserve_tokens if first_pass else 0
         )
 
     def set_last_update(self):

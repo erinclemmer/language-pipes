@@ -268,8 +268,19 @@ can be served from them. So:
   one identity, so a request with no `prompt_cache_key` runs uncached. See
   [Prompt Caching](oai.md#prompt-caching) for why the key alone is weaker
   isolation than an API key.
+- **On a multi-node pipe the prefix ID travels with the job.** It has to: every
+  node holds its own slice, and the origin is the only one that sees tokens. The
+  ID is a keyed hash, so a node that observes one can compare it but cannot
+  extend it or work back to the tokens, and it rides only the first pass of a
+  job rather than every packet. Each entry also records the origin node that
+  produced it and is refused on lookup for any other, so an observed ID is not a
+  bearer token that can be replayed to a node the observer never shared a pipe
+  with. Nothing publishes the set of IDs a node holds; a node that does not hold
+  one simply says so to the origin of that job.
 - **`max_cache_time = 0` restores the old behavior** exactly: no reads, no
-  writes, no state retained past the job. So does `max_cache_tokens = 0`.
+  writes, no state retained past the job. So does `max_cache_tokens = 0`. Each
+  node applies its own setting, and a `0` anywhere in a pipe means no reuse for
+  jobs running through it.
 
 The `cached_tokens` field a client gets back is itself a small signal - it says
 how much of this prompt someone had sent before, within the caller's own scope.

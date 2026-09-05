@@ -523,5 +523,162 @@ class JobRestartTests(unittest.TestCase):
         self.assertEqual(origin.passes.retries, 0)
 
 
+class JobAttemptTests(unittest.TestCase):
+    """`attempt` is what carries the correctness of a rebuild. The origin's
+    ABORT travels on a different connection from its own retry and can lose the
+    race, so the retry itself has to say that everything held here is stale."""
+
+    def relay_holding_a_pass(self) -> Job:
+        relay = make_relay(make_job())
+        relay.receive_network_job(make_packet(relay, 1), "node-b")
+        compute_and_send(relay, make_data(1.0))
+        relay.caching.prefix_len = 384
+        return relay
+
+    def test_a_higher_attempt_throws_the_cache_and_the_numbering_away(self):
+        relay = self.relay_holding_a_pass()
+        packet = make_packet(relay, 1)
+        packet.attempt = 1
+
+        self.assertTrue(relay.receive_network_job(packet, "node-b"))
+
+        self.assertEqual(relay.cache.get_seq_length(), 0)
+        self.assertEqual(relay.passes.attempt, 1)
+        self.assertEqual(relay.passes.outputs, {})
+        self.assertEqual(relay.caching.prefix_len, 0)
+        self.assertFalse(relay.passes.replaying)
+
+    def test_a_lower_attempt_is_dropped_without_canceling(self):
+        relay = self.relay_holding_a_pass()
+        relay.passes.reset(2)
+        packet = make_packet(relay, 1)
+        packet.attempt = 1
+
+        self.assertFalse(relay.receive_network_job(packet, "node-b"))
+        self.assertIsNone(relay.passes.error)
+
+    def test_the_same_attempt_is_processed_as_before(self):
+        relay = self.relay_holding_a_pass()
+
+        self.assertTrue(relay.receive_network_job(make_packet(relay, 1), "node-b"))
+
+        # Same pass, same entry point: a replay, not a rebuild.
+        self.assertTrue(relay.passes.replaying)
+        self.assertEqual(relay.cache.get_seq_length(), 1)
+
+    def test_the_attempt_goes_on_the_wire(self):
+        origin = make_job()
+        origin.passes.reset(3)
+
+        self.assertEqual(origin.to_network_job().attempt, 3)
+
+    def test_a_rebuild_starts_the_job_over_from_tokenize(self):
+        origin = make_job()
+        origin.prompt_tokens = 600
+        origin.input_ids = list(range(640))
+        origin.current_token = 40
+        origin.caching.prefix_len = 384
+        origin.caching.write_points = [512]
+        fill_cache(origin)
+        origin.passes.start()
+
+        origin.rebuild()
+
+        self.assertEqual(origin.passes.attempt, 1)
+        self.assertEqual(origin.passes.idx, 0)
+        self.assertEqual(origin.compute_step, ComputeStep.TOKENIZE)
+        self.assertEqual(origin.prompt_tokens, 0)
+        self.assertEqual(origin.input_ids, [])
+        self.assertEqual(origin.current_token, 0)
+        self.assertEqual(origin.cache.get_seq_length(), 0)
+        self.assertEqual(origin.caching.prefix_len, 0)
+        self.assertEqual(origin.caching.write_points, [])
+        self.assertFalse(origin.caching.options.enabled)
+
+
+class JobCacheTagTests(unittest.TestCase):
+    """A layer node never sees a token, so the write boundary has to be told to
+    it, and it rides the packet that already visits every node in the pass."""
+
+    def test_the_write_tag_is_taken_off_the_packet(self):
+        relay = make_relay(make_job())
+        packet = make_packet(relay, 1)
+        packet.cache_write_id = b"\x07" * 32
+        packet.cache_write_tokens = 512
+
+        relay.receive_network_job(packet, "node-b")
+
+        self.assertEqual(relay.caching.pending_write_id, b"\x07" * 32)
+        self.assertEqual(relay.caching.pending_write_tokens, 512)
+
+    def test_an_untagged_packet_clears_the_tag_from_the_pass_before(self):
+        relay = make_relay(make_job())
+        relay.caching.pending_write_id = b"\x07" * 32
+        relay.caching.pending_write_tokens = 512
+
+        relay.receive_network_job(make_packet(relay, 1), "node-b")
+
+        self.assertIsNone(relay.caching.pending_write_id)
+        self.assertEqual(relay.caching.pending_write_tokens, 0)
+
+    def test_the_read_tags_are_carried_on_to_the_next_node(self):
+        relay = make_relay(make_job())
+        packet = make_packet(relay, 1)
+        packet.cache_use_id = b"\x08" * 32
+        packet.cache_use_tokens = 384
+        packet.cache_reserve_tokens = 2000
+
+        relay.receive_network_job(packet, "node-b")
+        onward = relay.to_network_job()
+
+        self.assertEqual(onward.cache_use_id, b"\x08" * 32)
+        self.assertEqual(onward.cache_use_tokens, 384)
+        self.assertEqual(onward.cache_reserve_tokens, 2000)
+
+    def test_the_read_tags_ride_only_the_first_pass(self):
+        relay = make_relay(make_job())
+        packet = make_packet(relay, 1)
+        packet.cache_use_id = b"\x08" * 32
+        packet.cache_use_tokens = 384
+        relay.receive_network_job(packet, "node-b")
+        compute_and_send(relay, make_data())
+        # The second pass: every node already has its job.
+        relay.receive_network_job(make_packet(relay, 2, layer=1), "node-b")
+
+        onward = relay.to_network_job()
+
+        self.assertEqual(onward.cache_use_id, b"")
+        self.assertEqual(onward.cache_use_tokens, 0)
+
+    def test_a_replayed_first_pass_still_carries_the_read_tags(self):
+        """The node that bounced the packet has not created its job yet, so the
+        resend is its only chance to be told what to adopt."""
+        origin = make_job()
+        origin.caching.use_id = b"\x08" * 32
+        origin.caching.use_tokens = 384
+        origin.caching.reserve_tokens = 2000
+        origin.passes.start()
+        origin.passes.save(origin.data, origin.compute_step, origin.current_layer)
+
+        saved = origin.passes.restart(origin.passes.idx)
+        assert saved is not None
+        origin.replay(saved)
+        onward = origin.to_network_job()
+
+        self.assertEqual(onward.cache_use_id, b"\x08" * 32)
+        self.assertEqual(onward.cache_use_tokens, 384)
+        self.assertEqual(onward.cache_reserve_tokens, 2000)
+
+    def test_the_origin_does_not_take_tags_off_its_own_returning_packet(self):
+        origin = make_job()
+        packet = make_packet(origin, 1, step=ComputeStep.HEAD)
+        packet.cache_write_id = b"\x07" * 32
+        packet.cache_write_tokens = 512
+
+        origin.receive_network_job(packet, origin.origin_node_id)
+
+        self.assertIsNone(origin.caching.pending_write_id)
+
+
 if __name__ == "__main__":
     unittest.main()

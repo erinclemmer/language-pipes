@@ -51,7 +51,7 @@ are worth keeping as the baseline; the rows Phase 0 has since changed are marked
 |---|---|---|---|---|
 | 0 ✅ | Job restart correctness (`pass_idx`, per-node saved output, replay instead of recompute) | A corrupted packet no longer silently desynchronizes the pipe's KV caches | — | M |
 | 1 ✅ | Single-node prompt cache | `cached_tokens > 0` on the second of two prefix-sharing requests when the whole pipe is on the origin node; two config fields; TUI rows; docs | 0 | L |
-| 2 | Distributed reuse | The same result across a multi-node pipe; `CacheStatus` protocol; per-node budgets | 0, 1 | L |
+| 2 ✅ | Distributed reuse | The same result across a multi-node pipe; `CacheStatus` protocol; per-node budgets | 0, 1 | L |
 | 3 | Full OpenAI surface | `prompt_cache_options`, explicit breakpoints, `cache_write_tokens`, chat `stream_options.include_usage` | 1 (2 not required) | M |
 | 4 | Optimizations | Adopt-by-move, CPU demotion, per-block snapshots, derived budget default | 2 | S each, independent |
 
@@ -465,7 +465,7 @@ without restarting the process.
 
 ---
 
-## 4. Phase 2 — distributed reuse
+## 4. Phase 2 — distributed reuse ✅
 
 **Goal.** Remove the local-pipe gate by giving layer nodes the tags and the
 back-channel from §5. This is the phase with the most integration risk; every step
@@ -586,26 +586,71 @@ before touching a real pipe.
 Phase 1 — keep the `Pipe` helper if the TUI uses it). Update the Phase 1 test that
 asserted "no hit on a remote pipe" to assert a hit *with* tags emitted.
 
+The steps above landed as written apart from the departures recorded below.
+
 **2.7 — Docs.** (S) `documentation/architecture.md`: replace the Phase 1 "single-node
 only" note with the §5 protocol summary (tags, `CacheStatus`, `attempt`); a row in the
 failure-modes list for each of `MISS`, `NO_STORE`, `ABORT`. `documentation/oai.md`:
 drop the single-node caveat. `configuration.md`: the note that each node applies its
 own limits and a `0` on any node disables reuse across pipes through it.
 
+### Decisions that differ from the plan as written
+
+| Plan said | Shipped | Why |
+|---|---|---|
+| `add_job` returns `Tuple[Optional[Job], CacheOutcome]` or a small dataclass (§7 item 2). | The tuple, with `CacheOutcome` (`OK` / `MISS` / `NO_STORE`) in `jobs/cache_policy.py`. | Two call sites and one of them is a test. A dataclass would be a name for a pair that is never passed anywhere. |
+| `add_job` does the lookup itself, taking layer range and `process_id` from the receiver. | `add_job` takes an optional `CachePolicy` and calls `policy.adopt_for_node(job, network_job)`. | The plan's own "or, better" option. The tracker gains no cache knowledge, and `identity()` stays the single definition of what a node's slice is - the alternative was the receiver deriving one shape and `store_tagged_pass` deriving another. |
+| Layer-node identity is the segment hosting `network_job.current_layer`. | Every physical local segment of the pipe, sorted: process ids from all of them, `start_layer` the lowest, `end_layer` the highest. | `current_layer` has already moved on by the time the write path asks, so the two would disagree. The node's cache holds all of its segments anyway, and this shape is a pure function of node + pipe, so `add_job` and the store a pass later cannot diverge. |
+| The origin's identity narrows to its own layers now that the gate is gone. | Unchanged from Phase 1: the whole pipe's process ids. | It costs nothing and buys free invalidation - if a segment moves to another node, the origin misses locally instead of adopting, tagging, and paying a `MISS` round trip to learn the same thing. |
+| The Phase 1 store hook fires unchanged on layer nodes (2.4). | The hook moved. Phase 1 stored when the pass left `ComputeStep.LAYER`, which only ever happens on the node hosting the *last* layers; a middle node never stored. It now fires when this node has finished the last of *its* layers for the pass (`CachePolicy.pass_complete_here`), which covers the middle node, the origin whose own layers stop before the pipe's, and a node hosting two ranges of one pipe. | Without it a three-node pipe would store on one node out of three and miss forever after. |
+| `store_tagged_pass` claims the tag (`take_pending`). | It reads it (`pending`); the tag is cleared once per pass by the next `tag()` or `tag_from_wire()`. | The tag has to survive the store: the packet carrying it goes on to the next node, which stores *its* slice under the same ID. Claiming it would mean only the first node on the pipe ever wrote. |
+| The read tags ride the job's first *packet* (`first_packet_sent`). | They ride every packet of pass 1 (`passes.idx <= 1`). | A node that bounced the first packet has not created its job yet, so the resend is its only chance to be told what to adopt. With the flag it would have prefilled from token 0 while the rest of the pipe resumed from the prefix. |
+| — | **The end-of-response entry was rewritten.** `CachePolicy.store_end_of_response` is gone; the boundaries the answer crosses are tagged as it crosses them, from `tag_write_point` during decode. | Two reasons, one of them a bug. (1) At completion no pass is left to carry a tag, so only the origin would have stored - the next request would adopt, every layer node would `MISS`, and multi-turn chat would rebuild every time. (2) The Phase 1 version stored a cache holding `len(input_ids) - 1` positions under an ID naming the block boundary *below* that, so unless the response happened to end exactly on a boundary the entry was longer than it claimed and a job adopting it resumed at the wrong offset. Tagging the pass whose end lands exactly on the boundary fixes both, and reuses the machinery that already existed. The cost is entries at each boundary the answer crosses rather than one at the end; the budget and the LRU bound it, and §6's per-block snapshots were already headed this way. |
+| — | `receive_cache_status` checks which end of the job this node is. | `MISS` / `NO_STORE` are answers to a job this node dispatched and `ABORT` is an instruction about one it did not; without the check a stray packet would have a layer node rebuilding a job it does not own. |
+| — | `Pipe.is_local_to` deleted rather than kept. | The plan said to keep it if the TUI used it. Nothing did. |
+| — | `_state_embed` also asks to store, after the embed. | An origin that hosts the end model but none of the layers never enters `PROCESS_LAYERS`. It holds nothing to snapshot, but it is the only node that sees tokens, so without an entry of its own its next lookup finds nothing and no node on the pipe is ever told to adopt. On an origin that does host layers the call is a no-op - the pass has not reached the last of them yet. |
+
+### Tests
+
+| File | Covers |
+|---|---|
+| `test_network_job.py` *(extended)* | Every tag round-trips; a payload truncated to the pre-Phase-0 writer's length parses with `attempt == 0` and empty tags. |
+| `test_job.py` *(extended)* | `JobAttemptTests`: a higher attempt drops the cache and the numbering, a lower one is dropped without canceling, an equal one behaves as before, the attempt goes on the wire, `rebuild()` returns the job to `TOKENIZE`. `JobCacheTagTests`: the write tag comes off the packet, an untagged packet clears the one before, the read tags are carried onward, they ride only the first pass, a replayed first pass still carries them, the origin ignores tags on its own returning packet. |
+| `test_cache_protocol.py` *(new)* | `CacheStatus` round-trip; a layer node that cannot adopt reports `MISS` and computes nothing; a layer node with no budget reports `NO_STORE` and runs anyway; the origin's rebuild - new attempt, no prefix, no tags on the retry, prefill from token 0, `ABORT` to every other segment node once, reservation released; a `MISS` naming a dead attempt changes nothing; `NO_STORE` stops the writes without restarting; an `ABORT` that lost the race against the retry is ignored; queued packets for an aborted job are dropped; the origin/layer-node guards; unknown job and unparseable payload. |
+| `test_job_tracker.py` *(extended)* | `LayerNodeReadPathTests`: a hit adopts into the new job, a miss adds no job, another origin's entry is a miss, a length that disagrees with the origin is a miss, a node hosting none of the pipe is a miss, a refused reservation reports `NO_STORE` and still runs, an untagged packet touches the store not at all. |
+| `test_content_provider_routing.py` *(extended)* | Protocol 3 reaches `receive_cache_status` and nothing else. |
+| `job_processor/test_state_layers.py` *(extended)* | `LayerNodeWriteTests`, built through `receive_network_job`: the slice is stored under the ID the origin named, the tag is forwarded on, a drifted pass is not stored, a node with a second range of the same pipe waits for its last visit. |
+| `job_processor/test_distributed_cache.py` *(new)* | Two nodes, two requests, through the real wire format and the real `add_job`: both nodes store the prompt boundary under the same ID; the second request adopts on both and embeds only the tail; both caches end the same length; the read tags ride one pass; a relay whose entries are gone reports `MISS`; `max_cache_time = 0` on the relay alone leaves the request correct and uncached. `GatewayOriginTests` covers the origin that hosts no layers at all. |
+| `job_processor/test_prompt_cache_path.py` *(extended)* | The Phase 1 "no reuse on a remote pipe" test now asserts the tags are emitted instead; a miss still asks the other nodes to reserve; the store no longer consumes the tag; `DecodeWritePointTests` replaces `EndOfResponseTests` - the pass that lands on a boundary is tagged and the one that lands short is not, each boundary is planned once, an uncached job and a `NO_STORE`d job are never tagged, and the stored entry is exactly as long as it claims. |
+
 ### Exit criteria
 
-- Unit suite green.
-- Integration: two-node and three-node cases (`test_double_node`, `test_triple_node`
-  in `integration/oai.py`) extended with the prefix-sharing pair; second request
-  reports `cached_tokens > 0` and matches the uncached output at `temperature = 0`.
-- Forced-miss run: set `max_cache_time = 0` on one layer node only; the second
-  request must succeed with `cached_tokens == 0` and the origin log must show exactly
-  one `MISS` → restart.
-- Forced-`NO_STORE` run: set `max_cache_tokens` on one layer node below the job's
-  estimate; the request succeeds, no node stores, no later request through that pipe
-  restarts.
-- Mixed-version run (manual, once): one node on `main` before this branch. Requests
-  succeed uncached.
+- ✅ 529 unit tests pass (473 before), no skips added. The only existing tests
+  changed were the ones being extended, plus the `add_job` tuple in
+  `test_job_tracker.py`.
+- ✅ `ruff check src tests` reports the same 60 pre-existing findings, none in
+  the new files.
+- ⚠️ The integration and manual runs below were **not** executed: they need model
+  weights. `job_processor/test_distributed_cache.py` stands in for the two-node
+  case, including the forced miss, and asserts the invariant the design rests on
+  (both nodes end every request holding the same number of positions). Still to
+  run against real weights before Phase 3 leans on any of it:
+  - two-node and three-node cases (`test_double_node`, `test_triple_node` in
+    `integration/oai.py`) extended with the prefix-sharing pair; the second
+    request reports `cached_tokens > 0` and matches the uncached output at
+    `temperature = 0`;
+  - the two-node hand-driven restart check that Phase 0 deferred, which Phase 2
+    now leans on for drift detection;
+  - forced-miss run: `max_cache_time = 0` on one layer node only; the second
+    request succeeds with `cached_tokens == 0` and the origin log shows exactly
+    one `MISS` → rebuild;
+  - forced-`NO_STORE` run: `max_cache_tokens` on one layer node below the job's
+    estimate; the request succeeds, no node stores, no later request through that
+    pipe rebuilds;
+  - a multi-turn run, to confirm the decode-boundary entries make the second turn
+    hit across nodes;
+  - mixed-version run (manual, once): one node on `main` before this branch.
+    Requests succeed uncached.
 
 ---
 
@@ -690,8 +735,8 @@ Phase 1.
 
 ## 7. Cross-cutting decisions to settle before Phase 1 starts
 
-Items 1 and 3 were settled when Phase 1 shipped: **default on** (300 / 16384) and
-an **instance-level secret**. Item 2 is still open; it belongs to Phase 2.
+All three are settled: **default on** (300 / 16384) and an **instance-level
+secret** with Phase 1, and the `add_job` return shape with Phase 2.
 
 1. **Default on or off in Phase 1.** ✅ *Shipped default-on.* `cache_plan.md` sets `max_cache_time = 300` and
    `max_cache_tokens = 16384` as defaults, which turns the feature on for every
@@ -700,8 +745,9 @@ an **instance-level secret**. Item 2 is still open; it belongs to Phase 2.
    default. If the reviewer would rather soak Phase 2 first, ship Phase 1 with
    `DEFAULT_MAX_CACHE_TIME = 0` and flip it in the Phase 2 release; nothing else
    changes.
-2. **`add_job` return shape in 2.3.** Tuple vs. small result dataclass. Either is
-   fine; pick one before writing the tracker tests.
+2. **`add_job` return shape in 2.3.** ✅ *Shipped the tuple*, `(Optional[Job],
+   CacheOutcome)`. Two call sites, one of them a test; a dataclass would be a
+   name for a pair that is never passed anywhere.
 3. **Where the per-process secret lives.** ✅ *Shipped instance-level.* Module-level in `prompt_cache.py`
    (simplest; one per process) or on the `PromptCache` instance (one per
    `set_router`, so restarting the network in the TUI without restarting the process

@@ -430,9 +430,12 @@ Caching is controlled by the node, with two settings on the
 `max_cache_tokens` in the config file). **Either at `0` disables it**, and the
 server behaves exactly as it did before.
 
-Reuse is currently limited to pipes whose every layer runs on the node serving
-the API. On a multi-node pipe, requests run normally and report
-`cached_tokens: 0`.
+Reuse works across a multi-node pipe. Every node holds its own slice of a cached
+prefix under its own limits, so **a `0` on any node in the pipe disables reuse
+for requests that run through it** - the other nodes still cannot reuse a prefix
+that one of them is missing. See
+[Prompt cache across nodes](architecture.md#prompt-cache-across-nodes) for how
+the nodes stay in agreement.
 
 ### `prompt_cache_key`
 
@@ -499,7 +502,7 @@ event. Chat-completion streams do not yet report usage.
 |---|---|
 | Granularity | 128 tokens. `cached_tokens` is always a multiple of it. |
 | Minimum | 256 tokens. Shorter prefixes are never cached. |
-| Write points | The end of the prompt, and the end of the prompt plus the response. The second is what makes a multi-turn conversation hit: the next turn's prompt begins with the previous exchange. |
+| Write points | The end of the prompt, and every 128-token boundary the response crosses after it. The latter is what makes a multi-turn conversation hit: the next turn's prompt begins with the previous exchange. The tail of a response, below the last boundary, is not stored. |
 | Lifetime | Up to `max_cache_time` seconds after the entry's *last use*, so a busy prefix stays warm and an idle one expires. |
 | Persistence | Memory only. Nothing is written to disk, and entries do not survive a node restart. |
 

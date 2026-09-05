@@ -10,12 +10,13 @@ import torch
 from transformers import PretrainedConfig
 from transformers.cache_utils import DynamicCache
 
+from language_pipes.jobs.cache_policy import CacheOutcome, CachePolicy
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_progress import JobProgress
 from language_pipes.jobs.job_tracker import EXPIRED_JOB_TIME, JobTracker
 from language_pipes.jobs.network_job import NetworkJob
-from language_pipes.jobs.prompt_cache import PromptCache
+from language_pipes.jobs.prompt_cache import BLOCK_SIZE, PromptCache
 from language_pipes.util.enums import ComputeStep, JobStatus
 
 
@@ -148,7 +149,7 @@ class AddJobTests(unittest.TestCase):
     def test_prompt_tokens_is_not_guessed_from_the_state_in_flight(self):
         tracker = make_tracker()
 
-        job = tracker.add_job(make_network_job(chunk_width=8), PretrainedConfig(num_hidden_layers=1)) # pyright: ignore[reportCallIssue]
+        job, _ = tracker.add_job(make_network_job(chunk_width=8), PretrainedConfig(num_hidden_layers=1)) # pyright: ignore[reportCallIssue]
 
         assert job is not None
         # The state is one pass wide - a decode token or a prefill chunk - and
@@ -167,7 +168,7 @@ class AddJobTests(unittest.TestCase):
             )
         )
 
-        job = tracker.add_job(network_job, PretrainedConfig(num_hidden_layers=1)) # pyright: ignore[reportCallIssue]
+        job, _ = tracker.add_job(network_job, PretrainedConfig(num_hidden_layers=1)) # pyright: ignore[reportCallIssue]
         assert job is not None
         job.receive_network_job(network_job, "node-b")
 
@@ -178,8 +179,8 @@ class AddJobTests(unittest.TestCase):
         tracker = make_tracker()
         config = PretrainedConfig(num_hidden_layers=1) # pyright: ignore[reportCallIssue]
 
-        self.assertIsNotNone(tracker.add_job(make_network_job(), config))
-        self.assertIsNone(tracker.add_job(make_network_job(), config))
+        self.assertIsNotNone(tracker.add_job(make_network_job(), config)[0])
+        self.assertIsNone(tracker.add_job(make_network_job(), config)[0])
 
     def test_rejects_a_job_that_was_never_embedded(self):
         tracker = make_tracker()
@@ -188,6 +189,135 @@ class AddJobTests(unittest.TestCase):
 
         with self.assertRaises(Exception):  # noqa: B017
             tracker.add_job(network_job, PretrainedConfig(num_hidden_layers=1)) # pyright: ignore[reportCallIssue]
+
+
+class FakeSegment:
+    def __init__(self, node_id, start_layer, end_layer, process_id, virtual=False):
+        self.node_id = node_id
+        self.start_layer = start_layer
+        self.end_layer = end_layer
+        self.process_id = process_id
+        self.virtual = virtual
+        self.loaded = True
+        self.num_hidden_layers = 4
+
+
+class FakePipe:
+    """Just enough of a pipe for `CachePolicy` to name a node's slice."""
+
+    def __init__(self, segments):
+        self.model_id = "model-1"
+        self.pipe_id = "pipe-1"
+        self.segments = segments
+
+    def num_hidden_layers(self):
+        return 4
+
+    def get_layer(self, layer, need_physical=False):
+        for s in self.segments:
+            if s.start_layer <= layer <= s.end_layer and (not need_physical or not s.virtual):
+                return s
+        return None
+
+
+class LayerNodeReadPathTests(unittest.TestCase):
+    """A layer node's whole read path runs as its `Job` is created: it never
+    sees a token, so the origin names one entry and it either holds it or does
+    not."""
+
+    def setUp(self):
+        self.cache = PromptCache(lambda: 300, lambda: 100000)
+        self.tracker = make_tracker(self.cache)
+        self.pipe = FakePipe([
+            FakeSegment("node-a", 0, 1, "proc-a", virtual=True),
+            FakeSegment("node-b", 2, 3, "proc-b"),
+        ])
+        self.policy = CachePolicy("node-b", self.pipe, None, self.cache)  # pyright: ignore[reportArgumentType]
+        self.cache_id = b"\x05" * 32
+
+    def seed_entry(self, tokens: int = BLOCK_SIZE * 3, origin: str = "node-a"):
+        seeded = DynamicCache(config=PretrainedConfig(num_hidden_layers=4)) # pyright: ignore[reportCallIssue]
+        seeded.update(torch.ones(1, 1, tokens, 4), torch.ones(1, 1, tokens, 4), 2)
+        self.cache.store(
+            self.cache_id, seeded, origin, "model-1", ["proc-b"], 2, 3, tokens
+        )
+
+    def packet(self, use_tokens: int = BLOCK_SIZE * 3, reserve: int = 2000) -> NetworkJob:
+        network_job = make_network_job()
+        network_job.cache_use_id = self.cache_id if use_tokens > 0 else b""
+        network_job.cache_use_tokens = use_tokens
+        network_job.cache_reserve_tokens = reserve
+        return network_job
+
+    def add(self, network_job: NetworkJob):
+        return self.tracker.add_job(
+            network_job, PretrainedConfig(num_hidden_layers=4), "model-1", self.policy # pyright: ignore[reportCallIssue]
+        )
+
+    def test_a_hit_adopts_the_entry_into_the_new_job(self):
+        self.seed_entry()
+
+        job, outcome = self.add(self.packet())
+
+        assert job is not None
+        self.assertEqual(outcome, CacheOutcome.OK)
+        self.assertEqual(job.caching.prefix_len, BLOCK_SIZE * 3)
+        self.assertEqual(job.cache.get_seq_length(2), BLOCK_SIZE * 3)
+
+    def test_a_miss_adds_no_job_at_all(self):
+        job, outcome = self.add(self.packet())
+
+        self.assertIsNone(job)
+        self.assertEqual(outcome, CacheOutcome.MISS)
+        self.assertIsNone(self.tracker.get_job("job-1"))
+
+    def test_an_entry_stored_for_another_origin_is_a_miss(self):
+        self.seed_entry(origin="node-z")
+
+        job, outcome = self.add(self.packet())
+
+        self.assertIsNone(job)
+        self.assertEqual(outcome, CacheOutcome.MISS)
+
+    def test_an_entry_of_a_different_length_than_the_origin_says_is_a_miss(self):
+        """The count is what the job resumes at; disagreeing about it would put
+        every later token at the wrong position."""
+        self.seed_entry(tokens=BLOCK_SIZE * 2)
+
+        job, outcome = self.add(self.packet(use_tokens=BLOCK_SIZE * 3))
+
+        self.assertIsNone(job)
+        self.assertEqual(outcome, CacheOutcome.MISS)
+
+    def test_a_node_hosting_none_of_this_pipe_is_a_miss(self):
+        self.seed_entry()
+        policy = CachePolicy("node-c", self.pipe, None, self.cache)  # pyright: ignore[reportArgumentType]
+
+        job, outcome = self.tracker.add_job(
+            self.packet(), PretrainedConfig(num_hidden_layers=4), "model-1", policy # pyright: ignore[reportCallIssue]
+        )
+
+        self.assertIsNone(job)
+        self.assertEqual(outcome, CacheOutcome.MISS)
+
+    def test_a_refused_reservation_reports_no_store_but_still_runs_the_job(self):
+        self.cache = PromptCache(lambda: 300, lambda: 100)
+        self.tracker = make_tracker(self.cache)
+        self.policy = CachePolicy("node-b", self.pipe, None, self.cache)  # pyright: ignore[reportArgumentType]
+
+        job, outcome = self.add(self.packet(use_tokens=0))
+
+        self.assertIsNotNone(job)
+        self.assertEqual(outcome, CacheOutcome.NO_STORE)
+        self.assertIsNotNone(self.tracker.get_job("job-1"))
+
+    def test_a_packet_with_no_tags_touches_the_cache_at_all(self):
+        job, outcome = self.add(make_network_job())
+
+        self.assertIsNotNone(job)
+        self.assertEqual(outcome, CacheOutcome.OK)
+        self.assertEqual(self.cache.used_tokens(), 0)
+        self.assertEqual(self.cache.stats().hits + self.cache.stats().misses, 0)
 
 
 class CacheReservationTests(unittest.TestCase):

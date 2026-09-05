@@ -216,9 +216,6 @@ class JobProcessor:
         # Job completed
         if job.status == JobStatus.COMPLETED:
             end_model.set_result(job)
-            # Before complete(): completing releases the budget reservation this
-            # entry is still being charged against.
-            self.cache_policy.store_end_of_response(job)
             job.complete()
             self.logger.info(f"Job {job.job_id[:4]} completed {self.cache_policy.log_fields(job)}")
             return JobState.DONE
@@ -270,6 +267,13 @@ class JobProcessor:
         end_model.compute_embed(job)
         job.timing_stats.set_send_time()
 
+        # An origin that hosts the end model but none of the layers holds
+        # nothing to snapshot - but it still has to record the boundary, or its
+        # own lookup on the next request would find nothing and no node on the
+        # pipe would be told to adopt. On an origin that does host layers this
+        # is a no-op: the pass has not reached the last of them yet.
+        self._store_tagged_pass()
+
         return self._next_state()
 
     def _state_process_layers(self) -> JobState:
@@ -287,6 +291,9 @@ class JobProcessor:
             return self._fail(f"no node hosts layer {job.current_layer}")
 
         if model.virtual:
+            # An origin whose own layers stop before the pipe's do: it has
+            # computed everything it holds for this pass.
+            self._store_tagged_pass()
             return JobState.SEND
 
         job.timing_stats.add_layer_time(self.ctx.node_id, job.current_layer, model.end_layer)
@@ -294,13 +301,24 @@ class JobProcessor:
         job.timing_stats.set_send_time()
         job.set_last_update()
 
-        # `set_layer` leaves the LAYER step behind once the last layer of the
-        # pass is done, which on a Phase 1 pipe is the only moment this node's
-        # cache covers exactly the tagged boundary.
-        if job.caching.pending_write_id is not None and job.compute_step != ComputeStep.LAYER:
-            self.cache_policy.store_tagged_pass(job)
+        self._store_tagged_pass()
 
         return self._next_state()
+
+    def _store_tagged_pass(self):
+        """Snapshot this node's slice, if the pass has just covered a boundary.
+
+        The tag is not consumed: the packet carrying it goes on to the next
+        node, which stores its own slice of the same prefix under the same ID.
+        It is cleared once per pass, by the next embed here or the next packet
+        elsewhere.
+        """
+        job = self.ctx.job
+        if job.caching.pending_write_id is None:
+            return
+        if not self.cache_policy.pass_complete_here(job):
+            return
+        self.cache_policy.store_tagged_pass(job)
 
     def _state_send(self) -> JobState:
         """Send job to next destination."""

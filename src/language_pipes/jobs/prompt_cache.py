@@ -307,6 +307,21 @@ class PromptCache:
             self.misses += 1
         return None
 
+    def count_lookup(self, hit: bool):
+        """Score one request's outcome.
+
+        `lookup` deliberately counts nothing - the origin probes several IDs per
+        request and scoring each would make the hit rate meaningless - so the
+        one caller that does a single lookup per request, the layer node in
+        `CachePolicy.adopt_for_node`, says so here. `find_longest` is the
+        origin's equivalent.
+        """
+        with self._lock:
+            if hit:
+                self.hits += 1
+            else:
+                self.misses += 1
+
     def adopt(self, entry: CacheEntry) -> DynamicCache:
         """A cache the borrowing job may append to, leaving the entry intact."""
         return copy_cache(entry.cache)

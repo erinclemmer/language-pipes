@@ -7,7 +7,7 @@ from typing import Callable, List, Optional, Dict
 
 from language_pipes.request_for_model.rfm import RequestForModelHandler
 from language_pipes.jobs.job_factory import JobFactory
-from language_pipes.jobs.job_receiver import CANCEL_PROTOCOL, JobReceiver
+from language_pipes.jobs.job_receiver import CACHE_PROTOCOL, CANCEL_PROTOCOL, JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.prompt_cache import PromptCache
 from language_pipes.util.byte_helper import ByteHelper
@@ -115,7 +115,7 @@ class ContentProvider:
         if router is not None:
             self.router_pipes = RouterPipes(router)
             self.pipe_manager = PipeManager(self.model_manager, self.router_pipes)
-            # One cache per node, shared by the origin path and (from Phase 2)
+            # One cache per node, shared by the origin path and
             # the layer path, so both see the same entries and the same budget.
             self.prompt_cache = PromptCache(
                 self.job_provider.get_max_cache_time,
@@ -167,6 +167,8 @@ class ContentProvider:
             self.request_for_model.receive_data(node_id, data)
         if protocol == CANCEL_PROTOCOL and self.job_receiver is not None:
             self.job_receiver.receive_cancel(node_id, bts.read_bytes())
+        if protocol == CACHE_PROTOCOL and self.job_receiver is not None:
+            self.job_receiver.receive_cache_status(node_id, bts.read_bytes())
 
     def stop_network(self):
         if self.router is None:

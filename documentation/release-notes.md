@@ -20,12 +20,19 @@ disables caching entirely and restores the previous behavior. The page also
 shows live cache totals, and the active jobs view reports the prefill a job
 skipped.
 
-In this release reuse is limited to pipes whose every layer runs on the node
-serving the API; requests on a multi-node pipe run as before and report
-`cached_tokens: 0`. On a server with no `api_keys` configured, a request without
-a `prompt_cache_key` runs uncached, because every caller there shares one
-identity. See [Prompt Caching](oai.md#prompt-caching) and
+Reuse works across a multi-node pipe. Each node holds its own slice of a cached
+prefix under its own limits, so a `0` on any node in a pipe disables reuse for
+requests running through it, and a node too short of budget for a given job
+tells the origin so that job stores nothing anywhere. On a server with no
+`api_keys` configured, a request without a `prompt_cache_key` runs uncached,
+because every caller there shares one identity. See
+[Prompt Caching](oai.md#prompt-caching),
+[Prompt cache across nodes](architecture.md#prompt-cache-across-nodes) and
 [Privacy](privacy.md#prompt-cache-retention).
+
+Nodes running an older build read the new packet fields as absent, so they never
+adopt and never store; a mixed-version pipe serves requests uncached rather than
+failing.
 
 ### Job Restart Correctness
 A packet that fails its hash check now replays the pass that produced it instead

@@ -1,11 +1,12 @@
 import logging
 from time import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from time import sleep
 from threading import Thread
 
 from transformers import PretrainedConfig
 
+from language_pipes.jobs.cache_policy import CacheOutcome, CachePolicy
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.jobs.prompt_cache import PromptCache
@@ -126,10 +127,24 @@ class JobTracker:
             return
         job.last_update = time()
 
-    def add_job(self, network_job: NetworkJob, config: PretrainedConfig, model_id: str = "") -> Job | None:
+    def add_job(
+        self,
+        network_job: NetworkJob,
+        config: PretrainedConfig,
+        model_id: str = "",
+        cache_policy: Optional[CachePolicy] = None
+    ) -> Tuple[Optional[Job], CacheOutcome]:
+        """Build the local record for a job this node only hosts layers for.
+
+        This is also where the prompt cache is read, because it is where the
+        job's `DynamicCache` is created: a node that adopts a prefix has to do
+        it before a single layer runs. The outcome travels back out because only
+        `JobReceiver` can answer the origin - on `MISS` there is no job at all
+        and the packet must not be computed.
+        """
         existing = self.get_job(network_job.job_id)
         if existing is not None:
-            return None
+            return None, CacheOutcome.OK
 
         job = Job(
             origin_node_id=network_job.origin_node_id,
@@ -140,12 +155,20 @@ class JobTracker:
             config=config
         )
         job.job_id = network_job.job_id
-        
+
         if network_job.data is None:
-            return
+            return None, CacheOutcome.OK
 
         if network_job.data.state is None:
             raise Exception("job should be embedded before adding a pending job")
+
+        # After the checks above, so a refused packet cannot leave a reservation
+        # behind for a job that never ran.
+        outcome = CacheOutcome.OK
+        if cache_policy is not None:
+            outcome = cache_policy.adopt_for_node(job, network_job)
+            if outcome == CacheOutcome.MISS:
+                return None, outcome
 
         # prompt_tokens is left at 0: only the origin tokenizes, and the state in
         # flight is one pass wide, not the prompt. The UI reads the origin's own
@@ -155,4 +178,4 @@ class JobTracker:
             self.jobs_pending['network'] = []
         
         self.jobs_pending['network'].append(job)
-        return job
+        return job, outcome

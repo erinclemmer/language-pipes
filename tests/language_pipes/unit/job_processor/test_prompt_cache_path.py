@@ -156,15 +156,36 @@ class EmbedReadPathTests(unittest.TestCase):
 
         self.assertEqual(job.caching.prefix_len, 3 * BLOCK_SIZE)
 
-    def test_no_reuse_when_the_pipe_has_a_remote_segment(self):
+    def test_a_remote_segment_is_told_what_to_adopt(self):
+        """The origin's own hit is only half of it: the node hosting the rest of
+        the pipe has to adopt the same prefix, so the tags ride the first pass."""
         self.pipe = make_pipe(layer_node_id="node-2")
         job = enable(make_job(origin_node_id="node-1"), self.cache)
-        self.seed_entry(job, 3)
+        cache_id = self.seed_entry(job, 3)
 
         self.processor(job)._state_embed()
 
-        self.assertEqual(job.caching.prefix_len, 0)
-        self.assertEqual(job.caching.ids, [])
+        self.assertEqual(job.caching.prefix_len, 3 * BLOCK_SIZE)
+        self.assertEqual(job.caching.use_id, cache_id)
+        self.assertEqual(job.caching.use_tokens, 3 * BLOCK_SIZE)
+        self.assertGreater(job.caching.reserve_tokens, 0)
+
+        network_job = job.to_network_job()
+        self.assertEqual(network_job.cache_use_id, cache_id)
+        self.assertEqual(network_job.cache_use_tokens, 3 * BLOCK_SIZE)
+        self.assertEqual(network_job.cache_reserve_tokens, job.caching.reserve_tokens)
+
+    def test_a_miss_still_asks_the_other_nodes_to_reserve(self):
+        """They have to hold their slice of what this job stores, even though
+        there is nothing for them to adopt."""
+        self.pipe = make_pipe(layer_node_id="node-2")
+        job = enable(make_job(origin_node_id="node-1"), self.cache)
+
+        self.processor(job)._state_embed()
+
+        network_job = job.to_network_job()
+        self.assertEqual(network_job.cache_use_id, b"")
+        self.assertGreater(network_job.cache_reserve_tokens, 0)
 
     def test_caching_off_for_the_job_touches_nothing(self):
         job = make_job(origin_node_id="node-1")  # caching disabled
@@ -288,7 +309,9 @@ class StoreOnLayersTests(unittest.TestCase):
         )
         assert entry is not None
         self.assertEqual(entry.token_count, BLOCK_SIZE * 4)
-        self.assertIsNone(self.job.caching.pending_write_id)
+        # The tag is not consumed: the packet carrying it goes on to the next
+        # node, which stores its own slice under the same ID.
+        self.assertEqual(self.job.caching.pending_write_id, b"\x09" * 32)
 
     def test_a_pass_that_does_not_end_where_the_tag_says_is_not_stored(self):
         self.tag(BLOCK_SIZE * 4)
@@ -309,39 +332,98 @@ class StoreOnLayersTests(unittest.TestCase):
 
 
 @patch("language_pipes.util.chunk_state.CHUNK_SIZE", 32)
-class EndOfResponseTests(unittest.TestCase):
-    """The entry that makes multi-turn chat hit: prompt plus the answer."""
+class DecodeWritePointTests(unittest.TestCase):
+    """The entry that makes multi-turn chat hit: prompt plus the answer.
+
+    It cannot be written when the job finishes, because by then no pass is left
+    to carry the tag to the other nodes on the pipe - and because the cache
+    would cover more positions than the boundary names. So the boundaries the
+    answer crosses are tagged as it crosses them, on the one pass whose end
+    leaves every node's cache exactly that long.
+    """
 
     def setUp(self):
         self.cache = make_cache()
         self.end_model = CachingEndModel(num_local_layers=1)
         self.pipe = make_pipe()
 
-    def finished_job(self, total_tokens: int):
+    def decoding_job(self, total_tokens: int):
         job = enable(make_job(origin_node_id="node-1"), self.cache)
         job.prompt_tokens = PROMPT_TOKENS
         job.current_token = total_tokens - PROMPT_TOKENS
         job.input_ids = list(range(total_tokens))
         job.caching.ids = self.cache.chain(job.caching.scope, list(range(PROMPT_TOKENS)))
         job.caching.write_points = [BLOCK_SIZE * 4]
-        job.compute_step = ComputeStep.HEAD
-        job.status = JobStatus.COMPLETED
-        job.data = make_job_data()
-        job.data.state = torch.zeros((1, 1))
-        job.data.cache_position = torch.tensor([total_tokens - 2])
-        job.cache.update(
-            torch.ones(1, 1, total_tokens - 1, 4), torch.ones(1, 1, total_tokens - 1, 4), 0
-        )
         return job
 
     def policy(self):
         return CachePolicy("node-1", self.pipe, self.end_model, self.cache)
 
-    def test_stores_at_the_largest_boundary_the_cache_actually_covers(self):
-        # 6 blocks + 10 tokens generated; the cache covers total - 1 positions.
-        job = self.finished_job(BLOCK_SIZE * 6 + 10)
+    def test_the_pass_that_lands_on_a_boundary_is_tagged(self):
+        job = self.decoding_job(BLOCK_SIZE * 6)
 
-        self.policy().store_end_of_response(job)
+        self.policy().tag_write_point(job)
+
+        ids = self.cache.chain(job.caching.scope, job.input_ids)
+        self.assertEqual(job.caching.pending_write_id, ids[6])
+        self.assertEqual(job.caching.pending_write_tokens, BLOCK_SIZE * 6)
+
+    def test_a_pass_that_lands_short_of_a_boundary_is_not_tagged(self):
+        job = self.decoding_job(BLOCK_SIZE * 6 + 10)
+
+        self.policy().tag_write_point(job)
+
+        self.assertIsNone(job.caching.pending_write_id)
+        self.assertEqual(job.caching.write_points, [BLOCK_SIZE * 4])
+
+    def test_each_boundary_the_answer_crosses_is_planned_once(self):
+        job = self.decoding_job(BLOCK_SIZE * 6)
+        policy = self.policy()
+
+        policy.tag_write_point(job)
+        # ... the answer runs on to the next boundary
+        job.input_ids = list(range(BLOCK_SIZE * 7))
+        policy.tag_write_point(job)
+
+        self.assertEqual(
+            job.caching.write_points,
+            [BLOCK_SIZE * 4, BLOCK_SIZE * 6, BLOCK_SIZE * 7]
+        )
+        self.assertEqual(job.caching.pending_write_tokens, BLOCK_SIZE * 7)
+
+    def test_an_uncached_job_is_never_tagged(self):
+        job = self.decoding_job(BLOCK_SIZE * 6)
+        job.caching.ids = []
+
+        self.policy().tag_write_point(job)
+
+        self.assertIsNone(job.caching.pending_write_id)
+
+    def test_a_node_with_no_budget_stops_every_later_write(self):
+        job = self.decoding_job(BLOCK_SIZE * 6)
+        job.caching.stop_writing()
+
+        self.policy().tag_write_point(job)
+
+        self.assertEqual(job.caching.write_points, [])
+        self.assertIsNone(job.caching.pending_write_id)
+
+    def test_the_stored_entry_is_exactly_as_long_as_it_claims(self):
+        """What the boundary names and what the cache holds have to agree: a
+        job adopting the entry resumes at the count on the entry, and appends
+        onto whatever is actually in it."""
+        job = self.decoding_job(BLOCK_SIZE * 6)
+        job.compute_step = ComputeStep.LAYER
+        job.current_layer = 0
+        job.data = make_job_data()
+        job.data.cache_position = torch.tensor([BLOCK_SIZE * 6 - 1])
+        job.cache.update(
+            torch.ones(1, 1, BLOCK_SIZE * 6, 4), torch.ones(1, 1, BLOCK_SIZE * 6, 4), 0
+        )
+        policy = self.policy()
+        policy.tag_write_point(job)
+
+        policy.store_tagged_pass(job)
 
         ids = self.cache.chain(job.caching.scope, job.input_ids)
         entry = self.cache.lookup(
@@ -351,21 +433,7 @@ class EndOfResponseTests(unittest.TestCase):
         )
         assert entry is not None
         self.assertEqual(entry.token_count, BLOCK_SIZE * 6)
-
-    def test_nothing_is_stored_when_the_answer_adds_no_whole_block(self):
-        job = self.finished_job(BLOCK_SIZE * 4 + 20)
-
-        self.policy().store_end_of_response(job)
-
-        self.assertEqual(self.cache.stats().entries, 0)
-
-    def test_an_uncached_job_stores_nothing_at_completion(self):
-        job = self.finished_job(BLOCK_SIZE * 6 + 10)
-        job.caching.ids = []
-
-        self.policy().store_end_of_response(job)
-
-        self.assertEqual(self.cache.stats().entries, 0)
+        self.assertEqual(entry.cache.layers[0].keys.shape[-2], BLOCK_SIZE * 6)
 
 
 @patch("language_pipes.util.chunk_state.CHUNK_SIZE", 32)

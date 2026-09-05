@@ -169,14 +169,59 @@ the same tokens can adopt it and skip that much prefill. Snapshots are taken by
 reference rather than copied, and a job that adopts one appends to its own
 container, so neither the entry nor the borrowing job can disturb the other.
 
-Reuse requires every node on the pipe to still hold its slice for exactly the
-same tokens, which the current release does not have a protocol to establish.
-So **reuse is limited to pipes whose every layer runs on the origin node**
-(`Pipe.is_local_to`); a request on a multi-node pipe runs exactly as it always
-has and reports `cached_tokens: 0`. Entries are held in memory only, for at most
-`max_cache_time` after their last use, and are scoped so they are never shared
-across origins, API keys or `prompt_cache_key` values - see
-[Privacy](privacy.md#prompt-cache-retention).
+Entries are held in memory only, for at most `max_cache_time` after their last
+use, and are scoped so they are never shared across origins, API keys or
+`prompt_cache_key` values - see [Privacy](privacy.md#prompt-cache-retention).
+
+#### Prompt cache across nodes
+
+A cached prefix is a **distributed object**: it is reusable only while *every*
+node on the pipe still holds its own slice of exactly those tokens. The origin
+sees only its own store, so the protocol exists to get it the one fact it cannot
+compute locally, and to recover when the answer is no.
+
+It is small. Six fields ride the job packet that already visits every node, and
+one packet type (`CACHE_PROTOCOL = 3`, `jobs/cache_packets.py`) carries the
+answers that have nowhere to ride:
+
+| Field on `NetworkJob` | Meaning |
+|---|---|
+| `cache_use_id` / `cache_use_tokens` | The entry each node should adopt. Rides the first pass only. |
+| `cache_reserve_tokens` | What the job will ask each node's cache to hold. Rides the first pass only. |
+| `cache_write_id` / `cache_write_tokens` | The boundary this pass should be snapshotted at. Rides the pass that covers it. |
+| `attempt` | Bumped by the origin every time it restarts the job from token 0. |
+
+On a hit that is the whole story and there are no extra messages: every node
+adopts in `JobTracker.add_job`, computes, and forwards the tags on. Writes need
+no agreement either - the origin knows where the block boundaries are, the nodes
+do not, and the tag on the packet *is* the coordination.
+
+The `CacheStatus` packet carries the three negatives:
+
+| Reason | Direction | Meaning | Response |
+|---|---|---|---|
+| `MISS` | node to origin | "I do not hold that prefix, and I did not compute this pass." | The origin **rebuilds**: fresh caches everywhere, prefill from token 0, reuse off for the rest of the job. |
+| `NO_STORE` | node to origin | "I computed fine, but I have no cache budget for this job." | The origin stops tagging write points, so no node stores a prefix that one would be missing. |
+| `ABORT` | origin to nodes | "Drop this job; that attempt is dead." | Each node drops its job and its queued packets, freeing the stale cache now. |
+
+This is optimistic rather than a prepare/ACK barrier because the common case is
+a hit: a barrier would put a round trip in front of *every* request to save one
+chunk of compute on the rare one. Correctness does not depend on timing. A node
+that cannot adopt refuses to compute, so the worst a lost or slow packet can do
+is stall the job until the 60s expiry - never produce wrong output.
+
+`attempt` is what carries that correctness. The origin's `ABORT` travels on a
+different connection from its own retry and can lose the race, so the retry
+itself says the job was rebuilt: a packet with a higher `attempt` makes the
+receiving node discard its cache and every saved pass before processing, and a
+packet with a lower one is dropped as stale. `ABORT` is therefore an
+optimization, not a requirement. Together with `pass_idx` (below), the pair
+`(attempt, pass_idx)` totally orders every pass a job has ever sent.
+
+A node running an older build reads `attempt = 0` and empty tags, so it never
+adopts and never stores; the origin's next reuse attempt misses, restarts once,
+and the request succeeds uncached. Mixed-version pipes degrade to the old
+behavior rather than breaking.
 
 The serialized `NetworkJob` carries only the hidden state, position IDs,
 attention mask, and cache position — **not** the `DynamicCache`. (The one
@@ -197,6 +242,10 @@ Because caches are pinned to specific nodes:
 - If a **node is lost**, its portion of the cache is lost with it. The job cannot
   be moved to a different node hosting the same layers without recomputation, so
   in practice the job simply expires (see above).
+- On a **prompt-cache miss** at any node, there is no migration and no partial
+  reuse: the origin rebuilds the job from token 0 against fresh caches on every
+  node. The waste is bounded by one prefill chunk through part of the pipe, and
+  it is paid only on the uncommon path.
 
 ### System requirements
 

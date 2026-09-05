@@ -16,9 +16,9 @@ class CacheOptions:
     # also the only thing partitioning at all, which is why an absent value
     # disables caching there.
     prompt_cache_key: str = ""
-    # "implicit" writes at the end of the prompt and at the end of the response;
-    # "explicit" writes only at client breakpoints. Phase 1 only ever sees
-    # "implicit" - `prompt_cache_options` is not parsed yet.
+    # "implicit" writes at the end of the prompt and at every block boundary the
+    # response crosses; "explicit" writes only at client breakpoints. Only
+    # "implicit" is reachable so far - `prompt_cache_options` is not parsed yet.
     mode: str = "implicit"
     # Requested lifetime; the node clamps it to its own `max_cache_time`.
     ttl_seconds: Optional[int] = None
@@ -36,7 +36,7 @@ def parse_cache_options(data: Dict[str, Any], authenticated: bool) -> CacheOptio
     literal `"anon"` as the key for everybody, so identity there rests entirely
     on `prompt_cache_key`.
 
-    Unknown values are not rejected: Phase 1 must not start 400ing requests the
+    Unknown values are not rejected: this must not start 400ing requests the
     server accepts today. Validation arrives with the rest of the surface.
     """
     raw_key = data.get("prompt_cache_key")

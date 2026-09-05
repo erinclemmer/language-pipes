@@ -68,7 +68,7 @@ class NetworkJobTests(unittest.TestCase):
 
         self.assertEqual(restored.pass_idx, 7)
 
-    def test_payload_from_a_peer_without_pass_numbers_reads_zero(self):
+    def test_cache_tags_round_trip(self):
         job = NetworkJob(
             job_id="job-1",
             pipe_id="pipe-1",
@@ -78,17 +78,58 @@ class NetworkJobTests(unittest.TestCase):
             data_hash=b"",
             compute_step=ComputeStep.LAYER,
             times=[],
-            pass_idx=7
+            pass_idx=7,
+            attempt=2,
+            cache_use_id=b"\x01" * 32,
+            cache_use_tokens=384,
+            cache_write_id=b"\x02" * 32,
+            cache_write_tokens=512,
+            cache_reserve_tokens=1600
         )
 
-        # `pass_idx` is the last field written, as a 4-byte int. Cutting it off
-        # gives the bytes an older peer would have produced.
-        old_payload = job.to_bytes()[:-4]
-        restored, valid = NetworkJob.from_bytes(old_payload)
+        restored, _ = NetworkJob.from_bytes(job.to_bytes())
+
+        self.assertEqual(restored.attempt, 2)
+        self.assertEqual(restored.cache_use_id, b"\x01" * 32)
+        self.assertEqual(restored.cache_use_tokens, 384)
+        self.assertEqual(restored.cache_write_id, b"\x02" * 32)
+        self.assertEqual(restored.cache_write_tokens, 512)
+        self.assertEqual(restored.cache_reserve_tokens, 1600)
+
+    def test_payload_from_a_peer_without_the_appended_fields_reads_empty(self):
+        job = NetworkJob(
+            job_id="job-1",
+            pipe_id="pipe-1",
+            origin_node_id="node-a",
+            current_layer=0,
+            data=None,
+            data_hash=b"",
+            compute_step=ComputeStep.LAYER,
+            times=[],
+            pass_idx=7,
+            attempt=2,
+            cache_use_id=b"\x01" * 32,
+            cache_use_tokens=384,
+            cache_write_id=b"\x02" * 32,
+            cache_write_tokens=512,
+            cache_reserve_tokens=1600
+        )
+
+        # Everything after `progress` is appended: four 4-byte ints and two
+        # length-prefixed 32-byte IDs. Cutting them all off gives the bytes a
+        # peer from before the restart fix and the cache protocol would send.
+        appended = 4 + 4 + (4 + 32) + 4 + (4 + 32) + 4 + 4
+        restored, valid = NetworkJob.from_bytes(job.to_bytes()[:-appended])
 
         self.assertTrue(valid)
-        self.assertEqual(restored.pass_idx, 0)
         self.assertEqual(restored.job_id, "job-1")
+        self.assertEqual(restored.pass_idx, 0)
+        self.assertEqual(restored.attempt, 0)
+        self.assertEqual(restored.cache_use_id, b"")
+        self.assertEqual(restored.cache_use_tokens, 0)
+        self.assertEqual(restored.cache_write_id, b"")
+        self.assertEqual(restored.cache_write_tokens, 0)
+        self.assertEqual(restored.cache_reserve_tokens, 0)
 
 
 if __name__ == "__main__":

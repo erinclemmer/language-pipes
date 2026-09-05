@@ -7,6 +7,8 @@ from typing import Callable, Dict, Optional, List
 
 from language_pipes.pipes.pipe_manager import PipeManager
 
+from language_pipes.jobs.cache_packets import CacheReason, CacheStatus
+from language_pipes.jobs.cache_policy import CacheOutcome, CachePolicy
 from language_pipes.jobs.job import ComputeStep, Job
 from language_pipes.jobs.job_cancel import JobCancel
 from language_pipes.jobs.job_factory import JobFactory
@@ -17,6 +19,7 @@ from language_pipes.jobs.job_processor import JobProcessor, JobContext
 from language_pipes.util.byte_helper import ByteHelper
 
 CANCEL_PROTOCOL = 2
+CACHE_PROTOCOL = 3
 
 class JobReceiver:
     job_factory: JobFactory
@@ -88,12 +91,12 @@ class JobReceiver:
                 return
             pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
             assert pipe is not None
-            job = self.job_tracker.add_job(
-                network_job,
-                self.model_manager.get_config(pipe.model_id),
-                pipe.model_id
-            )
-            assert job is not None
+            job = self._add_job(network_job, pipe)
+            if job is None:
+                # A miss: this node does not hold the prefix the job was
+                # dispatched with, so it has not computed the pass. The origin
+                # has been told and will rebuild.
+                return
 
         node_id = self.pipe_manager.router_pipes.router.node_id()
 
@@ -126,6 +129,37 @@ class JobReceiver:
         except Exception as e:
             self.logger.exception(f"Job processing failed: {e}")
 
+    def _add_job(self, network_job: NetworkJob, pipe) -> Optional[Job]:
+        """Take on a job this node has not seen, answering the origin's tags."""
+        node_id = self.pipe_manager.router_pipes.router.node_id()
+        policy = CachePolicy(
+            node_id,
+            pipe,
+            self.model_manager.get_end_model(pipe.model_id),
+            self.job_tracker.prompt_cache
+        )
+        job, outcome = self.job_tracker.add_job(
+            network_job,
+            self.model_manager.get_config(pipe.model_id),
+            pipe.model_id,
+            policy
+        )
+        if outcome == CacheOutcome.MISS:
+            self._send_cache_status(network_job.origin_node_id, CacheStatus(
+                network_job.job_id, network_job.pipe_id,
+                network_job.attempt, CacheReason.MISS
+            ))
+            return None
+        if outcome == CacheOutcome.NO_STORE:
+            # The job still runs; it just must not leave a half-written entry
+            # set behind on the rest of the pipe.
+            self._send_cache_status(network_job.origin_node_id, CacheStatus(
+                network_job.job_id, network_job.pipe_id,
+                network_job.attempt, CacheReason.NO_STORE
+            ))
+        assert job is not None
+        return job
+
     def _node_id(self) -> str:
         return self.pipe_manager.router_pipes.router.node_id()
 
@@ -150,6 +184,106 @@ class JobReceiver:
                 router.send_to_node(node_id, data)
         except Exception as e:
             self.logger.warning(f"Could not send cancel for job {cancel.job_id[:4]} to {node_id}: {e}")
+
+    def _send_cache_status(self, node_id: str, status: CacheStatus):
+        bts = ByteHelper()
+        bts.write_int(CACHE_PROTOCOL)
+        bts.write_bytes(status.to_bytes())
+        data = bts.get_bytes()
+        router = self.pipe_manager.router_pipes.router
+        try:
+            if node_id == router.node_id():
+                router.receive_data(data)
+            else:
+                router.send_to_node(node_id, data)
+        except Exception as e:
+            self.logger.warning(
+                f"Could not send cache status for job {status.job_id[:4]} to {node_id}: {e}"
+            )
+
+    def receive_cache_status(self, node_id: str, data: bytes):
+        """Handle the prompt cache's back-channel (see `jobs/cache_packets.py`)."""
+        try:
+            status = CacheStatus.from_bytes(data)
+        except Exception:
+            return
+        job = self.job_tracker.get_job(status.job_id)
+        if job is None or job.pipe_id != status.pipe_id:
+            return
+        # An answer about an attempt that is already dead must not act on the
+        # retry that replaced it, or a job could ping-pong between rebuilds.
+        if status.attempt != job.passes.attempt:
+            self.logger.debug(
+                f"Job {job.job_id[:4]} ignoring {status.reason.name} "
+                f"for attempt {status.attempt} (now {job.passes.attempt})"
+            )
+            return
+
+        # `MISS` and `NO_STORE` are answers to a job this node dispatched;
+        # `ABORT` is an instruction from the node that dispatched one to us.
+        is_origin = job.origin_node_id == self._node_id()
+        if status.reason == CacheReason.ABORT:
+            if is_origin:
+                return
+            self._drop_queued(job.job_id)
+            self.job_tracker.remove_job(job.job_id)
+            return
+        if not is_origin:
+            return
+
+        if status.reason == CacheReason.MISS:
+            self._rebuild_job(job)
+        elif status.reason == CacheReason.NO_STORE:
+            # Budget is decided once, in `add_job`, on the job's first pass -
+            # and the earliest write point is `MIN_CACHE_TOKENS` in, several
+            # passes later. So a refusal always arrives before any node has
+            # stored anything for this job, and there is no half-written entry
+            # set to clean up.
+            job.caching.stop_writing()
+
+    def _rebuild_job(self, job: Job):
+        """Run the job again from token 0, against fresh caches everywhere.
+
+        Distinct from the replay that answers a failed hash: a replay resends
+        one pass against caches that are still right, a rebuild throws every
+        cache on the pipe away because one node's is missing. The nodes are told
+        so they can free theirs now, but `attempt` on the next packet is what
+        makes it safe - the ABORT can lose the race against the retry.
+        """
+        pipe = self.pipe_manager.get_pipe_by_pipe_id(job.pipe_id)
+        if pipe is None:
+            return
+        dead_attempt = job.passes.attempt
+        self.logger.info(
+            f"Job {job.job_id[:4]} restarting uncached: "
+            "a node on the pipe does not hold the prefix"
+        )
+        self._drop_queued(job.job_id)
+        job.rebuild()
+        # The rest of the job stores nothing, so the budget it was holding for
+        # what it would store is better spent on entries that still exist.
+        if self.job_tracker.prompt_cache is not None and job.caching.reserved:
+            self.job_tracker.prompt_cache.release(job.job_id)
+            job.caching.reserved = False
+
+        node_id = self._node_id()
+        for segment_node_id in {s.node_id for s in pipe.segments} - {node_id}:
+            self._send_cache_status(segment_node_id, CacheStatus(
+                job.job_id, job.pipe_id, dead_attempt, CacheReason.ABORT
+            ))
+
+        fsm = JobProcessor(JobContext(
+            node_id=node_id,
+            pipe=pipe,
+            end_model=self.model_manager.get_end_model(pipe.model_id),
+            job=job,
+            on_fail=self.cancel_job,
+            prompt_cache=self.job_tracker.prompt_cache
+        ))
+        try:
+            fsm.run()
+        except Exception as e:
+            self.logger.exception(f"Job rebuild failed: {e}")
 
     def cancel_job(self, job: Job, reason: str):
         """Stop a job here and, when it belongs to another node, upstream too.

@@ -10,6 +10,7 @@ import torch
 
 from language_pipes.jobs.job_processor import JobState
 from language_pipes.jobs.network_job import NetworkJob
+from language_pipes.jobs.prompt_cache import BLOCK_SIZE, PromptCache
 from language_pipes.util.enums import ComputeStep
 
 from util import make_processor, make_job, make_job_data, FakeModel, TrackingModel, PipeWrapper
@@ -194,6 +195,105 @@ class TestReplayedPass(unittest.TestCase):
         self.assertTrue(local_model.processed)
         self.assertFalse(job.passes.replaying)
         self.assertEqual(pipe.sent_jobs[1].pass_idx, 2)
+
+
+
+
+class LayerNodeWriteTests(unittest.TestCase):
+    """A layer node stores its own slice off the tag on the packet - the same
+    hook the origin uses, reached through `receive_network_job` rather than
+    through a plan it made itself."""
+
+    def setUp(self):
+        self.cache = PromptCache(lambda: 300, lambda: 100000)
+        self.segment = FakeModel("node-b", 1, 1, num_hidden_layers=2)
+        self.pipe = PipeWrapper("node-b", "model-a", [
+            FakeModel("node-a", 0, 0, virtual=True, num_hidden_layers=2),
+            self.segment
+        ])
+
+    def make_job(self):
+        return make_job(origin_node_id="node-a", pipe_id=self.pipe.pipe_id)
+
+    def tagged_packet(self, job, tokens: int) -> NetworkJob:
+        data = make_job_data()
+        data.state = torch.zeros((1, 1))
+        data.cache_position = torch.arange(tokens - 32, tokens)
+        return NetworkJob(
+            job_id=job.job_id,
+            pipe_id=job.pipe_id,
+            origin_node_id="node-a",
+            current_layer=1,
+            data=data,
+            data_hash=b"",
+            compute_step=ComputeStep.LAYER,
+            times=[],
+            pass_idx=1,
+            cache_write_id=b"\x09" * 32,
+            cache_write_tokens=tokens
+        )
+
+    def run_pass(self, tokens: int):
+        job = self.make_job()
+        job.cache.update(torch.ones(1, 1, tokens, 4), torch.ones(1, 1, tokens, 4), 0)
+        job.receive_network_job(self.tagged_packet(job, tokens), "node-b")
+        processor = make_processor(
+            job=job, pipe=self.pipe, end_model=None,
+            node_id="node-b", prompt_cache=self.cache
+        )
+        processor._state_process_layers()
+        return job
+
+    def test_the_slice_is_stored_under_the_id_the_origin_named(self):
+        self.run_pass(BLOCK_SIZE * 4)
+
+        entry = self.cache.lookup(
+            b"\x09" * 32, "node-a", "model-a", [self.segment.process_id], 1, 1
+        )
+        assert entry is not None
+        self.assertEqual(entry.token_count, BLOCK_SIZE * 4)
+
+    def test_the_tag_is_forwarded_so_the_next_node_stores_too(self):
+        job = self.run_pass(BLOCK_SIZE * 4)
+
+        self.assertEqual(job.to_network_job().cache_write_id, b"\x09" * 32)
+
+    def test_a_pass_that_does_not_end_where_the_tag_says_is_not_stored(self):
+        job = self.make_job()
+        job.cache.update(torch.ones(1, 1, 32, 4), torch.ones(1, 1, 32, 4), 0)
+        packet = self.tagged_packet(job, BLOCK_SIZE * 4)
+        packet.data.cache_position = torch.arange(0, 32)  # pyright: ignore[reportOptionalMemberAccess]
+        job.receive_network_job(packet, "node-b")
+        processor = make_processor(
+            job=job, pipe=self.pipe, end_model=None,
+            node_id="node-b", prompt_cache=self.cache
+        )
+
+        processor._state_process_layers()
+
+        self.assertEqual(self.cache.stats().entries, 0)
+
+    def test_a_node_that_has_more_layers_of_the_pass_to_run_waits(self):
+        """Its cache would be short of this pass for every layer of the second
+        range, so the snapshot has to wait for the last visit."""
+        first = FakeModel("node-b", 1, 1, num_hidden_layers=4)
+        later = FakeModel("node-b", 3, 3, num_hidden_layers=4, process_id="proc-late")
+        self.pipe = PipeWrapper("node-b", "model-a", [
+            first, FakeModel("node-a", 2, 2, virtual=True, num_hidden_layers=4), later
+        ])
+        job = self.make_job()
+        job.cache.update(torch.ones(1, 1, BLOCK_SIZE * 4, 4), torch.ones(1, 1, BLOCK_SIZE * 4, 4), 0)
+        packet = self.tagged_packet(job, BLOCK_SIZE * 4)
+        job.receive_network_job(packet, "node-b")
+        processor = make_processor(
+            job=job, pipe=self.pipe, end_model=None,
+            node_id="node-b", prompt_cache=self.cache
+        )
+
+        processor._state_process_layers()
+
+        self.assertEqual(self.cache.stats().entries, 0)
+        self.assertEqual(job.caching.pending_write_id, b"\x09" * 32)
 
 
 if __name__ == "__main__":
