@@ -414,6 +414,7 @@ cached=<n> scope=<8 hex of h[0]>`. Never log `prompt_cache_key` or the API key.
 | `reserve` evicts until the estimate fits. | An estimate larger than the whole budget refuses *before* evicting. | §4.7 asks for this: a job that cannot fit an empty cache will not fit any cache, so throwing entries away for it is pure loss. |
 | — | `cache=off` in the log line covers "never looked", not just "opted out". | A short prompt, a remote segment and a refused admission are not cache misses, and scoring them as misses would understate the hit rate. Keyed off `JobCache.searched()`, i.e. the chain ids being empty. |
 | Nine `cache_*` / `pending_write_*` fields directly on `Job`. | One `Job.caching: JobCache` (`jobs/job_cache.py`), holding the same state under shorter names plus the decisions that read only it. | The same split `PassSequence` got in Phase 0, for the same reason: `Job` is already a 380-line state machine, and the cache path is the one part of it a reader can take in on its own. It also gives Phase 2 somewhere to put the incoming `cache_use_*` tags without growing `Job` again. `Job.cache` (the working `DynamicCache`) deliberately keeps its name — it is KV state, not bookkeeping. |
+| Seven `_cache_*` / `_plan_cache` / `_store_*` methods on `JobProcessor`. | One `CachePolicy` (`jobs/cache_policy.py`), built from the node's id, pipe, end model and `PromptCache`; the FSM holds one and calls into it at five points. | Same reason as `JobCache` and `PassSequence`: the cache block was 173 of the processor's 490 lines and touched no FSM state. The split is by question — the processor knows *when* a boundary is covered by what it just computed, the policy knows *whether* and *under which identity* to store it. It also gives Phase 2's layer-node paths (`JobTracker.add_job`, `JobReceiver`) somewhere to ask for an identity without a `JobContext`, instead of duplicating `_cache_identity`. `identity()` already takes the job for that reason, though Phase 1 ignores it. |
 | — | Two new test files beyond the plan's list: `job_processor/test_prompt_cache_path.py` and `test_jobs_server_page.py`. | The plan named `main_frame/components` for the TUI page test; that directory does not exist in this tree, so the page test sits with the other top-level TUI tests. |
 
 **Cross-cutting decisions (§7) as settled.** (1) Default **on**: `DEFAULT_MAX_CACHE_TIME
@@ -527,7 +528,9 @@ before touching a real pipe.
     network_job.origin_node_id, model_id, process_id, start_layer, end_layer)`. The
     layer range and `process_id` come from the local `LlmModel` for this pipe
     (`pipe.get_layer(network_job.current_layer, need_physical=True)`), so the
-    receiver passes them in. Hit → `adopt` into the new job's `cache`, and
+    receiver passes them in — or, better, let `CachePolicy.identity(job)` return the
+    layer-node shape when this node is not the origin, so the tracker and the
+    processor's write path stay on one definition. Hit → `adopt` into the new job's `cache`, and
     `job.caching.adopt(blocks)`. Miss → do **not** add the job; return `MISS`.
   - If `cache_reserve_tokens > 0`: `reserve(job_id, cache_reserve_tokens)`; on
     refusal return `NO_STORE` alongside the job (the job still runs).
@@ -579,7 +582,8 @@ before touching a real pipe.
   `cache_use_id`.
 
 **2.6 — Remove the local-pipe gate.** (S) Delete the `Pipe.is_local_to` check from
-`_state_embed` (keep the helper if the TUI uses it). Update the Phase 1 test that
+`CachePolicy.usable` (`jobs/cache_policy.py`; it moved off `_state_embed` at the end of
+Phase 1 — keep the `Pipe` helper if the TUI uses it). Update the Phase 1 test that
 asserted "no hit on a remote pipe" to assert a hit *with* tags emitted.
 
 **2.7 — Docs.** (S) `documentation/architecture.md`: replace the Phase 1 "single-node

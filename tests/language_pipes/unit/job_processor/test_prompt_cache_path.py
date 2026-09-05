@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..
 
 import torch
 
+from language_pipes.jobs.cache_policy import CachePolicy
 from language_pipes.jobs.prompt_cache import BLOCK_SIZE, MIN_CACHE_TOKENS, PromptCache
 from language_pipes.util.enums import ComputeStep, JobStatus
 
@@ -333,17 +334,14 @@ class EndOfResponseTests(unittest.TestCase):
         )
         return job
 
-    def processor(self, job):
-        return make_processor(
-            job=job, pipe=self.pipe, end_model=self.end_model,
-            node_id="node-1", prompt_cache=self.cache
-        )
+    def policy(self):
+        return CachePolicy("node-1", self.pipe, self.end_model, self.cache)
 
     def test_stores_at_the_largest_boundary_the_cache_actually_covers(self):
         # 6 blocks + 10 tokens generated; the cache covers total - 1 positions.
         job = self.finished_job(BLOCK_SIZE * 6 + 10)
 
-        self.processor(job)._store_end_of_response(job)
+        self.policy().store_end_of_response(job)
 
         ids = self.cache.chain(job.caching.scope, job.input_ids)
         entry = self.cache.lookup(
@@ -357,7 +355,7 @@ class EndOfResponseTests(unittest.TestCase):
     def test_nothing_is_stored_when_the_answer_adds_no_whole_block(self):
         job = self.finished_job(BLOCK_SIZE * 4 + 20)
 
-        self.processor(job)._store_end_of_response(job)
+        self.policy().store_end_of_response(job)
 
         self.assertEqual(self.cache.stats().entries, 0)
 
@@ -365,7 +363,7 @@ class EndOfResponseTests(unittest.TestCase):
         job = self.finished_job(BLOCK_SIZE * 6 + 10)
         job.caching.ids = []
 
-        self.processor(job)._store_end_of_response(job)
+        self.policy().store_end_of_response(job)
 
         self.assertEqual(self.cache.stats().entries, 0)
 
@@ -444,11 +442,8 @@ class LogFieldTests(unittest.TestCase):
         self.pipe = make_pipe()
 
     def fields(self, job):
-        processor = make_processor(
-            job=job, pipe=self.pipe, end_model=FakeEndModel(),
-            node_id="node-1", prompt_cache=self.cache
-        )
-        return processor._cache_log_fields(job)
+        policy = CachePolicy("node-1", self.pipe, FakeEndModel(), self.cache)
+        return policy.log_fields(job)
 
     def test_a_hit_reports_the_scope_prefix_and_never_the_cache_key(self):
         job = enable(make_job(origin_node_id="node-1"), self.cache, key="secret-key")
