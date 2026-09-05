@@ -336,8 +336,8 @@ class TestRestartAtTheOrigin(unittest.TestCase):
         self.dispatch(job, pipe, FakeEndModelContinue())
 
         self.assertFalse(self.bounce(job, pipe, pass_idx=1))
-        self.assertFalse(job.replaying)
-        self.assertIsNone(job.receive_error)
+        self.assertFalse(job.passes.replaying)
+        self.assertIsNone(job.passes.error)
 
 
 if __name__ == "__main__":

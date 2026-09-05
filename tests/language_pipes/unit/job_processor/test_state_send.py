@@ -59,8 +59,8 @@ class TestSendSavesThePass(unittest.TestCase):
         job.compute_step = ComputeStep.LAYER
         job.current_layer = 1
         job.data = make_job_data()
-        job.pass_idx = 4
-        job.pass_key = (ComputeStep.LAYER, 0)
+        job.passes.idx = 4
+        job.passes.key = (ComputeStep.LAYER, 0)
 
         next_model = FakeModel("node-b", 1, 1, virtual=False, num_hidden_layers=2)
         pipe = PipeWrapper("node-a", "model-a", [next_model])
@@ -78,7 +78,7 @@ class TestSendSavesThePass(unittest.TestCase):
 
         make_processor(job=job, pipe=pipe, end_model=None)._state_send()
 
-        saved = job.pass_outputs[(ComputeStep.LAYER, 0)]
+        saved = job.passes.outputs[(ComputeStep.LAYER, 0)]
         self.assertEqual(saved.pass_idx, 4)
         self.assertIs(saved.data, job.data)
         self.assertEqual(saved.compute_step, ComputeStep.LAYER)
@@ -86,11 +86,11 @@ class TestSendSavesThePass(unittest.TestCase):
 
     def test_a_replay_ends_when_the_pass_goes_back_out(self):
         job, pipe = self.make_job_at_send()
-        job.replaying = True
+        job.passes.replaying = True
 
         make_processor(job=job, pipe=pipe, end_model=None)._state_send()
 
-        self.assertFalse(job.replaying)
+        self.assertFalse(job.passes.replaying)
 
 
 if __name__ == "__main__":

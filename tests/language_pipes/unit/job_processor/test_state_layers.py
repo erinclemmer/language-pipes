@@ -170,7 +170,7 @@ class TestReplayedPass(unittest.TestCase):
         local_model.processed = False
 
         self.assertTrue(job.receive_network_job(self.incoming(job, 1), "node-1"))
-        self.assertTrue(job.replaying)
+        self.assertTrue(job.passes.replaying)
 
         processor = make_processor(job=job, pipe=pipe, end_model=None)
         processor.run()
@@ -192,7 +192,7 @@ class TestReplayedPass(unittest.TestCase):
         self.run_pass(job, pipe, 2)
 
         self.assertTrue(local_model.processed)
-        self.assertFalse(job.replaying)
+        self.assertFalse(job.passes.replaying)
         self.assertEqual(pipe.sent_jobs[1].pass_idx, 2)
 
 

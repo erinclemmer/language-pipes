@@ -33,7 +33,7 @@ def get_next_state(ctx: JobContext) -> JobState:
     # A replay resends the output this node already computed for the pass. It
     # must not run any layer again: the keys and values are in the cache
     # already, and computing would append them a second time.
-    if ctx.job.replaying:
+    if ctx.job.passes.replaying:
         return JobState.SEND
 
     cs = ctx.job.compute_step
@@ -150,7 +150,7 @@ class JobProcessor:
 
         # A replaying job only forwards what it already computed, so none of the
         # checks below apply to it.
-        if self.ctx.job.replaying:
+        if self.ctx.job.passes.replaying:
             return JobState.SEND
 
         if self.ctx.job.compute_step == ComputeStep.HEAD:
@@ -229,7 +229,7 @@ class JobProcessor:
         # Only the origin embeds, and every pass starts here, so this is where
         # the origin gives the pass its number. A restart never reaches this
         # state: it resends the saved pass under the number it already has.
-        job.start_pass()
+        job.passes.start()
 
         if job.prompt_tokens == 0:
             end_model.tokenize(job)
@@ -293,7 +293,7 @@ class JobProcessor:
 
         # Keep what went out. If a node downstream cannot validate the packet, it
         # bounces back and this is what gets sent again.
-        job.save_pass_output()
-        job.replaying = False
+        job.passes.save(job.data, job.compute_step, job.current_layer)
+        job.passes.sent()
 
         return JobState.DONE

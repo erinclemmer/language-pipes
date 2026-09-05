@@ -102,8 +102,8 @@ class JobReceiver:
             # A packet this node cannot honor at all - its cache no longer
             # matches the pass, or the pass has failed too many times. Cancel so
             # the origin's caller gets an error instead of a stale timeout.
-            if job.receive_error is not None:
-                self.cancel_job(job, job.receive_error)
+            if job.passes.error is not None:
+                self.cancel_job(job, job.passes.error)
             return
 
         pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)

@@ -6,11 +6,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'sr
 
 from transformers import PretrainedConfig
 
-from language_pipes.jobs.job import MAX_PASS_RETRIES, Job
+from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_cancel import JobCancel
 from language_pipes.jobs.job_receiver import CANCEL_PROTOCOL, JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob
+from language_pipes.jobs.pass_sequence import MAX_PASS_RETRIES
 from language_pipes.util.byte_helper import ByteHelper
 from language_pipes.util.enums import ComputeStep
 
@@ -284,7 +285,7 @@ class PassSequenceTests(unittest.TestCase):
     def test_a_pass_out_of_sequence_cancels_the_job(self):
         receiver, tracker, router = make_cancel_receiver("node-b")
         job = make_pending_job(tracker, origin_node_id="node-a")
-        job.last_pass_idx = 2
+        job.passes.last_idx = 2
 
         receiver._process_network_job(self.packet(5))
 
@@ -297,8 +298,8 @@ class PassSequenceTests(unittest.TestCase):
         """An origin with one pass in flight, waiting for it to come back."""
         receiver, tracker, router = make_cancel_receiver("node-a")
         job = make_pending_job(tracker, origin_node_id="node-a")
-        job.start_pass()
-        job.save_pass_output()
+        job.passes.start()
+        job.passes.save(job.data, job.compute_step, job.current_layer)
         return receiver, tracker, job
 
     def bounce(self, pass_idx: int) -> NetworkJob:
@@ -309,10 +310,10 @@ class PassSequenceTests(unittest.TestCase):
         receiver, tracker, job = self.make_dispatched_origin()
 
         for _ in range(MAX_PASS_RETRIES):
-            receiver._process_network_job(self.bounce(job.pass_idx))
+            receiver._process_network_job(self.bounce(job.passes.idx))
             self.assertIsNone(job.cancel_reason)
 
-        receiver._process_network_job(self.bounce(job.pass_idx))
+        receiver._process_network_job(self.bounce(job.passes.idx))
 
         self.assertEqual(
             job.cancel_reason,
@@ -322,14 +323,14 @@ class PassSequenceTests(unittest.TestCase):
 
     def test_a_bounce_for_a_pass_no_longer_in_flight_is_dropped(self):
         receiver, tracker, job = self.make_dispatched_origin()
-        job.start_pass()
-        job.save_pass_output()
+        job.passes.start()
+        job.passes.save(job.data, job.compute_step, job.current_layer)
 
         receiver._process_network_job(self.bounce(1))
 
         self.assertIsNone(job.cancel_reason)
         self.assertIsNotNone(tracker.get_job("job-1"))
-        self.assertFalse(job.replaying)
+        self.assertFalse(job.passes.replaying)
 
 
 class JobCancelPacketTests(unittest.TestCase):

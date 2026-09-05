@@ -7,9 +7,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'sr
 import torch
 from transformers import PretrainedConfig
 
-from language_pipes.jobs.job import MAX_PASS_RETRIES, Job
+from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.network_job import NetworkJob
+from language_pipes.jobs.pass_sequence import MAX_PASS_RETRIES
 from language_pipes.util.enums import ComputeStep, JobStatus
 from language_pipes.util.utils import CHUNK_SIZE
 
@@ -71,8 +72,8 @@ def compute_and_send(job: Job, output: JobData):
     job.data = output
     job.compute_step = ComputeStep.HEAD
     job.current_layer = 0
-    job.save_pass_output()
-    job.replaying = False
+    job.passes.save(job.data, job.compute_step, job.current_layer)
+    job.passes.sent()
 
 
 class JobOutputTests(unittest.TestCase):
@@ -280,7 +281,7 @@ class JobReplayTests(unittest.TestCase):
 
     def receive_and_compute(self, relay: Job, pass_idx: int) -> JobData:
         self.assertTrue(relay.receive_network_job(make_packet(relay, pass_idx), "node-b"))
-        self.assertFalse(relay.replaying)
+        self.assertFalse(relay.passes.replaying)
         output = make_data(float(pass_idx))
         compute_and_send(relay, output)
         return output
@@ -291,7 +292,7 @@ class JobReplayTests(unittest.TestCase):
 
         self.assertTrue(relay.receive_network_job(make_packet(relay, 1), "node-b"))
 
-        self.assertTrue(relay.replaying)
+        self.assertTrue(relay.passes.replaying)
         self.assertIs(relay.data, output)
         self.assertEqual(relay.compute_step, ComputeStep.HEAD)
         self.assertEqual(relay.current_layer, 0)
@@ -324,7 +325,7 @@ class JobReplayTests(unittest.TestCase):
         incoming = make_packet(relay, 2)
         self.assertTrue(relay.receive_network_job(incoming, "node-b"))
 
-        self.assertFalse(relay.replaying)
+        self.assertFalse(relay.passes.replaying)
         self.assertIs(relay.data, incoming.data)
         self.assertEqual(relay.compute_step, ComputeStep.LAYER)
 
@@ -338,7 +339,7 @@ class JobReplayTests(unittest.TestCase):
         incoming = make_packet(relay, 1, layer=4)
         self.assertTrue(relay.receive_network_job(incoming, "node-b"))
 
-        self.assertFalse(relay.replaying)
+        self.assertFalse(relay.passes.replaying)
         self.assertIs(relay.data, incoming.data)
 
     def test_pass_out_of_sequence_is_refused(self):
@@ -348,7 +349,7 @@ class JobReplayTests(unittest.TestCase):
 
         # Pass 3 never arrived, so the cache holds two positions, not three.
         self.assertFalse(relay.receive_network_job(make_packet(relay, 4), "node-b"))
-        self.assertEqual(relay.receive_error, "pass out of sequence")
+        self.assertEqual(relay.passes.error, "pass out of sequence")
 
     def test_a_pass_already_left_behind_is_refused(self):
         relay = make_relay(make_job())
@@ -356,24 +357,24 @@ class JobReplayTests(unittest.TestCase):
         self.receive_and_compute(relay, 2)
 
         self.assertFalse(relay.receive_network_job(make_packet(relay, 1), "node-b"))
-        self.assertEqual(relay.receive_error, "pass out of sequence")
+        self.assertEqual(relay.passes.error, "pass out of sequence")
 
     def test_a_node_that_joins_the_job_late_accepts_the_pass(self):
         relay = make_relay(make_job())
 
         self.assertTrue(relay.receive_network_job(make_packet(relay, 9), "node-b"))
 
-        self.assertFalse(relay.replaying)
-        self.assertIsNone(relay.receive_error)
+        self.assertFalse(relay.passes.replaying)
+        self.assertIsNone(relay.passes.error)
 
     def test_a_peer_that_does_not_number_passes_is_always_computed(self):
         relay = make_relay(make_job())
         for _ in range(3):
             self.assertTrue(relay.receive_network_job(make_packet(relay, 0), "node-b"))
-            self.assertFalse(relay.replaying)
+            self.assertFalse(relay.passes.replaying)
             compute_and_send(relay, make_data())
 
-        self.assertIsNone(relay.receive_error)
+        self.assertIsNone(relay.passes.error)
 
 
 class JobRestartTests(unittest.TestCase):
@@ -382,13 +383,13 @@ class JobRestartTests(unittest.TestCase):
 
     def dispatch(self, origin: Job) -> JobData:
         """Run the origin through one pass, up to the handoff."""
-        origin.start_pass()
-        output = make_data(float(origin.pass_idx))
+        origin.passes.start()
+        output = make_data(float(origin.passes.idx))
         origin.data = output
         origin.compute_step = ComputeStep.LAYER
         origin.current_layer = 2
-        origin.save_pass_output()
-        origin.replaying = False
+        origin.passes.save(origin.data, origin.compute_step, origin.current_layer)
+        origin.passes.sent()
         return output
 
     def bounce(self, origin: Job, pass_idx: int) -> NetworkJob:
@@ -409,9 +410,9 @@ class JobRestartTests(unittest.TestCase):
         origin = make_job()
         output = self.dispatch(origin)
 
-        self.assertTrue(origin.receive_network_job(self.bounce(origin, origin.pass_idx), "node-a"))
+        self.assertTrue(origin.receive_network_job(self.bounce(origin, origin.passes.idx), "node-a"))
 
-        self.assertTrue(origin.replaying)
+        self.assertTrue(origin.passes.replaying)
         self.assertIs(origin.data, output)
         self.assertEqual(origin.compute_step, ComputeStep.LAYER)
         self.assertEqual(origin.current_layer, 2)
@@ -419,11 +420,11 @@ class JobRestartTests(unittest.TestCase):
     def test_bounce_does_not_change_the_pass_number(self):
         origin = make_job()
         self.dispatch(origin)
-        pass_idx = origin.pass_idx
+        pass_idx = origin.passes.idx
 
         origin.receive_network_job(self.bounce(origin, pass_idx), "node-a")
 
-        self.assertEqual(origin.pass_idx, pass_idx)
+        self.assertEqual(origin.passes.idx, pass_idx)
         self.assertEqual(origin.to_network_job().pass_idx, pass_idx)
 
     def test_bounce_from_a_peer_that_does_not_number_passes_is_honored(self):
@@ -442,32 +443,32 @@ class JobRestartTests(unittest.TestCase):
         self.dispatch(origin)
 
         self.assertFalse(origin.receive_network_job(self.bounce(origin, 1), "node-a"))
-        self.assertIsNone(origin.receive_error)
-        self.assertFalse(origin.replaying)
+        self.assertIsNone(origin.passes.error)
+        self.assertFalse(origin.passes.replaying)
 
     def test_retries_are_capped(self):
         origin = make_job()
         self.dispatch(origin)
 
         for _ in range(MAX_PASS_RETRIES):
-            self.assertTrue(origin.receive_network_job(self.bounce(origin, origin.pass_idx), "node-a"))
-            origin.save_pass_output()
-            origin.replaying = False
+            self.assertTrue(origin.receive_network_job(self.bounce(origin, origin.passes.idx), "node-a"))
+            origin.passes.save(origin.data, origin.compute_step, origin.current_layer)
+            origin.passes.sent()
 
-        self.assertFalse(origin.receive_network_job(self.bounce(origin, origin.pass_idx), "node-a"))
+        self.assertFalse(origin.receive_network_job(self.bounce(origin, origin.passes.idx), "node-a"))
         self.assertEqual(
-            origin.receive_error,
+            origin.passes.error,
             f"packet failed validation after {MAX_PASS_RETRIES} retries"
         )
 
     def test_the_retry_count_resets_with_the_next_pass(self):
         origin = make_job()
         self.dispatch(origin)
-        origin.receive_network_job(self.bounce(origin, origin.pass_idx), "node-a")
+        origin.receive_network_job(self.bounce(origin, origin.passes.idx), "node-a")
 
         self.dispatch(origin)
 
-        self.assertEqual(origin.pass_retries, 0)
+        self.assertEqual(origin.passes.retries, 0)
 
 
 if __name__ == "__main__":
