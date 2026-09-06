@@ -464,19 +464,20 @@ class ShutdownCancelsJobsTests(unittest.TestCase):
         model_calls = []
         manager.set_job_hooks(
             lambda pipe_ids, reason: pipe_calls.append((pipe_ids, reason)),
-            lambda model_id, reason: model_calls.append((model_id, reason))
+            lambda model_id, reason: model_calls.append((model_id, reason)),
+            lambda a: None
         )
         return manager, pipe_calls, model_calls
 
     def test_unloading_layers_cancels_jobs_on_those_pipes(self):
         manager, pipe_calls, _ = self._manager_with_hooks()
         manager.layer_models.append(  # type: ignore[arg-type]
-            FakeLlmModel("model-1", "node-a", "pipe-1", torch.device("cpu"))
+            FakeLlmModel("model-1", "node-a", "pipe-1", torch.device("cpu")) # pyright: ignore[reportArgumentType]
         )
         manager.layer_models.append(  # type: ignore[arg-type]
-            FakeLlmModel("model-1", "node-a", "pipe-2", torch.device("cpu"))
+            FakeLlmModel("model-1", "node-a", "pipe-2", torch.device("cpu")) # pyright: ignore[reportArgumentType]
         )
-        router = RouterPipes(FakeStateNetworkNode("node-a"))
+        router = RouterPipes(FakeStateNetworkNode("node-a")) # pyright: ignore[reportArgumentType]
 
         manager.shutdown_layer_models(router, "model-1", torch.device("cpu"))
 
@@ -488,12 +489,12 @@ class ShutdownCancelsJobsTests(unittest.TestCase):
     def test_unloading_layers_ignores_models_on_other_devices(self):
         manager, pipe_calls, _ = self._manager_with_hooks()
         manager.layer_models.append(  # type: ignore[arg-type]
-            FakeLlmModel("model-1", "node-a", "pipe-1", torch.device("cpu"))
+            FakeLlmModel("model-1", "node-a", "pipe-1", torch.device("cpu")) # pyright: ignore[reportArgumentType]
         )
         manager.layer_models.append(  # type: ignore[arg-type]
-            FakeLlmModel("model-1", "node-a", "pipe-2", torch.device("cuda:0"))
+            FakeLlmModel("model-1", "node-a", "pipe-2", torch.device("cuda:0")) # pyright: ignore[reportArgumentType]
         )
-        router = RouterPipes(FakeStateNetworkNode("node-a"))
+        router = RouterPipes(FakeStateNetworkNode("node-a")) # pyright: ignore[reportArgumentType]
 
         manager.shutdown_layer_models(router, "model-1", torch.device("cpu"))
 
@@ -502,7 +503,7 @@ class ShutdownCancelsJobsTests(unittest.TestCase):
     def test_unloading_end_model_cancels_its_jobs(self):
         manager, _, model_calls = self._manager_with_hooks()
         manager.end_models.append(  # type: ignore[arg-type]
-            FakeEndModel(0, Path("./models"), "model-1", "cpu")
+            FakeEndModel(0, Path("./models"), "model-1", "cpu") # pyright: ignore[reportArgumentType]
         )
 
         manager.shutdown_end_model("model-1")
@@ -517,7 +518,7 @@ class ShutdownCancelsJobsTests(unittest.TestCase):
         # that must not blow up.
         manager = ModelManager()
         manager.end_models.append(  # type: ignore[arg-type]
-            FakeEndModel(0, Path("./models"), "model-1", "cpu")
+            FakeEndModel(0, Path("./models"), "model-1", "cpu") # pyright: ignore[reportArgumentType]
         )
 
         manager.shutdown_end_model("model-1")
@@ -544,7 +545,7 @@ class UnloadDropsCachedPrefixesTests(unittest.TestCase):
         manager, dropped = self._manager_with_hooks()
         model = FakeLlmModel("model-1", "node-a", "pipe-1", torch.device("cpu"))
         manager.layer_models.append(model)  # type: ignore[arg-type]
-        router = RouterPipes(FakeStateNetworkNode("node-a"))
+        router = RouterPipes(FakeStateNetworkNode("node-a")) # pyright: ignore[reportArgumentType]
 
         manager.shutdown_layer_models(router, "model-1", torch.device("cpu"))
 
@@ -563,9 +564,9 @@ class UnloadDropsCachedPrefixesTests(unittest.TestCase):
         """The hook only exists once the network is running."""
         manager = ModelManager()
         manager.end_models.append(  # type: ignore[arg-type]
-            FakeEndModel(0, Path("./models"), "model-1", "cpu")
+            FakeEndModel(0, Path("./models"), "model-1", "cpu") # pyright: ignore[reportArgumentType]
         )
-        manager.set_job_hooks(lambda a, b: None, lambda a, b: None)
+        manager.set_job_hooks(lambda a, b: None, lambda a, b: None, lambda a: None)
 
         manager.shutdown_end_model("model-1")
 

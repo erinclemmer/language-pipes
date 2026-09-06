@@ -13,20 +13,15 @@ from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.modeling.end_model import EndModel
 
-from language_pipes.util.config import get_model_dir, is_8_bit_mode
+from language_pipes.util.config import get_model_dir
 
 class ModelManager:
     layer_models: List[LlmModel]
     end_models: List[EndModel]
     pipes_hosted: Dict[str, List[str]]
 
-    # Set once the job runtime exists (see ContentProvider.set_router) so
-    # unloading a model can stop the jobs that were relying on it.
     cancel_pipe_jobs: Callable[[List[str], str], None]
     cancel_model_jobs: Callable[[str, str], None]
-    # Prompt-cache entries name the model processes whose layers they hold, so
-    # unloading one has to drop them: the reloaded weights are a different
-    # process and the old KV state must not be adopted onto them.
     drop_cached_prefixes: Callable[[str], None]
 
     def __init__(self):
@@ -40,12 +35,11 @@ class ModelManager:
         self,
         cancel_pipe_jobs: Callable[[List[str], str], None],
         cancel_model_jobs: Callable[[str, str], None],
-        drop_cached_prefixes: Optional[Callable[[str], None]] = None
+        drop_cached_prefixes: Callable[[str], None]
     ):
         self.cancel_pipe_jobs = cancel_pipe_jobs
         self.cancel_model_jobs = cancel_model_jobs
-        if drop_cached_prefixes is not None:
-            self.drop_cached_prefixes = drop_cached_prefixes
+        self.drop_cached_prefixes = drop_cached_prefixes
 
     def clear_job_hooks(self):
         self.cancel_pipe_jobs = lambda pipe_ids, reason: None
@@ -192,9 +186,6 @@ class ModelManager:
             m.pipe_id for m in self.layer_models
             if m.model_id == model_id and m.device == device
         ]
-        # Cancel first: the pipes lose layers here, so any job still running on
-        # them is dead either way, and stopping it now keeps the job from
-        # computing against tensors that are about to be freed.
         self.cancel_pipe_jobs(pipe_ids, f"layers for {model_id} unloaded")
 
         for model in self.layer_models:
@@ -204,9 +195,9 @@ class ModelManager:
                 to_remove.append(model.process_id)
                 self.logger.info(f"Stopping model {model.model_id} on {model.device}")
 
-        for m_id in to_remove:
-            self.layer_models = [m for m in self.layer_models if m.process_id != m_id]
-            self.drop_cached_prefixes(m_id)
+        for p_id in to_remove:
+            self.layer_models = [m for m in self.layer_models if m.process_id != p_id]
+            self.drop_cached_prefixes(p_id)
 
         self.refresh_pipes_hosted()
         gc.collect()
@@ -221,9 +212,9 @@ class ModelManager:
                 to_remove.append(model.process_id)
                 self.logger.info(f"Stopping end model {model.model_id}")
 
-        for m_id in to_remove:
-            self.end_models = [m for m in self.end_models if m.process_id != m_id]
-            self.drop_cached_prefixes(m_id)
+        for p_id in to_remove:
+            self.end_models = [m for m in self.end_models if m.process_id != p_id]
+            self.drop_cached_prefixes(p_id)
 
         self.refresh_pipes_hosted()
         gc.collect()

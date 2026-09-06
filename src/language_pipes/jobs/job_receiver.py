@@ -5,6 +5,7 @@ from time import sleep
 from threading import Thread
 from typing import Callable, Dict, Optional, List
 
+from language_pipes.pipes.pipe import Pipe
 from language_pipes.pipes.pipe_manager import PipeManager
 
 from language_pipes.jobs.cache_packets import CacheReason, CacheStatus
@@ -85,18 +86,12 @@ class JobReceiver:
         """Take one packet off the queue and run the FSM over it."""
         job = self.job_tracker.get_job(network_job.job_id)
         if job is None:
-            # A job that already finished or was canceled must not be
-            # resurrected by a packet that was still in flight.
             if network_job.job_id in self.job_tracker.jobs_completed:
                 return
-            pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
-            assert pipe is not None
-            job = self._add_job(network_job, pipe)
-            if job is None:
-                # A miss: this node does not hold the prefix the job was
-                # dispatched with, so it has not computed the pass. The origin
-                # has been told and will rebuild.
+            job, cache_outcome = self._add_job(network_job)
+            if cache_outcome is CacheOutcome.MISS:
                 return
+            assert job is not None
 
         node_id = self.pipe_manager.router_pipes.router.node_id()
 
@@ -129,8 +124,10 @@ class JobReceiver:
         except Exception as e:
             self.logger.exception(f"Job processing failed: {e}")
 
-    def _add_job(self, network_job: NetworkJob, pipe) -> Optional[Job]:
+    def _add_job(self, network_job: NetworkJob) -> tuple[Job | None, CacheOutcome]:
         """Take on a job this node has not seen, answering the origin's tags."""
+        pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
+        assert pipe is not None
         node_id = self.pipe_manager.router_pipes.router.node_id()
         policy = CachePolicy(
             node_id,
@@ -149,16 +146,14 @@ class JobReceiver:
                 network_job.job_id, network_job.pipe_id,
                 network_job.attempt, CacheReason.MISS
             ))
-            return None
+            return None, outcome
         if outcome == CacheOutcome.NO_STORE:
-            # The job still runs; it just must not leave a half-written entry
-            # set behind on the rest of the pipe.
             self._send_cache_status(network_job.origin_node_id, CacheStatus(
                 network_job.job_id, network_job.pipe_id,
                 network_job.attempt, CacheReason.NO_STORE
             ))
         assert job is not None
-        return job
+        return job, outcome
 
     def _node_id(self) -> str:
         return self.pipe_manager.router_pipes.router.node_id()
@@ -234,11 +229,6 @@ class JobReceiver:
         if status.reason == CacheReason.MISS:
             self._rebuild_job(job)
         elif status.reason == CacheReason.NO_STORE:
-            # Budget is decided once, in `add_job`, on the job's first pass -
-            # and the earliest write point is `MIN_CACHE_TOKENS` in, several
-            # passes later. So a refusal always arrives before any node has
-            # stored anything for this job, and there is no half-written entry
-            # set to clean up.
             job.caching.stop_writing()
 
     def _rebuild_job(self, job: Job):

@@ -115,8 +115,6 @@ class ContentProvider:
         if router is not None:
             self.router_pipes = RouterPipes(router)
             self.pipe_manager = PipeManager(self.model_manager, self.router_pipes)
-            # One cache per node, shared by the origin path and
-            # the layer path, so both see the same entries and the same budget.
             self.prompt_cache = PromptCache(
                 self.job_provider.get_max_cache_time,
                 self.job_provider.get_max_cache_tokens,

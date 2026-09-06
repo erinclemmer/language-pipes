@@ -36,7 +36,7 @@ class JobTracker:
         while True:
             if self.shutdown:
                 return
-            for key in self.jobs_pending.keys():
+            for key in self.jobs_pending:
                 remove_jobs = []
                 for j in self.jobs_pending[key]:
                     if j.stale:
@@ -68,7 +68,7 @@ class JobTracker:
             sleep(CHECK_JOB_INTERVAL)
 
     def get_job(self, job_id: str) -> Optional[Job]:
-        for key in self.jobs_pending.keys():
+        for key in self.jobs_pending:
             for j in self.jobs_pending[key]:
                 if j.job_id == job_id:
                     return j
