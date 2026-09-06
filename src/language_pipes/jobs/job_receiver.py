@@ -5,6 +5,7 @@ from time import sleep
 from threading import Thread
 from typing import Callable, Dict, Optional, List
 
+from language_pipes.jobs.job_queue import JobQueue
 from language_pipes.pipes.pipe_manager import PipeManager
 
 from language_pipes.jobs.cache_packets import CacheReason, CacheStatus
@@ -21,15 +22,14 @@ from language_pipes.util.byte_helper import ByteHelper
 CANCEL_PROTOCOL = 2
 CACHE_PROTOCOL = 3
 
+
 class JobReceiver:
     job_factory: JobFactory
-    job_queue: Dict[str, List[NetworkJob]]
-    queue_lock: threading.Lock
+    job_queue: JobQueue
     pipe_manager: PipeManager
     model_manager: ModelManager
     shutdown: bool
     is_shutdown: Callable[[], bool]
-    get_max_node_jobs: Callable[[], int]
 
     def __init__(
             self,
@@ -40,40 +40,21 @@ class JobReceiver:
             is_shutdown: Callable[[], bool],
             get_max_node_jobs: Callable[[], int]
     ):
-        self.job_queue = { }
-        self.queue_lock = threading.Lock()
+        self.shutdown = False
+        self.job_queue = JobQueue(lambda: (is_shutdown() or self.shutdown), get_max_node_jobs)
         self.logger = logging.getLogger(__name__)
         self.job_tracker = job_tracker
         self.job_factory = job_factory
         self.model_manager = model_manager
         self.pipe_manager = pipe_manager
-        self.is_shutdown = is_shutdown
-        self.get_max_node_jobs = get_max_node_jobs
-        self.shutdown = False
         
         Thread(target=self._job_runner_loop, args=()).start()
-
-    def _wait_for_job(self) -> Optional[NetworkJob]:
-        """Wait for a job from the queue. Returns None if shutting down."""
-        while True:
-            if self.is_shutdown() or self.shutdown:
-                return None
-            if len(self.job_queue.keys()) > 0:
-                with self.queue_lock:
-                    node_id = random.choice(list(self.job_queue.keys()))
-                    node_jobs = self.job_queue[node_id]
-                    idx = random.randrange(len(node_jobs))
-                    network_job = self.job_queue[node_id].pop(idx)
-                    if len(self.job_queue[node_id]) == 0:
-                        del self.job_queue[node_id]
-                return network_job
-            sleep(0.01)
 
     def _job_runner_loop(self):
         """Main job processing loop using FSM."""
         try:
             while True:
-                network_job = self._wait_for_job()
+                network_job = self.job_queue.wait_for_job()
                 if network_job is None:
                     return
                 self._process_network_job(network_job)
@@ -153,14 +134,6 @@ class JobReceiver:
     def _node_id(self) -> str:
         return self.pipe_manager.router_pipes.router.node_id()
 
-    def _drop_queued(self, job_id: str):
-        """Discard packets for a job that is no longer running."""
-        with self.queue_lock:
-            for node_id in list(self.job_queue.keys()):
-                self.job_queue[node_id] = [j for j in self.job_queue[node_id] if j.job_id != job_id]
-                if len(self.job_queue[node_id]) == 0:
-                    del self.job_queue[node_id]
-
     def _send_cancel(self, node_id: str, cancel: JobCancel):
         bts = ByteHelper()
         bts.write_int(CANCEL_PROTOCOL)
@@ -191,7 +164,7 @@ class JobReceiver:
                 f"Could not send cache status for job {status.job_id[:4]} to {node_id}: {e}"
             )
 
-    def receive_cache_status(self, node_id: str, data: bytes):
+    def receive_cache_status(self, data: bytes):
         """Handle the prompt cache's back-channel (see `jobs/cache_packets.py`)."""
         try:
             status = CacheStatus.from_bytes(data)
@@ -215,7 +188,7 @@ class JobReceiver:
         if status.reason == CacheReason.ABORT:
             if is_origin:
                 return
-            self._drop_queued(job.job_id)
+            self.job_queue.drop_queued(job.job_id)
             self.job_tracker.remove_job(job.job_id)
             return
         if not is_origin:
@@ -243,7 +216,7 @@ class JobReceiver:
             f"Job {job.job_id[:4]} restarting uncached: "
             "a node on the pipe does not hold the prefix"
         )
-        self._drop_queued(job.job_id)
+        self.job_queue.drop_queued(job.job_id)
         job.rebuild()
         # The rest of the job stores nothing, so the budget it was holding for
         # what it would store is better spent on entries that still exist.
@@ -276,7 +249,7 @@ class JobReceiver:
         The origin node is the one holding the API request open, so it has to
         hear about the cancel; otherwise it waits out the stale timeout.
         """
-        self._drop_queued(job.job_id)
+        self.job_queue.drop_queued(job.job_id)
         origin_node_id = job.origin_node_id
         self.job_tracker.cancel_job(job, reason)
         if origin_node_id != self._node_id():
@@ -306,7 +279,7 @@ class JobReceiver:
             return
         job = self.job_tracker.get_job(cancel.job_id)
         if job is None or job.pipe_id != cancel.pipe_id:
-            self._drop_queued(cancel.job_id)
+            self.job_queue.drop_queued(cancel.job_id)
             return
         self.cancel_job(job, cancel.reason)
 
@@ -335,16 +308,5 @@ class JobReceiver:
         if not valid:
             self.restart_token(job)
             return
-        
-        # Ignore duplicate jobs
-        if node_id in self.job_queue:
-            for j in self.job_queue[node_id]:
-                if j.job_id == job.job_id:
-                    return
 
-        with self.queue_lock:
-            if node_id not in self.job_queue:
-                self.job_queue[node_id] = [ ]
-            if len(self.job_queue[node_id]) > self.get_max_node_jobs():
-                raise Exception("Maximum number of jobs for node reached")
-            self.job_queue[node_id].insert(0, job)
+        self.job_queue.add_to_queue(node_id, job)

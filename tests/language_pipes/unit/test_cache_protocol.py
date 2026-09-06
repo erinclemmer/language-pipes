@@ -205,7 +205,6 @@ class OriginRebuildTests(unittest.TestCase):
 
     def miss(self, attempt: int = 0):
         self.receiver.receive_cache_status(
-            "node-2",
             CacheStatus("job-1", self.pipe.pipe_id, attempt, CacheReason.MISS).to_bytes()
         )
 
@@ -266,7 +265,6 @@ class OriginRebuildTests(unittest.TestCase):
 
     def test_no_store_stops_the_job_writing_anything(self):
         self.receiver.receive_cache_status(
-            "node-2",
             CacheStatus("job-1", self.pipe.pipe_id, 0, CacheReason.NO_STORE).to_bytes()
         )
 
@@ -279,20 +277,18 @@ class OriginRebuildTests(unittest.TestCase):
 
     def test_a_status_for_an_unknown_job_is_ignored(self):
         self.receiver.receive_cache_status(
-            "node-2",
             CacheStatus("job-9", self.pipe.pipe_id, 0, CacheReason.MISS).to_bytes()
         )
 
         self.assertEqual(self.job.passes.attempt, 0)
 
     def test_an_unparseable_status_is_ignored(self):
-        self.receiver.receive_cache_status("node-2", b"not a cache status")
+        self.receiver.receive_cache_status(b"not a cache status")
 
         self.assertEqual(self.job.passes.attempt, 0)
 
     def test_the_origin_ignores_an_abort_for_its_own_job(self):
         self.receiver.receive_cache_status(
-            "node-2",
             CacheStatus("job-1", self.pipe.pipe_id, 0, CacheReason.ABORT).to_bytes()
         )
 
@@ -324,7 +320,6 @@ class AbortTests(unittest.TestCase):
 
     def abort(self, attempt: int):
         self.receiver.receive_cache_status(
-            "node-1",
             CacheStatus("job-1", self.pipe.pipe_id, attempt, CacheReason.ABORT).to_bytes()
         )
 
@@ -347,7 +342,6 @@ class AbortTests(unittest.TestCase):
         """`MISS` travels to the origin; a node hosting layers has no job of its
         own to restart and must not try."""
         self.receiver.receive_cache_status(
-            "node-1",
             CacheStatus("job-1", self.pipe.pipe_id, 0, CacheReason.MISS).to_bytes()
         )
 

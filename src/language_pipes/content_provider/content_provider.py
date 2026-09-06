@@ -168,7 +168,7 @@ class ContentProvider:
         if protocol == CANCEL_PROTOCOL and self.job_receiver is not None:
             self.job_receiver.receive_cancel(node_id, bts.read_bytes())
         if protocol == CACHE_PROTOCOL and self.job_receiver is not None:
-            self.job_receiver.receive_cache_status(node_id, bts.read_bytes())
+            self.job_receiver.receive_cache_status(bts.read_bytes())
 
     def stop_network(self):
         if self.router is None:
