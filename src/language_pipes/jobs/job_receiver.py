@@ -5,7 +5,6 @@ from time import sleep
 from threading import Thread
 from typing import Callable, Dict, Optional, List
 
-from language_pipes.pipes.pipe import Pipe
 from language_pipes.pipes.pipe_manager import PipeManager
 
 from language_pipes.jobs.cache_packets import CacheReason, CacheStatus
@@ -88,18 +87,14 @@ class JobReceiver:
         if job is None:
             if network_job.job_id in self.job_tracker.jobs_completed:
                 return
-            job, cache_outcome = self._add_job(network_job)
-            if cache_outcome is CacheOutcome.MISS:
+            job = self._add_job(network_job)
+            if job is None:
                 return
-            assert job is not None
 
         node_id = self.pipe_manager.router_pipes.router.node_id()
 
         # Validate network job
         if not job.receive_network_job(network_job, node_id):
-            # A packet this node cannot honor at all - its cache no longer
-            # matches the pass, or the pass has failed too many times. Cancel so
-            # the origin's caller gets an error instead of a stale timeout.
             if job.passes.error is not None:
                 self.cancel_job(job, job.passes.error)
             return
@@ -124,7 +119,7 @@ class JobReceiver:
         except Exception as e:
             self.logger.exception(f"Job processing failed: {e}")
 
-    def _add_job(self, network_job: NetworkJob) -> tuple[Job | None, CacheOutcome]:
+    def _add_job(self, network_job: NetworkJob) -> Job | None:
         """Take on a job this node has not seen, answering the origin's tags."""
         pipe = self.pipe_manager.get_pipe_by_pipe_id(network_job.pipe_id)
         assert pipe is not None
@@ -138,22 +133,22 @@ class JobReceiver:
         job, outcome = self.job_tracker.add_job(
             network_job,
             self.model_manager.get_config(pipe.model_id),
+            policy,
             pipe.model_id,
-            policy
         )
         if outcome == CacheOutcome.MISS:
             self._send_cache_status(network_job.origin_node_id, CacheStatus(
                 network_job.job_id, network_job.pipe_id,
                 network_job.attempt, CacheReason.MISS
             ))
-            return None, outcome
+            return None
         if outcome == CacheOutcome.NO_STORE:
             self._send_cache_status(network_job.origin_node_id, CacheStatus(
                 network_job.job_id, network_job.pipe_id,
                 network_job.attempt, CacheReason.NO_STORE
             ))
         assert job is not None
-        return job, outcome
+        return job
 
     def _node_id(self) -> str:
         return self.pipe_manager.router_pipes.router.node_id()

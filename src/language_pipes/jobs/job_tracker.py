@@ -149,21 +149,12 @@ class JobTracker:
         self,
         network_job: NetworkJob,
         config: PretrainedConfig,
+        cache_policy: CachePolicy,
         model_id: str = "",
-        cache_policy: Optional[CachePolicy] = None
     ) -> Tuple[Optional[Job], CacheOutcome]:
-        """Build the local record for a job this node only hosts layers for.
-
-        This is also where the prompt cache is read, because it is where the
-        job's `DynamicCache` is created: a node that adopts a prefix has to do
-        it before a single layer runs. The outcome travels back out because only
-        `JobReceiver` can answer the origin - on `MISS` there is no job at all
-        and the packet must not be computed.
-        """
         existing = self.get_job(network_job.job_id)
-        if existing is not None:
-            return None, CacheOutcome.OK
-
+        assert existing is None
+        
         job = Job(
             origin_node_id=network_job.origin_node_id,
             messages=[],
@@ -182,16 +173,10 @@ class JobTracker:
 
         # After the checks above, so a refused packet cannot leave a reservation
         # behind for a job that never ran.
-        outcome = CacheOutcome.OK
-        if cache_policy is not None:
-            outcome = cache_policy.adopt_for_node(job, network_job)
-            if outcome == CacheOutcome.MISS:
-                return None, outcome
+        outcome = cache_policy.adopt_for_node(job, network_job)
+        if outcome == CacheOutcome.MISS:
+            return None, outcome
 
-        # prompt_tokens is left at 0: only the origin tokenizes, and the state in
-        # flight is one pass wide, not the prompt. The UI reads the origin's own
-        # count out of Job.display_progress() instead.
-        job.last_update = time()
         if 'network' not in self.jobs_pending:
             self.jobs_pending['network'] = []
         
