@@ -5,9 +5,10 @@ import psutil
 import torch
 from typing import Callable, List, Optional, Dict
 
+from language_pipes.jobs.job_cancel import CANCEL_PROTOCOL
 from language_pipes.request_for_model.rfm import RequestForModelHandler
 from language_pipes.jobs.job_factory import JobFactory
-from language_pipes.jobs.job_receiver import CACHE_PROTOCOL, CANCEL_PROTOCOL, JobReceiver
+from language_pipes.jobs.job_receiver import CACHE_PROTOCOL, JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.prompt_cache import PromptCache
 from language_pipes.util.byte_helper import ByteHelper
@@ -132,8 +133,8 @@ class ContentProvider:
                 get_max_node_jobs=self.job_provider.get_max_node_jobs
             )
             self.model_manager.set_job_hooks(
-                self.job_receiver.cancel_pipe_jobs,
-                self.job_receiver.cancel_model_jobs,
+                self.job_receiver.cancel_protocol.cancel_pipe_jobs,
+                self.job_receiver.cancel_protocol.cancel_model_jobs,
                 self.prompt_cache.clear_process
             )
 
@@ -166,7 +167,7 @@ class ContentProvider:
         if protocol == 1:
             self.request_for_model.receive_data(node_id, data)
         if protocol == CANCEL_PROTOCOL and self.job_receiver is not None:
-            self.job_receiver.receive_cancel(node_id, bts.read_bytes())
+            self.job_receiver.cancel_protocol.receive_cancel(bts.read_bytes())
         if protocol == CACHE_PROTOCOL and self.job_receiver is not None:
             self.job_receiver.receive_cache_status(bts.read_bytes())
 

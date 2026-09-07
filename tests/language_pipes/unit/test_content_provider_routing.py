@@ -8,8 +8,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'sr
 
 from language_pipes.content_provider.content_provider import ContentProvider
 from language_pipes.jobs.cache_packets import CacheReason, CacheStatus
-from language_pipes.jobs.job_cancel import JobCancel
-from language_pipes.jobs.job_receiver import CACHE_PROTOCOL, CANCEL_PROTOCOL
+from language_pipes.jobs.job_cancel import CANCEL_PROTOCOL, JobCancel
+from language_pipes.jobs.job_receiver import CACHE_PROTOCOL
 from language_pipes.util.byte_helper import ByteHelper
 
 
