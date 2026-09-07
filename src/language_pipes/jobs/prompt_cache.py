@@ -385,18 +385,9 @@ class PromptCache:
         model_id: str,
         process_ids: List[str],
         start_layer: int,
-        end_layer: int,
-        count: bool = True
-    ) -> Optional[Tuple[int, CacheEntry]]:
-        """Walk the chain down from `max_blocks` and take the first hit.
-
-        Counts exactly one hit or one miss for the request, which is what makes
-        the reported hit rate mean "requests that reused something" - unless
-        `count=False`, which is what a caller that still has to decide whether
-        the job can afford to use what it found passes: scoring happens once
-        that is known, via `count_lookup`, so a hit followed by a refused
-        reservation is not counted as a hit.
-        """
+        end_layer: int
+    ) -> Tuple[int, CacheEntry] | None:
+        """Walk the chain down from `max_blocks` and take the first hit"""
         if not self.enabled():
             return None
         max_blocks = min(max_blocks, len(cache_ids) - 1)
@@ -406,13 +397,7 @@ class PromptCache:
                 process_ids, start_layer, end_layer
             )
             if entry is not None:
-                if count:
-                    with self._lock:
-                        self.hits += 1
                 return blocks, entry
-        if count:
-            with self._lock:
-                self.misses += 1
         return None
 
     def count_lookup(self, hit: bool):

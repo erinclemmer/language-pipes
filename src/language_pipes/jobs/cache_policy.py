@@ -1,26 +1,6 @@
-"""What this node caches for a job, and under which identity.
-
-The split with the rest of the cache code is by question answered:
-
-- `PromptCache` (`jobs/prompt_cache.py`) owns the entries - one store per node.
-- `JobCache` (`jobs/job_cache.py`) is one job's bookkeeping - what it adopted,
-  where it is due to be snapshotted. It holds no tensors and talks to no store.
-- `CachePolicy` here binds the two to a node: given this node's pipe and end
-  model, it decides whether a job may use the cache at all, what identity its
-  slice is stored under, and it performs the reads and writes.
-- `JobProcessor` decides *when* those moments are - it knows that a pass has
-  just finished and that the boundary is therefore covered - and calls in.
-
-Keeping the policy off the state machine is what lets the layer-node paths ask
-the same questions: `JobTracker.add_job` adopts a prefix into a job it is still
-building, and `JobReceiver` answers the origin - both have a pipe and a node id,
-neither has a `JobContext` or an FSM.
-"""
-
 import logging
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import List, Optional
 
 from language_pipes.jobs.job import Job
 from language_pipes.jobs.network_job import NetworkJob
@@ -34,19 +14,13 @@ from language_pipes.util.enums import ComputeStep
 class CacheIdentity:
     """What a stored slice is bound to. A lookup matches on all four."""
     model_id: str
-    # Every model process whose layers the slice covers; a reload of any of them
-    # invalidates it.
-    process_ids: List[str]
+    process_ids: list[str]
     start_layer: int
     end_layer: int
 
 
 class CacheOutcome(Enum):
-    """What a layer node has to tell the origin after taking on a job.
-
-    Only the receiver can send, so the answer travels back out of `add_job` and
-    it does the talking.
-    """
+    """What a layer node has to tell the origin after taking on a job"""
     # Adopted what it was told to, and has budget for what it was asked to hold.
     OK = auto()
     # Does not hold the prefix. The job was not added and the pass was not
@@ -58,19 +32,12 @@ class CacheOutcome(Enum):
 
 
 class CachePolicy:
-    """One per `JobProcessor`, built from the node's pipe and end model.
-
-    Built with `prompt_cache=None` on a node without a cache, in which case
-    every method below is a no-op - so a processor made without one behaves as
-    it did before caching existed, and its call sites stay unbranched.
-    """
-
     def __init__(
         self,
         node_id: str,
-        pipe: Optional[Pipe],
-        end_model: Optional[EndModel],
-        prompt_cache: Optional[PromptCache] = None
+        pipe: Pipe | None,
+        end_model: EndModel | None,
+        prompt_cache: PromptCache | None = None
     ):
         self.node_id = node_id
         self.pipe = pipe
@@ -80,12 +47,7 @@ class CachePolicy:
 
     # -- identity ---------------------------------------------------------
 
-    def local_segments(self) -> List:
-        """The physical layer segments of this pipe that run on this node.
-
-        Sorted, so the identity built from them does not depend on the order
-        `Pipe.from_meta` happened to assemble them in.
-        """
+    def local_segments(self) -> list:
         if self.pipe is None:
             return []
         return sorted(
@@ -96,23 +58,8 @@ class CachePolicy:
             key=lambda s: s.start_layer
         )
 
-    def identity(self, job: Job) -> Optional[CacheIdentity]:
-        """What this node's slice of the prefix is, for binding an entry.
-
-        The two shapes are different questions, so they are bound differently:
-
-        - On the **origin**, the entry stands for a job running this pipe as it
-          is configured now, so every process on the pipe goes into it. A
-          segment moving to another node does not corrupt the origin's own
-          slice, but it does guarantee the reuse would miss out there, and
-          missing locally is cheaper than a rebuild round trip.
-        - On a **layer node**, the entry is exactly what its own processes
-          computed. It knows nothing about the rest of the pipe and must not
-          claim to.
-
-        Either way this is a pure function of the node, the pipe and the job's
-        origin, so `add_job` and the write path a pass later agree on it.
-        """
+    def identity(self, job: Job) -> CacheIdentity | None:
+        """What this node's slice of the prefix is, for binding an entry"""
         pipe = self.pipe
         if pipe is None:
             return None
@@ -147,28 +94,20 @@ class CachePolicy:
 
         return CacheIdentity(pipe.model_id, process_ids, 0, num_hidden_layers - 1)
 
-    def last_local_layer(self, job: Job) -> Optional[int]:
+    def last_local_layer(self, job: Job) -> int | None:
         """The highest layer this node computes for this pipe, or None."""
         ends = [s.end_layer for s in self.local_segments()]
-        end_model = self.end_model
         if (
             self.node_id == job.origin_node_id
-            and end_model is not None
-            and len(end_model.layers) > 0
+            and self.end_model is not None
+            and len(self.end_model.layers) > 0
         ):
-            ends.append(len(end_model.layers) - 1)
+            ends.append(len(self.end_model.layers) - 1)
         return max(ends) if len(ends) > 0 else None
 
     def pass_complete_here(self, job: Job) -> bool:
-        """Whether this node has just finished the last of its layers for the pass.
-
-        That is the one moment its cache covers exactly the tagged boundary and
-        no more. A node hosting two ranges of one pipe is visited twice, and a
-        snapshot taken after the first visit would be missing this pass for
-        every layer of the second.
-        """
+        """Whether this node has finished the last of its layers for the pass"""
         if job.compute_step != ComputeStep.LAYER:
-            # The pass has left the layer stack altogether.
             return True
         last = self.last_local_layer(job)
         return last is None or job.current_layer > last
@@ -185,12 +124,7 @@ class CachePolicy:
     # -- read path --------------------------------------------------------
 
     def plan(self, job: Job):
-        """Adopt the longest usable prefix and decide where to snapshot.
-
-        Runs once, right after tokenize - the first moment the prompt is known -
-        and before `init_chunking`, which starts the chunks after whatever was
-        adopted.
-        """
+        """Adopt the longest usable prefix and decide where to snapshot"""
         cache = self.prompt_cache
         if cache is None or not self.usable(job):
             return
@@ -201,37 +135,24 @@ class CachePolicy:
 
         job.caching.ids = cache.chain(job.caching.scope, job.input_ids)
 
-        # In explicit mode the client says where the stable blocks end, and a
-        # request whose breakpoints all fall away asked for caching this prompt
-        # cannot give it - so it runs uncached rather than silently reverting to
-        # the implicit boundary it did not ask for.
         if job.caching.options.mode == "explicit" and not self._plan_explicit(job):
             job.caching.forget()
             return
 
-        # At least one token has to be left to embed, so the longest prefix that
-        # could be adopted stops one token short of the prompt.
+        # At least one token has to be left to embed
         max_blocks = (job.prompt_tokens - 1) // BLOCK_SIZE
 
-        # Look before reserving, so the estimate can charge the real cost
-        # instead of assuming the largest possible prefix. Uncounted: the
-        # outcome is not known to be usable until admission succeeds below, and
-        # a hit followed by a refused reservation must count as neither.
+        # Look before reserving
         found = cache.find_longest(
             job.caching.ids, max_blocks, job.origin_node_id,
             identity.model_id, identity.process_ids,
-            identity.start_layer, identity.end_layer,
-            count=False
+            identity.start_layer, identity.end_layer
         )
-        # Only a device-resident hit costs anything extra: memory then holds
-        # the entry plus this job's own working cache (which already covers
-        # whatever it adopts) at once. A host-resident hit costs nothing here -
-        # the promoted copy *is* the job's working cache.
+
+        # The prefix only costs something extra if it needs to be copied to a new device
         prefix_cost = found[1].token_count if found is not None and found[1].on_device else 0
 
-        # An upper bound on what this job will ask the cache to hold: the entry
-        # it may reuse stays resident for the job's life, and its own working
-        # cache is what gets stored at the write points.
+        # An upper bound on what this job will ask the cache to hold
         estimate = prefix_cost + job.prompt_tokens + job.max_completion_tokens
         if not cache.reserve(job.job_id, estimate):
             self.logger.info(

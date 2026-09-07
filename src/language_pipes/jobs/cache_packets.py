@@ -1,22 +1,8 @@
-"""The prompt cache's back-channel.
-
-Everything the cache needs to say *forward* rides the job packet itself: which
-prefix to adopt, which boundary to snapshot. What has nowhere to ride is the
-negatives. A job packet only ever goes on to the node hosting the next layers,
-or back to the origin at `HEAD`, so a node that cannot compute has nothing to
-forward, and a node that computed fine but cannot store has no field in the
-outgoing packet to say so.
-
-One packet type covers all three, sent under `CACHE_PROTOCOL` and modeled on
-`jobs/job_cancel.py`. Each carries the `attempt` it refers to, because the
-answer to a dead attempt must not act on the retry that replaced it.
-"""
-
 from enum import IntEnum
 
 from language_pipes.util.byte_helper import ByteHelper
 
-
+# IntEnum for easier wire transport
 class CacheReason(IntEnum):
     # node -> origin: "I do not hold the prefix you told me to adopt, and I did
     # not compute this pass." The origin rebuilds the job with reuse off.
