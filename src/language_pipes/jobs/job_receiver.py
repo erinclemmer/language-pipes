@@ -50,7 +50,8 @@ class JobReceiver:
         self.cache_protocol = CacheProtocol(
             pipe_manager.router_pipes.router,
             self.job_tracker,
-            self.job_queue
+            self.job_queue,
+            self._rebuild_job
         )
         
         Thread(target=self._job_runner_loop, args=()).start()
@@ -136,9 +137,6 @@ class JobReceiver:
         assert job is not None
         return job
 
-    def _node_id(self) -> str:
-        return self.pipe_manager.router_pipes.router.node_id()
-
     def _rebuild_job(self, job: Job):
         """Run the job again from token 0, against fresh caches everywhere.
 
@@ -164,7 +162,7 @@ class JobReceiver:
             self.job_tracker.prompt_cache.release(job.job_id)
             job.caching.reserved = False
 
-        node_id = self._node_id()
+        node_id = self.pipe_manager.router_pipes.router.node_id()
         for segment_node_id in {s.node_id for s in pipe.segments} - {node_id}:
             self.cache_protocol.send_cache_status(segment_node_id, CacheStatus(
                 job.job_id, job.pipe_id, dead_attempt, CacheReason.ABORT

@@ -12,11 +12,12 @@ in flight, not cache bookkeeping, and the layer code writes into it directly.
 """
 
 import logging
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from distributed_state_network.handler import DSNodeServer
 
 from language_pipes.jobs.cache_packets import CacheReason, CacheStatus
+from language_pipes.jobs.job import Job
 from language_pipes.jobs.job_queue import JobQueue
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob
@@ -294,12 +295,14 @@ class CacheProtocol:
         self,
         router: DSNodeServer,
         job_tracker: JobTracker,
-        job_queue: JobQueue
+        job_queue: JobQueue,
+        rebuild_job: Callable[[Job], None]
     ):
         self._router = router
         self._logger = logging.getLogger(__name__)
         self._job_tracker = job_tracker
         self._job_queue = job_queue
+        self._rebuild_job = rebuild_job
 
     def send_cache_status(self, node_id: str, status: CacheStatus):
         bts = ByteHelper()
