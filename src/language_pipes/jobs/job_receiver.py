@@ -2,6 +2,7 @@ import logging
 from threading import Thread
 from typing import Callable
 
+from language_pipes.jobs.job_cache import CacheProtocol
 from language_pipes.jobs.job_queue import JobQueue
 from language_pipes.pipes.pipe_manager import PipeManager
 
@@ -14,9 +15,6 @@ from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.modeling.model_manager import ModelManager
 from language_pipes.jobs.job_processor import JobProcessor, JobContext
-from language_pipes.util.byte_helper import ByteHelper
-
-CACHE_PROTOCOL = 3
 
 
 class JobReceiver:
@@ -48,6 +46,11 @@ class JobReceiver:
             pipe_manager.router_pipes.router,
             self.job_queue,
             self.job_tracker
+        )
+        self.cache_protocol = CacheProtocol(
+            pipe_manager.router_pipes.router,
+            self.job_tracker,
+            self.job_queue
         )
         
         Thread(target=self._job_runner_loop, args=()).start()
@@ -120,13 +123,13 @@ class JobReceiver:
             pipe.model_id,
         )
         if outcome == CacheOutcome.MISS:
-            self._send_cache_status(network_job.origin_node_id, CacheStatus(
+            self.cache_protocol.send_cache_status(network_job.origin_node_id, CacheStatus(
                 network_job.job_id, network_job.pipe_id,
                 network_job.attempt, CacheReason.MISS
             ))
             return None
         if outcome == CacheOutcome.NO_STORE:
-            self._send_cache_status(network_job.origin_node_id, CacheStatus(
+            self.cache_protocol.send_cache_status(network_job.origin_node_id, CacheStatus(
                 network_job.job_id, network_job.pipe_id,
                 network_job.attempt, CacheReason.NO_STORE
             ))
@@ -135,57 +138,6 @@ class JobReceiver:
 
     def _node_id(self) -> str:
         return self.pipe_manager.router_pipes.router.node_id()
-
-    def _send_cache_status(self, node_id: str, status: CacheStatus):
-        bts = ByteHelper()
-        bts.write_int(CACHE_PROTOCOL)
-        bts.write_bytes(status.to_bytes())
-        data = bts.get_bytes()
-        router = self.pipe_manager.router_pipes.router
-        try:
-            if node_id == router.node_id():
-                router.receive_data(data)
-            else:
-                router.send_to_node(node_id, data)
-        except Exception as e:
-            self.logger.warning(
-                f"Could not send cache status for job {status.job_id[:4]} to {node_id}: {e}"
-            )
-
-    def receive_cache_status(self, data: bytes):
-        """Handle the prompt cache's back-channel (see `jobs/cache_packets.py`)."""
-        try:
-            status = CacheStatus.from_bytes(data)
-        except Exception:
-            return
-        job = self.job_tracker.get_job(status.job_id)
-        if job is None or job.pipe_id != status.pipe_id:
-            return
-        # An answer about an attempt that is already dead must not act on the
-        # retry that replaced it, or a job could ping-pong between rebuilds.
-        if status.attempt != job.passes.attempt:
-            self.logger.debug(
-                f"Job {job.job_id[:4]} ignoring {status.reason.name} "
-                f"for attempt {status.attempt} (now {job.passes.attempt})"
-            )
-            return
-
-        # `MISS` and `NO_STORE` are answers to a job this node dispatched;
-        # `ABORT` is an instruction from the node that dispatched one to us.
-        is_origin = job.origin_node_id == self._node_id()
-        if status.reason == CacheReason.ABORT:
-            if is_origin:
-                return
-            self.job_queue.drop_queued(job.job_id)
-            self.job_tracker.remove_job(job.job_id)
-            return
-        if not is_origin:
-            return
-
-        if status.reason == CacheReason.MISS:
-            self._rebuild_job(job)
-        elif status.reason == CacheReason.NO_STORE:
-            job.caching.stop_writing()
 
     def _rebuild_job(self, job: Job):
         """Run the job again from token 0, against fresh caches everywhere.
@@ -214,7 +166,7 @@ class JobReceiver:
 
         node_id = self._node_id()
         for segment_node_id in {s.node_id for s in pipe.segments} - {node_id}:
-            self._send_cache_status(segment_node_id, CacheStatus(
+            self.cache_protocol.send_cache_status(segment_node_id, CacheStatus(
                 job.job_id, job.pipe_id, dead_attempt, CacheReason.ABORT
             ))
 
