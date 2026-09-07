@@ -1,6 +1,6 @@
 import logging
 from threading import Thread
-from typing import Callable, List
+from typing import Callable
 
 from language_pipes.jobs.job_queue import JobQueue
 from language_pipes.pipes.pipe_manager import PipeManager
@@ -8,7 +8,7 @@ from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.jobs.cache_packets import CacheReason, CacheStatus
 from language_pipes.jobs.cache_policy import CacheOutcome, CachePolicy
 from language_pipes.jobs.job import ComputeStep, Job
-from language_pipes.jobs.job_cancel import CancelProtocol, JobCancel
+from language_pipes.jobs.job_cancel import CancelProtocol
 from language_pipes.jobs.job_factory import JobFactory
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.network_job import NetworkJob

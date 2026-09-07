@@ -61,12 +61,11 @@ class CancelProtocol:
         bts.write_int(CANCEL_PROTOCOL)
         bts.write_bytes(cancel.to_bytes())
         data = bts.get_bytes()
-        router = self._router
         try:
-            if node_id == router.node_id():
-                router.receive_data(data)
+            if node_id == self._router.node_id():
+                self._router.receive_data(data)
             else:
-                router.send_to_node(node_id, data)
+                self._router.send_to_node(node_id, data)
         except Exception as e:
             self._logger.warning(f"Could not send cancel for job {cancel.job_id[:4]} to {node_id}: {e}")
 
@@ -74,7 +73,7 @@ class CancelProtocol:
         self._job_queue.drop_queued(job.job_id)
         origin_node_id = job.origin_node_id
         self._job_tracker.cancel_job(job, reason)
-        if origin_node_id != self._router.config.node_id:
+        if origin_node_id != self._router.node_id():
             self._send_cancel(origin_node_id, JobCancel(job.job_id, job.pipe_id, reason))
 
     def cancel_jobs(self, jobs: list[Job], reason: str):
@@ -85,7 +84,7 @@ class CancelProtocol:
         self.cancel_jobs(self._job_tracker.jobs_for_pipes(pipe_ids), reason)
 
     def cancel_model_jobs(self, model_id: str, reason: str):
-        self.cancel_jobs(self._job_tracker.jobs_for_model(model_id, self._router.config.node_id), reason)
+        self.cancel_jobs(self._job_tracker.jobs_for_model(model_id, self._router.node_id()), reason)
 
     def receive_cancel(self, data: bytes):
         """Handle a cancel sent by another node holding part of our job."""
