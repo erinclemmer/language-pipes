@@ -63,6 +63,7 @@ class JobFactory:
         job = Job(
             origin_node_id=node_id,
             messages=messages, 
+            cache_options=cache_options,
             pipe_id=pipe.pipe_id, 
             model_id=pipe.model_id,
             config=end_model.collector.config,
@@ -76,7 +77,6 @@ class JobFactory:
             update=update,
             complete=self.job_tracker.complete_job
         )
-        job.caching.options = cache_options
         job.caching.scope = self.job_tracker.prompt_cache.scope(
             node_id, api_key, job.caching.options.prompt_cache_key
         )

@@ -18,6 +18,7 @@ from language_pipes.jobs.timing_stats import TimingStats
 from language_pipes.util.chat import ChatMessage
 from language_pipes.util.chunk_state import ChunkState
 from language_pipes.util.enums import ComputeStep, JobStatus
+from language_pipes.util.oai_cache import CacheOptions
 
 class Job:
     # IDs
@@ -74,6 +75,7 @@ class Job:
             self,
             origin_node_id: str,
             messages: List[ChatMessage],
+            cache_options: CacheOptions,
             pipe_id: str,
             model_id: str,
             config: PretrainedConfig,
@@ -119,7 +121,7 @@ class Job:
 
         self.config = config
         self.cache = DynamicCache(config=config)
-        self.caching = JobCache()
+        self.caching = JobCache(cache_options)
         self.chunking = ChunkState(self.job_id)
         self.passes = PassSequence()
         self.resolve = resolve

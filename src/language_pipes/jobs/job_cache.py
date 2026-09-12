@@ -58,8 +58,8 @@ class JobCache:
     # `PromptCache.demote_for_job`.
     touched_ids: List[bytes]
 
-    def __init__(self, options: Optional[CacheOptions] = None):
-        self.options = options if options is not None else CacheOptions()
+    def __init__(self, options: CacheOptions):
+        self.options = options
         self.scope = b''
         self.ids = []
         self.prefix_len = 0
