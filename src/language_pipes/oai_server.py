@@ -53,7 +53,6 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
         # Whether the server distinguishes callers at all. With no api_keys every
         # caller is "anon" and shares one cache scope, so prompt caching then
         # rests entirely on the client-supplied prompt_cache_key.
-        authenticated = len(self.server.api_keys) > 0
         api_key = self._get_api_key() or "anon"
                 
         content_length = int(self.headers.get('Content-Length', 0))
@@ -78,7 +77,7 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
                 return
 
             self.log('/v1/chat/completions')
-            oai_chat_complete(self, self.server.complete, data, api_key, authenticated)
+            oai_chat_complete(self, self.server.complete, data, api_key)
             return
 
         if self.path == '/v1/responses':
@@ -91,7 +90,7 @@ class OAIHttpHandler(BaseHTTPRequestHandler):
                 return
 
             self.log('/v1/responses')
-            oai_responses_create(self, self.server.complete, data, api_key, authenticated)
+            oai_responses_create(self, self.server.complete, data, api_key)
             return
 
         _send_code(404, self, "Not found")

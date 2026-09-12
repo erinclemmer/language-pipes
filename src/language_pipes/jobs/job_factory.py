@@ -30,6 +30,7 @@ class JobFactory:
         api_key: str,
         model_id: str, 
         messages: List[ChatMessage], 
+        cache_options: CacheOptions,
         max_completion_tokens: int, 
         temperature: float = 1.0,
         top_k: int = 0,
@@ -39,7 +40,6 @@ class JobFactory:
         start: Optional[Callable] = None,
         update: Optional[Callable] = None,
         resolve: Optional[Promise] = None,
-        cache_options: Optional[CacheOptions] = None
     ) -> Optional[Job]:
         end_model = self.pipe_manager.model_manager.get_end_model(model_id)
         if end_model is None:
@@ -76,15 +76,10 @@ class JobFactory:
             update=update,
             complete=self.job_tracker.complete_job
         )
-        if cache_options is not None:
-            job.caching.options = cache_options
-        # The scope is derived here rather than in the processor so the API key
-        # never has to travel any further than this call.
-        prompt_cache = self.job_tracker.prompt_cache
-        if prompt_cache is not None and job.caching.options.enabled:
-            job.caching.scope = prompt_cache.scope(
-                node_id, api_key, job.caching.options.prompt_cache_key
-            )
+        job.caching.options = cache_options
+        job.caching.scope = self.job_tracker.prompt_cache.scope(
+            node_id, api_key, job.caching.options.prompt_cache_key
+        )
 
         self.logger.info(f"Job {job.job_id[:4]} started")
 

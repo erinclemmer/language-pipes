@@ -248,7 +248,6 @@ class Job:
         """
         self.passes.reset(self.passes.attempt + 1)
         self.drop_cache()
-        self.caching.options.enabled = False
         self.caching.reset_usage()
         self.data = None
         self.delta = ''

@@ -115,7 +115,7 @@ class CachePolicy:
     def usable(self, job: Job) -> bool:
         """Whether this job may read or write the prompt cache at all."""
         cache = self.prompt_cache
-        if cache is None or not job.caching.options.enabled or not cache.enabled():
+        if cache is None or not cache.enabled():
             return False
         if job.prompt_tokens < MIN_CACHE_TOKENS:
             return False

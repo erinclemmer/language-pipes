@@ -12,15 +12,6 @@ from language_pipes.util.http import _connection_alive, _respond_json, _send_cod
 from language_pipes.util.oai_cache import CacheOptions, chat_usage, parse_cache_options, responses_usage
 from language_pipes.util.oai_chunks import send_complete, send_error, send_initial_chunk, send_keepalive, send_update_chunk
 
-# Emit an SSE keepalive comment after this many seconds of write silence so the
-# stream survives long time-to-first-token (e.g. slow 8-bit prefill) and slow
-# inter-token gaps. Kept well under common 30-60s client/proxy idle timeouts.
-SSE_KEEPALIVE_INTERVAL = 10.0
-
-# How often the disconnect watchdog polls the client socket. Prompt processing
-# (prefill) can run for a long time between update() calls, so this has to be
-# independent of per-token/per-chunk writes to catch a drop while it's happening.
-DISCONNECT_CHECK_INTERVAL = 1.0
 from language_pipes.util.oai_tool_calls import (
     ReasoningStreamSplitter,
     ResponsesTool,
@@ -32,6 +23,16 @@ from language_pipes.util.oai_tool_calls import (
     split_reasoning,
     validate_tool_choice,
 )
+
+# Emit an SSE keepalive comment after this many seconds of write silence so the
+# stream survives long time-to-first-token (e.g. slow 8-bit prefill) and slow
+# inter-token gaps. Kept well under common 30-60s client/proxy idle timeouts.
+SSE_KEEPALIVE_INTERVAL = 10.0
+
+# How often the disconnect watchdog polls the client socket. Prompt processing
+# (prefill) can run for a long time between update() calls, so this has to be
+# independent of per-token/per-chunk writes to catch a drop while it's happening.
+DISCONNECT_CHECK_INTERVAL = 1.0
 
 class ChatCompletionRequest:
     model: str
@@ -88,20 +89,20 @@ class ChatCompletionRequest:
         }
     
     @staticmethod
-    def from_dict(data, authenticated: bool = False):
+    def from_dict(data):
         max_completion_tokens = 1000
         if "max_tokens" in data:
             max_completion_tokens = data['max_tokens']
         if "max_completion_tokens" in data:
             max_completion_tokens = data['max_completion_tokens']
         
-        stream = data['stream'] if 'stream' in data else False
-        temperature = data['temperature'] if 'temperature' in data else 1.0
-        top_k = data['top_k'] if 'top_k' in data else 0
-        top_p = data['top_p'] if 'top_p' in data else 1.0
-        min_p = data['min_p'] if 'min_p' in data else 0.0
-        presence_penalty = data['presence_penalty'] if 'presence_penalty' in data else 0.0
-        cache_options = parse_cache_options(data, authenticated)
+        stream = data.get('stream', False)
+        temperature = data.get('temperature', 1.0)
+        top_k = data.get('top_k', 0)
+        top_p = data.get('top_p', 1.0)
+        min_p = data.get('min_p', 0.0)
+        presence_penalty = data.get('presence_penalty', 0.0)
+        cache_options = parse_cache_options(data)
         stream_options = data.get('stream_options')
         include_usage = bool(stream_options.get('include_usage')) if isinstance(stream_options, dict) else False
         return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature, top_k, top_p, min_p, presence_penalty, cache_options, include_usage)
@@ -228,6 +229,7 @@ class ResponsesRequest:
             instructions: Optional[str],
             max_output_tokens: int,
             messages: List[ChatMessage],
+            cache_options: CacheOptions,
             temperature: float = 1.0,
             top_k: int = 0,
             top_p: float = 1.0,
@@ -235,8 +237,7 @@ class ResponsesRequest:
             presence_penalty: float = 0.0,
             tools: Optional[List[ResponsesTool]] = None,
             tool_choice: Any = None,
-            parallel_tool_calls: bool = False,
-            cache_options: Optional[CacheOptions] = None
+            parallel_tool_calls: bool = False
         ):
         self.model = model
         self.stream = stream
@@ -252,10 +253,10 @@ class ResponsesRequest:
         self.tools = tools if tools is not None else []
         self.tool_choice = tool_choice
         self.parallel_tool_calls = parallel_tool_calls
-        self.cache_options = cache_options if cache_options is not None else CacheOptions()
+        self.cache_options = cache_options
 
     @staticmethod
-    def from_dict(data, authenticated: bool = False):
+    def from_dict(data: dict):
         max_output_tokens = 1000
         if "max_tokens" in data:
             max_output_tokens = data['max_tokens']
@@ -264,12 +265,12 @@ class ResponsesRequest:
         if "max_output_tokens" in data:
             max_output_tokens = data['max_output_tokens']
 
-        stream = data['stream'] if 'stream' in data else False
-        temperature = data['temperature'] if 'temperature' in data else 1.0
-        top_k = data['top_k'] if 'top_k' in data else 0
-        top_p = data['top_p'] if 'top_p' in data else 1.0
-        min_p = data['min_p'] if 'min_p' in data else 0.0
-        presence_penalty = data['presence_penalty'] if 'presence_penalty' in data else 0.0
+        stream = data.get('stream', False)
+        temperature = data.get('temperature', 1.0)
+        top_k = data.get('top_k', 0)
+        top_p = data.get('top_p', 1.0)
+        min_p = data.get('min_p', 0.0)
+        presence_penalty = data.get('presence_penalty', 0.0)
         instructions = data.get('instructions')
 
         tools: List[ResponsesTool] = []
@@ -296,11 +297,11 @@ class ResponsesRequest:
         if len(messages) == 0:
             raise ValueError("input must contain at least one text message")
 
-        cache_options = parse_cache_options(data, authenticated, responses=True)
+        cache_options = parse_cache_options(data, responses=True)
         cache_options.breakpoints = _breakpoints_to_message_indices(
             cache_options.breakpoints, sources, inserted
         )
-        return ResponsesRequest(data['model'], stream, data['input'], instructions, max_output_tokens, messages, temperature, top_k, top_p, min_p, presence_penalty, tools, tool_choice, parallel_tool_calls, cache_options)
+        return ResponsesRequest(data['model'], stream, data['input'], instructions, max_output_tokens, messages, cache_options, temperature, top_k, top_p, min_p, presence_penalty, tools, tool_choice, parallel_tool_calls)
 
 def _reasoning_item(job: Any, reasoning_text: str) -> dict:
     return {
@@ -398,8 +399,8 @@ def _start_disconnect_watchdog(
     threading.Thread(target=_watch, daemon=True).start()
     return stop_event
 
-def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict, api_key: str, authenticated: bool = False):
-    req = ChatCompletionRequest.from_dict(data, authenticated)
+def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict, api_key: str):
+    req = ChatCompletionRequest.from_dict(data)
     created_at = time.time()
 
     # Serialize every write to the SSE socket: the watchdog thread and the
@@ -469,13 +470,13 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
                 })
 
     def promise_fn(resolve: Callable, _: Callable):
-        complete_cb(api_key, req.model, req.messages, req.max_completion_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve, cache_options=req.cache_options)
+        complete_cb(api_key, req.model, req.messages, req.cache_options, req.max_completion_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
     job = Promise(promise_fn).get()
     complete(job)
 
-def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict, api_key: str, authenticated: bool = False):
+def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable, data: dict, api_key: str):
     try:
-        req = ResponsesRequest.from_dict(data, authenticated)
+        req = ResponsesRequest.from_dict(data)
     except ValueError as e:
         _send_code(400, handler, str(e))
         return
@@ -757,13 +758,13 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
                 _respond_json(handler, response)
 
     def promise_fn(resolve: Callable, _: Callable):
-        complete_cb(api_key, req.model, req.messages, req.max_output_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve, cache_options=req.cache_options)
+        complete_cb(api_key, req.model, req.messages, req.cache_options, req.max_output_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
     job = Promise(promise_fn).get()
     complete(job)
 
 def get_models(handler: BaseHTTPRequestHandler, get_models: Callable):
     models = get_models()
-    try:
+    try:  # noqa: SIM105
         _respond_json(handler, {
             "object": "list",
             "data": [

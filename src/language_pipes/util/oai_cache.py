@@ -59,8 +59,6 @@ class CacheOptions:
     # Read off any Responses request that carries them - a malformed one is an
     # error whatever the mode - but only explicit mode acts on them.
     breakpoints: List[int] = field(default_factory=list)
-    enabled: bool = False
-
 
 def _breakpoint_on(block: Any) -> bool:
     """Whether one content block carries a `prompt_cache_breakpoint`."""
@@ -140,7 +138,6 @@ def _parse_mode(options: Dict[str, Any]) -> str:
 
 def parse_cache_options(
     data: Dict[str, Any],
-    authenticated: bool,
     responses: bool = False
 ) -> CacheOptions:
     """Read the caching parameters off a request body.
@@ -157,10 +154,7 @@ def parse_cache_options(
     """
     raw_key = data.get("prompt_cache_key")
     prompt_cache_key = str(raw_key) if isinstance(raw_key, str) else ""
-    options = CacheOptions(
-        prompt_cache_key=prompt_cache_key,
-        enabled=authenticated or prompt_cache_key != ""
-    )
+    options = CacheOptions(prompt_cache_key=prompt_cache_key)
     if not responses:
         return options
 

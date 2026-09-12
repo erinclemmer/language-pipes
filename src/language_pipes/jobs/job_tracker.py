@@ -22,9 +22,9 @@ class JobTracker:
     shutdown: bool
     # None when the node was built without a cache (tests, and any path that
     # does not go through ContentProvider.set_router).
-    prompt_cache: Optional[PromptCache]
+    prompt_cache: PromptCache
 
-    def __init__(self, prompt_cache: Optional[PromptCache] = None):
+    def __init__(self, prompt_cache: PromptCache):
         self.jobs_completed = []
         self.jobs_pending = { }
         self.shutdown = False
