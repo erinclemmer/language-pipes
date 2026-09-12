@@ -52,8 +52,9 @@ class EndModel:
         self.layers = self.collector.load_layer_set(0, num_local_layers - 1, self.device)
 
     def compute_layers(self, job: Job):
-        if job.data is None:
-            raise Exception("Job did not have data")
+        assert job.data is not None
+        if len(self.layers) == 0:
+            return
         state, shared_kv_states = compute_layers(0, job.data, self.device, self.collector.config, self.layers, job.cache)
         job.set_layer(
             state=state,
@@ -106,12 +107,10 @@ class EndModel:
         return prefixes
 
     def compute_embed(self, job: Job):
-        if job.compute_step != ComputeStep.EMBED and job.compute_step != ComputeStep.TOKENIZE:
-            raise ValueError('Invalid step for embedding')
-        if self.input_embedding is None:
-            raise RuntimeError("Input Embedding must be loaded before computation")
+        assert self.input_embedding is not None
+        assert job.compute_step == ComputeStep.EMBED or job.compute_step == ComputeStep.TOKENIZE
         
-        comp_state = StaticAutoModel.compute_embedding(
+        job.data = computationStateToJobData(StaticAutoModel.compute_embedding(
             prompt_tokens=job.prompt_tokens,
             chunk_size=CHUNK_SIZE,
             input_embedder=self.input_embedding,
@@ -120,9 +119,8 @@ class EndModel:
             cache=job.cache,
             per_layer_embedder=self.per_layer_embedder,
             past_seen_tokens=job.past_seen_tokens()
-        )
+        ))
         
-        job.data = computationStateToJobData(comp_state)
         job.next_step()
 
     def compute_norm(self, job: Job):

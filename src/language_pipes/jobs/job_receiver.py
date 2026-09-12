@@ -70,10 +70,11 @@ class JobReceiver:
 
     def _process_network_job(self, network_job: NetworkJob):
         """Take one packet off the queue and run the FSM over it."""
+        if network_job.job_id in self.job_tracker.jobs_completed:
+            return
+
         job = self.job_tracker.get_job(network_job.job_id)
         if job is None:
-            if network_job.job_id in self.job_tracker.jobs_completed:
-                return
             job = self._add_job(network_job)
             if job is None:
                 return

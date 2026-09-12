@@ -11,7 +11,7 @@ from language_pipes.util.utils import tensor_to_bytes, bytes_to_tensor
 def write_tensor_dict(d: Dict[str, Optional[torch.Tensor]]) -> bytes:
     bts = ByteHelper()
     bts.write_int(len(list(d.keys())))
-    for key in d.keys():
+    for key in d:
         bts.write_string(key)
         if d[key] is None:
             bts.write_int(0)
@@ -65,7 +65,7 @@ class JobData:
         bts.write_bytes(cache_position_bytes)
         bts.write_bytes(write_tensor_dict(self.causal_mask))
         bts.write_int(len(self.position_embeddings.keys()))
-        for key in self.position_embeddings.keys():
+        for key in self.position_embeddings:
             bts.write_string(key)
             bts.write_bytes(tensor_to_bytes(self.position_embeddings[key][0]))
             bts.write_bytes(tensor_to_bytes(self.position_embeddings[key][1]))
@@ -77,7 +77,7 @@ class JobData:
             bts.write_bytes(tensor_to_bytes(self.per_layer_inputs))
 
         bts.write_int(len(self.shared_kv_states.keys()))
-        for key in self.shared_kv_states.keys():
+        for key in self.shared_kv_states:
             bts.write_string(key)
             bts.write_bytes(tensor_to_bytes(self.shared_kv_states[key][0]))
             bts.write_bytes(tensor_to_bytes(self.shared_kv_states[key][1]))
@@ -85,7 +85,7 @@ class JobData:
         return bts.get_bytes()
 
     @staticmethod
-    def from_bytes(data: bytes) -> Optional['JobData']:
+    def from_bytes(data: bytes) -> 'JobData':
         bts = ByteHelper(data)
         state = bytes_to_tensor(bts.read_bytes())
         position_ids = bytes_to_tensor(bts.read_bytes())
@@ -138,13 +138,13 @@ def _cast_float(t: torch.Tensor, dtype: Optional[torch.dtype]) -> torch.Tensor:
     return t
 
 def move_position_embeddings(t: Dict[str, Tuple[torch.Tensor, torch.Tensor]], device: torch.device, dtype: Optional[torch.dtype] = None) -> Dict[str, Tuple[torch.Tensor, torch.Tensor]]:
-    for key in t.keys():
+    for key in t:
         t[key] = (_cast_float(t[key][0].to(device), dtype), _cast_float(t[key][1].to(device), dtype))
 
     return t
 
 def move_causal_mask(t: Dict[str, Optional[torch.Tensor]], device: torch.device, dtype: Optional[torch.dtype] = None) -> Dict[str, Optional[torch.Tensor]]:
-    for key in t.keys():
+    for key in t:
         if t[key] is not None:
             t[key] = _cast_float(t[key].to(device), dtype) # type: ignore
 
@@ -176,14 +176,14 @@ def detachCompState(state: LLmComputationState) -> LLmComputationState:
     state.state = state.state.detach()
     state.position_ids = state.position_ids.detach()
     state.cache_position = state.cache_position.detach()
-    for key in state.causal_mask.keys():
+    for key in state.causal_mask:
         if state.causal_mask[key] is not None:
             state.causal_mask[key] = state.causal_mask[key].detach() # type: ignore
     
-    for key in state.position_embeddings.keys():
+    for key in state.position_embeddings:
         state.position_embeddings[key] = (state.position_embeddings[key][0].detach(), state.position_embeddings[key][1].detach())
 
-    for key in state.shared_kv_states.keys():
+    for key in state.shared_kv_states:
         state.shared_kv_states[key] = (state.shared_kv_states[key][0].detach(), state.shared_kv_states[key][1].detach())
 
     if state.per_layer_inputs is not None:

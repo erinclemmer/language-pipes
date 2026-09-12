@@ -373,6 +373,7 @@ class Job:
             data_hash=data_hash, 
             compute_step=self.compute_step,
             times=list(self.timing_stats.current_times),
+            cache_options=self.caching.options,
             completed=self.timing_stats.completed_pass,
             progress=self.get_progress(),
             pass_idx=self.passes.idx,

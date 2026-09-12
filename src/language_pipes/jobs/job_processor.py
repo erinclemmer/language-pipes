@@ -24,13 +24,13 @@ class JobContext:
     job: Job
     pipe: Pipe
     end_model: Optional[EndModel]
-    # Called when the job cannot go any further (a segment it needs left the
-    # network). Cancels the job here and tells the origin node to stop waiting.
-    on_fail: Optional[Callable[[Job, str], None]] = None
     # None on a node built without a prompt cache; `CachePolicy` is then a
     # no-op, so a processor made without one behaves as it did before caching
     # existed.
-    prompt_cache: Optional[PromptCache] = None
+    prompt_cache: PromptCache
+    # Called when the job cannot go any further (a segment it needs left the
+    # network). Cancels the job here and tells the origin node to stop waiting.
+    on_fail: Optional[Callable[[Job, str], None]] = None
 
 def should_prefill_chunk(job: Job) -> bool:
     return job.current_token == 0 and job.chunking.has_more()

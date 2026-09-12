@@ -53,12 +53,12 @@ class CacheOptions:
     # nothing for the tail of the response.
     mode: str = "implicit"
     # Requested lifetime; the node clamps it to its own `max_cache_time`.
-    ttl_seconds: Optional[int] = None
+    ttl_seconds: int | None = None
     # Message indices marked as write points, into the request's final message
     # list (so after `instructions` and any tool instructions were inserted).
     # Read off any Responses request that carries them - a malformed one is an
     # error whatever the mode - but only explicit mode acts on them.
-    breakpoints: List[int] = field(default_factory=list)
+    breakpoints: list[int] = field(default_factory=list)
 
 def _breakpoint_on(block: Any) -> bool:
     """Whether one content block carries a `prompt_cache_breakpoint`."""

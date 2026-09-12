@@ -158,6 +158,7 @@ class JobTracker:
         job = Job(
             origin_node_id=network_job.origin_node_id,
             messages=[],
+            cache_options=network_job.cache_options,
             model_id=model_id,
             pipe_id=network_job.pipe_id,
             data=network_job.data,
@@ -165,14 +166,6 @@ class JobTracker:
         )
         job.job_id = network_job.job_id
 
-        if network_job.data is None:
-            return None, CacheOutcome.OK
-
-        if network_job.data.state is None:
-            raise Exception("job should be embedded before adding a pending job")
-
-        # After the checks above, so a refused packet cannot leave a reservation
-        # behind for a job that never ran.
         outcome = cache_policy.adopt_for_node(job, network_job)
         if outcome == CacheOutcome.MISS:
             return None, outcome

@@ -4,6 +4,7 @@ from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_time import JobTime
 from language_pipes.jobs.completed_pass import CompletedPass
 from language_pipes.jobs.job_progress import JobProgress
+from language_pipes.util.oai_cache import CacheOptions
 
 class NetworkJob:
     job_id: str
@@ -21,6 +22,7 @@ class NetworkJob:
     # packet from a dead attempt can be told apart from the retry that replaced
     # it. See `documentation/architecture.md`, "Prompt cache across nodes".
     attempt: int
+    cache_options: CacheOptions
     # Prompt-cache tags. `cache_use_*` rides the first pass and tells each node
     # which stored prefix to adopt; `cache_write_*` names the boundary the pass
     # in flight should be snapshotted at; `cache_reserve_tokens` is the origin's
@@ -42,6 +44,7 @@ class NetworkJob:
         data_hash: bytes,
         compute_step: ComputeStep,
         times: list[JobTime],
+        cache_options: CacheOptions,
         completed: CompletedPass | None = None,
         progress: JobProgress | None = None,
         pass_idx: int = 0,
@@ -60,6 +63,7 @@ class NetworkJob:
         self.data_hash = data_hash
         self.compute_step = compute_step
         self.times = times
+        self.cache_options = cache_options
         self.completed = completed
         self.progress = progress
         self.pass_idx = pass_idx
@@ -90,6 +94,14 @@ class NetworkJob:
         # zero/empty value that `ByteHelper` gives at EOF.
         bts.write_int(self.pass_idx)
         bts.write_int(self.attempt)
+        bts.write_string(self.cache_options.prompt_cache_key)
+        bts.write_string(self.cache_options.mode)
+        bts.write_int(0 if self.cache_options.ttl_seconds is None else 1)
+        if self.cache_options.ttl_seconds is not None:
+            bts.write_int(self.cache_options.ttl_seconds)
+        bts.write_int(len(self.cache_options.breakpoints))
+        for b in self.cache_options.breakpoints:
+            bts.write_int(b)
         bts.write_bytes(self.cache_use_id)
         bts.write_int(self.cache_use_tokens)
         bts.write_bytes(self.cache_write_id)
@@ -132,6 +144,14 @@ class NetworkJob:
         # A peer that predates the cache protocol reads attempt 0 and empty
         # tags, which is exactly "never restarted, nothing to adopt or store".
         attempt = bts.read_int()
+        co = CacheOptions()
+        co.prompt_cache_key = bts.read_string()
+        co.mode = bts.read_string()
+        if bts.read_int() == 1:
+            co.ttl_seconds = bts.read_int()
+        num_breakpoints = bts.read_int()
+        for _ in range(num_breakpoints):
+            co.breakpoints.append(bts.read_int())
         cache_use_id = bts.read_bytes()
         cache_use_tokens = bts.read_int()
         cache_write_id = bts.read_bytes()
@@ -147,6 +167,7 @@ class NetworkJob:
             data_hash=data_hash,
             compute_step=step,
             times=times,
+            cache_options=co,
             completed=completed,
             progress=progress,
             pass_idx=pass_idx,

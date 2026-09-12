@@ -32,12 +32,17 @@ class CacheOutcome(Enum):
 
 
 class CachePolicy:
+    node_id: str
+    pipe: Pipe
+    end_model: EndModel | None
+    prompt_cache: PromptCache
+
     def __init__(
         self,
         node_id: str,
-        pipe: Pipe | None,
+        pipe: Pipe,
         end_model: EndModel | None,
-        prompt_cache: PromptCache | None = None
+        prompt_cache: PromptCache
     ):
         self.node_id = node_id
         self.pipe = pipe
