@@ -17,6 +17,7 @@ distinction honest across a transformers upgrade.
 
 import copy
 import hmac
+import json
 import logging
 import secrets
 import threading
@@ -63,13 +64,14 @@ def scope(secret: bytes, origin_node_id: str, api_key: str, prompt_cache_key: st
     """
     return hmac.new(
         secret,
-        _DOMAIN + b"|scope"
-        + sha256(origin_node_id.encode()).digest()
-        + sha256(api_key.encode()).digest()
-        + sha256(prompt_cache_key.encode()).digest(),
+        json.dumps({
+            "domain": _DOMAIN,
+            "node_id": origin_node_id,
+            "api_key": api_key,
+            "prompt_cache_key": prompt_cache_key
+        }).encode('utf-8'),
         sha256,
     ).digest()
-
 
 def _link(secret: bytes, prev: bytes, block: Sequence[int]) -> bytes:
     """Extend a chain by one block.

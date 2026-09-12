@@ -83,9 +83,6 @@ class JobFactory:
 
         self.logger.info(f"Job {job.job_id[:4]} started")
 
-        # Register (and open the response stream) before handing the job to the
-        # pipe: the first hop can be this same node, and a job that finishes or
-        # gets canceled before it is tracked would never reach the caller.
         if api_key not in self.job_tracker.jobs_pending:
             self.job_tracker.jobs_pending[api_key] = [ ]
 
