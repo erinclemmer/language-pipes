@@ -8,7 +8,8 @@ from typing import Callable, List, Optional, Dict
 from language_pipes.jobs.job_cancel import CANCEL_PROTOCOL
 from language_pipes.request_for_model.rfm import RequestForModelHandler
 from language_pipes.jobs.job_factory import JobFactory
-from language_pipes.jobs.job_receiver import CACHE_PROTOCOL, JobReceiver
+from language_pipes.jobs.cache_protocol import CACHE_PROTOCOL
+from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.prompt_cache import PromptCache
 from language_pipes.util.byte_helper import ByteHelper
@@ -169,7 +170,7 @@ class ContentProvider:
         if protocol == CANCEL_PROTOCOL and self.job_receiver is not None:
             self.job_receiver.cancel_protocol.receive_cancel(bts.read_bytes())
         if protocol == CACHE_PROTOCOL and self.job_receiver is not None:
-            self.job_receiver.receive_cache_status(bts.read_bytes())
+            self.job_receiver.cache_protocol.receive_cache_status(bts.read_bytes())
 
     def stop_network(self):
         if self.router is None:

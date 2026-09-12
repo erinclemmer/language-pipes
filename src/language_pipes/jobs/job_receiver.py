@@ -2,7 +2,7 @@ import logging
 from threading import Thread
 from typing import Callable
 
-from language_pipes.jobs.job_cache import CacheProtocol
+from language_pipes.jobs.cache_protocol import CacheProtocol
 from language_pipes.jobs.job_queue import JobQueue
 from language_pipes.pipes.pipe_manager import PipeManager
 

@@ -219,10 +219,7 @@ class TopPageState(PageState):
         if stats.budget == 0:
             return ["   Cache: disabled"]
         return [
-            f"   Cache: {stats.entries} entries, "
-            f"{stats.tokens}/{stats.budget} tokens ({stats.reserved} reserved), "
-            f"{stats.size_gb:.1f} GB GPU / {stats.host_size_gb:.1f} GB host, "
-            f"{stats.hit_rate() * 100:.0f}% hit rate"
+            f"   Cache: {stats.entries} entries, {stats.hit_rate() * 100:.0f}% hit rate, {stats.tokens}/{stats.budget} tokens ({stats.reserved} reserved)"
         ]
 
     def _get_tip_lines(self) -> list[str]:
