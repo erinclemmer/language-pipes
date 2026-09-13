@@ -237,7 +237,6 @@ class CacheEntry:
     # i * BLOCK_SIZE, and this entry's charge against the budget.
     token_count: int
     cache: DynamicCache
-    size_gb: float
     created: float
     last_used: float
     expires_at: float
@@ -259,11 +258,9 @@ class CacheStats:
     tokens: int = 0
     reserved: int = 0
     budget: int = 0
-    size_gb: float = 0.0
     # Host-tier totals.
     host_tokens: int = 0
     host_budget: int = 0
-    host_size_gb: float = 0.0
     hits: int = 0
     misses: int = 0
     evictions: int = 0
@@ -467,7 +464,6 @@ class PromptCache:
             end_layer=end_layer,
             token_count=token_count,
             cache=snapshot,
-            size_gb=cache_ram_gb(snapshot),
             layer_devices=layer_devices(snapshot),
             on_device=True,
             created=now,
@@ -758,10 +754,8 @@ class PromptCache:
                 tokens=sum(e.token_count for e in device_entries),
                 reserved=sum(r.tokens for r in self._reservations.values()),
                 budget=self.get_max_cache_tokens(),
-                size_gb=sum(e.size_gb for e in device_entries),
                 host_tokens=sum(e.token_count for e in host_entries),
                 host_budget=self.get_max_cache_host_tokens(),
-                host_size_gb=sum(e.size_gb for e in host_entries),
                 hits=self.hits,
                 misses=self.misses,
                 evictions=self.evictions,

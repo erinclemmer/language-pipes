@@ -81,6 +81,8 @@ class JobFactory:
             node_id, api_key, job.caching.options.prompt_cache_key
         )
 
+        # TODO: Determine if there is an existing cache prefix that we can adopt for this job
+
         self.logger.info(f"Job {job.job_id[:4]} started")
 
         if api_key not in self.job_tracker.jobs_pending:
