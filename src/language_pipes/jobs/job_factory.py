@@ -7,6 +7,7 @@ from language_pipes.jobs.job import Job
 from language_pipes.util.chat import ChatMessage
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.pipes.pipe_manager import PipeManager
+from language_pipes.util.oai_cache import CacheOptions
 
 class JobFactory:
     job_tracker: JobTracker
@@ -28,32 +29,33 @@ class JobFactory:
         self, 
         api_key: str,
         model_id: str, 
-        messages: List[ChatMessage], 
+        messages: List[ChatMessage],
+        cache_options: CacheOptions, 
         max_completion_tokens: int, 
         temperature: float = 1.0,
         top_k: int = 0,
         top_p: float = 1.0,
         min_p: float = 0.0,
         presence_penalty: float = 0.0,
-        start: Optional[Callable] = None,
-        update: Optional[Callable] = None,
-        resolve: Optional[Promise] = None
+        send_start: Optional[Callable] = None,
+        send_update: Optional[Callable] = None,
+        resolve_promise: Optional[Promise] = None
     ) -> Optional[Job]:
         end_model = self.pipe_manager.model_manager.get_end_model(model_id)
         if end_model is None:
-            if resolve is not None:
-                resolve('NO_ENDS') # pyright: ignore[reportCallIssue]
+            if resolve_promise is not None:
+                resolve_promise('NO_ENDS') # pyright: ignore[reportCallIssue]
             return
         
         pipe = self.pipe_manager.get_pipe_by_model_id(model_id, start_layer=len(end_model.layers))
         if pipe is None:
-            if resolve is not None:
-                resolve('NO_PIPE') # pyright: ignore[reportCallIssue]
+            if resolve_promise is not None:
+                resolve_promise('NO_PIPE') # pyright: ignore[reportCallIssue]
             return
 
         if api_key in self.job_tracker.jobs_pending and len(self.job_tracker.jobs_pending[api_key]) > self.get_max_api_jobs():
-            if resolve is not None:
-                resolve('MAX_JOBS') # pyright: ignore[reportCallIssue]
+            if resolve_promise is not None:
+                resolve_promise('MAX_JOBS') # pyright: ignore[reportCallIssue]
             return
         
         node_id = self.pipe_manager.router_pipes.router.node_id()
@@ -61,6 +63,7 @@ class JobFactory:
         job = Job(
             origin_node_id=node_id,
             messages=messages, 
+            cache_options=cache_options,
             pipe_id=pipe.pipe_id, 
             model_id=pipe.model_id,
             config=end_model.collector.config,
@@ -70,23 +73,20 @@ class JobFactory:
             min_p=min_p, 
             presence_penalty=presence_penalty,
             max_completion_tokens=max_completion_tokens,
-            resolve=resolve,
-            update=update,
+            resolve=resolve_promise,
+            update=send_update,
             complete=self.job_tracker.complete_job
         )
 
         self.logger.info(f"Job {job.job_id[:4]} started")
 
-        # Register (and open the response stream) before handing the job to the
-        # pipe: the first hop can be this same node, and a job that finishes or
-        # gets canceled before it is tracked would never reach the caller.
         if api_key not in self.job_tracker.jobs_pending:
             self.job_tracker.jobs_pending[api_key] = [ ]
 
         self.job_tracker.jobs_pending[api_key].append(job)
 
-        if start is not None:
-            start(job)
+        if send_start is not None:
+            send_start(job)
 
         try:
             pipe.send_job(job.to_network_job(), node_id)

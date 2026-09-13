@@ -83,7 +83,7 @@ class MaxApiJobsTests(unittest.TestCase):
         resolved = []
         factory.start_job(
             "key-1", "model-1", [], max_completion_tokens=8,
-            resolve=lambda v: resolved.append(v), # pyright: ignore[reportArgumentType]
+            resolve_promise=lambda v: resolved.append(v), # pyright: ignore[reportArgumentType]
         )
 
         self.assertEqual(resolved, ["MAX_JOBS"])
@@ -94,7 +94,7 @@ class MaxApiJobsTests(unittest.TestCase):
         resolved = []
         job = factory.start_job(
             "key-1", "model-1", [], max_completion_tokens=8,
-            resolve=lambda v: resolved.append(v), # pyright: ignore[reportArgumentType]
+            resolve_promise=lambda v: resolved.append(v), # pyright: ignore[reportArgumentType]
         )
 
         self.assertIsNotNone(job)
@@ -109,7 +109,7 @@ class MaxApiJobsTests(unittest.TestCase):
         # A different key is unaffected by key-1 being over the limit.
         job = factory.start_job(
             "key-2", "model-1", [], max_completion_tokens=8,
-            resolve=lambda v: resolved.append(v), # pyright: ignore[reportArgumentType]
+            resolve_promise=lambda v: resolved.append(v), # pyright: ignore[reportArgumentType]
         )
 
         self.assertIsNotNone(job)
@@ -136,7 +136,7 @@ class DispatchOrderTests(unittest.TestCase):
 
         factory.start_job(
             "key-1", "model-1", [], max_completion_tokens=8,
-            start=lambda j: started.append(j),
+            send_start=lambda j: started.append(j),
         )
 
         self.assertEqual(len(started), 1)
@@ -147,7 +147,7 @@ class DispatchOrderTests(unittest.TestCase):
 
         job = factory.start_job(
             "key-1", "model-1", [], max_completion_tokens=8,
-            resolve=lambda v: resolved.append(v), # pyright: ignore[reportArgumentType]
+            resolve_promise=lambda v: resolved.append(v), # pyright: ignore[reportArgumentType]
         )
 
         self.assertIsNone(job)

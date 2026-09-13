@@ -54,7 +54,7 @@ class EndModel:
     def compute_layers(self, job: Job):
         if job.data is None:
             raise Exception("Job did not have data")
-        state, shared_kv_states = compute_layers(0, job.data, self.device, self.collector.config, self.layers, job.cache)
+        state, shared_kv_states = compute_layers(0, job.data, self.device, self.collector.config, self.layers, job.cache.data)
         job.set_layer(
             state=state,
             layer=len(self.layers),
@@ -93,7 +93,7 @@ class EndModel:
             input_embedder=self.input_embedding,
             input_ids=torch.tensor([job.input_ids]),
             config=self.collector.config,
-            cache=job.cache,
+            cache=job.cache.data,
             per_layer_embedder=self.per_layer_embedder,
             past_seen_tokens=job.past_seen_tokens()
         )

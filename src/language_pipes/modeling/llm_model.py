@@ -113,7 +113,7 @@ class LlmModel:
             self.device,
             self.collector.config,
             self.layers,
-            job.cache,
+            job.cache.data,
         )
         job.set_layer(
             state=state,

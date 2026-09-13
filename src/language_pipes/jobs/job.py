@@ -1,13 +1,13 @@
 from time import time
 from uuid import uuid4
-from typing import Any, Iterable, List, Optional
+from typing import Any, Iterable
 
 import torch
 from promise import Promise
 from typing import Callable
 from transformers import PretrainedConfig
-from transformers.cache_utils import DynamicCache
 
+from language_pipes.jobs.job_cache import JobCache
 from language_pipes.jobs.job_data import JobData
 from language_pipes.jobs.job_progress import JobProgress
 from language_pipes.jobs.network_job import NetworkJob
@@ -16,6 +16,7 @@ from language_pipes.jobs.timing_stats import TimingStats
 from language_pipes.util.chat import ChatMessage
 from language_pipes.util.chunk_state import ChunkState
 from language_pipes.util.enums import ComputeStep, JobStatus
+from language_pipes.util.oai_cache import CacheOptions
 
 class Job:
     # IDs
@@ -29,20 +30,20 @@ class Job:
     prompt_tokens: int = 0
 
     # State Info
-    input_ids: List[int]
+    input_ids: list[int]
     compute_step: ComputeStep
     status: JobStatus
     current_token: int = 0
     current_layer: int = 0
-    data: Optional[JobData]
-    messages: List[ChatMessage]
-    result: Optional[str]
+    data: JobData | None
+    messages: list[ChatMessage]
+    result: str | None
     last_update: float
     timing_stats: TimingStats
     stale: bool
-    cancel_reason: Optional[str]
+    cancel_reason: str | None
     # Origin's progress report, kept only on the nodes that can't derive it
-    reported_progress: Optional[JobProgress]
+    reported_progress: JobProgress | None
     
     # API params
     top_k: int
@@ -53,31 +54,32 @@ class Job:
     max_completion_tokens: int
 
     # Classes
-    cache: DynamicCache
+    cache: JobCache
     chunking: ChunkState
 
     # Functions
     resolve: Promise | None
-    update: Optional[Callable[["Job"], None]]
+    update: Callable[["Job"], None] | None
     complete: Callable[[], None]
 
     def __init__(
             self,
             origin_node_id: str,
-            messages: List[ChatMessage],
+            messages: list[ChatMessage],
+            cache_options: CacheOptions,
             pipe_id: str,
             model_id: str,
             config: PretrainedConfig,
-            data: Optional[JobData] = None,
+            data: JobData | None = None,
             temperature: float = 1.0,
             top_k: int = 0,
             top_p: float = 1.0,
             min_p: float = 0.0,
             presence_penalty: float = 0.0,
             max_completion_tokens: int = 1000,
-            resolve: Optional[Promise] = None,
-            update: Optional[Callable[["Job"], None]] = None,
-            complete: Optional[Callable[["Job"], None]] = None
+            resolve: Promise | None = None,
+            update: Callable[["Job"], None] | None = None,
+            complete: Callable[["Job"], None] | None = None
         ):
         self.pipe_id = pipe_id
         self.model_id = model_id
@@ -108,7 +110,7 @@ class Job:
         
         self.current_layer = 0
 
-        self.cache = DynamicCache(config=config)
+        self.cache = JobCache(cache_options, config)
         self.chunking = ChunkState(self.job_id)
         self.resolve = resolve
         self.update = update
@@ -143,7 +145,7 @@ class Job:
         # Decoding: every token but the one about to be embedded.
         return len(self.input_ids) - 1
 
-    def set_layer(self, state: torch.Tensor, layer: int, num_hidden_layers: int, shared_kv_states: Optional[dict] = None):
+    def set_layer(self, state: torch.Tensor, layer: int, num_hidden_layers: int, shared_kv_states: dict | None = None):
         if self.compute_step != ComputeStep.LAYER:
             raise Exception('Invalid step for layer')
         self.current_layer = layer
@@ -277,7 +279,7 @@ class Job:
         tensors = []
         # Newer transformers: cache.layers is a list of layer objects with keys/values
         if hasattr(self.cache, "layers"):
-            for layer in self.cache.layers:
+            for layer in self.cache.data.layers:
                 tensors.append(getattr(layer, "keys", None))
                 tensors.append(getattr(layer, "values", None))
         # Older transformers: parallel key_cache / value_cache lists of tensors
