@@ -1,25 +1,17 @@
 import json
 import time
 import threading
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Tuple
 
 from promise import Promise
 from http.server import BaseHTTPRequestHandler
 
-from language_pipes.jobs.job import Job
+from language_pipes.jobs.job import Job, chat_usage, responses_usage
 from language_pipes.util.chat import ChatMessage, ChatRole
 from language_pipes.util.http import _connection_alive, _respond_json, _send_code, _send_sse_headers
+from language_pipes.util.oai_cache import CacheOptions, parse_cache_options
 from language_pipes.util.oai_chunks import send_complete, send_error, send_initial_chunk, send_keepalive, send_update_chunk
 
-# Emit an SSE keepalive comment after this many seconds of write silence so the
-# stream survives long time-to-first-token (e.g. slow 8-bit prefill) and slow
-# inter-token gaps. Kept well under common 30-60s client/proxy idle timeouts.
-SSE_KEEPALIVE_INTERVAL = 10.0
-
-# How often the disconnect watchdog polls the client socket. Prompt processing
-# (prefill) can run for a long time between update() calls, so this has to be
-# independent of per-token/per-chunk writes to catch a drop while it's happening.
-DISCONNECT_CHECK_INTERVAL = 1.0
 from language_pipes.util.oai_tool_calls import (
     ReasoningStreamSplitter,
     ResponsesTool,
@@ -32,6 +24,16 @@ from language_pipes.util.oai_tool_calls import (
     validate_tool_choice,
 )
 
+# Emit an SSE keepalive comment after this many seconds of write silence so the
+# stream survives long time-to-first-token (e.g. slow 8-bit prefill) and slow
+# inter-token gaps. Kept well under common 30-60s client/proxy idle timeouts.
+SSE_KEEPALIVE_INTERVAL = 10.0
+
+# How often the disconnect watchdog polls the client socket. Prompt processing
+# (prefill) can run for a long time between update() calls, so this has to be
+# independent of per-token/per-chunk writes to catch a drop while it's happening.
+DISCONNECT_CHECK_INTERVAL = 1.0
+
 class ChatCompletionRequest:
     model: str
     stream: bool
@@ -42,6 +44,10 @@ class ChatCompletionRequest:
     top_p: float
     min_p: float
     presence_penalty: float
+    cache_options: CacheOptions
+    # `stream_options.include_usage`: the only OpenAI-sanctioned way to get a
+    # usage block out of a chat-completion stream.
+    include_usage: bool
 
     def __init__(
             self, 
@@ -53,7 +59,9 @@ class ChatCompletionRequest:
             top_k: int = 0,
             top_p: float = 1.0,
             min_p: float = 0.0,
-            presence_penalty: float = 0.0
+            presence_penalty: float = 0.0,
+            cache_options: Optional[CacheOptions] = None,
+            include_usage: bool = False
         ):
         self.model = model
         self.stream = stream
@@ -64,6 +72,8 @@ class ChatCompletionRequest:
         self.top_p = top_p
         self.min_p = min_p
         self.presence_penalty = presence_penalty
+        self.cache_options = cache_options if cache_options is not None else CacheOptions()
+        self.include_usage = include_usage
 
     def to_json(self):
         return {
@@ -86,13 +96,16 @@ class ChatCompletionRequest:
         if "max_completion_tokens" in data:
             max_completion_tokens = data['max_completion_tokens']
         
-        stream = data['stream'] if 'stream' in data else False
-        temperature = data['temperature'] if 'temperature' in data else 1.0
-        top_k = data['top_k'] if 'top_k' in data else 0
-        top_p = data['top_p'] if 'top_p' in data else 1.0
-        min_p = data['min_p'] if 'min_p' in data else 0.0
-        presence_penalty = data['presence_penalty'] if 'presence_penalty' in data else 0.0
-        return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature, top_k, top_p, min_p, presence_penalty)
+        stream = data.get('stream', False)
+        temperature = data.get('temperature', 1.0)
+        top_k = data.get('top_k', 0)
+        top_p = data.get('top_p', 1.0)
+        min_p = data.get('min_p', 0.0)
+        presence_penalty = data.get('presence_penalty', 0.0)
+        cache_options = parse_cache_options(data)
+        stream_options = data.get('stream_options')
+        include_usage = bool(stream_options.get('include_usage')) if isinstance(stream_options, dict) else False
+        return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature, top_k, top_p, min_p, presence_penalty, cache_options, include_usage)
 
 def _content_to_text(content: Any) -> str:
     if isinstance(content, str):
@@ -112,48 +125,84 @@ def _content_to_text(content: Any) -> str:
         return ""
     return str(content)
 
-def _response_input_to_messages(response_input: Any) -> List[ChatMessage]:
+def _response_input_to_messages(response_input: Any) -> Tuple[List[ChatMessage], List[int]]:
+    """The chat messages an `input` maps to, and where each one came from.
+
+    The second list holds, per message, the index of the `input` item that
+    produced it. A breakpoint is marked on an item but has to become a *message*
+    index for the chat template to be re-rendered up to it, and the two do not
+    line up on their own: an item the mapping skips produces no message at all.
+    """
     if isinstance(response_input, str):
-        return [ChatMessage(ChatRole.USER, response_input)]
+        return [ChatMessage(ChatRole.USER, response_input)], [0]
 
     items = response_input if isinstance(response_input, list) else [response_input]
-    messages = []
-    for item in items:
-        if isinstance(item, str):
-            messages.append(ChatMessage(ChatRole.USER, item))
-            continue
-        if not isinstance(item, dict):
-            continue
+    messages: List[ChatMessage] = []
+    sources: List[int] = []
+    for index, item in enumerate(items):
+        produced = _input_item_to_messages(item)
+        messages.extend(produced)
+        sources.extend([index] * len(produced))
 
-        item_type = item.get("type")
-        role = item.get("role")
+    return messages, sources
 
-        if item_type == "function_call":
-            # A prior assistant tool call. Replay it as an assistant message so
-            # the model has the context of what it asked for before it sees the
-            # corresponding tool result.
-            messages.append(ChatMessage(
-                ChatRole.ASSISTANT,
-                format_assistant_tool_call(
-                    item.get("name"),
-                    item.get("arguments", ""),
-                    item.get("call_id")
-                )
-            ))
-        elif item_type == "function_call_output":
-            output = _content_to_text(item.get("output", ""))
-            messages.append(ChatMessage(
-                ChatRole.USER,
-                format_tool_result(item.get("call_id"), output)
-            ))
-        elif item_type == "message" or role is not None:
-            content = _content_to_text(item.get("content", ""))
-            messages.append(ChatMessage.from_dict({
-                "role": role or "user",
-                "content": content
-            }))
 
-    return messages
+def _input_item_to_messages(item: Any) -> List[ChatMessage]:
+    """The chat messages one `input` item maps to; none for an item we skip."""
+    if isinstance(item, str):
+        return [ChatMessage(ChatRole.USER, item)]
+    if not isinstance(item, dict):
+        return []
+
+    item_type = item.get("type")
+    role = item.get("role")
+
+    if item_type == "function_call":
+        # A prior assistant tool call. Replay it as an assistant message so
+        # the model has the context of what it asked for before it sees the
+        # corresponding tool result.
+        return [ChatMessage(
+            ChatRole.ASSISTANT,
+            format_assistant_tool_call(
+                item.get("name"),
+                item.get("arguments", ""),
+                item.get("call_id")
+            )
+        )]
+    if item_type == "function_call_output":
+        output = _content_to_text(item.get("output", ""))
+        return [ChatMessage(
+            ChatRole.USER,
+            format_tool_result(item.get("call_id"), output)
+        )]
+    if item_type == "message" or role is not None:
+        content = _content_to_text(item.get("content", ""))
+        return [ChatMessage.from_dict({
+            "role": role or "user",
+            "content": content
+        })]
+    return []
+
+
+def _breakpoints_to_message_indices(
+    marked_items: List[int],
+    sources: List[int],
+    offset: int
+) -> List[int]:
+    """Turn `input`-item breakpoints into indices of the final message list.
+
+    A breakpoint names the end of an item, so the prefix ends on the last
+    message that item produced; an item that produced none is dropped. `offset`
+    covers the messages inserted ahead of the input - `instructions` and the
+    tool schemas - which are part of every prefix and shift every index by the
+    same amount.
+    """
+    indices = []
+    for item in marked_items:
+        positions = [i for i, source in enumerate(sources) if source == item]
+        if len(positions) > 0:
+            indices.append(positions[-1] + offset)
+    return sorted(set(indices))
 
 class ResponsesRequest:
     model: str
@@ -170,6 +219,7 @@ class ResponsesRequest:
     tools: List[ResponsesTool]
     tool_choice: Any
     parallel_tool_calls: bool
+    cache_options: CacheOptions
 
     def __init__(
             self,
@@ -179,6 +229,7 @@ class ResponsesRequest:
             instructions: Optional[str],
             max_output_tokens: int,
             messages: List[ChatMessage],
+            cache_options: CacheOptions,
             temperature: float = 1.0,
             top_k: int = 0,
             top_p: float = 1.0,
@@ -202,9 +253,10 @@ class ResponsesRequest:
         self.tools = tools if tools is not None else []
         self.tool_choice = tool_choice
         self.parallel_tool_calls = parallel_tool_calls
+        self.cache_options = cache_options
 
     @staticmethod
-    def from_dict(data):
+    def from_dict(data: dict):
         max_output_tokens = 1000
         if "max_tokens" in data:
             max_output_tokens = data['max_tokens']
@@ -213,12 +265,12 @@ class ResponsesRequest:
         if "max_output_tokens" in data:
             max_output_tokens = data['max_output_tokens']
 
-        stream = data['stream'] if 'stream' in data else False
-        temperature = data['temperature'] if 'temperature' in data else 1.0
-        top_k = data['top_k'] if 'top_k' in data else 0
-        top_p = data['top_p'] if 'top_p' in data else 1.0
-        min_p = data['min_p'] if 'min_p' in data else 0.0
-        presence_penalty = data['presence_penalty'] if 'presence_penalty' in data else 0.0
+        stream = data.get('stream', False)
+        temperature = data.get('temperature', 1.0)
+        top_k = data.get('top_k', 0)
+        top_p = data.get('top_p', 1.0)
+        min_p = data.get('min_p', 0.0)
+        presence_penalty = data.get('presence_penalty', 0.0)
         instructions = data.get('instructions')
 
         tools: List[ResponsesTool] = []
@@ -228,19 +280,28 @@ class ResponsesRequest:
             tools = parse_tool_definitions(data['tools'])
             validate_tool_choice(tool_choice, tools)
 
-        messages = _response_input_to_messages(data['input'])
+        messages, sources = _response_input_to_messages(data['input'])
+        # Everything inserted here goes ahead of the input, so it shifts every
+        # breakpoint index by the same amount.
+        inserted = 0
         if instructions is not None:
             messages.insert(0, ChatMessage(ChatRole.SYSTEM, str(instructions)))
+            inserted += 1
         if len(tools) > 0:
             # Inject tool schemas as a system-level instruction so the model
             # sees the available tools and the expected JSON output format.
             tool_message = ChatMessage(ChatRole.SYSTEM, build_tool_instructions(tools, tool_choice))
             insert_at = 1 if instructions is not None else 0
             messages.insert(insert_at, tool_message)
+            inserted += 1
         if len(messages) == 0:
             raise ValueError("input must contain at least one text message")
 
-        return ResponsesRequest(data['model'], stream, data['input'], instructions, max_output_tokens, messages, temperature, top_k, top_p, min_p, presence_penalty, tools, tool_choice, parallel_tool_calls)
+        cache_options = parse_cache_options(data, responses=True)
+        cache_options.breakpoints = _breakpoints_to_message_indices(
+            cache_options.breakpoints, sources, inserted
+        )
+        return ResponsesRequest(data['model'], stream, data['input'], instructions, max_output_tokens, messages, cache_options, temperature, top_k, top_p, min_p, presence_penalty, tools, tool_choice, parallel_tool_calls)
 
 def _reasoning_item(job: Any, reasoning_text: str) -> dict:
     return {
@@ -294,11 +355,7 @@ def _response_json(job: Any, req: ResponsesRequest, created_at: float):
         "model": job.model_id,
         "output": response_output,
         "output_text": response_output_text,
-        "usage": {
-            "input_tokens": job.prompt_tokens,
-            "output_tokens": job.current_token,
-            "total_tokens": job.prompt_tokens + job.current_token
-        }
+        "usage": responses_usage(job)
     }
 
 def _write_response_event(handler: BaseHTTPRequestHandler, event_type: str, data: dict):
@@ -391,7 +448,10 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
         else:
             if req.stream:
                 with write_lock:
-                    send_complete(job, created_at, handler)
+                    send_complete(
+                        job, created_at, handler,
+                        chat_usage(job) if req.include_usage else None
+                    )
             else:
                 _respond_json(handler, {
                     "id": f"chatcmpl-{job.job_id}",
@@ -406,15 +466,11 @@ def oai_chat_complete(handler: BaseHTTPRequestHandler, complete_cb: Callable, da
                         },
                         "finish_reason": "stop"
                     }],
-                    "usage": {
-                        "prompt_tokens": job.prompt_tokens,
-                        "completion_tokens": job.current_token,
-                        "total_tokens": job.prompt_tokens + job.current_token
-                    }
+                    "usage": chat_usage(job)
                 })
 
     def promise_fn(resolve: Callable, _: Callable):
-        complete_cb(api_key, req.model, req.messages, req.max_completion_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
+        complete_cb(api_key, req.model, req.messages, req.cache_options, req.max_completion_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
     job = Promise(promise_fn).get()
     complete(job)
 
@@ -702,13 +758,13 @@ def oai_responses_create(handler: BaseHTTPRequestHandler, complete_cb: Callable,
                 _respond_json(handler, response)
 
     def promise_fn(resolve: Callable, _: Callable):
-        complete_cb(api_key, req.model, req.messages, req.max_output_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
+        complete_cb(api_key, req.model, req.messages, req.cache_options, req.max_output_tokens, req.temperature, req.top_k, req.top_p, req.min_p, req.presence_penalty, start, update, resolve)
     job = Promise(promise_fn).get()
     complete(job)
 
 def get_models(handler: BaseHTTPRequestHandler, get_models: Callable):
     models = get_models()
-    try:
+    try:  # noqa: SIM105
         _respond_json(handler, {
             "object": "list",
             "data": [

@@ -1,6 +1,6 @@
 from time import time
 from uuid import uuid4
-from typing import Iterable, List, Optional
+from typing import Any, Iterable, List, Optional
 
 import torch
 from promise import Promise
@@ -291,3 +291,38 @@ class Job:
 
         # Return in GB to match system RAM reporting elsewhere
         return total_bytes / (1024**3)
+
+def cached_tokens(job: Job) -> int:
+    """What the job reused, or 0 for anything that never got that far"""
+    return getattr(getattr(job, "caching", None), "cached_tokens", 0)
+
+def cache_write_tokens(job: Job) -> int:
+    """What the job newly committed to the cache, as `cached_tokens`' opposite"""
+    return getattr(getattr(job, "caching", None), "write_tokens", 0)
+
+def input_tokens_details(job: Job) -> dict[str, int]:
+    """`usage.input_tokens_details` for the Responses API."""
+    return {
+        "cached_tokens": cached_tokens(job),
+        "cache_write_tokens": cache_write_tokens(job)
+    }
+
+def prompt_tokens_details(job: Job) -> dict[str, int]:
+    """`usage.prompt_tokens_details` for chat completions"""
+    return {"cached_tokens": cached_tokens(job)}
+
+def responses_usage(job: Job) -> dict[str, Any]:
+    return {
+        "input_tokens": job.prompt_tokens,
+        "input_tokens_details": input_tokens_details(job),
+        "output_tokens": job.current_token,
+        "total_tokens": job.prompt_tokens + job.current_token
+    }
+
+def chat_usage(job: Job) -> dict[str, Any]:
+    return {
+        "prompt_tokens": job.prompt_tokens,
+        "prompt_tokens_details": prompt_tokens_details(job),
+        "completion_tokens": job.current_token,
+        "total_tokens": job.prompt_tokens + job.current_token
+    }
