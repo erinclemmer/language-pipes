@@ -15,16 +15,12 @@ from language_pipes.oai_server.oai_cache import CacheOptions, parse_cache_option
 from language_pipes.util.http import _connection_alive, _respond_json, _send_code, _send_sse_headers
 from language_pipes.util.oai_chunks import send_complete, send_error, send_initial_chunk, send_keepalive, send_update_chunk
 
-from language_pipes.util.oai_tool_calls import (
+from language_pipes.oai_server.oai_tool_calls import (
     ReasoningStreamSplitter,
-    ResponsesTool,
-    build_tool_instructions,
     format_assistant_tool_call,
     format_tool_result,
     parse_tool_call,
-    parse_tool_definitions,
     split_reasoning,
-    validate_tool_choice,
 )
 
 SSE_KEEPALIVE_INTERVAL = 10.0
@@ -126,105 +122,6 @@ def _breakpoints_to_message_indices(
         if len(positions) > 0:
             indices.append(positions[-1] + offset)
     return sorted(set(indices))
-
-class ResponsesRequest:
-    model: str
-    stream: bool
-    input: Any
-    instructions: str | None
-    messages: list[ChatMessage]
-    max_output_tokens: int
-    temperature: float
-    top_k: int
-    top_p: float
-    min_p: float
-    presence_penalty: float
-    tools: list[ResponsesTool]
-    tool_choice: Any
-    parallel_tool_calls: bool
-    cache_options: CacheOptions
-
-    def __init__(
-            self,
-            model: str,
-            stream: bool,
-            response_input: Any,
-            instructions: str | None,
-            max_output_tokens: int,
-            messages: list[ChatMessage],
-            cache_options: CacheOptions,
-            temperature: float = 1.0,
-            top_k: int = 0,
-            top_p: float = 1.0,
-            min_p: float = 0.0,
-            presence_penalty: float = 0.0,
-            tools: list[ResponsesTool] | None = None,
-            tool_choice: Any = None,
-            parallel_tool_calls: bool = False
-        ):
-        self.model = model
-        self.stream = stream
-        self.input = response_input
-        self.instructions = instructions
-        self.max_output_tokens = max_output_tokens
-        self.messages = messages
-        self.temperature = temperature
-        self.top_k = top_k
-        self.top_p = top_p
-        self.min_p = min_p
-        self.presence_penalty = presence_penalty
-        self.tools = tools if tools is not None else []
-        self.tool_choice = tool_choice
-        self.parallel_tool_calls = parallel_tool_calls
-        self.cache_options = cache_options
-
-    @staticmethod
-    def from_dict(data: dict):
-        max_output_tokens = 1000
-        if "max_tokens" in data:
-            max_output_tokens = data['max_tokens']
-        if "max_completion_tokens" in data:
-            max_output_tokens = data['max_completion_tokens']
-        if "max_output_tokens" in data:
-            max_output_tokens = data['max_output_tokens']
-
-        stream = data.get('stream', False)
-        temperature = data.get('temperature', 1.0)
-        top_k = data.get('top_k', 0)
-        top_p = data.get('top_p', 1.0)
-        min_p = data.get('min_p', 0.0)
-        presence_penalty = data.get('presence_penalty', 0.0)
-        instructions = data.get('instructions')
-
-        tools: list[ResponsesTool] = []
-        tool_choice = data.get('tool_choice')
-        parallel_tool_calls = bool(data.get('parallel_tool_calls', False))
-        if data.get('tools') is not None:
-            tools = parse_tool_definitions(data['tools'])
-            validate_tool_choice(tool_choice, tools)
-
-        messages, sources = _response_input_to_messages(data['input'])
-        # Everything inserted here goes ahead of the input, so it shifts every
-        # breakpoint index by the same amount.
-        inserted = 0
-        if instructions is not None:
-            messages.insert(0, ChatMessage(ChatRole.SYSTEM, str(instructions)))
-            inserted += 1
-        if len(tools) > 0:
-            # Inject tool schemas as a system-level instruction so the model
-            # sees the available tools and the expected JSON output format.
-            tool_message = ChatMessage(ChatRole.SYSTEM, build_tool_instructions(tools, tool_choice))
-            insert_at = 1 if instructions is not None else 0
-            messages.insert(insert_at, tool_message)
-            inserted += 1
-        if len(messages) == 0:
-            raise ValueError("input must contain at least one text message")
-
-        cache_options = parse_cache_options(data)
-        cache_options.breakpoints = _breakpoints_to_message_indices(
-            cache_options.breakpoints, sources, inserted
-        )
-        return ResponsesRequest(data['model'], stream, data['input'], instructions, max_output_tokens, messages, cache_options, temperature, top_k, top_p, min_p, presence_penalty, tools, tool_choice, parallel_tool_calls)
 
 def _reasoning_item(job: Any, reasoning_text: str) -> dict:
     return {

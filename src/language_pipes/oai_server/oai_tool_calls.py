@@ -3,10 +3,6 @@ import re
 from typing import Any, List, Optional, Tuple
 from uuid import uuid4
 
-# Custom function tools for the Responses API. Hosted tools (web_search,
-# file_search, computer_use, code_interpreter, ...) are intentionally not
-# supported yet; only `type == "function"` tools are accepted.
-
 class ResponsesTool:
     type: str
     name: str
