@@ -1,6 +1,5 @@
 from language_pipes.oai_server.chat import ChatMessage
 from language_pipes.oai_server.oai_cache import CacheOptions
-from language_pipes.oai_server.oai_cache import parse_cache_options
 
 class ChatCompletionRequest:
     model: str
@@ -63,14 +62,30 @@ class ChatCompletionRequest:
             max_completion_tokens = data['max_tokens']
         if "max_completion_tokens" in data:
             max_completion_tokens = data['max_completion_tokens']
-        
+
+        # TODO: Double check this with the completion endpoint schema
+        # https://developers.openai.com/api/reference/resources/completions
+        # https://developers.openai.com/api/docs/guides/prompt-caching
         stream = data.get('stream', False)
         temperature = data.get('temperature', 1.0)
         top_k = data.get('top_k', 0)
         top_p = data.get('top_p', 1.0)
         min_p = data.get('min_p', 0.0)
         presence_penalty = data.get('presence_penalty', 0.0)
-        cache_options = parse_cache_options(data)
+        prompt_cache_key = data.get("prompt_cache_key", None)
         stream_options = data.get('stream_options')
         include_usage = bool(stream_options.get('include_usage')) if isinstance(stream_options, dict) else False
-        return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature, top_k, top_p, min_p, presence_penalty, cache_options, include_usage)
+        
+        return ChatCompletionRequest(
+            data['model'], 
+            stream, 
+            max_completion_tokens, 
+            [ChatMessage.from_dict(m) for m in data['messages']], 
+            temperature, 
+            top_k, 
+            top_p, 
+            min_p, 
+            presence_penalty, 
+            CacheOptions(prompt_cache_key=prompt_cache_key), 
+            include_usage
+        )

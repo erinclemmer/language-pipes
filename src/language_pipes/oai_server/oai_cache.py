@@ -4,8 +4,8 @@ from typing import Any
 
 @dataclass
 class CacheOptions:
-    prompt_cache_key: str = ""
     mode: str = "implicit"
+    prompt_cache_key: str | None = None
     ttl_seconds: int | None = None
     breakpoints: list[int] = field(default_factory=list)
 
@@ -90,15 +90,10 @@ def _input_breakpoints(response_input: Any) -> list[int]:
     return marked[:MAX_BREAKPOINTS]
 
 def parse_cache_options(
-    data: dict[str, Any],
-    responses: bool = False
+    data: dict[str, Any]
 ) -> CacheOptions:
-    """Read the caching parameters off a request body"""
-    raw_key = data.get("prompt_cache_key")
-    prompt_cache_key = str(raw_key) if isinstance(raw_key, str) else ""
+    prompt_cache_key: str | None = data.get("prompt_cache_key", None)
     options = CacheOptions(prompt_cache_key=prompt_cache_key)
-    if not responses:
-        return options
 
     raw_options = data.get("prompt_cache_options")
     if raw_options is not None:

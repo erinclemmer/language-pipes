@@ -220,7 +220,7 @@ class ResponsesRequest:
         if len(messages) == 0:
             raise ValueError("input must contain at least one text message")
 
-        cache_options = parse_cache_options(data, responses=True)
+        cache_options = parse_cache_options(data)
         cache_options.breakpoints = _breakpoints_to_message_indices(
             cache_options.breakpoints, sources, inserted
         )
