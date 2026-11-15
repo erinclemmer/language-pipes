@@ -9,7 +9,7 @@ from language_pipes.pipes.meta_pipe import MetaPipe
 from language_pipes.modeling.llm_model import LlmModel
 from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.util.byte_helper import ByteHelper
-from language_pipes.util.chat import ChatMessage
+from src.language_pipes.oai_server.chat import ChatMessage
 
 class Pipe:
     pipe_id: str

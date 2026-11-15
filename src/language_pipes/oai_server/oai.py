@@ -1,15 +1,18 @@
 import json
 import time
 import threading
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable
 
 from promise import Promise
 from http.server import BaseHTTPRequestHandler
 
 from language_pipes.jobs.job import Job, chat_usage, responses_usage
-from language_pipes.util.chat import ChatMessage, ChatRole
+
+from language_pipes.oai_server.chat import ChatMessage, ChatRole
+from language_pipes.oai_server.completion_request import ChatCompletionRequest
+from language_pipes.oai_server.oai_cache import CacheOptions, parse_cache_options
+
 from language_pipes.util.http import _connection_alive, _respond_json, _send_code, _send_sse_headers
-from language_pipes.util.oai_cache import CacheOptions, parse_cache_options
 from language_pipes.util.oai_chunks import send_complete, send_error, send_initial_chunk, send_keepalive, send_update_chunk
 
 from language_pipes.util.oai_tool_calls import (
@@ -24,88 +27,8 @@ from language_pipes.util.oai_tool_calls import (
     validate_tool_choice,
 )
 
-# Emit an SSE keepalive comment after this many seconds of write silence so the
-# stream survives long time-to-first-token (e.g. slow 8-bit prefill) and slow
-# inter-token gaps. Kept well under common 30-60s client/proxy idle timeouts.
 SSE_KEEPALIVE_INTERVAL = 10.0
-
-# How often the disconnect watchdog polls the client socket. Prompt processing
-# (prefill) can run for a long time between update() calls, so this has to be
-# independent of per-token/per-chunk writes to catch a drop while it's happening.
 DISCONNECT_CHECK_INTERVAL = 1.0
-
-class ChatCompletionRequest:
-    model: str
-    stream: bool
-    messages: List[ChatMessage]
-    max_completion_tokens: int
-    temperature: float
-    top_k: int
-    top_p: float
-    min_p: float
-    presence_penalty: float
-    cache_options: CacheOptions
-    # `stream_options.include_usage`: the only OpenAI-sanctioned way to get a
-    # usage block out of a chat-completion stream.
-    include_usage: bool
-
-    def __init__(
-            self, 
-            model: str, 
-            stream: bool,
-            max_completion_tokens: int,
-            messages: List[ChatMessage],
-            temperature: float = 1.0,
-            top_k: int = 0,
-            top_p: float = 1.0,
-            min_p: float = 0.0,
-            presence_penalty: float = 0.0,
-            cache_options: Optional[CacheOptions] = None,
-            include_usage: bool = False
-        ):
-        self.model = model
-        self.stream = stream
-        self.max_completion_tokens = max_completion_tokens
-        self.messages = messages
-        self.temperature = temperature
-        self.top_k = top_k
-        self.top_p = top_p
-        self.min_p = min_p
-        self.presence_penalty = presence_penalty
-        self.cache_options = cache_options if cache_options is not None else CacheOptions()
-        self.include_usage = include_usage
-
-    def to_json(self):
-        return {
-            'model': self.model,
-            'stream': self.stream,
-            'max_completion_tokens': self.max_completion_tokens,
-            'messages': [m.to_json() for m in self.messages],
-            'temperature': self.temperature,
-            'top_k': self.top_k,
-            'top_p': self.top_p,
-            'min_p': self.min_p,
-            'presence_penalty': self.presence_penalty
-        }
-    
-    @staticmethod
-    def from_dict(data):
-        max_completion_tokens = 1000
-        if "max_tokens" in data:
-            max_completion_tokens = data['max_tokens']
-        if "max_completion_tokens" in data:
-            max_completion_tokens = data['max_completion_tokens']
-        
-        stream = data.get('stream', False)
-        temperature = data.get('temperature', 1.0)
-        top_k = data.get('top_k', 0)
-        top_p = data.get('top_p', 1.0)
-        min_p = data.get('min_p', 0.0)
-        presence_penalty = data.get('presence_penalty', 0.0)
-        cache_options = parse_cache_options(data)
-        stream_options = data.get('stream_options')
-        include_usage = bool(stream_options.get('include_usage')) if isinstance(stream_options, dict) else False
-        return ChatCompletionRequest(data['model'], stream, max_completion_tokens, [ChatMessage.from_dict(m) for m in data['messages']], temperature, top_k, top_p, min_p, presence_penalty, cache_options, include_usage)
 
 def _content_to_text(content: Any) -> str:
     if isinstance(content, str):
@@ -125,7 +48,7 @@ def _content_to_text(content: Any) -> str:
         return ""
     return str(content)
 
-def _response_input_to_messages(response_input: Any) -> Tuple[List[ChatMessage], List[int]]:
+def _response_input_to_messages(response_input: Any) -> tuple[list[ChatMessage], list[int]]:
     """The chat messages an `input` maps to, and where each one came from.
 
     The second list holds, per message, the index of the `input` item that
@@ -137,8 +60,8 @@ def _response_input_to_messages(response_input: Any) -> Tuple[List[ChatMessage],
         return [ChatMessage(ChatRole.USER, response_input)], [0]
 
     items = response_input if isinstance(response_input, list) else [response_input]
-    messages: List[ChatMessage] = []
-    sources: List[int] = []
+    messages: list[ChatMessage] = []
+    sources: list[int] = []
     for index, item in enumerate(items):
         produced = _input_item_to_messages(item)
         messages.extend(produced)
@@ -147,7 +70,7 @@ def _response_input_to_messages(response_input: Any) -> Tuple[List[ChatMessage],
     return messages, sources
 
 
-def _input_item_to_messages(item: Any) -> List[ChatMessage]:
+def _input_item_to_messages(item: Any) -> list[ChatMessage]:
     """The chat messages one `input` item maps to; none for an item we skip."""
     if isinstance(item, str):
         return [ChatMessage(ChatRole.USER, item)]
@@ -185,10 +108,10 @@ def _input_item_to_messages(item: Any) -> List[ChatMessage]:
 
 
 def _breakpoints_to_message_indices(
-    marked_items: List[int],
-    sources: List[int],
+    marked_items: list[int],
+    sources: list[int],
     offset: int
-) -> List[int]:
+) -> list[int]:
     """Turn `input`-item breakpoints into indices of the final message list.
 
     A breakpoint names the end of an item, so the prefix ends on the last
@@ -208,15 +131,15 @@ class ResponsesRequest:
     model: str
     stream: bool
     input: Any
-    instructions: Optional[str]
-    messages: List[ChatMessage]
+    instructions: str | None
+    messages: list[ChatMessage]
     max_output_tokens: int
     temperature: float
     top_k: int
     top_p: float
     min_p: float
     presence_penalty: float
-    tools: List[ResponsesTool]
+    tools: list[ResponsesTool]
     tool_choice: Any
     parallel_tool_calls: bool
     cache_options: CacheOptions
@@ -226,16 +149,16 @@ class ResponsesRequest:
             model: str,
             stream: bool,
             response_input: Any,
-            instructions: Optional[str],
+            instructions: str | None,
             max_output_tokens: int,
-            messages: List[ChatMessage],
+            messages: list[ChatMessage],
             cache_options: CacheOptions,
             temperature: float = 1.0,
             top_k: int = 0,
             top_p: float = 1.0,
             min_p: float = 0.0,
             presence_penalty: float = 0.0,
-            tools: Optional[List[ResponsesTool]] = None,
+            tools: list[ResponsesTool] | None = None,
             tool_choice: Any = None,
             parallel_tool_calls: bool = False
         ):
@@ -273,7 +196,7 @@ class ResponsesRequest:
         presence_penalty = data.get('presence_penalty', 0.0)
         instructions = data.get('instructions')
 
-        tools: List[ResponsesTool] = []
+        tools: list[ResponsesTool] = []
         tool_choice = data.get('tool_choice')
         parallel_tool_calls = bool(data.get('parallel_tool_calls', False))
         if data.get('tools') is not None:
@@ -373,7 +296,7 @@ def _start_disconnect_watchdog(
     job: Job,
     stream: bool,
     write_lock: threading.Lock,
-    last_write: List[float],
+    last_write: list[float],
 ) -> threading.Event:
     """Poll the client connection for the life of the job so a drop is caught
     even mid prompt-processing, where no per-token/per-chunk update() call

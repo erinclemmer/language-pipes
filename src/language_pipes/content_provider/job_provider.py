@@ -14,7 +14,7 @@ from language_pipes.jobs.job_receiver import JobReceiver
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.jobs.timing_stats import TimingStats
 from language_pipes.modeling.model_manager import ModelManager
-from language_pipes.oai_server import OAIHttpServer
+from language_pipes.oai_server.oai_server import OAIHttpServer
 from language_pipes.pipes.pipe_manager import PipeManager
 from language_pipes.pipes.router_pipes import RouterPipes
 from language_pipes.util.utils import stop_thread

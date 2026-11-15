@@ -13,10 +13,10 @@ from language_pipes.jobs.job_progress import JobProgress
 from language_pipes.jobs.network_job import NetworkJob
 from language_pipes.jobs.timing_stats import TimingStats
 
-from language_pipes.util.chat import ChatMessage
+from src.language_pipes.oai_server.chat import ChatMessage
 from language_pipes.util.chunk_state import ChunkState
 from language_pipes.util.enums import ComputeStep, JobStatus
-from language_pipes.util.oai_cache import CacheOptions
+from src.language_pipes.oai_server.oai_cache import CacheOptions
 
 class Job:
     # IDs

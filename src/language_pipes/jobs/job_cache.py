@@ -1,6 +1,6 @@
 from transformers import DynamicCache, PretrainedConfig
 
-from language_pipes.util.oai_cache import CacheOptions
+from src.language_pipes.oai_server.oai_cache import CacheOptions
 
 
 class JobCache:

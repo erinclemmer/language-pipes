@@ -10,7 +10,7 @@ import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
-from language_pipes.oai_server import OAIHttpServer
+from language_pipes.oai_server.oai_server import OAIHttpServer
 
 CANCEL_REASON = "layers for model-1 unloaded"
 

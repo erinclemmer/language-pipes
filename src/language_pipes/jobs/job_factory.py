@@ -4,10 +4,10 @@ from promise import Promise
 from typing import List, Optional, Callable
 
 from language_pipes.jobs.job import Job
-from language_pipes.util.chat import ChatMessage
+from src.language_pipes.oai_server.chat import ChatMessage
 from language_pipes.jobs.job_tracker import JobTracker
 from language_pipes.pipes.pipe_manager import PipeManager
-from language_pipes.util.oai_cache import CacheOptions
+from src.language_pipes.oai_server.oai_cache import CacheOptions
 
 class JobFactory:
     job_tracker: JobTracker

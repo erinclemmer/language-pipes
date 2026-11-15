@@ -3,7 +3,7 @@ import logging
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable, List, Optional
 
-from language_pipes.util.oai import oai_chat_complete, oai_responses_create, get_models
+from language_pipes.oai_server.oai import oai_chat_complete, oai_responses_create, get_models
 from language_pipes.util.http import _send_code
 
 logger = logging.getLogger(__name__)

@@ -9,9 +9,9 @@ import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
-from language_pipes.oai_server import OAIHttpServer
-from language_pipes.util.chat import ChatRole
-from language_pipes.util.oai import ResponsesRequest, _response_json
+from language_pipes.oai_server.oai_server import OAIHttpServer
+from language_pipes.oai_server.chat import ChatRole
+from language_pipes.oai_server.oai import ResponsesRequest, _response_json
 from language_pipes.util.oai_tool_calls import (
     ReasoningStreamSplitter,
     parse_tool_call,

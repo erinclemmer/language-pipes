@@ -13,6 +13,7 @@ Adding a model = adding one ``TinyModelSpec`` to ``specs.py``. Nothing here chan
     python -m unittest tests.llm_layer_collector.test_tiny_models -k ministral
 """
 
+from pathlib import Path
 import tempfile
 import unittest
 
@@ -39,7 +40,7 @@ CHUNK = 3
 
 def _base_model(hf_model: torch.nn.Module) -> torch.nn.Module:
     """The inner transformer that returns ``last_hidden_state`` (before lm_head)."""
-    return hf_model.model if hasattr(hf_model, "model") else hf_model
+    return hf_model.model if hasattr(hf_model, "model") else hf_model # pyright: ignore[reportReturnType]
 
 
 def _new_cache(config) -> DynamicCache:
@@ -103,7 +104,7 @@ def _our_forward(collector, input_ids, cache, chunk_size,
 class _SpecRunner:
     """Holds the per-spec fixtures so the four phases share one checkpoint."""
 
-    def __init__(self, test: unittest.TestCase, spec: TinyModelSpec, model_dir: str):
+    def __init__(self, test: unittest.TestCase, spec: TinyModelSpec, model_dir: Path):
         self.t = test
         self.spec = spec
         torch.manual_seed(1234)
