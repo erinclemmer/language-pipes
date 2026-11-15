@@ -1,10 +1,14 @@
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 
+class CacheMode(Enum):
+    IMPLICIT = 'implicit'
+    EXPLICIT = 'explicit'
 
 @dataclass
 class CacheOptions:
-    mode: str = "implicit"
+    mode: CacheMode = CacheMode.IMPLICIT
     prompt_cache_key: str | None = None
     ttl_seconds: int | None = None
     breakpoints: list[int] = field(default_factory=list)

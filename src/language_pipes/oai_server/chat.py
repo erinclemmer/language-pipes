@@ -5,6 +5,7 @@ class ChatRole(Enum):
     SYSTEM = 'system'
     ASSISTANT = 'assistant'
     USER = 'user'
+    DEVELOPER = 'developer'
 
 def str_to_chat_role(role: str) -> ChatRole:
     if role == 'system':
@@ -13,7 +14,9 @@ def str_to_chat_role(role: str) -> ChatRole:
         return ChatRole.ASSISTANT
     if role == 'user':
         return ChatRole.USER
-    
+    if role == 'developer':
+        return ChatRole.DEVELOPER
+
     return ChatRole.USER
 
 class ChatMessage:
